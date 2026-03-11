@@ -7,12 +7,19 @@ COPY packages/sdk/package.json packages/sdk/
 COPY packages/db-adapters/package.json packages/db-adapters/
 COPY packages/demo/package.json packages/demo/
 
-# Narrow workspaces to only the packages in this build
+# Narrow workspaces to only the packages in this build, and strip
+# web-only dependencies from demo (react, @stratum/react) since
+# this image only runs the API server.
 RUN node -e " \
   const fs = require('fs'); \
-  const p = JSON.parse(fs.readFileSync('package.json', 'utf8')); \
-  p.workspaces = ['packages/core', 'packages/sdk', 'packages/db-adapters', 'packages/demo']; \
-  fs.writeFileSync('package.json', JSON.stringify(p, null, 2));"
+  const root = JSON.parse(fs.readFileSync('package.json', 'utf8')); \
+  root.workspaces = ['packages/core', 'packages/sdk', 'packages/db-adapters', 'packages/demo']; \
+  fs.writeFileSync('package.json', JSON.stringify(root, null, 2)); \
+  const demo = JSON.parse(fs.readFileSync('packages/demo/package.json', 'utf8')); \
+  delete demo.dependencies['@stratum/react']; \
+  delete demo.dependencies['react']; \
+  delete demo.dependencies['react-dom']; \
+  fs.writeFileSync('packages/demo/package.json', JSON.stringify(demo, null, 2));"
 RUN npm install
 
 COPY packages/core/ packages/core/
@@ -20,6 +27,9 @@ COPY packages/sdk/ packages/sdk/
 COPY packages/db-adapters/ packages/db-adapters/
 COPY packages/demo/ packages/demo/
 COPY tsconfig.base.json ./
+
+# Restore the stripped demo package.json for the build step
+# (tsc needs the original for type resolution, but won't install anything)
 RUN npm run build --workspace=@stratum/core && \
     npm run build --workspace=@stratum/sdk && \
     npm run build --workspace=@stratum/db-adapters && \
@@ -30,11 +40,22 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy package.json files for production install
+# Copy package.json files for production install (use builder's stripped demo package.json)
 COPY --from=builder /app/packages/core/package.json ./packages/core/
 COPY --from=builder /app/packages/sdk/package.json ./packages/sdk/
 COPY --from=builder /app/packages/db-adapters/package.json ./packages/db-adapters/
-COPY --from=builder /app/packages/demo/package.json ./packages/demo/
+
+# Strip web-only deps from demo package.json for production install
+RUN mkdir -p packages/demo
+COPY --from=builder /app/packages/demo/package.json ./packages/demo/tmp.json
+RUN node -e " \
+  const fs = require('fs'); \
+  const demo = JSON.parse(fs.readFileSync('packages/demo/tmp.json', 'utf8')); \
+  delete demo.dependencies['@stratum/react']; \
+  delete demo.dependencies['react']; \
+  delete demo.dependencies['react-dom']; \
+  fs.writeFileSync('packages/demo/package.json', JSON.stringify(demo, null, 2)); \
+  fs.unlinkSync('packages/demo/tmp.json');"
 
 # Fresh production install — npm handles hoisting and symlinks correctly
 RUN node -e " \
