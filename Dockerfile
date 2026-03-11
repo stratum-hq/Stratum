@@ -18,16 +18,18 @@ RUN npm run build --workspace=@stratum/core && \
     npm run build --workspace=@stratum/db-adapters && \
     npm run build --workspace=@stratum/control-plane
 
-# Resolve workspace symlinks into real copies for the runner stage
-# Remove broken symlinks (workspace packages not in this build), then copy
-RUN find node_modules -xtype l -delete && cp -rL node_modules node_modules_resolved
+# Remove workspace symlinks so COPY to runner doesn't carry broken links
+RUN rm -rf node_modules/@stratum
 
 FROM node:18-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=builder /app/node_modules_resolved ./node_modules
+# Copy third-party dependencies (workspace symlinks already removed)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy built workspace packages
 COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/core/package.json ./packages/core/
 COPY --from=builder /app/packages/lib/dist ./packages/lib/dist
@@ -38,6 +40,13 @@ COPY --from=builder /app/packages/control-plane/dist ./packages/control-plane/di
 COPY --from=builder /app/packages/control-plane/package.json ./packages/control-plane/
 COPY --from=builder /app/packages/control-plane/src/db/migrations ./packages/control-plane/src/db/migrations
 COPY --from=builder /app/package.json ./
+
+# Recreate workspace symlinks pointing to the copied package directories
+RUN mkdir -p node_modules/@stratum && \
+    ln -s ../../packages/core node_modules/@stratum/core && \
+    ln -s ../../packages/lib node_modules/@stratum/lib && \
+    ln -s ../../packages/db-adapters node_modules/@stratum/db-adapters && \
+    ln -s ../../packages/control-plane node_modules/@stratum/control-plane
 
 EXPOSE 3001
 CMD ["node", "packages/control-plane/dist/index.js"]
