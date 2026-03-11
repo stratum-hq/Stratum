@@ -6,7 +6,15 @@ COPY packages/core/package.json packages/core/
 COPY packages/lib/package.json packages/lib/
 COPY packages/db-adapters/package.json packages/db-adapters/
 COPY packages/control-plane/package.json packages/control-plane/
-RUN npm install --workspace=@stratum/core --workspace=@stratum/lib --workspace=@stratum/db-adapters --workspace=@stratum/control-plane
+
+# Narrow workspaces to only the packages in this build context
+# (root package.json declares packages/* but we only have a subset)
+RUN node -e " \
+  const fs = require('fs'); \
+  const p = JSON.parse(fs.readFileSync('package.json', 'utf8')); \
+  p.workspaces = ['packages/core', 'packages/lib', 'packages/db-adapters', 'packages/control-plane']; \
+  fs.writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN npm install
 
 COPY packages/core/ packages/core/
 COPY packages/lib/ packages/lib/
