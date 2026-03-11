@@ -24,7 +24,7 @@
 
 ---
 
-Stratum gives you a complete tenant management system with tree-structured hierarchies, config inheritance, permission delegation, and PostgreSQL Row-Level Security isolation. Built for MSSP/MSP/client architectures and any product that needs nested tenant boundaries.
+Stratum gives you a complete multi-tenant platform with tree-structured hierarchies, config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance (data export and erasure), scoped API key management, consent tracking, and multi-region support. Built for MSSP/MSP/client architectures and any product that needs nested tenant boundaries.
 
 ## Two Integration Paths
 
@@ -91,40 +91,40 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 ## Architecture
 
 ```
-                         ┌─────────────────────┐
-                         │   @stratum/lib       │  Direct library (no HTTP)
-                         │   Pool → Stratum     │
-                         └──────────┬───────────┘
-                                    │
-                    ┌───────────────┼───────────────┐
-                    │               │               │
-           ┌───────▼───────┐ ┌─────▼──────┐ ┌──────▼──────┐
-           │ Control Plane │ │  @stratum/  │ │  @stratum/  │
-           │ Fastify REST  │ │    sdk      │ │   react     │
-           │  port 3001    │ │  HTTP client│ │  UI comps   │
-           └───────┬───────┘ │  middleware │ │  provider   │
-                   │         └─────┬──────┘ └─────────────┘
+                        ┌──────────────────────┐
+                        │    @stratum/lib       │  Direct library (no HTTP)
+                        │    Pool → Stratum     │
+                        └──────────┬───────────┘
+                                   │
+                   ┌───────────────┼───────────────┐
+                   │               │               │
+          ┌────────▼────────┐ ┌────▼─────────┐ ┌───▼──────────┐
+          │  Control Plane  │ │  @stratum/   │ │  @stratum/   │
+          │  Fastify REST   │ │  sdk         │ │  react       │
+          │  Auth · Scopes  │ │  HTTP client │ │  UI comps    │
+          │  Audit · GDPR   │ │  middleware  │ │  provider    │
+          └────────┬────────┘ └────┬─────────┘ └──────────────┘
                    │               │
-           ┌───────▼───────────────▼───────┐
-           │       @stratum/db-adapters     │
-           │    Raw pg  ·  Prisma  ·  RLS   │
-           └───────────────┬───────────────┘
+          ┌────────▼───────────────▼────────┐
+          │       @stratum/db-adapters      │
+          │   Raw pg · Prisma · RLS · Pool  │
+          └────────────────┬────────────────┘
                            │
-                   ┌───────▼───────┐
-                   │ PostgreSQL 16  │
-                   │  ltree + RLS   │
-                   └───────────────┘
+                ┌──────────▼──────────┐
+                │    PostgreSQL 16    │
+                │  ltree · RLS · AES  │
+                └─────────────────────┘
 ```
 
 ## Packages
 
 | Package | Description | Key Features |
 |---------|-------------|--------------|
-| [`@stratum/core`](docs/packages/core.md) | Shared foundation | Types, Zod schemas, error classes, utilities |
-| [`@stratum/lib`](docs/packages/lib.md) | Direct library | Pool injection, zero framework deps, in-process calls |
-| [`@stratum/control-plane`](docs/packages/control-plane.md) | REST API server | Fastify, Swagger UI, auto-migrations, rate limiting |
-| [`@stratum/sdk`](docs/packages/sdk.md) | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware |
-| [`@stratum/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, migrations |
+| [`@stratum/core`](docs/packages/core.md) | Shared foundation | Types, Zod schemas, error classes, audit/consent/region types |
+| [`@stratum/lib`](docs/packages/lib.md) | Direct library | Tenants, config, permissions, audit, encryption, GDPR, regions |
+| [`@stratum/control-plane`](docs/packages/control-plane.md) | REST API server | Fastify, auth + scopes, audit logging, structured logging |
+| [`@stratum/sdk`](docs/packages/sdk.md) | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware, key rotation |
+| [`@stratum/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, regional pools |
 | [`@stratum/react`](docs/packages/react-ui.md) | React components | Provider, tenant switcher, tree, config/permission editors |
 | [`@stratum/demo`](docs/packages/demo.md) | Demo MSSP app | Security events dashboard with full RLS isolation |
 | [`@stratum/cli`](docs/packages/cli.md) | Developer CLI | Project init, DB migration, framework scaffolding |
@@ -193,7 +193,7 @@ await stratum.createPermission(root.id, {
 });
 ```
 
-### Option B: Control Plane + SDK
+### Option C: Control Plane + SDK
 
 ```bash
 # Clone and install
@@ -312,6 +312,84 @@ Register webhooks to receive HTTP callbacks on tenant lifecycle events:
 | `permission.deleted` | Permission policy deleted |
 
 Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
+
+### Audit Logging
+
+Every mutation is recorded with full context:
+
+```typescript
+await stratum.createTenant(
+  { name: "Acme", slug: "acme", isolation_strategy: "SHARED_RLS" },
+  { actor_id: "user-123", actor_type: "user", ip_address: "10.0.0.1" }
+);
+// → audit_logs row: action="tenant.created", actor, before/after state, timestamp
+```
+
+Audit entries capture actor identity, resource type/ID, and before/after snapshots for every change.
+
+### Authorization & Scopes
+
+API keys and JWTs carry scopes that control access:
+
+| Scope | Access |
+|-------|--------|
+| `read` | GET operations only |
+| `write` | GET + POST/PUT/DELETE |
+| `admin` | Full access including key management and purge |
+
+Tenant ancestry is verified on every request — a key scoped to tenant A cannot access tenant B's data.
+
+### Field-Level Encryption
+
+Sensitive config values are encrypted at rest with AES-256-GCM:
+
+```typescript
+await stratum.setConfig(tenantId, "api_secret", {
+  value: "sk_live_abc123",
+  locked: true,
+  sensitive: true,  // ← encrypted before storage
+});
+```
+
+Key versioning supports rotation without re-encrypting all values at once.
+
+### GDPR Compliance
+
+Built-in data export (Article 20) and hard-purge (Article 17):
+
+```typescript
+const archive = await stratum.exportTenantData(tenantId);  // full JSON export
+await stratum.purgeTenant(tenantId);                        // irreversible delete
+await stratum.cleanupExpiredRecords(90);                    // retention policy
+```
+
+### Consent Management
+
+Track per-tenant, per-subject consent with purpose and legal basis:
+
+```typescript
+await stratum.recordConsent(tenantId, {
+  subject_id: "user-456",
+  purpose: "marketing_emails",
+  legal_basis: "consent",
+  granted: true,
+});
+const consents = await stratum.getConsents(tenantId, "user-456");
+```
+
+### Multi-Region
+
+Assign tenants to regions with automatic connection pool routing:
+
+```typescript
+const region = await stratum.createRegion({
+  name: "EU West",
+  slug: "eu-west",
+  connection_url: "postgres://eu-host:5432/stratum",
+});
+await stratum.migrateTenantRegion(tenantId, region.id);
+// All subsequent queries for this tenant route to the EU pool
+```
 
 ## Environment Variables
 
