@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 
 const API_BASE =
-  process.env.CONTROL_PLANE_URL || "http://localhost:3100/api/v1";
+  process.env.CONTROL_PLANE_URL || "http://localhost:3001/api/v1";
 const API_KEY = process.env.API_KEY || "sk_live_demo_key";
 
 async function api(path: string, body?: unknown, method?: string): Promise<Record<string, any>> {

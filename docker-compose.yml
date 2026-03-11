@@ -30,6 +30,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   demo-api:
     build:
@@ -38,11 +43,38 @@ services:
     environment:
       DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
       STRATUM_URL: http://control-plane:3001
-      PORT: "3002"
+      DEMO_API_PORT: "3002"
     ports:
       - "3002:3002"
     depends_on:
       - control-plane
+    profiles:
+      - demo
+
+  demo-seed:
+    build:
+      context: .
+      dockerfile: packages/demo/api/Dockerfile.seed
+    environment:
+      DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
+      CONTROL_PLANE_URL: http://control-plane:3001/api/v1
+      API_KEY: sk_live_demo_key
+    depends_on:
+      control-plane:
+        condition: service_healthy
+    profiles:
+      - demo
+    restart: "no"
+
+  demo-web:
+    build:
+      context: .
+      dockerfile: packages/demo/web/Dockerfile
+    ports:
+      - "3300:3300"
+    depends_on:
+      - control-plane
+      - demo-api
     profiles:
       - demo
 
