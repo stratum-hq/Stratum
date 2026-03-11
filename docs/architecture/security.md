@@ -1,0 +1,115 @@
+# Security
+
+## Authentication
+
+The control plane supports two authentication methods:
+
+### API Keys
+
+- Format: `sk_live_<base64>` (production) or `sk_test_<base64>` (development)
+- Header: `X-API-Key`
+- Storage: SHA-256 hashed — plaintext is never stored
+- Generated with 256-bit entropy (`crypto.randomBytes(32)`)
+- Displayed once at creation time, cannot be retrieved again
+
+### JWT Bearer Tokens
+
+- Header: `Authorization: Bearer <token>`
+- Configurable claim path for tenant ID extraction
+- Optional signature verification via `jwtSecret` or custom `jwtVerify` function
+
+### Unauthenticated Endpoints
+
+Only `GET /api/v1/health` skips authentication.
+
+## SQL Injection Prevention
+
+### Parameterized Queries
+
+All value-based queries use parameterized statements (`$1`, `$2`, etc.). Tenant context is set via:
+
+```sql
+SELECT set_config('app.current_tenant_id', $1, true);
+```
+
+This is parameterized — unlike the older `SET LOCAL` pattern which required string interpolation.
+
+### DDL Table Name Validation
+
+PostgreSQL parameterized queries cannot be used for table names in DDL statements (`CREATE POLICY`, `ALTER TABLE`, etc.). All table names are validated against a strict allowlist regex before use:
+
+```typescript
+function validateTableName(name: string): string {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid table name: ${name}`);
+  }
+  return name;
+}
+```
+
+This is enforced in:
+- `isolation-service.ts` (control plane)
+- `manager.ts` (db-adapters RLS manager)
+- `migration-helpers.ts` (db-adapters)
+
+## Row-Level Security
+
+### Tenant Isolation
+
+Every tenant-scoped table has an RLS policy that filters rows to the current tenant:
+
+```sql
+CREATE POLICY tenant_isolation ON table_name
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+### FORCE RLS
+
+`FORCE ROW LEVEL SECURITY` is enabled on all tenant tables. Without this, the table owner role could bypass RLS policies. With FORCE, even the owner must pass through the policy.
+
+### BYPASSRLS Check
+
+The migration checks at startup that the application database role does not have `BYPASSRLS` privilege. If it does, the migration fails with:
+
+```
+FATAL: application role "role_name" has BYPASSRLS. Revoke it.
+```
+
+To fix: `ALTER ROLE your_app_role NOBYPASSRLS;`
+
+### Connection Context Reset
+
+Tenant context (`app.current_tenant_id`) is always reset when a database connection is returned to the pool, preventing context leakage between requests:
+
+```sql
+RESET app.current_tenant_id;
+```
+
+## HTTP Security
+
+### Helmet
+
+All responses include security headers via `@fastify/helmet`:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Strict-Transport-Security` (when behind HTTPS)
+- Content-Security-Policy
+- And more
+
+### CORS
+
+Configurable via `ALLOWED_ORIGINS` environment variable (comma-separated). Defaults to `http://localhost:3000,http://localhost:3300` in development.
+
+### Rate Limiting
+
+Configurable per-IP rate limiting via `@fastify/rate-limit`:
+- `RATE_LIMIT_MAX` — max requests per window (default: 100)
+- `RATE_LIMIT_WINDOW` — time window (default: "1 minute")
+
+## Soft Delete
+
+Tenants are never hard-deleted. The `DELETE` endpoint archives them by setting `status = 'archived'` and `deleted_at = now()`. The `ON DELETE RESTRICT` foreign key prevents deleting tenants that have children.
+
+## JWT Secret
+
+In production (`NODE_ENV=production`), missing `JWT_SECRET` triggers a loud console warning banner. A development fallback is provided for local use only.

@@ -1,0 +1,276 @@
+/* Stratum Default Theme */
+
+.stratum-tenant-switcher {
+  position: relative;
+  display: inline-block;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.stratum-tenant-switcher__trigger {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 200px;
+  text-align: left;
+}
+
+.stratum-tenant-switcher__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.stratum-tenant-switcher__search {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.stratum-tenant-switcher__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.stratum-tenant-switcher__item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.stratum-tenant-switcher__item:hover {
+  background: #f3f4f6;
+}
+
+.stratum-tenant-switcher__item--active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.stratum-tenant-switcher__slug {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Tree */
+.stratum-tree {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.stratum-tree__root {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stratum-tree__root ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stratum-tree__node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: default;
+  border-radius: 4px;
+}
+
+.stratum-tree__node:hover {
+  background: #f3f4f6;
+}
+
+.stratum-tree__node--selected {
+  background: #eff6ff;
+}
+
+.stratum-tree__toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 10px;
+  width: 16px;
+  color: #6b7280;
+}
+
+.stratum-tree__spacer {
+  width: 16px;
+  display: inline-block;
+}
+
+.stratum-tree__label {
+  cursor: pointer;
+  flex: 1;
+}
+
+.stratum-tree__badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.stratum-tree__meta {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* Config Editor */
+.stratum-config-editor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.stratum-config-editor__table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid #e5e7eb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.stratum-config-editor__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.stratum-config-editor__row--locked {
+  background: #fef3c7;
+}
+
+.stratum-config-editor__source {
+  color: #9ca3af;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.stratum-config-editor__add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 0;
+}
+
+.stratum-config-editor__add input {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Permission Editor */
+.stratum-permission-editor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.stratum-permission-editor__table th {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 2px solid #e5e7eb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.stratum-permission-editor__table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.stratum-permission-editor__source {
+  color: #9ca3af;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.stratum-permission-editor__add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 0;
+}
+
+.stratum-permission-editor__add input,
+.stratum-permission-editor__add select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Badges */
+.stratum-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.stratum-badge--locked {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.stratum-badge--inherited {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.stratum-badge--delegated {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.stratum-badge--own {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Buttons */
+.stratum-config-editor button,
+.stratum-permission-editor button {
+  padding: 4px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.stratum-config-editor button:hover,
+.stratum-permission-editor button:hover {
+  background: #f3f4f6;
+}
+
+.stratum-config-editor button:disabled,
+.stratum-permission-editor button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

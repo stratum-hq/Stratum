@@ -1,0 +1,29 @@
+{
+  "name": "@stratum/db-adapters",
+  "version": "0.1.0",
+  "description": "Stratum PostgreSQL adapters for tenant-scoped query isolation",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@stratum/core": "*",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.10.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

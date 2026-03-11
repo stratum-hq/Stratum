@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: stratum
+      POSTGRES_PASSWORD: stratum_dev
+      POSTGRES_DB: stratum
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stratum"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://stratum:stratum_dev@db:5432/stratum
+      PORT: "3001"
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  demo-api:
+    build:
+      context: .
+      dockerfile: packages/demo/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://stratum:stratum_dev@db:5432/stratum
+      STRATUM_URL: http://control-plane:3001
+      PORT: "3002"
+    ports:
+      - "3002:3002"
+    depends_on:
+      - control-plane
+    profiles:
+      - demo
+
+volumes:
+  pgdata:
