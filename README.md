@@ -92,8 +92,8 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 
 ```
                         ┌──────────────────────┐
-                        │    @stratum/lib       │  Direct library (no HTTP)
-                        │    Pool → Stratum     │
+                        │    @stratum/lib      │  Direct library (no HTTP)
+                        │    Pool → Stratum    │
                         └──────────┬───────────┘
                                    │
                    ┌───────────────┼───────────────┐
