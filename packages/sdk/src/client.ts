@@ -1,5 +1,5 @@
 import { TenantNotFoundError, UnauthorizedError } from "@stratum/core";
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput } from "@stratum/core";
+import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput } from "@stratum/core";
 import { LRUCache } from "./cache.js";
 
 export interface StratumClientOptions {
@@ -120,5 +120,36 @@ export class StratumClient {
 
   clearCache(): void {
     this.cache.clear();
+  }
+
+  async createWebhook(input: CreateWebhookInput): Promise<Webhook> {
+    return this.fetch<Webhook>("/api/v1/webhooks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async listWebhooks(tenantId?: string): Promise<Webhook[]> {
+    const path = tenantId
+      ? `/api/v1/webhooks?tenant_id=${encodeURIComponent(tenantId)}`
+      : "/api/v1/webhooks";
+    return this.fetch<Webhook[]>(path);
+  }
+
+  async getWebhook(id: string): Promise<Webhook> {
+    return this.fetch<Webhook>(`/api/v1/webhooks/${id}`);
+  }
+
+  async updateWebhook(id: string, input: UpdateWebhookInput): Promise<Webhook> {
+    return this.fetch<Webhook>(`/api/v1/webhooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteWebhook(id: string): Promise<void> {
+    await this.fetch<void>(`/api/v1/webhooks/${id}`, {
+      method: "DELETE",
+    });
   }
 }

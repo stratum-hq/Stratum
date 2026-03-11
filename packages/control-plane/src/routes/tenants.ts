@@ -8,6 +8,10 @@ import {
   isSupportedIsolationStrategy,
 } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
+import {
+  setupSchemaForTenant,
+  setupDatabaseForTenant,
+} from "../services/isolation-service.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
@@ -22,12 +26,21 @@ export function createTenantRoutes(stratum: Stratum) {
     app.post("/", async (request, reply) => {
       const input = CreateTenantInputSchema.parse(request.body);
 
-      // Reject non-SHARED_RLS isolation strategies
+      // Reject unsupported isolation strategies (SHARED_RLS and SCHEMA_PER_TENANT are supported)
       if (input.isolation_strategy && !isSupportedIsolationStrategy(input.isolation_strategy)) {
         throw new IsolationStrategyUnsupportedError(input.isolation_strategy);
       }
 
       const tenant = await stratum.createTenant(input);
+
+      // Provision isolation resources based on strategy
+      const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
+      if (strategy === "SCHEMA_PER_TENANT") {
+        await setupSchemaForTenant(tenant.slug);
+      } else if (strategy === "DB_PER_TENANT") {
+        await setupDatabaseForTenant(tenant.slug);
+      }
+
       reply.status(201).send(tenant);
     });
 

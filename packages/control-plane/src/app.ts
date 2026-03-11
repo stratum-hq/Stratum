@@ -11,6 +11,7 @@ import { createTenantRoutes } from "./routes/tenants.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createPermissionRoutes } from "./routes/permissions.js";
 import { createApiKeyRoutes } from "./routes/api-keys.js";
+import { createWebhookRoutes } from "./routes/webhooks.js";
 import { config } from "./config.js";
 import { getPool } from "./db/connection.js";
 
@@ -43,6 +44,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(createConfigRoutes(stratum), { prefix: "/api/v1/tenants/:id/config" });
   await app.register(createPermissionRoutes(stratum), { prefix: "/api/v1/tenants/:id/permissions" });
   await app.register(createApiKeyRoutes(stratum), { prefix: "/api/v1/api-keys" });
+  await app.register(createWebhookRoutes(stratum), { prefix: "/api/v1/webhooks" });
 
   return app;
 }

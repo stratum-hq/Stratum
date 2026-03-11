@@ -98,6 +98,20 @@ Three modes: **LOCKED** (immutable), **INHERITED** (overridable), **DELEGATED** 
 
 Every tenant-scoped table uses PostgreSQL RLS policies. Tenant context is set per-transaction via parameterized `set_config()`. `FORCE ROW LEVEL SECURITY` ensures even table owners cannot bypass policies.
 
+### Isolation Strategies
+
+Three isolation levels are available, configurable per tenant:
+
+| Strategy | Boundary | Use Case |
+|----------|----------|----------|
+| `SHARED_RLS` | Row-Level Security policies | Default. Best for high tenant count, shared infrastructure |
+| `SCHEMA_PER_TENANT` | PostgreSQL schema | Mid-tier. Logical separation with shared DB |
+| `DB_PER_TENANT` | Dedicated database | Maximum isolation. Separate connection pool per tenant |
+
+### Webhook Events
+
+Register webhooks to receive HTTP callbacks on tenant lifecycle events — tenant created/updated/deleted/moved, config changes, and permission changes. Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
+
 ## Developer CLI
 
 Add Stratum to an existing project in seconds:

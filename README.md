@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/packages-8-8b5cf6?style=flat-square" alt="Packages" />
   <img src="https://img.shields.io/badge/source_files-554-22c55e?style=flat-square" alt="Source Files" />
   <img src="https://img.shields.io/badge/test_files-144-f59e0b?style=flat-square" alt="Test Files" />
-  <img src="https://img.shields.io/badge/isolation-RLS-ef4444?style=flat-square" alt="RLS" />
+  <img src="https://img.shields.io/badge/isolation-RLS%20%7C%20Schema%20%7C%20DB-ef4444?style=flat-square" alt="Isolation Strategies" />
 </p>
 
 ---
@@ -285,6 +285,34 @@ COMMIT;
 
 `FORCE ROW LEVEL SECURITY` ensures even table owners cannot bypass policies.
 
+### Isolation Strategies
+
+Stratum supports three isolation levels, configurable per tenant:
+
+| Strategy | Boundary | Use Case |
+|----------|----------|----------|
+| `SHARED_RLS` | Row-Level Security policies | Default. Best for high tenant count, shared infrastructure |
+| `SCHEMA_PER_TENANT` | PostgreSQL schema | Mid-tier. Logical separation with shared DB |
+| `DB_PER_TENANT` | Dedicated database | Maximum isolation. Separate connection pool per tenant |
+
+### Webhook Events
+
+Register webhooks to receive HTTP callbacks on tenant lifecycle events:
+
+| Event | Trigger |
+|-------|---------|
+| `tenant.created` | New tenant created |
+| `tenant.updated` | Tenant properties changed |
+| `tenant.deleted` | Tenant archived |
+| `tenant.moved` | Tenant moved in hierarchy |
+| `config.updated` | Config key set or overridden |
+| `config.deleted` | Config key removed |
+| `permission.created` | Permission policy created |
+| `permission.updated` | Permission policy updated |
+| `permission.deleted` | Permission policy deleted |
+
+Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -334,9 +362,9 @@ npm run dev            # Dev mode (watch)
 | Version | Feature | Status |
 |---------|---------|--------|
 | v1.0 | Shared RLS isolation, config inheritance, permission delegation | Current |
-| v1.1 | Schema-per-tenant isolation | Planned |
-| v1.2 | Database-per-tenant isolation | Planned |
-| v1.3 | Webhook events on tenant lifecycle | Planned |
+| v1.1 | Schema-per-tenant isolation | Current |
+| v1.2 | Database-per-tenant isolation | Current |
+| v1.3 | Webhook events on tenant lifecycle | Current |
 | v2.0 | Multi-region support | Planned |
 
 ## License

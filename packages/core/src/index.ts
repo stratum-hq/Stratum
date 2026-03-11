@@ -1,3 +1,19 @@
+// Webhook types
+export {
+  TenantEvent,
+  WebhookSchema,
+  CreateWebhookInputSchema,
+  UpdateWebhookInputSchema,
+  WebhookEventSchema,
+  WebhookDeliveryStatus,
+  WebhookDeliverySchema,
+  type Webhook,
+  type CreateWebhookInput,
+  type UpdateWebhookInput,
+  type WebhookEvent,
+  type WebhookDelivery,
+} from "./types/webhook.js";
+
 // Types
 export {
   IsolationStrategy,
@@ -81,6 +97,8 @@ export {
   ValidationError,
   UnauthorizedError,
   ForbiddenError,
+  WebhookNotFoundError,
+  WebhookDeliveryError,
 } from "./utils/errors.js";
 
 // Constants

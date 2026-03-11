@@ -66,6 +66,18 @@ All endpoints (except health) require one of:
 | `POST` | `/api/v1/api-keys` | Create API key (plaintext returned once) |
 | `DELETE` | `/api/v1/api-keys/:id` | Revoke API key |
 
+### Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/webhooks` | Register a webhook |
+| `GET` | `/api/v1/webhooks` | List all webhooks |
+| `GET` | `/api/v1/webhooks/:id` | Get webhook |
+| `PATCH` | `/api/v1/webhooks/:id` | Update webhook |
+| `DELETE` | `/api/v1/webhooks/:id` | Delete webhook |
+| `GET` | `/api/v1/webhooks/:id/deliveries` | List delivery attempts |
+| `POST` | `/api/v1/webhooks/:id/test` | Send a test event |
+
 ---
 
 ## Tenant Endpoints
@@ -420,3 +432,143 @@ DELETE /api/v1/api-keys/:id
 ```
 
 **Response:** `204 No Content`
+
+---
+
+## Webhook Endpoints
+
+### Register Webhook
+
+```
+POST /api/v1/webhooks
+```
+
+**Body:**
+
+```json
+{
+  "url": "https://your-app.example.com/webhooks/stratum",
+  "secret": "your-signing-secret",
+  "events": ["tenant.created", "tenant.updated", "tenant.deleted"],
+  "tenant_id": "uuid (optional — scope to a specific tenant subtree)"
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | HTTPS URL to receive POST callbacks |
+| `secret` | string | Yes | Signing secret for HMAC-SHA256 verification |
+| `events` | string[] | Yes | Event types to subscribe to (use `["*"]` for all) |
+| `tenant_id` | UUID | No | Scope events to this tenant and its descendants |
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "url": "https://your-app.example.com/webhooks/stratum",
+  "events": ["tenant.created", "tenant.updated", "tenant.deleted"],
+  "tenant_id": null,
+  "active": true,
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### List Webhooks
+
+```
+GET /api/v1/webhooks
+```
+
+**Response:** `200 OK` — array of webhook objects (secret omitted).
+
+### Get Webhook
+
+```
+GET /api/v1/webhooks/:id
+```
+
+**Response:** `200 OK` — webhook object. Returns `404` if not found.
+
+### Update Webhook
+
+```
+PATCH /api/v1/webhooks/:id
+```
+
+**Body** (all fields optional):
+
+```json
+{
+  "url": "https://new-url.example.com/webhooks",
+  "events": ["tenant.created"],
+  "active": false
+}
+```
+
+**Response:** `200 OK` — updated webhook object.
+
+### Delete Webhook
+
+```
+DELETE /api/v1/webhooks/:id
+```
+
+**Response:** `204 No Content`
+
+### List Deliveries
+
+```
+GET /api/v1/webhooks/:id/deliveries
+```
+
+Returns the delivery history for a webhook, including status, response code, and retry attempts.
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "webhook_id": "uuid",
+      "event_type": "tenant.created",
+      "status": "delivered",
+      "response_status": 200,
+      "attempt_count": 1,
+      "next_retry_at": null,
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "delivered_at": "2024-01-01T00:00:00.001Z"
+    }
+  ]
+}
+```
+
+**Delivery Status Values:**
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Queued, not yet attempted |
+| `delivered` | Successfully delivered (2xx response) |
+| `failed` | All retry attempts exhausted |
+| `retrying` | Awaiting next retry attempt |
+
+### Send Test Event
+
+```
+POST /api/v1/webhooks/:id/test
+```
+
+Sends a synthetic `webhook.test` event to the registered URL. Useful for validating endpoint configuration.
+
+**Response:** `200 OK`
+
+```json
+{
+  "delivery_id": "uuid",
+  "status": "delivered",
+  "response_status": 200
+}
+```

@@ -65,6 +65,14 @@ Save the `plaintext_key` from the response — it's only shown once!
 
 ## Step 6: Create a Root Tenant
 
+The `isolation_strategy` field determines how tenant data is isolated in PostgreSQL. Choose based on your requirements:
+
+| Strategy | Description |
+|----------|-------------|
+| `SHARED_RLS` | Shared tables with Row-Level Security (default, recommended for most cases) |
+| `SCHEMA_PER_TENANT` | Dedicated PostgreSQL schema per tenant |
+| `DB_PER_TENANT` | Dedicated database per tenant (maximum isolation) |
+
 ```bash
 curl -X POST http://localhost:3001/api/v1/tenants \
   -H "Content-Type: application/json" \

@@ -33,6 +33,8 @@ All errors follow this format:
 | `PERMISSION_REVOCATION_DENIED` | 403 | Permission has PERMANENT revocation mode | Cannot delete a permission with `revocation_mode: "PERMANENT"` |
 | `VALIDATION_ERROR` | 400 | Request body validation failed | Invalid slug format, missing required fields, limit out of range |
 | `MISSING_TENANT` | 400 | Tenant ID could not be resolved from request | SDK middleware couldn't find tenant ID in JWT, header, or resolvers |
+| `WEBHOOK_NOT_FOUND` | 404 | Webhook registration does not exist | Invalid webhook ID, or webhook was already deleted |
+| `WEBHOOK_DELIVERY_FAILED` | 502 | Webhook delivery failed after all retry attempts | Target URL returned non-2xx response on all 5 attempts |
 
 ## Error Hierarchy
 
@@ -51,7 +53,9 @@ Error
         ├── ConfigNotFoundError
         ├── PermissionLockedError
         ├── PermissionNotFoundError
-        └── PermissionRevocationDeniedError
+        ├── PermissionRevocationDeniedError
+        ├── WebhookNotFoundError
+        └── WebhookDeliveryFailedError
 ```
 
 ## Handling Errors

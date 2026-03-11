@@ -101,14 +101,44 @@ When a permission is deleted, the **revocation mode** determines the blast radiu
 
 ## Isolation Model
 
-v1 supports `SHARED_RLS` isolation — all tenants share the same database tables, with PostgreSQL Row-Level Security policies enforcing tenant boundaries.
+Stratum supports three isolation strategies, configurable per tenant at creation time.
 
-### How RLS Works
+### SHARED_RLS (v1.0)
+
+All tenants share the same database tables. PostgreSQL Row-Level Security policies enforce tenant boundaries.
 
 1. Application sets `app.current_tenant_id` via `set_config()` at the start of each transaction
 2. Every tenant-scoped table has an RLS policy: `tenant_id = current_setting('app.current_tenant_id')::uuid`
 3. PostgreSQL automatically filters all queries to the current tenant
 4. The setting is reset when the connection is returned to the pool
+
+### SCHEMA_PER_TENANT (v1.1)
+
+Each tenant gets a dedicated PostgreSQL schema named `tenant_{slug}`. The `SchemaManager` creates and replicates table structures across schemas. At query time, `SET LOCAL search_path` routes queries to the correct schema without RLS.
+
+```
+public schema       → Stratum system tables
+tenant_acmesec      → AcmeSec's tables
+tenant_northstar    → NorthStar's tables
+```
+
+### DB_PER_TENANT (v1.2)
+
+Each tenant gets a dedicated PostgreSQL database named `stratum_tenant_{slug}`. The `DatabasePoolManager` maintains an LRU pool of connections with idle timeout, creating new connections on demand and evicting stale ones.
+
+```
+stratum             → Stratum control plane DB
+stratum_tenant_acmesec    → AcmeSec's database
+stratum_tenant_northstar  → NorthStar's database
+```
+
+### Strategy Comparison
+
+| Strategy | Boundary | Pool | Use Case |
+|----------|----------|------|----------|
+| `SHARED_RLS` | Row | Shared | Default. High tenant count, shared infrastructure |
+| `SCHEMA_PER_TENANT` | Schema | Shared | Mid-tier. Logical isolation, shared database |
+| `DB_PER_TENANT` | Database | Per-tenant LRU | Maximum isolation, compliance requirements |
 
 ### Security Guarantees
 
@@ -116,13 +146,28 @@ v1 supports `SHARED_RLS` isolation — all tenants share the same database table
 - The migration checks that the application database role does not have `BYPASSRLS` privilege
 - Table names in DDL operations are validated with a strict regex to prevent SQL injection
 
-### Future Isolation Strategies
+## Webhook Event Flow
 
-| Strategy | Version | Description |
-|----------|---------|-------------|
-| `SHARED_RLS` | v1.0 | Shared tables + RLS policies |
-| `SCHEMA_PER_TENANT` | v1.1 | Separate PostgreSQL schema per tenant |
-| `DB_PER_TENANT` | v1.2 | Separate database per tenant |
+Stratum emits events on tenant lifecycle changes. Registered webhooks receive HTTP POST callbacks with HMAC-SHA256 signatures.
+
+```
+Tenant mutation (create / update / delete / move)
+  └── Control plane emits event
+        └── WebhookService queries matching registrations
+              └── HTTP POST to each registered URL
+                    ├── Success → delivery logged
+                    └── Failure → exponential backoff retry (max 5 attempts)
+```
+
+### Event Types
+
+| Category | Events |
+|----------|--------|
+| Tenant | `tenant.created`, `tenant.updated`, `tenant.deleted`, `tenant.moved` |
+| Config | `config.updated`, `config.deleted` |
+| Permission | `permission.created`, `permission.updated`, `permission.deleted` |
+
+Each delivery includes a `Stratum-Signature` header containing the HMAC-SHA256 signature of the request body, signed with the webhook's registered secret.
 
 ## Request Flow
 

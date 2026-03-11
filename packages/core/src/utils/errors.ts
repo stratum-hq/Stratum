@@ -15,6 +15,8 @@ export enum ErrorCode {
   VALIDATION_ERROR = "VALIDATION_ERROR",
   UNAUTHORIZED = "UNAUTHORIZED",
   FORBIDDEN = "FORBIDDEN",
+  WEBHOOK_NOT_FOUND = "WEBHOOK_NOT_FOUND",
+  WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
 }
 
 export class StratumError extends Error {
@@ -205,5 +207,23 @@ export class ForbiddenError extends StratumError {
   constructor(message: string = "Access denied") {
     super(ErrorCode.FORBIDDEN, message, 403);
     this.name = "ForbiddenError";
+  }
+}
+
+export class WebhookNotFoundError extends StratumError {
+  constructor(webhookId: string) {
+    super(ErrorCode.WEBHOOK_NOT_FOUND, `Webhook not found: ${webhookId}`, 404);
+    this.name = "WebhookNotFoundError";
+  }
+}
+
+export class WebhookDeliveryError extends StratumError {
+  constructor(webhookId: string, message: string) {
+    super(
+      ErrorCode.WEBHOOK_DELIVERY_FAILED,
+      `Webhook delivery failed for ${webhookId}: ${message}`,
+      500,
+    );
+    this.name = "WebhookDeliveryError";
   }
 }
