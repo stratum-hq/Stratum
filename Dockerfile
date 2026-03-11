@@ -19,9 +19,8 @@ RUN npm run build --workspace=@stratum/core && \
     npm run build --workspace=@stratum/control-plane
 
 # Resolve workspace symlinks into real copies for the runner stage
-# Use rsync to skip broken symlinks (workspace packages not in this build)
-RUN apk add --no-cache rsync && \
-    rsync -a --copy-links --safe-links node_modules/ node_modules_resolved/
+# Remove broken symlinks (workspace packages not in this build), then copy
+RUN find node_modules -xtype l -delete && cp -rL node_modules node_modules_resolved
 
 FROM node:18-alpine AS runner
 
