@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/packages-7-8b5cf6?style=flat-square" alt="Packages" />
+  <img src="https://img.shields.io/badge/packages-8-8b5cf6?style=flat-square" alt="Packages" />
   <img src="https://img.shields.io/badge/source_files-554-22c55e?style=flat-square" alt="Source Files" />
   <img src="https://img.shields.io/badge/test_files-144-f59e0b?style=flat-square" alt="Test Files" />
   <img src="https://img.shields.io/badge/isolation-RLS-ef4444?style=flat-square" alt="RLS" />
@@ -127,6 +127,7 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 | [`@stratum/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, migrations |
 | [`@stratum/react`](docs/packages/react-ui.md) | React components | Provider, tenant switcher, tree, config/permission editors |
 | [`@stratum/demo`](docs/packages/demo.md) | Demo MSSP app | Security events dashboard with full RLS isolation |
+| [`@stratum/cli`](docs/packages/cli.md) | Developer CLI | Project init, DB migration, framework scaffolding |
 
 ## Quick Start
 
@@ -136,7 +137,22 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 - **PostgreSQL** 16+ (via Docker or local)
 - **npm** >= 10
 
-### Option A: Direct Library (fastest)
+### Option A: Add to Existing Project (CLI)
+
+```bash
+npx @stratum/cli init
+```
+
+The CLI detects your framework, asks your preferred integration path, and generates all boilerplate. Then migrate your tables:
+
+```bash
+npx @stratum/cli health                    # verify DB setup
+npx @stratum/cli migrate --scan            # show table RLS status
+npx @stratum/cli migrate orders            # add tenant_id + RLS to a table
+npx @stratum/cli scaffold react --out src  # generate React components
+```
+
+### Option B: Direct Library (fastest)
 
 ```bash
 npm install @stratum/lib @stratum/core pg
@@ -293,6 +309,7 @@ COMMIT;
 | [Database & RLS](docs/architecture/database.md) | Schema, RLS policies, advisory locks |
 | [Security](docs/architecture/security.md) | Auth, SQL injection prevention, RLS guarantees |
 | [React Components](docs/packages/react-ui.md) | Provider, hooks, tenant tree, config editor |
+| [CLI Reference](docs/packages/cli.md) | Project init, DB migration, scaffolding |
 
 ## Development
 

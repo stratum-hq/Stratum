@@ -69,6 +69,7 @@ app.register(s.plugin());
 | [`@stratum/db-adapters`](/docs/packages/db-adapters) | PostgreSQL adapters — raw pg + Prisma, RLS management |
 | [`@stratum/react`](/docs/packages/react) | React components — provider, tenant switcher, tree, editors |
 | [`@stratum/demo`](/docs/packages/demo) | Demo MSSP app — security events dashboard with RLS isolation |
+| [`@stratum/cli`](/docs/packages/cli) | Developer CLI — project init, DB migration, framework scaffolding |
 
 ## Key Concepts
 
@@ -97,9 +98,24 @@ Three modes: **LOCKED** (immutable), **INHERITED** (overridable), **DELEGATED** 
 
 Every tenant-scoped table uses PostgreSQL RLS policies. Tenant context is set per-transaction via parameterized `set_config()`. `FORCE ROW LEVEL SECURITY` ensures even table owners cannot bypass policies.
 
+## Developer CLI
+
+Add Stratum to an existing project in seconds:
+
+```bash
+npx @stratum/cli init              # interactive setup wizard
+npx @stratum/cli health            # validate database setup
+npx @stratum/cli migrate --scan    # show RLS status for all tables
+npx @stratum/cli migrate orders    # add tenant_id + RLS to a table
+npx @stratum/cli scaffold react    # generate React components + hooks
+```
+
+The CLI detects your framework (Express, Fastify, Next.js, etc.), generates middleware boilerplate, database setup, and React components including `PermissionGuard`, `ConfigGuard`, and custom hooks like `usePermission()` and `useConfig()`.
+
 ## Next Steps
 
 - [Getting Started](/docs/guides/getting-started) — install and create your first tenant
+- [CLI Reference](/docs/packages/cli) — full CLI command reference
 - [Direct Library Guide](/docs/guides/direct-library) — use `@stratum/lib` without HTTP
 - [Control Plane + SDK Guide](/docs/guides/control-plane-sdk) — HTTP API integration
 - [Architecture Overview](/docs/architecture/overview) — system design deep dive

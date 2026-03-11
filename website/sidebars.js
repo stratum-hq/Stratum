@@ -26,6 +26,7 @@ const sidebars = {
         'packages/db-adapters',
         'packages/react',
         'packages/demo',
+        'packages/cli',
       ],
     },
   ],
