@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { CreateWebhookInputSchema, UpdateWebhookInputSchema, UnauthorizedError } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
+import { buildAuditContext } from "./audit-logs.js";
 
 /**
  * Ensures the authenticated API key's tenant scope matches the webhook's tenant.
@@ -29,7 +30,7 @@ export function createWebhookRoutes(stratum: Stratum) {
       if (request.apiKey?.tenant_id !== null && input.tenant_id !== null) {
         assertTenantAccess(request, input.tenant_id);
       }
-      const webhook = await stratum.createWebhook(input);
+      const webhook = await stratum.createWebhook(input, buildAuditContext(request));
       reply.status(201).send(webhook);
     });
 
@@ -53,7 +54,7 @@ export function createWebhookRoutes(stratum: Stratum) {
       const existing = await stratum.getWebhook(request.params.id);
       assertTenantAccess(request, existing.tenant_id);
       const input = UpdateWebhookInputSchema.parse(request.body);
-      const webhook = await stratum.updateWebhook(request.params.id, input);
+      const webhook = await stratum.updateWebhook(request.params.id, input, buildAuditContext(request));
       reply.status(200).send(webhook);
     });
 
@@ -61,7 +62,7 @@ export function createWebhookRoutes(stratum: Stratum) {
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const existing = await stratum.getWebhook(request.params.id);
       assertTenantAccess(request, existing.tenant_id);
-      await stratum.deleteWebhook(request.params.id);
+      await stratum.deleteWebhook(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
 

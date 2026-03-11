@@ -1,0 +1,34 @@
+import { FastifyInstance, FastifyRequest } from "fastify";
+import { AuditLogQuerySchema } from "@stratum/core";
+import type { AuditContext } from "@stratum/core";
+import { Stratum } from "@stratum/lib";
+
+export function buildAuditContext(request: FastifyRequest): AuditContext {
+  return {
+    actor_id: request.apiKey?.id ?? "unknown",
+    actor_type: request.apiKey ? "api_key" : "jwt" as const,
+    source_ip: request.ip,
+    request_id: request.id,
+  };
+}
+
+export function createAuditLogRoutes(stratum: Stratum) {
+  return async function auditLogRoutes(app: FastifyInstance): Promise<void> {
+    // GET /api/v1/audit-logs — List audit logs with filters
+    app.get("/", async (request, reply) => {
+      const query = AuditLogQuerySchema.parse(request.query);
+      const entries = await stratum.queryAuditLogs(query);
+      reply.status(200).send(entries);
+    });
+
+    // GET /api/v1/audit-logs/:id — Get single audit entry
+    app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
+      const entry = await stratum.getAuditEntry(request.params.id);
+      if (!entry) {
+        reply.status(404).send({ error: "Audit entry not found" });
+        return;
+      }
+      reply.status(200).send(entry);
+    });
+  };
+}

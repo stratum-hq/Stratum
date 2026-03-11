@@ -40,6 +40,9 @@ All endpoints (except health) require one of:
 | `GET` | `/api/v1/tenants/:id/descendants` | Get all descendants |
 | `GET` | `/api/v1/tenants/:id/children` | Get direct children |
 | `GET` | `/api/v1/tenants/:id/context` | Resolve full context |
+| `POST` | `/api/v1/tenants/:id/purge` | Hard-delete all tenant data (GDPR Article 17) |
+| `GET` | `/api/v1/tenants/:id/export` | Export all tenant data as JSON (GDPR Article 20) |
+| `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate tenant to a different region |
 
 ### Config
 
@@ -64,7 +67,10 @@ All endpoints (except health) require one of:
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/v1/api-keys` | Create API key (plaintext returned once) |
+| `GET` | `/api/v1/api-keys` | List API keys (optional `?tenant_id=`) |
 | `DELETE` | `/api/v1/api-keys/:id` | Revoke API key |
+| `POST` | `/api/v1/api-keys/:id/rotate` | Rotate API key (create new + revoke old atomically) |
+| `GET` | `/api/v1/api-keys/dormant` | List dormant keys (unused > 90 days) |
 
 ### Webhooks
 
@@ -77,6 +83,37 @@ All endpoints (except health) require one of:
 | `DELETE` | `/api/v1/webhooks/:id` | Delete webhook |
 | `GET` | `/api/v1/webhooks/:id/deliveries` | List delivery attempts |
 | `POST` | `/api/v1/webhooks/:id/test` | Send a test event |
+
+### Audit Logs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/audit-logs` | List audit log entries (cursor pagination, filters) |
+| `GET` | `/api/v1/audit-logs/:id` | Get a single audit log entry |
+
+### Regions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/regions` | Create a region |
+| `GET` | `/api/v1/regions` | List all regions |
+| `GET` | `/api/v1/regions/:id` | Get a region |
+| `PATCH` | `/api/v1/regions/:id` | Update a region |
+| `DELETE` | `/api/v1/regions/:id` | Delete a region |
+
+### Consent
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/tenants/:tenantId/consent` | Create a consent record |
+| `GET` | `/api/v1/tenants/:tenantId/consent` | List consent records for a tenant |
+| `DELETE` | `/api/v1/tenants/:tenantId/consent` | Revoke a consent record |
+
+### Maintenance
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/maintenance/purge-expired` | Purge expired audit logs, webhook events, and deliveries |
 
 ---
 
@@ -572,3 +609,308 @@ Sends a synthetic `webhook.test` event to the registered URL. Useful for validat
   "response_status": 200
 }
 ```
+
+---
+
+## Audit Log Endpoints
+
+### List Audit Logs
+
+```
+GET /api/v1/audit-logs?tenant_id=<uuid>&action=<string>&from=<date>&to=<date>&cursor=<uuid>&limit=50
+```
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tenant_id` | UUID | — | Filter by tenant |
+| `action` | string | — | Filter by action (e.g. `tenant.created`, `config.updated`) |
+| `from` | ISO date | — | Start of date range |
+| `to` | ISO date | — | End of date range |
+| `cursor` | UUID | — | Cursor for pagination |
+| `limit` | number | 50 | Max results (1-100) |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "tenant_id": "uuid",
+      "actor_type": "api_key",
+      "actor_id": "uuid",
+      "action": "tenant.created",
+      "resource_type": "tenant",
+      "resource_id": "uuid",
+      "before": null,
+      "after": { "name": "Acme Corp", "slug": "acme_corp" },
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "next_cursor": "uuid | null",
+  "has_more": false
+}
+```
+
+### Get Audit Log Entry
+
+```
+GET /api/v1/audit-logs/:id
+```
+
+**Response:** `200 OK` — returns the audit log entry object. Returns `404` if not found.
+
+---
+
+## Region Endpoints
+
+### Create Region
+
+```
+POST /api/v1/regions
+```
+
+**Body:**
+
+```json
+{
+  "slug": "us_east",
+  "display_name": "US East",
+  "control_plane_url": "https://us-east.stratum.example.com",
+  "status": "active"
+}
+```
+
+**Response:** `201 Created` — returns the region object.
+
+### List Regions
+
+```
+GET /api/v1/regions
+```
+
+**Response:** `200 OK` — array of region objects.
+
+### Get Region
+
+```
+GET /api/v1/regions/:id
+```
+
+**Response:** `200 OK` — returns the region object. Returns `404` if not found.
+
+### Update Region
+
+```
+PATCH /api/v1/regions/:id
+```
+
+**Body** (all fields optional):
+
+```json
+{
+  "display_name": "US East (Primary)",
+  "status": "draining"
+}
+```
+
+**Response:** `200 OK` — returns the updated region.
+
+### Delete Region
+
+```
+DELETE /api/v1/regions/:id
+```
+
+Fails with `409` if the region still has assigned tenants.
+
+**Response:** `204 No Content`
+
+### Migrate Tenant Region
+
+```
+POST /api/v1/tenants/:id/migrate-region
+```
+
+**Body:**
+
+```json
+{
+  "region_id": "uuid"
+}
+```
+
+Moves the tenant to a different region. The tenant's `region_id` is updated.
+
+**Response:** `200 OK` — returns the updated tenant.
+
+---
+
+## Consent Endpoints
+
+### Create Consent Record
+
+```
+POST /api/v1/tenants/:tenantId/consent
+```
+
+**Body:**
+
+```json
+{
+  "subject_id": "user-123",
+  "purpose": "marketing_emails",
+  "expires_at": "2025-12-31T23:59:59.000Z (optional)"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "subject_id": "user-123",
+  "purpose": "marketing_emails",
+  "status": "granted",
+  "expires_at": "2025-12-31T23:59:59.000Z",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### List Consent Records
+
+```
+GET /api/v1/tenants/:tenantId/consent
+```
+
+**Response:** `200 OK` — array of consent records for the tenant.
+
+### Revoke Consent
+
+```
+DELETE /api/v1/tenants/:tenantId/consent
+```
+
+**Body:**
+
+```json
+{
+  "subject_id": "user-123",
+  "purpose": "marketing_emails"
+}
+```
+
+Sets the consent record status to `revoked`.
+
+**Response:** `204 No Content`
+
+---
+
+## GDPR Endpoints
+
+### Purge Tenant Data
+
+```
+POST /api/v1/tenants/:id/purge
+```
+
+Hard-deletes all data associated with the tenant (GDPR Article 17 — right to erasure). This is irreversible.
+
+**Response:** `204 No Content`
+
+### Export Tenant Data
+
+```
+GET /api/v1/tenants/:id/export
+```
+
+Exports all tenant data as a JSON document (GDPR Article 20 — data portability).
+
+**Response:** `200 OK` — JSON object containing all tenant data (tenant record, config, permissions, audit logs, consent records).
+
+---
+
+## Maintenance Endpoints
+
+### Purge Expired Records
+
+```
+POST /api/v1/maintenance/purge-expired
+```
+
+Purges old `audit_logs`, `webhook_events`, and `webhook_deliveries` records older than the configured retention period (default: 90 days).
+
+**Body** (optional):
+
+```json
+{
+  "retention_days": 90
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "purged": {
+    "audit_logs": 1234,
+    "webhook_events": 567,
+    "webhook_deliveries": 890
+  }
+}
+```
+
+---
+
+## API Key Management Endpoints
+
+### List API Keys
+
+```
+GET /api/v1/api-keys?tenant_id=<uuid>
+```
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `tenant_id` | UUID | — | Filter by tenant (optional) |
+
+**Response:** `200 OK` — array of API key objects (secrets omitted).
+
+### Rotate API Key
+
+```
+POST /api/v1/api-keys/:id/rotate
+```
+
+Atomically creates a new API key and revokes the old one. The new plaintext key is returned once.
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "key_prefix": "sk_live_xyz",
+  "name": "my-service",
+  "scopes": ["read", "write"],
+  "expires_at": null,
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "plaintext_key": "sk_live_xyz789...",
+  "revoked_key_id": "uuid"
+}
+```
+
+### List Dormant Keys
+
+```
+GET /api/v1/api-keys/dormant
+```
+
+Returns API keys that have not been used in over 90 days.
+
+**Response:** `200 OK` — array of API key objects with `last_used_at` field.

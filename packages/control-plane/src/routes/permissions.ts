@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { CreatePermissionInputSchema, UpdatePermissionInputSchema } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
+import { buildAuditContext } from "./audit-logs.js";
 
 export function createPermissionRoutes(stratum: Stratum) {
   return async function permissionRoutes(app: FastifyInstance): Promise<void> {
@@ -13,7 +14,7 @@ export function createPermissionRoutes(stratum: Stratum) {
     // POST /api/v1/tenants/:id/permissions — Create permission policy
     app.post<{ Params: { id: string } }>("/", async (request, reply) => {
       const input = CreatePermissionInputSchema.parse(request.body);
-      const policy = await stratum.createPermission(request.params.id, input);
+      const policy = await stratum.createPermission(request.params.id, input, buildAuditContext(request));
       reply.status(201).send(policy);
     });
 
@@ -24,13 +25,14 @@ export function createPermissionRoutes(stratum: Stratum) {
         request.params.id,
         request.params.policyId,
         input,
+        buildAuditContext(request),
       );
       reply.status(200).send(policy);
     });
 
     // DELETE /api/v1/tenants/:id/permissions/:policyId — Delete/revoke permission policy
     app.delete<{ Params: { id: string; policyId: string } }>("/:policyId", async (request, reply) => {
-      await stratum.deletePermission(request.params.id, request.params.policyId);
+      await stratum.deletePermission(request.params.id, request.params.policyId, buildAuditContext(request));
       reply.status(204).send();
     });
   };

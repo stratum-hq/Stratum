@@ -3,16 +3,7 @@ const nodeEnv = process.env.NODE_ENV || "development";
 
 if (!jwtSecretEnv) {
   if (nodeEnv === "production") {
-    console.warn(
-      "\n" +
-      "╔══════════════════════════════════════════════════════════════╗\n" +
-      "║                  ⚠  SECURITY WARNING  ⚠                    ║\n" +
-      "║                                                              ║\n" +
-      "║  JWT_SECRET is not set in a PRODUCTION environment!         ║\n" +
-      "║  A hardcoded dev fallback is being used. This is INSECURE.  ║\n" +
-      "║  Set the JWT_SECRET environment variable immediately.        ║\n" +
-      "╚══════════════════════════════════════════════════════════════╝\n"
-    );
+    throw new Error("FATAL: JWT_SECRET must be set in production. Refusing to start.");
   } else {
     console.warn("[stratum] JWT_SECRET not set — using dev fallback. Set JWT_SECRET before deploying to production.");
   }

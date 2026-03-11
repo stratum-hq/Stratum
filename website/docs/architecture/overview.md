@@ -169,6 +169,66 @@ Tenant mutation (create / update / delete / move)
 
 Each delivery includes a `Stratum-Signature` header containing the HMAC-SHA256 signature of the request body, signed with the webhook's registered secret.
 
+## Audit Logging
+
+All state-mutating operations produce audit log entries stored in an append-only `audit_logs` table. Each entry captures:
+
+- **Actor identity** — API key ID or JWT subject that initiated the action
+- **Action** — what happened (`tenant.created`, `config.updated`, `permission.deleted`, etc.)
+- **Resource** — the entity type and ID affected
+- **Before/after state** — JSON snapshots of the resource before and after the mutation
+
+The `AuditContext` parameter is threaded through all route handlers so that actor information is available at the service layer without coupling to HTTP request objects. Audit logs are queryable by tenant, action, and date range with cursor pagination.
+
+## Authorization
+
+API keys carry a `scopes` array that controls which operations they can perform:
+
+| Scope | Grants |
+|-------|--------|
+| `read` | `GET` requests — list, get, resolve |
+| `write` | `POST`, `PATCH`, `DELETE` — create, update, archive |
+| `admin` | Key management, audit log access, maintenance operations |
+
+By default, new API keys receive `['read', 'write']`. JWT tokens receive full `['read', 'write', 'admin']` privileges. The `authorize` middleware inspects the HTTP method and route pattern to determine the required scope and rejects requests with insufficient privileges (403 Forbidden).
+
+## Field-Level Encryption
+
+Sensitive data is encrypted at rest using a shared AES-256-GCM crypto module:
+
+- **Format**: `v1:iv:authTag:ciphertext` — the version prefix enables future key rotation
+- **Config entries**: entries marked `sensitive: true` are automatically encrypted before storage and decrypted on read
+- **Webhook secrets**: stored encrypted using the same module
+- **Key management**: controlled via `STRATUM_ENCRYPTION_KEY` environment variable (falls back to `WEBHOOK_ENCRYPTION_KEY` for backward compatibility)
+
+The version prefix in the ciphertext format means old data can be decrypted even after rotating to a new key.
+
+## Multi-Region
+
+Stratum supports deploying tenants across geographic regions for data residency and latency requirements.
+
+### Region Model
+
+Regions are stored in a `regions` table with `slug`, `display_name`, `control_plane_url`, and a status lifecycle:
+
+| Status | Meaning |
+|--------|---------|
+| `active` | Accepting new tenants and serving traffic |
+| `draining` | No new tenants; existing tenants being migrated out |
+| `inactive` | Region offline |
+
+### Tenant Region Assignment
+
+Tenants have an optional `region_id` column (nullable for backward compatibility). Region assignment follows inheritance rules — children inherit their parent's region unless explicitly overridden. This mirrors the existing config inheritance pattern.
+
+### Cross-Region Migration
+
+`POST /api/v1/tenants/:id/migrate-region` moves a tenant to a different region. The migration updates the tenant's `region_id` and can cascade to descendants depending on the request.
+
+### Regional Pool Routing
+
+The `RegionalPoolRouter` maintains region-specific database connection pools, routing queries to the correct pool based on the tenant's assigned region. The SDK exposes a `regionUrl` option and region management methods for client-side region awareness.
+
 ## Request Flow
 
 ### Via SDK (HTTP path)

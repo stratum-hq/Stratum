@@ -21,3 +21,6 @@ export type {
 } from "@stratum/core";
 
 export type { ApiKeyRecord, CreatedApiKey } from "./services/api-key-service.js";
+
+// Re-export audit types for convenience
+export type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum/core";

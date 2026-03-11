@@ -4,9 +4,9 @@ const API_BASE =
   process.env.CONTROL_PLANE_URL || "http://localhost:3100/api/v1";
 const API_KEY = process.env.API_KEY || "sk_live_demo_key";
 
-async function api(path: string, body?: unknown) {
+async function api(path: string, body?: unknown, method?: string): Promise<Record<string, any>> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method: body ? "POST" : "GET",
+    method: method ?? (body ? "POST" : "GET"),
     headers: {
       "Content-Type": "application/json",
       "X-API-Key": API_KEY,
@@ -17,7 +17,7 @@ async function api(path: string, body?: unknown) {
     const err = await res.text();
     throw new Error(`API ${path} failed (${res.status}): ${err}`);
   }
-  return res.json();
+  return res.json() as Promise<Record<string, any>>;
 }
 
 async function seed() {
@@ -72,36 +72,30 @@ async function seed() {
 
   // 2. Set config values with inheritance
   console.log("Setting config values...");
-  await api(`/tenants/${acmesec.id}/config`, {
-    key: "max_users",
+  await api(`/tenants/${acmesec.id}/config/max_users`, {
     value: 1000,
     locked: false,
-  });
-  await api(`/tenants/${acmesec.id}/config`, {
-    key: "features.siem",
+  }, "PUT");
+  await api(`/tenants/${acmesec.id}/config/features.siem`, {
     value: true,
     locked: true,
-  });
-  await api(`/tenants/${acmesec.id}/config`, {
-    key: "features.edr",
+  }, "PUT");
+  await api(`/tenants/${acmesec.id}/config/features.edr`, {
     value: false,
     locked: false,
-  });
-  await api(`/tenants/${northstar.id}/config`, {
-    key: "max_users",
+  }, "PUT");
+  await api(`/tenants/${northstar.id}/config/max_users`, {
     value: 500,
     locked: false,
-  });
-  await api(`/tenants/${northstar.id}/config`, {
-    key: "features.edr",
+  }, "PUT");
+  await api(`/tenants/${northstar.id}/config/features.edr`, {
     value: true,
     locked: false,
-  });
-  await api(`/tenants/${clientAlpha.id}/config`, {
-    key: "max_users",
+  }, "PUT");
+  await api(`/tenants/${clientAlpha.id}/config/max_users`, {
     value: 50,
     locked: false,
-  });
+  }, "PUT");
   console.log("  Config values set\n");
 
   // 3. Set permissions

@@ -12,6 +12,7 @@ import {
   setupSchemaForTenant,
   setupDatabaseForTenant,
 } from "../services/isolation-service.js";
+import { buildAuditContext } from "./audit-logs.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
@@ -31,7 +32,7 @@ export function createTenantRoutes(stratum: Stratum) {
         throw new IsolationStrategyUnsupportedError(input.isolation_strategy);
       }
 
-      const tenant = await stratum.createTenant(input);
+      const tenant = await stratum.createTenant(input, buildAuditContext(request));
 
       // Provision isolation resources based on strategy
       const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
@@ -53,20 +54,20 @@ export function createTenantRoutes(stratum: Stratum) {
     // PATCH /api/v1/tenants/:id — Update tenant
     app.patch<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const patch = UpdateTenantInputSchema.parse(request.body);
-      const tenant = await stratum.updateTenant(request.params.id, patch);
+      const tenant = await stratum.updateTenant(request.params.id, patch, buildAuditContext(request));
       reply.status(200).send(tenant);
     });
 
     // DELETE /api/v1/tenants/:id — Soft-delete (archive) tenant
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
-      await stratum.deleteTenant(request.params.id);
+      await stratum.deleteTenant(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
 
     // POST /api/v1/tenants/:id/move — Move tenant
     app.post<{ Params: { id: string } }>("/:id/move", async (request, reply) => {
       const input = MoveTenantInputSchema.parse(request.body);
-      const tenant = await stratum.moveTenant(request.params.id, input.new_parent_id);
+      const tenant = await stratum.moveTenant(request.params.id, input.new_parent_id, buildAuditContext(request));
       reply.status(200).send(tenant);
     });
 
@@ -86,6 +87,24 @@ export function createTenantRoutes(stratum: Stratum) {
     app.get<{ Params: { id: string } }>("/:id/children", async (request, reply) => {
       const children = await stratum.getChildren(request.params.id);
       reply.status(200).send(children);
+    });
+
+    // POST /api/v1/tenants/:id/migrate-region — Migrate tenant to a new region
+    app.post<{ Params: { id: string }; Body: { region_id: string } }>("/:id/migrate-region", async (request, reply) => {
+      await stratum.migrateRegion(request.params.id, (request.body as { region_id: string }).region_id, buildAuditContext(request));
+      reply.status(200).send({ success: true });
+    });
+
+    // POST /api/v1/tenants/:id/purge — GDPR Article 17: hard-delete all tenant data
+    app.post<{ Params: { id: string } }>("/:id/purge", async (request, reply) => {
+      await stratum.purgeTenant(request.params.id, buildAuditContext(request));
+      reply.status(204).send();
+    });
+
+    // GET /api/v1/tenants/:id/export — GDPR Article 20: export all tenant data
+    app.get<{ Params: { id: string } }>("/:id/export", async (request, reply) => {
+      const data = await stratum.exportTenantData(request.params.id);
+      reply.status(200).send(data);
     });
 
     // GET /api/v1/tenants/:id/context — Resolve full tenant context

@@ -10,6 +10,7 @@ import {
   TenantNotFoundError,
   parseAncestryPath,
 } from "@stratum/core";
+import { encrypt, decrypt } from "../crypto.js";
 
 /**
  * Resolve the effective config for a tenant by batch-loading ancestor configs
@@ -62,9 +63,12 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
         }
 
         const isCurrentTenant = currentTenantId === tenantId;
+        const resolvedValue = entry.sensitive
+          ? JSON.parse(decrypt(JSON.parse(entry.value as string) as string))
+          : entry.value;
         resolved.set(entry.key, {
           key: entry.key,
-          value: entry.value,
+          value: resolvedValue,
           source_tenant_id: entry.source_tenant_id,
           inherited: !isCurrentTenant,
           locked: entry.locked,
@@ -111,16 +115,22 @@ export async function setConfig(
       }
     }
 
+    const sensitive = input.sensitive ?? false;
+    const storedValue = sensitive
+      ? JSON.stringify(encrypt(JSON.stringify(input.value)))
+      : JSON.stringify(input.value);
+
     const res = await client.query<ConfigEntry>(
-      `INSERT INTO config_entries (tenant_id, key, value, locked, source_tenant_id, inherited)
-       VALUES ($1, $2, $3, $4, $1, false)
+      `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
+       VALUES ($1, $2, $3, $4, $5, $1, false)
        ON CONFLICT (tenant_id, key)
        DO UPDATE SET
          value = EXCLUDED.value,
          locked = EXCLUDED.locked,
+         sensitive = EXCLUDED.sensitive,
          updated_at = now()
        RETURNING *`,
-      [tenantId, key, JSON.stringify(input.value), input.locked ?? false],
+      [tenantId, key, storedValue, input.locked ?? false, sensitive],
     );
 
     return res.rows[0];
@@ -215,6 +225,11 @@ export async function getConfigWithInheritance(
       }
     }
 
+    const decryptEntryValue = (entry: ConfigEntry): unknown =>
+      entry.sensitive
+        ? JSON.parse(decrypt(JSON.parse(entry.value as string) as string))
+        : entry.value;
+
     const result: ResolvedConfig = {};
 
     for (const [key, rec] of byKey) {
@@ -226,7 +241,7 @@ export async function getConfigWithInheritance(
         // Key is locked — show ancestor's locked value regardless of tenant override
         result[key] = {
           key,
-          value: lockedEntry.value,
+          value: decryptEntryValue(lockedEntry),
           source_tenant_id: lockedEntry.source_tenant_id,
           inherited: true,
           locked: true,
@@ -235,7 +250,7 @@ export async function getConfigWithInheritance(
         // Tenant has its own value (override or own entry)
         result[key] = {
           key,
-          value: tenantEntry.value,
+          value: decryptEntryValue(tenantEntry),
           source_tenant_id: tenantEntry.source_tenant_id,
           inherited: false,
           locked: tenantEntry.locked,
@@ -244,7 +259,7 @@ export async function getConfigWithInheritance(
         // Inherited from ancestor
         result[key] = {
           key,
-          value: ancestorEntry.value,
+          value: decryptEntryValue(ancestorEntry),
           source_tenant_id: ancestorEntry.source_tenant_id,
           inherited: true,
           locked: ancestorEntry.locked,

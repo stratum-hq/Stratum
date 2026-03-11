@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -6,18 +7,27 @@ import { Stratum } from "@stratum/lib";
 import { registerOpenApi } from "./openapi.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
+import { createAuthorizeMiddleware } from "./middleware/authorize.js";
 import { healthRoutes } from "./routes/health.js";
 import { createTenantRoutes } from "./routes/tenants.js";
 import { createConfigRoutes } from "./routes/config.js";
 import { createPermissionRoutes } from "./routes/permissions.js";
 import { createApiKeyRoutes } from "./routes/api-keys.js";
 import { createWebhookRoutes } from "./routes/webhooks.js";
+import { createAuditLogRoutes } from "./routes/audit-logs.js";
+import { createConsentRoutes } from "./routes/consent.js";
+import { createMaintenanceRoutes } from "./routes/maintenance.js";
+import { createRegionRoutes } from "./routes/regions.js";
 import { config } from "./config.js";
 import { getPool } from "./db/connection.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: false,
+    logger: {
+      level: config.nodeEnv === "production" ? "info" : "debug",
+      redact: ["req.headers.authorization", "req.headers['x-api-key']"],
+    },
+    genReqId: () => crypto.randomUUID(),
   });
 
   const stratum = new Stratum({
@@ -37,6 +47,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await registerOpenApi(app);
   app.addHook("preHandler", createAuthMiddleware(stratum));
+  app.addHook("preHandler", createAuthorizeMiddleware());
   app.setErrorHandler(errorHandler);
 
   await app.register(healthRoutes);
@@ -45,6 +56,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(createPermissionRoutes(stratum), { prefix: "/api/v1/tenants/:id/permissions" });
   await app.register(createApiKeyRoutes(stratum), { prefix: "/api/v1/api-keys" });
   await app.register(createWebhookRoutes(stratum), { prefix: "/api/v1/webhooks" });
+  await app.register(createAuditLogRoutes(stratum), { prefix: "/api/v1/audit-logs" });
+  await app.register(createConsentRoutes(stratum), { prefix: "/api/v1/tenants/:tenantId/consent" });
+  await app.register(createRegionRoutes(stratum), { prefix: "/api/v1/regions" });
+  await app.register(createMaintenanceRoutes(stratum), { prefix: "/api/v1/maintenance" });
 
   return app;
 }

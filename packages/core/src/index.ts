@@ -1,3 +1,28 @@
+// Consent types
+export {
+  ConsentPurpose,
+  ConsentRecordSchema,
+  GrantConsentInputSchema,
+  type ConsentRecord,
+  type GrantConsentInput,
+} from "./types/consent.js";
+
+// API Key types
+export {
+  API_KEY_SCOPES,
+  ApiKeyScopeSchema,
+  type ApiKeyScope,
+} from "./types/api-key.js";
+
+// Audit types
+export {
+  AuditEntrySchema,
+  AuditLogQuerySchema,
+  type AuditContext,
+  type AuditEntry,
+  type AuditLogQuery,
+} from "./types/audit.js";
+
 // Webhook types
 export {
   TenantEvent,
@@ -13,6 +38,17 @@ export {
   type WebhookEvent,
   type WebhookDelivery,
 } from "./types/webhook.js";
+
+// Region types
+export {
+  RegionStatus,
+  RegionSchema,
+  CreateRegionInputSchema,
+  UpdateRegionInputSchema,
+  type Region,
+  type CreateRegionInput,
+  type UpdateRegionInput,
+} from "./types/region.js";
 
 // Types
 export {

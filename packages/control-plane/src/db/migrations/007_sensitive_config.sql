@@ -1,0 +1,1 @@
+ALTER TABLE config_entries ADD COLUMN IF NOT EXISTS sensitive BOOLEAN NOT NULL DEFAULT false;

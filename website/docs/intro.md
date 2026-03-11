@@ -112,6 +112,34 @@ Three isolation levels are available, configurable per tenant:
 
 Register webhooks to receive HTTP callbacks on tenant lifecycle events — tenant created/updated/deleted/moved, config changes, and permission changes. Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
 
+### Audit Logging
+
+All mutations are recorded in an append-only audit log with actor identity (API key or JWT), resource tracking, and before/after state snapshots. Query audit entries by tenant, action, or date range with cursor pagination.
+
+### Authorization & Scopes
+
+API keys carry scopes (`read`, `write`, `admin`) that restrict which operations they can perform. JWT tokens receive full privileges. The `authorize` middleware enforces scope requirements per HTTP method and route pattern.
+
+### Data Retention (GDPR)
+
+GDPR-compliant data management: hard-purge all tenant data (Article 17 right to erasure), export all tenant data as JSON (Article 20 data portability), and automatically clean up expired audit logs and webhook records with configurable retention periods.
+
+### Field-Level Encryption
+
+Sensitive config entries and webhook secrets are encrypted at rest using AES-256-GCM with key versioning. The encryption format (`v1:iv:authTag:ciphertext`) supports seamless key rotation.
+
+### API Key Management
+
+API keys support expiration dates (auto-rejected after expiry), atomic rotation (create new + revoke old), and dormant key detection for keys unused longer than 90 days.
+
+### Consent Management
+
+Track GDPR consent records per tenant with subject, purpose, granted/revoked status, and optional expiration. Full CRUD via REST API.
+
+### Multi-Region
+
+Deploy tenants across geographic regions. Regions have status lifecycle (active/draining/inactive). Children inherit their parent's region unless explicitly overridden. Cross-region migration moves tenants between regions with a single API call. The SDK supports region-aware routing via `RegionalPoolRouter`.
+
 ## Developer CLI
 
 Add Stratum to an existing project in seconds:
@@ -133,3 +161,9 @@ The CLI detects your framework (Express, Fastify, Next.js, etc.), generates midd
 - [Direct Library Guide](/docs/guides/direct-library) — use `@stratum/lib` without HTTP
 - [Control Plane + SDK Guide](/docs/guides/control-plane-sdk) — HTTP API integration
 - [Architecture Overview](/docs/architecture/overview) — system design deep dive
+- [Audit Logging](/docs/guides/audit-logging) — audit trail setup and querying
+- [Authorization & Scopes](/docs/guides/authorization) — API key scopes and enforcement
+- [GDPR & Data Retention](/docs/guides/gdpr) — data export, purge, and retention
+- [Encryption](/docs/guides/encryption) — field-level encryption configuration
+- [Consent Management](/docs/guides/consent) — GDPR consent tracking
+- [Multi-Region](/docs/guides/multi-region) — regional deployment and tenant migration

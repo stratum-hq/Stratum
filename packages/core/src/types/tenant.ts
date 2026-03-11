@@ -27,6 +27,7 @@ export const TenantNodeSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
   isolation_strategy: z.nativeEnum(IsolationStrategy).default(IsolationStrategy.SHARED_RLS),
   status: z.nativeEnum(TenantStatus).default(TenantStatus.ACTIVE),
+  region_id: z.string().uuid().nullable().optional(),
   deleted_at: z.string().datetime().nullable().default(null),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -46,6 +47,7 @@ export const CreateTenantInputSchema = z.object({
   isolation_strategy: z
     .nativeEnum(IsolationStrategy)
     .default(IsolationStrategy.SHARED_RLS),
+  region_id: z.string().uuid().nullable().optional(),
 });
 
 export type CreateTenantInput = z.infer<typeof CreateTenantInputSchema>;

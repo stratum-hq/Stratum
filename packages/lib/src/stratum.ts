@@ -6,6 +6,10 @@ import * as permissionService from "./services/permission-service.js";
 import * as apiKeyService from "./services/api-key-service.js";
 import * as webhookService from "./services/webhook-service.js";
 import * as eventService from "./services/event-service.js";
+import * as auditService from "./services/audit-service.js";
+import * as consentService from "./services/consent-service.js";
+import * as retentionService from "./services/retention-service.js";
+import * as regionService from "./services/region-service.js";
 import type {
   TenantNode,
   CreateTenantInput,
@@ -22,6 +26,14 @@ import type {
   Webhook,
   CreateWebhookInput,
   UpdateWebhookInput,
+  AuditContext,
+  AuditEntry,
+  AuditLogQuery,
+  ConsentRecord,
+  GrantConsentInput,
+  Region,
+  CreateRegionInput,
+  UpdateRegionInput,
 } from "@stratum/core";
 import { TenantEvent } from "@stratum/core";
 
@@ -51,9 +63,15 @@ export class Stratum {
   }
 
   // Tenant operations
-  async createTenant(input: CreateTenantInput): Promise<TenantNode> {
+  async createTenant(input: CreateTenantInput, audit?: AuditContext): Promise<TenantNode> {
     const tenant = await tenantService.createTenant(this.pool, input);
     this.emitEvent(TenantEvent.TENANT_CREATED, tenant.id, { tenant });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.created", "tenant", tenant.id, tenant.id,
+        null, tenant as unknown as Record<string, unknown>,
+      );
+    }
     return tenant;
   }
   getTenant(id: string, includeArchived?: boolean): Promise<TenantNode> {
@@ -62,18 +80,35 @@ export class Stratum {
   listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
     return tenantService.listTenants(this.pool, pagination);
   }
-  async updateTenant(id: string, patch: UpdateTenantInput): Promise<TenantNode> {
+  async updateTenant(id: string, patch: UpdateTenantInput, audit?: AuditContext): Promise<TenantNode> {
     const tenant = await tenantService.updateTenant(this.pool, id, patch);
     this.emitEvent(TenantEvent.TENANT_UPDATED, tenant.id, { tenant });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.updated", "tenant", id, id,
+        null, patch as unknown as Record<string, unknown>,
+      );
+    }
     return tenant;
   }
-  async deleteTenant(id: string): Promise<void> {
+  async deleteTenant(id: string, audit?: AuditContext): Promise<void> {
     await tenantService.deleteTenant(this.pool, id);
     this.emitEvent(TenantEvent.TENANT_DELETED, id, { tenant_id: id });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.deleted", "tenant", id, id,
+      );
+    }
   }
-  async moveTenant(id: string, newParentId: string): Promise<TenantNode> {
+  async moveTenant(id: string, newParentId: string, audit?: AuditContext): Promise<TenantNode> {
     const tenant = await tenantService.moveTenant(this.pool, id, newParentId);
     this.emitEvent(TenantEvent.TENANT_MOVED, tenant.id, { tenant, new_parent_id: newParentId });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.moved", "tenant", id, id,
+        null, null, { new_parent_id: newParentId },
+      );
+    }
     return tenant;
   }
   getAncestors(id: string): Promise<TenantNode[]> {
@@ -90,14 +125,25 @@ export class Stratum {
   resolveConfig(tenantId: string): Promise<ResolvedConfig> {
     return configService.resolveConfig(this.pool, tenantId);
   }
-  async setConfig(tenantId: string, key: string, input: SetConfigInput): Promise<ConfigEntry> {
+  async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
     const entry = await configService.setConfig(this.pool, tenantId, key, input);
     this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key, entry });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "config.updated", "config", key, tenantId,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
     return entry;
   }
-  async deleteConfig(tenantId: string, key: string): Promise<void> {
+  async deleteConfig(tenantId: string, key: string, audit?: AuditContext): Promise<void> {
     await configService.deleteConfig(this.pool, tenantId, key);
     this.emitEvent(TenantEvent.CONFIG_DELETED, tenantId, { key });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "config.deleted", "config", key, tenantId,
+      );
+    }
   }
   getConfigWithInheritance(tenantId: string): Promise<ResolvedConfig> {
     return configService.getConfigWithInheritance(this.pool, tenantId);
@@ -107,35 +153,68 @@ export class Stratum {
   resolvePermissions(tenantId: string): Promise<Record<string, ResolvedPermission>> {
     return permissionService.resolvePermissions(this.pool, tenantId);
   }
-  async createPermission(tenantId: string, input: CreatePermissionInput): Promise<PermissionPolicy> {
+  async createPermission(tenantId: string, input: CreatePermissionInput, audit?: AuditContext): Promise<PermissionPolicy> {
     const policy = await permissionService.createPermission(this.pool, tenantId, input);
     this.emitEvent(TenantEvent.PERMISSION_CREATED, tenantId, { policy });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "permission.created", "permission", policy.id, tenantId,
+        null, policy as unknown as Record<string, unknown>,
+      );
+    }
     return policy;
   }
-  async updatePermission(tenantId: string, policyId: string, input: UpdatePermissionInput): Promise<PermissionPolicy> {
+  async updatePermission(tenantId: string, policyId: string, input: UpdatePermissionInput, audit?: AuditContext): Promise<PermissionPolicy> {
     const policy = await permissionService.updatePermission(this.pool, tenantId, policyId, input);
     this.emitEvent(TenantEvent.PERMISSION_UPDATED, tenantId, { policy });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "permission.updated", "permission", policyId, tenantId,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
     return policy;
   }
-  async deletePermission(tenantId: string, policyId: string): Promise<void> {
+  async deletePermission(tenantId: string, policyId: string, audit?: AuditContext): Promise<void> {
     await permissionService.deletePermission(this.pool, tenantId, policyId);
     this.emitEvent(TenantEvent.PERMISSION_DELETED, tenantId, { policy_id: policyId });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "permission.deleted", "permission", policyId, tenantId,
+      );
+    }
   }
 
   // API Key operations
-  createApiKey(tenantId: string, name?: string): Promise<apiKeyService.CreatedApiKey> {
-    return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, name);
+  createApiKey(tenantId: string, name?: string, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
+    return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, name, expiresAt);
   }
-  validateApiKey(key: string): Promise<{ tenant_id: string | null; key_id: string } | null> {
+  validateApiKey(key: string): Promise<{ tenant_id: string | null; key_id: string; scopes: string[] } | null> {
     return apiKeyService.validateApiKey(this.pool, key);
   }
   revokeApiKey(keyId: string): Promise<boolean> {
     return apiKeyService.revokeApiKey(this.pool, keyId);
   }
+  rotateApiKey(keyId: string, newName?: string): Promise<apiKeyService.CreatedApiKey> {
+    return apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
+  }
+  listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null }>> {
+    return apiKeyService.listApiKeys(this.pool, tenantId);
+  }
+  listDormantKeys(dormantDays?: number): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; last_used_at: Date | null; created_at: Date }>> {
+    return apiKeyService.listDormantKeys(this.pool, dormantDays);
+  }
 
   // Webhook operations
-  createWebhook(input: CreateWebhookInput): Promise<Webhook> {
-    return webhookService.createWebhook(this.pool, input);
+  async createWebhook(input: CreateWebhookInput, audit?: AuditContext): Promise<Webhook> {
+    const webhook = await webhookService.createWebhook(this.pool, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "webhook.created", "webhook", webhook.id, input.tenant_id ?? null,
+        null, { url: webhook.url, events: webhook.events } as Record<string, unknown>,
+      );
+    }
+    return webhook;
   }
   getWebhook(id: string): Promise<Webhook> {
     return webhookService.getWebhook(this.pool, id);
@@ -143,11 +222,26 @@ export class Stratum {
   listWebhooks(tenantId?: string): Promise<Webhook[]> {
     return webhookService.listWebhooks(this.pool, tenantId);
   }
-  updateWebhook(id: string, input: UpdateWebhookInput): Promise<Webhook> {
-    return webhookService.updateWebhook(this.pool, id, input);
+  async updateWebhook(id: string, input: UpdateWebhookInput, audit?: AuditContext): Promise<Webhook> {
+    const webhook = await webhookService.updateWebhook(this.pool, id, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
+    return webhook;
   }
-  deleteWebhook(id: string): Promise<void> {
-    return webhookService.deleteWebhook(this.pool, id);
+  async deleteWebhook(id: string, audit?: AuditContext): Promise<void> {
+    if (audit) {
+      const webhook = await webhookService.getWebhook(this.pool, id);
+      await webhookService.deleteWebhook(this.pool, id);
+      await auditService.createAuditEntry(
+        this.pool, audit, "webhook.deleted", "webhook", id, webhook.tenant_id,
+      );
+    } else {
+      await webhookService.deleteWebhook(this.pool, id);
+    }
   }
   listWebhookDeliveries(webhookId: string): Promise<Record<string, unknown>[]> {
     return webhookService.listWebhookDeliveries(this.pool, webhookId);
@@ -193,6 +287,104 @@ export class Stratum {
         response_code: null,
         error: err instanceof Error ? err.message : String(err),
       };
+    }
+  }
+
+  // Audit log operations
+  queryAuditLogs(query: AuditLogQuery): Promise<AuditEntry[]> {
+    return auditService.queryAuditLogs(this.pool, query);
+  }
+  getAuditEntry(id: string): Promise<AuditEntry | null> {
+    return auditService.getAuditEntry(this.pool, id);
+  }
+
+  // Consent operations
+  async grantConsent(tenantId: string, input: GrantConsentInput, audit?: AuditContext): Promise<ConsentRecord> {
+    const record = await consentService.grantConsent(this.pool, tenantId, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "consent.granted", "consent", record.id, tenantId,
+        null, { subject_id: input.subject_id, purpose: input.purpose } as Record<string, unknown>,
+      );
+    }
+    return record;
+  }
+  async revokeConsent(tenantId: string, subjectId: string, purpose: string, audit?: AuditContext): Promise<boolean> {
+    const result = await consentService.revokeConsent(this.pool, tenantId, subjectId, purpose);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "consent.revoked", "consent", purpose, tenantId,
+      );
+    }
+    return result;
+  }
+  listConsent(tenantId: string, subjectId?: string): Promise<ConsentRecord[]> {
+    return consentService.listConsent(this.pool, tenantId, subjectId);
+  }
+  getActiveConsent(tenantId: string, subjectId: string, purpose: string): Promise<ConsentRecord | null> {
+    return consentService.getActiveConsent(this.pool, tenantId, subjectId, purpose);
+  }
+
+  // Data retention & GDPR operations
+  async purgeExpiredData(retentionDays?: number): Promise<{ deleted_count: number }> {
+    return retentionService.purgeExpiredData(this.pool, retentionDays);
+  }
+  async purgeTenant(tenantId: string, audit?: AuditContext): Promise<void> {
+    await retentionService.purgeTenant(this.pool, tenantId);
+    // Write audit entry AFTER purge with null tenant_id so it survives the purge
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.purged", "tenant", tenantId, null,
+        null, null, { purged_tenant_id: tenantId },
+      );
+    }
+  }
+  async exportTenantData(tenantId: string): Promise<Record<string, unknown>> {
+    return retentionService.exportTenantData(this.pool, tenantId);
+  }
+
+  // Region operations
+  async createRegion(input: CreateRegionInput, audit?: AuditContext): Promise<Region> {
+    const region = await regionService.createRegion(this.pool, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "region.created", "region", region.id, null,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
+    return region;
+  }
+  getRegion(id: string): Promise<Region> {
+    return regionService.getRegion(this.pool, id);
+  }
+  listRegions(): Promise<Region[]> {
+    return regionService.listRegions(this.pool);
+  }
+  async updateRegion(id: string, input: UpdateRegionInput, audit?: AuditContext): Promise<Region> {
+    const region = await regionService.updateRegion(this.pool, id, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "region.updated", "region", id, null,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
+    return region;
+  }
+  async deleteRegion(id: string, audit?: AuditContext): Promise<void> {
+    await regionService.deleteRegion(this.pool, id);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "region.deleted", "region", id, null,
+      );
+    }
+  }
+  async migrateRegion(tenantId: string, newRegionId: string, audit?: AuditContext): Promise<void> {
+    await regionService.migrateRegion(this.pool, tenantId, newRegionId);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.region_migrated", "tenant", tenantId, tenantId,
+        null, null, { new_region_id: newRegionId },
+      );
     }
   }
 

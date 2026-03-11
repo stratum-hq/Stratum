@@ -10,6 +10,7 @@ interface ApiKeyRecord {
   key_hash: string;
   name: string;
   created_at: Date;
+  scopes: string[];
 }
 
 declare module "fastify" {
@@ -41,6 +42,7 @@ export function createAuthMiddleware(stratum: Stratum) {
         key_hash: "",
         name: "",
         created_at: new Date(),
+        scopes: result.scopes,
       };
       return;
     }
@@ -52,12 +54,19 @@ export function createAuthMiddleware(stratum: Stratum) {
       try {
         const payload = jwt.verify(token, config.jwtSecret) as jwt.JwtPayload;
         // Store a synthetic api key record from JWT claims
+        // Extract scopes from JWT claims; default to full access for backward compat
+        const jwtScopes = Array.isArray(payload.scopes)
+          ? (payload.scopes as unknown[]).filter(
+              (s): s is string => typeof s === "string" && ["read", "write", "admin"].includes(s),
+            )
+          : ["read", "write", "admin"];
         request.apiKey = {
           id: payload.sub ?? "",
           tenant_id: payload.tenant_id ?? null,
           key_hash: "",
           name: payload.name ?? "jwt",
           created_at: new Date(),
+          scopes: jwtScopes,
         };
         return;
       } catch {

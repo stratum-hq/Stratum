@@ -13,9 +13,12 @@ The control plane supports two authentication methods:
 
 - Format: `sk_live_<base64>` (production) or `sk_test_<base64>` (development)
 - Header: `X-API-Key`
-- Storage: SHA-256 hashed — plaintext is never stored
+- Storage: SHA-256 hashed — plaintext is never stored. Secrets additionally encrypted with AES-256-GCM at rest
 - Generated with 256-bit entropy (`crypto.randomBytes(32)`)
 - Displayed once at creation time, cannot be retrieved again
+- **Scopes**: each key carries a `scopes` array (`read`, `write`, `admin`) controlling permitted operations
+- **Expiration**: optional `expires_at` timestamp — expired keys are automatically rejected during validation
+- **Rotation**: atomic rotate endpoint creates a new key and revokes the old one in a single transaction
 
 ### JWT Bearer Tokens
 
@@ -112,7 +115,53 @@ Configurable per-IP rate limiting via `@fastify/rate-limit`:
 
 ## Soft Delete
 
-Tenants are never hard-deleted. The `DELETE` endpoint archives them by setting `status = 'archived'` and `deleted_at = now()`. The `ON DELETE RESTRICT` foreign key prevents deleting tenants that have children.
+Tenants are never hard-deleted. The `DELETE` endpoint archives them by setting `status = 'archived'` and `deleted_at = now()`. The `ON DELETE RESTRICT` foreign key prevents deleting tenants that have children. For GDPR compliance, a separate hard-purge endpoint (`POST /api/v1/tenants/:id/purge`) permanently removes all tenant data.
+
+## Authorization Scopes
+
+API keys carry scopes that restrict their capabilities:
+
+| Scope | Permitted Operations |
+|-------|---------------------|
+| `read` | `GET` requests — list tenants, resolve config, view audit logs |
+| `write` | `POST`, `PATCH`, `DELETE` — create tenants, update config, manage permissions |
+| `admin` | API key management, audit log access, maintenance operations (purge expired records) |
+
+New API keys default to `['read', 'write']`. JWT tokens receive full `['read', 'write', 'admin']` privileges. The `authorize` middleware checks the request's HTTP method and route pattern against the caller's scopes and returns `403 Forbidden` if the required scope is missing.
+
+## SSRF Protection
+
+Webhook registration validates target URLs against private and reserved IP ranges to prevent Server-Side Request Forgery:
+
+- Private networks: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+- Loopback: `127.0.0.0/8`, `::1`
+- Cloud metadata endpoints: `169.254.169.254`
+- Link-local: `169.254.0.0/16`
+
+URLs resolving to blocked addresses are rejected at registration time.
+
+## Field-Level Encryption
+
+Sensitive data is encrypted at rest using AES-256-GCM:
+
+- **Algorithm**: AES-256-GCM with random 12-byte IV per encryption operation
+- **Format**: `v1:iv:authTag:ciphertext` — the version prefix enables seamless key rotation
+- **Scope**: config entries marked `sensitive: true`, webhook secrets
+- **Key**: sourced from `STRATUM_ENCRYPTION_KEY` environment variable (or `WEBHOOK_ENCRYPTION_KEY` for backward compatibility)
+- **Integrity**: GCM authentication tag prevents tampering with ciphertext
+
+The shared crypto module is used across all services that need encryption, ensuring consistent behavior and a single key management surface.
+
+## Audit Logging
+
+All state-mutating operations are recorded in an append-only `audit_logs` table:
+
+- **Actor tracking**: captures API key ID or JWT subject for every mutation
+- **Before/after snapshots**: JSON state of the resource before and after the change
+- **Tamper resistance**: audit logs are append-only; no update or delete operations are exposed
+- **Retention**: configurable purge of old entries via `POST /api/v1/maintenance/purge-expired` (default 90-day retention)
+
+Audit logs provide a complete forensic trail for compliance (SOC 2, GDPR Article 30 records of processing activities).
 
 ## JWT Secret
 
@@ -129,4 +178,8 @@ When deploying to production, ensure:
 - [ ] API keys use `sk_live_` prefix (not `sk_test_`)
 - [ ] Database connections use TLS (`?sslmode=require`)
 - [ ] Rate limiting is configured appropriately
+- [ ] `STRATUM_ENCRYPTION_KEY` is set to a 256-bit key for field-level encryption
+- [ ] API key scopes are reviewed — avoid granting `admin` scope unless necessary
+- [ ] Webhook URLs are validated (SSRF protection is enabled by default)
+- [ ] Audit log retention period is configured for your compliance requirements
 - [ ] Reverse proxy handles HTTPS termination

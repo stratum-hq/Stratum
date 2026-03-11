@@ -8,6 +8,7 @@ export const ConfigEntrySchema = z.object({
   inherited: z.boolean().default(false),
   source_tenant_id: z.string().uuid(),
   locked: z.boolean().default(false),
+  sensitive: z.boolean().default(false),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -17,6 +18,7 @@ export type ConfigEntry = z.infer<typeof ConfigEntrySchema>;
 export const SetConfigInputSchema = z.object({
   value: z.unknown(),
   locked: z.boolean().default(false),
+  sensitive: z.boolean().default(false),
 });
 
 export type SetConfigInput = z.infer<typeof SetConfigInputSchema>;

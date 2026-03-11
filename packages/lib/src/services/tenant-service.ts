@@ -41,9 +41,12 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
       const parent = parentRes.rows[0];
       const ancestry_path = appendToPath(parent.ancestry_path, parent.id);
 
+      // Inherit region_id from parent if not explicitly provided
+      const regionId = (input as Record<string, unknown>).region_id ?? (parent as Record<string, unknown>).region_id ?? null;
+
       const res = await client.query<TenantNode>(
-        `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active')
+        `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
          RETURNING *`,
         [
           input.parent_id,
@@ -54,15 +57,18 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          regionId,
         ],
       );
 
       return res.rows[0];
     } else {
       // Root tenant — no parent lock needed
+      const rootRegionId = (input as Record<string, unknown>).region_id ?? null;
+
       const res = await client.query<TenantNode>(
-        `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status)
-         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active')
+        `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
+         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
          RETURNING *`,
         [
           input.name,
@@ -70,6 +76,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          rootRegionId,
         ],
       );
 

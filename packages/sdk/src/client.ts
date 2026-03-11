@@ -1,22 +1,25 @@
 import { TenantNotFoundError, UnauthorizedError } from "@stratum/core";
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput } from "@stratum/core";
+import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum/core";
 import { LRUCache } from "./cache.js";
 
 export interface StratumClientOptions {
   controlPlaneUrl: string;
   apiKey: string;
+  regionUrl?: string;
   cache?: { enabled?: boolean; ttlMs?: number; maxSize?: number };
 }
 
 export class StratumClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly regionUrl: string | undefined;
   private readonly cache: LRUCache<string, TenantContext>;
   private readonly cacheEnabled: boolean;
 
   constructor(options: StratumClientOptions) {
     this.baseUrl = options.controlPlaneUrl.replace(/\/$/, "");
     this.apiKey = options.apiKey;
+    this.regionUrl = options.regionUrl?.replace(/\/$/, "");
     this.cacheEnabled = options.cache?.enabled !== false;
     this.cache = new LRUCache<string, TenantContext>({
       ttlMs: options.cache?.ttlMs,
@@ -149,6 +152,52 @@ export class StratumClient {
 
   async deleteWebhook(id: string): Promise<void> {
     await this.fetch<void>(`/api/v1/webhooks/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async rotateApiKey(keyId: string, name?: string): Promise<{ id: string; plaintext_key: string; tenant_id: string | null; name: string | null }> {
+    return this.fetch(`/api/v1/api-keys/${keyId}/rotate`, {
+      method: "POST",
+      body: JSON.stringify(name ? { name } : {}),
+    });
+  }
+
+  async listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: string; last_used_at: string | null; expires_at: string | null }>> {
+    const path = tenantId
+      ? `/api/v1/api-keys?tenant_id=${encodeURIComponent(tenantId)}`
+      : "/api/v1/api-keys";
+    return this.fetch(path);
+  }
+
+  async listDormantKeys(days?: number): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; last_used_at: string | null }>> {
+    const path = days
+      ? `/api/v1/api-keys/dormant?days=${days}`
+      : "/api/v1/api-keys/dormant";
+    return this.fetch(path);
+  }
+
+  // Region operations
+  async listRegions(): Promise<Region[]> {
+    return this.fetch<Region[]>("/api/v1/regions");
+  }
+
+  async createRegion(input: CreateRegionInput): Promise<Region> {
+    return this.fetch<Region>("/api/v1/regions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateRegion(id: string, input: UpdateRegionInput): Promise<Region> {
+    return this.fetch<Region>(`/api/v1/regions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async deleteRegion(id: string): Promise<void> {
+    await this.fetch<void>(`/api/v1/regions/${id}`, {
       method: "DELETE",
     });
   }

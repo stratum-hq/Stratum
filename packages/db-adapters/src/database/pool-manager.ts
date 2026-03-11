@@ -47,10 +47,14 @@ export class DatabasePoolManager {
   /**
    * Returns an existing pool for the tenant slug, or creates a new one.
    * Evicts the LRU pool if the pool limit is reached.
+   *
+   * When a regionId is provided, the pool is keyed as `regionId:slug` to support
+   * multi-region deployments where the same slug may exist in different regions.
    */
-  getPool(tenantSlug: string): pg.Pool {
+  getPool(tenantSlug: string, regionId?: string): pg.Pool {
     this.validateSlug(tenantSlug);
-    const existing = this.pools.get(tenantSlug);
+    const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
+    const existing = this.pools.get(poolKey);
     if (existing) {
       existing.lastUsed = Date.now();
       return existing.pool;
@@ -68,7 +72,7 @@ export class DatabasePoolManager {
       idleTimeoutMillis: this.idleTimeoutMs,
     });
 
-    this.pools.set(tenantSlug, { pool, lastUsed: Date.now() });
+    this.pools.set(poolKey, { pool, lastUsed: Date.now() });
     return pool;
   }
 

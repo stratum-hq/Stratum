@@ -35,6 +35,9 @@ All errors follow this format:
 | `MISSING_TENANT` | 400 | Tenant ID could not be resolved from request | SDK middleware couldn't find tenant ID in JWT, header, or resolvers |
 | `WEBHOOK_NOT_FOUND` | 404 | Webhook registration does not exist | Invalid webhook ID, or webhook was already deleted |
 | `WEBHOOK_DELIVERY_FAILED` | 502 | Webhook delivery failed after all retry attempts | Target URL returned non-2xx response on all 5 attempts |
+| `FORBIDDEN` | 403 | Insufficient scope permissions | API key lacks the required scope (`read`, `write`, or `admin`) for the requested operation |
+| `REGION_NOT_FOUND` | 404 | Region does not exist | Invalid region ID, or region was deleted |
+| `CONSENT_NOT_FOUND` | 404 | Consent record not found | No consent record matches the given subject and purpose |
 
 ## Error Hierarchy
 
@@ -44,6 +47,7 @@ All Stratum errors extend `StratumError`, which extends the native `Error` class
 Error
   └── StratumError
         ├── UnauthorizedError
+        ├── ForbiddenError
         ├── TenantNotFoundError
         ├── TenantArchivedError
         ├── TenantAlreadyExistsError
@@ -55,7 +59,9 @@ Error
         ├── PermissionNotFoundError
         ├── PermissionRevocationDeniedError
         ├── WebhookNotFoundError
-        └── WebhookDeliveryFailedError
+        ├── WebhookDeliveryFailedError
+        ├── RegionNotFoundError
+        └── ConsentNotFoundError
 ```
 
 ## Handling Errors

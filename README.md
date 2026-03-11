@@ -324,6 +324,7 @@ Deliveries include HMAC-SHA256 signatures and automatic retry with exponential b
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3300` | CORS origins (comma-separated) |
 | `RATE_LIMIT_MAX` | `100` | Max requests per rate limit window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate limit time window |
+| `STRATUM_ENCRYPTION_KEY` | — | AES-256-GCM key for field-level encryption (**required** in production) |
 
 ## Documentation
 
@@ -338,6 +339,12 @@ Deliveries include HMAC-SHA256 signatures and automatic retry with exponential b
 | [Security](docs/architecture/security.md) | Auth, SQL injection prevention, RLS guarantees |
 | [React Components](docs/packages/react-ui.md) | Provider, hooks, tenant tree, config editor |
 | [CLI Reference](docs/packages/cli.md) | Project init, DB migration, scaffolding |
+| [Audit Logging](docs/guides/audit-logging.md) | Audit trail with actor context and before/after state |
+| [Authorization & Scopes](docs/guides/authorization.md) | API key scopes, JWT privileges, route enforcement |
+| [GDPR & Data Retention](docs/guides/gdpr.md) | Tenant data export, hard-purge, retention policies |
+| [Encryption](docs/guides/encryption.md) | AES-256-GCM field-level encryption and key versioning |
+| [Consent Management](docs/guides/consent.md) | GDPR consent records with purpose tracking |
+| [Multi-Region](docs/guides/multi-region.md) | Region management, tenant migration, regional pools |
 
 ## Development
 
@@ -351,11 +358,13 @@ npm run dev            # Dev mode (watch)
 
 ## Security
 
-- API keys: 256-bit entropy, SHA-256 hashed storage, display-once semantics
+- API keys: 256-bit entropy, SHA-256 hashed storage, display-once semantics, scoped authorization (`read`/`write`/`admin`), expiration and rotation
 - SQL injection: parameterized queries everywhere, table name regex validation for DDL
 - RLS: `FORCE ROW LEVEL SECURITY` on all tenant tables, BYPASSRLS startup check
-- HTTP: Helmet security headers, CORS, per-IP rate limiting
-- Soft delete: tenants are archived, never hard-deleted
+- HTTP: Helmet security headers, CORS, per-IP rate limiting, SSRF protection on webhook URLs
+- Field-level encryption: AES-256-GCM with key versioning for sensitive config entries and webhook secrets
+- Audit logging: all mutations recorded with actor identity, resource tracking, and before/after state
+- Soft delete: tenants are archived, never hard-deleted (with GDPR hard-purge option)
 
 ## Roadmap
 
@@ -365,7 +374,13 @@ npm run dev            # Dev mode (watch)
 | v1.1 | Schema-per-tenant isolation | Current |
 | v1.2 | Database-per-tenant isolation | Current |
 | v1.3 | Webhook events on tenant lifecycle | Current |
-| v2.0 | Multi-region support | Planned |
+| v1.4 | Audit logging with actor identity and before/after state | Current |
+| v1.5 | Authorization enforcement with scoped API keys (`read`/`write`/`admin`) | Current |
+| v1.6 | Data retention & GDPR purge (tenant data export, hard-delete, expired record cleanup) | Current |
+| v1.7 | Field-level encryption (AES-256-GCM with key versioning) | Current |
+| v1.8 | API key management (expiration, rotation, dormant detection) | Current |
+| v1.9 | Structured logging & consent management | Current |
+| v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Current |
 
 ## License
 

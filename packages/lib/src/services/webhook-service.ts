@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
 import type {
@@ -7,57 +6,16 @@ import type {
   UpdateWebhookInput,
 } from "@stratum/core";
 import { WebhookNotFoundError } from "@stratum/core";
+import { encrypt, decrypt } from "../crypto.js";
 
-const ENCRYPTION_ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 12;
-const AUTH_TAG_LENGTH = 16;
-
-/**
- * Derives a 256-bit encryption key from WEBHOOK_ENCRYPTION_KEY env var.
- * Falls back to a deterministic key derived from NODE_ENV for development only.
- */
-function getEncryptionKey(): Buffer {
-  const envKey = process.env.WEBHOOK_ENCRYPTION_KEY;
-  if (envKey) {
-    return crypto.createHash("sha256").update(envKey).digest();
-  }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("WEBHOOK_ENCRYPTION_KEY must be set in production");
-  }
-  // Dev-only fallback — not secure for production
-  return crypto.createHash("sha256").update("stratum-dev-key").digest();
-}
-
-/** Encrypts a webhook secret for storage. Returns hex-encoded iv:authTag:ciphertext. */
+/** Encrypts a webhook secret for storage. */
 function encryptSecret(secret: string): string {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv, {
-    authTagLength: AUTH_TAG_LENGTH,
-  });
-  const encrypted = Buffer.concat([
-    cipher.update(secret, "utf8"),
-    cipher.final(),
-  ]);
-  const authTag = cipher.getAuthTag();
-  return `${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
+  return encrypt(secret);
 }
 
-/** Decrypts a stored webhook secret. Input is hex-encoded iv:authTag:ciphertext. */
+/** Decrypts a stored webhook secret. */
 export function decryptSecret(encrypted: string): string {
-  const key = getEncryptionKey();
-  const [ivHex, authTagHex, ciphertextHex] = encrypted.split(":");
-  if (!ivHex || !authTagHex || !ciphertextHex) {
-    throw new Error("Invalid encrypted secret format");
-  }
-  const iv = Buffer.from(ivHex, "hex");
-  const authTag = Buffer.from(authTagHex, "hex");
-  const ciphertext = Buffer.from(ciphertextHex, "hex");
-  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, iv, {
-    authTagLength: AUTH_TAG_LENGTH,
-  });
-  decipher.setAuthTag(authTag);
-  return decipher.update(ciphertext).toString("utf8") + decipher.final("utf8");
+  return decrypt(encrypted);
 }
 
 export async function createWebhook(
