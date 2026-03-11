@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stratum"]
       interval: 5s
@@ -20,7 +21,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://stratum:stratum_dev@db:5432/stratum
+      DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
       PORT: "3001"
       NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-stratum-demo-secret-do-not-use-in-production}
@@ -35,7 +36,7 @@ services:
       context: .
       dockerfile: packages/demo/api/Dockerfile
     environment:
-      DATABASE_URL: postgres://stratum:stratum_dev@db:5432/stratum
+      DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
       STRATUM_URL: http://control-plane:3001
       PORT: "3002"
     ports:
