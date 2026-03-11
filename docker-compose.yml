@@ -22,7 +22,8 @@ services:
     environment:
       DATABASE_URL: postgres://stratum:stratum_dev@db:5432/stratum
       PORT: "3001"
-      NODE_ENV: production
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET:-stratum-demo-secret-do-not-use-in-production}
     ports:
       - "3001:3001"
     depends_on:
