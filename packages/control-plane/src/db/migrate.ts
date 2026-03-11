@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { getPool, closePool } from "./connection.js";
+import { getPool } from "./connection.js";
 
-const __dirname = path.resolve(path.dirname(""), "packages/control-plane/src/db");
+const migrateBaseDir = path.resolve(path.dirname(""), "packages/control-plane/src/db");
 
 async function migrate(): Promise<void> {
   const pool = getPool();
@@ -23,7 +23,7 @@ async function migrate(): Promise<void> {
   const appliedSet = new Set(applied.map((r: { name: string }) => r.name));
 
   // Get migration files
-  const migrationsDir = path.join(__dirname, "migrations");
+  const migrationsDir = path.join(migrateBaseDir, "migrations");
   const files = fs
     .readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
@@ -56,13 +56,5 @@ async function migrate(): Promise<void> {
 
   console.log("Migrations complete.");
 }
-
-// Run directly
-migrate()
-  .then(() => closePool())
-  .catch((err) => {
-    console.error("Migration failed:", err);
-    process.exit(1);
-  });
 
 export { migrate };
