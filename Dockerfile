@@ -18,12 +18,15 @@ RUN npm run build --workspace=@stratum/core && \
     npm run build --workspace=@stratum/db-adapters && \
     npm run build --workspace=@stratum/control-plane
 
+# Resolve workspace symlinks into real copies for the runner stage
+RUN cp -rL node_modules node_modules_resolved
+
 FROM node:18-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules_resolved ./node_modules
 COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/core/package.json ./packages/core/
 COPY --from=builder /app/packages/lib/dist ./packages/lib/dist
