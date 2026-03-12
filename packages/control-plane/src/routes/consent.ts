@@ -2,9 +2,12 @@ import { FastifyInstance } from "fastify";
 import { GrantConsentInputSchema } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
 import { buildAuditContext } from "./audit-logs.js";
+import { createTenantScopeGuard, fromParamTenantId } from "../middleware/tenant-scope.js";
 
 export function createConsentRoutes(stratum: Stratum) {
   return async function consentRoutes(app: FastifyInstance): Promise<void> {
+    // Tenant-scoped keys can only access consent for their own tenant subtree
+    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamTenantId));
     // POST /api/v1/tenants/:tenantId/consent — Grant consent
     app.post<{ Params: { tenantId: string } }>("/", async (request, reply) => {
       const { tenantId } = request.params;

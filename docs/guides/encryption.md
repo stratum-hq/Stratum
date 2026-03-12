@@ -63,13 +63,34 @@ const newKey = "new-encryption-key";
 const newCiphertext = reEncrypt(existingCiphertext, oldKey, newKey);
 ```
 
+### Via the Maintenance API
+
+The recommended approach for production key rotation:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/maintenance/rotate-encryption-key \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"old_key": "current-key", "new_key": "new-key"}'
+```
+
+This re-encrypts all sensitive config entries and webhook secrets in a single atomic transaction. Response:
+
+```json
+{
+  "config_entries_rotated": 12,
+  "webhooks_rotated": 5
+}
+```
+
 ### Rotation Process
 
-1. Set the new key in your environment
-2. Re-encrypt all stored values using `reEncrypt(value, oldKey, newKey)`
-3. Remove the old key from your environment
+1. Generate a new encryption key
+2. Call the rotation API with both old and new keys
+3. Update `STRATUM_ENCRYPTION_KEY` to the new key in your environment
+4. Restart the control plane
 
-The `reEncrypt` function uses explicit key parameters — it never mutates `process.env`, making it safe for concurrent operations.
+The rotation is atomic — either all values are re-encrypted or none are. The `reEncrypt` function uses explicit key parameters and never mutates `process.env`, making it safe for concurrent operations.
 
 ## Using Encryption Directly
 

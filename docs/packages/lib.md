@@ -75,6 +75,7 @@ stratum.moveTenant(id: string, newParentId: string): Promise<TenantNode>
 stratum.getAncestors(id: string): Promise<TenantNode[]>
 stratum.getDescendants(id: string): Promise<TenantNode[]>
 stratum.getChildren(id: string): Promise<TenantNode[]>
+stratum.batchCreateTenants(inputs: CreateTenantInput[], audit?: AuditContext): Promise<BatchCreateResult>
 ```
 
 ### Config
@@ -84,6 +85,7 @@ stratum.resolveConfig(tenantId: string): Promise<ResolvedConfig>
 stratum.setConfig(tenantId: string, key: string, input: SetConfigInput): Promise<ConfigEntry>
 stratum.deleteConfig(tenantId: string, key: string): Promise<void>
 stratum.getConfigWithInheritance(tenantId: string): Promise<ResolvedConfig>
+stratum.batchSetConfig(tenantId: string, entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>, audit?: AuditContext): Promise<ConfigEntry[]>
 ```
 
 ### Permissions
@@ -152,7 +154,29 @@ stratum.deleteRegion(id: string, audit?: AuditContext): Promise<void>
 stratum.migrateRegion(tenantId: string, newRegionId: string, audit?: AuditContext): Promise<void>
 ```
 
-### Encryption
+### Roles (RBAC)
+
+```typescript
+stratum.createRole(input: CreateRoleInput, audit?: AuditContext): Promise<Role>
+stratum.getRole(id: string): Promise<Role | null>
+stratum.listRoles(tenantId?: string): Promise<Role[]>
+stratum.updateRole(id: string, input: UpdateRoleInput, audit?: AuditContext): Promise<Role | null>
+stratum.deleteRole(id: string, audit?: AuditContext): Promise<boolean>
+stratum.assignRoleToKey(keyId: string, roleId: string): Promise<boolean>
+stratum.removeRoleFromKey(keyId: string): Promise<boolean>
+stratum.resolveKeyScopes(keyId: string): Promise<string[]>
+```
+
+### Webhook Deliveries (DLQ)
+
+```typescript
+stratum.getDeliveryStats(): Promise<DeliveryStats>
+stratum.listFailedDeliveries(): Promise<FailedDelivery[]>
+stratum.retryDelivery(deliveryId: string): Promise<boolean>
+stratum.retryFailedDeliveries(): Promise<{ retried: number }>
+```
+
+### Encryption & Key Rotation
 
 ```typescript
 import { encrypt, decrypt, reEncrypt } from "@stratum/lib";
@@ -160,6 +184,10 @@ import { encrypt, decrypt, reEncrypt } from "@stratum/lib";
 encrypt(plaintext: string): string           // Returns "v1:iv:tag:ciphertext"
 decrypt(ciphertext: string): string          // Decrypts v1 or legacy format
 reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
+
+// Rotate all encrypted data in a single transaction
+stratum.rotateEncryptionKey(oldKey: string, newKey: string, audit?: AuditContext): Promise<KeyRotationResult>
+// → { config_entries_rotated: number, webhooks_rotated: number }
 ```
 
 ## Pool Helpers
@@ -204,6 +232,14 @@ import type {
   ResolvedPermission,
   ApiKeyRecord,
   CreatedApiKey,
+  ValidatedApiKey,
+  CreateApiKeyOptions,
+  BatchCreateResult,
+  KeyRotationResult,
+  DeliveryStats,
+  Role,
+  CreateRoleInput,
+  UpdateRoleInput,
 } from "@stratum/lib";
 ```
 

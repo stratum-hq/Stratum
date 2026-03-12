@@ -27,6 +27,7 @@ All endpoints (except health) require one of:
 |--------|------|-------------|
 | `GET` | `/api/v1/tenants` | [List tenants](#list-tenants) (cursor pagination) |
 | `POST` | `/api/v1/tenants` | [Create tenant](#create-tenant) |
+| `POST` | `/api/v1/tenants/batch` | [Batch create tenants](#batch-create-tenants) (up to 100, atomic) |
 | `GET` | `/api/v1/tenants/:id` | [Get tenant](#get-tenant) |
 | `PATCH` | `/api/v1/tenants/:id` | [Update tenant](#update-tenant) |
 | `DELETE` | `/api/v1/tenants/:id` | [Archive tenant](#archive-tenant) (soft delete) |
@@ -43,6 +44,7 @@ All endpoints (except health) require one of:
 | `GET` | `/api/v1/tenants/:id/config` | [Get resolved config](#get-config) |
 | `PUT` | `/api/v1/tenants/:id/config/:key` | [Set config value](#set-config) |
 | `DELETE` | `/api/v1/tenants/:id/config/:key` | [Delete config override](#delete-config) |
+| `PUT` | `/api/v1/tenants/:id/config/batch` | [Batch set config](#batch-set-config) (up to 200, atomic) |
 | `GET` | `/api/v1/tenants/:id/config/inheritance` | [Get inheritance view](#get-config-inheritance) |
 
 ### Permissions
@@ -100,6 +102,27 @@ All endpoints (except health) require one of:
 | `PATCH` | `/api/v1/regions/:id` | Update region |
 | `DELETE` | `/api/v1/regions/:id` | Delete region |
 
+### Roles (RBAC)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/roles` | [Create role](#create-role) |
+| `GET` | `/api/v1/roles` | [List roles](#list-roles) (optional `?tenant_id=` filter) |
+| `GET` | `/api/v1/roles/:id` | [Get role](#get-role) |
+| `PATCH` | `/api/v1/roles/:id` | [Update role](#update-role) |
+| `DELETE` | `/api/v1/roles/:id` | [Delete role](#delete-role) |
+| `POST` | `/api/v1/roles/assign/:keyId` | [Assign role to API key](#assign-role) |
+| `DELETE` | `/api/v1/roles/assign/:keyId` | [Remove role from API key](#remove-role) |
+
+### Webhook Deliveries (DLQ)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/webhooks/deliveries/stats` | [Get delivery stats](#delivery-stats) |
+| `GET` | `/api/v1/webhooks/deliveries/failed` | [List failed deliveries](#list-failed-deliveries) (dead-letter queue) |
+| `POST` | `/api/v1/webhooks/deliveries/retry-all` | [Retry all failed deliveries](#retry-all-failed) |
+| `POST` | `/api/v1/webhooks/deliveries/:deliveryId/retry` | [Retry single delivery](#retry-single-delivery) |
+
 ### GDPR & Maintenance
 
 | Method | Path | Description |
@@ -108,6 +131,7 @@ All endpoints (except health) require one of:
 | `POST` | `/api/v1/tenants/:id/purge` | Hard-delete all tenant data (Article 17) |
 | `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate tenant to new region |
 | `POST` | `/api/v1/maintenance/purge-expired` | Purge expired logs/events |
+| `POST` | `/api/v1/maintenance/rotate-encryption-key` | [Rotate encryption key](#rotate-encryption-key) (re-encrypt all secrets) |
 
 ---
 
@@ -290,6 +314,34 @@ Returns the full tenant context including resolved config and permissions.
 }
 ```
 
+### Batch Create Tenants
+
+```
+POST /api/v1/tenants/batch
+```
+
+Creates up to 100 tenants in a single atomic transaction. If any tenant fails validation or conflicts, the entire batch rolls back.
+
+**Body:**
+
+```json
+{
+  "tenants": [
+    { "name": "Client A", "slug": "client_a", "parent_id": "uuid" },
+    { "name": "Client B", "slug": "client_b", "parent_id": "uuid" }
+  ]
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "created": [ /* array of tenant objects */ ],
+  "errors": [ /* empty if all succeeded */ ]
+}
+```
+
 ---
 
 ## Config Endpoints
@@ -332,6 +384,28 @@ DELETE /api/v1/tenants/:id/config/:key
 Removes the tenant's override for this key. Inherited values from ancestors still apply.
 
 **Response:** `204 No Content`
+
+### Batch Set Config
+
+```
+PUT /api/v1/tenants/:id/config/batch
+```
+
+Sets up to 200 config keys in a single atomic transaction. Rolls back entirely if any key is locked by an ancestor.
+
+**Body:**
+
+```json
+{
+  "entries": [
+    { "key": "max_users", "value": 500, "locked": false },
+    { "key": "theme", "value": "dark" },
+    { "key": "api_secret", "value": "sk_live_abc", "sensitive": true }
+  ]
+}
+```
+
+**Response:** `200 OK` — returns array of config entries.
 
 ### Get Config Inheritance
 
@@ -454,6 +528,32 @@ DELETE /api/v1/api-keys/:id
 
 **Response:** `204 No Content`
 
+### Rotate Encryption Key
+
+```
+POST /api/v1/maintenance/rotate-encryption-key
+```
+
+Re-encrypts all sensitive config entries and webhook secrets from the old encryption key to the new one in a single transaction. After a successful rotation, update the `STRATUM_ENCRYPTION_KEY` environment variable to the new key value.
+
+**Body:**
+
+```json
+{
+  "old_key": "current-encryption-key",
+  "new_key": "new-encryption-key"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "config_entries_rotated": 12,
+  "webhooks_rotated": 5
+}
+```
+
 ---
 
 ## Error Responses
@@ -485,3 +585,157 @@ All errors follow this format:
 | `NOT_FOUND` | 404 | Resource not found (API key, audit entry, consent record, etc.) |
 | `CONFLICT` | 409 | Resource conflict (e.g., slug already exists) |
 | `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
+
+---
+
+## Role Endpoints (RBAC)
+
+### Create Role
+
+```
+POST /api/v1/roles
+```
+
+**Body:**
+
+```json
+{
+  "name": "Editor",
+  "description": "Can read and write but not manage keys",
+  "scopes": ["read", "write"],
+  "tenant_id": "uuid (optional — null for global roles)"
+}
+```
+
+**Response:** `201 Created` — returns the role object.
+
+### List Roles
+
+```
+GET /api/v1/roles?tenant_id=<uuid>
+```
+
+Returns all roles, optionally filtered by tenant.
+
+**Response:** `200 OK` — array of role objects.
+
+### Get Role
+
+```
+GET /api/v1/roles/:id
+```
+
+**Response:** `200 OK` — returns the role object.
+
+### Update Role
+
+```
+PATCH /api/v1/roles/:id
+```
+
+**Body** (all optional):
+
+```json
+{
+  "name": "New Name",
+  "description": "Updated description",
+  "scopes": ["read", "write", "admin"]
+}
+```
+
+**Response:** `200 OK` — returns the updated role.
+
+### Delete Role
+
+```
+DELETE /api/v1/roles/:id
+```
+
+**Response:** `204 No Content`
+
+### Assign Role
+
+```
+POST /api/v1/roles/assign/:keyId
+```
+
+**Body:**
+
+```json
+{
+  "role_id": "uuid"
+}
+```
+
+Assigns a role to an API key. The role's scopes override the key's default scopes.
+
+**Response:** `200 OK` — `{ "success": true }`
+
+### Remove Role
+
+```
+DELETE /api/v1/roles/assign/:keyId
+```
+
+Removes the role from an API key, reverting to the key's own scopes.
+
+**Response:** `200 OK` — `{ "success": true }`
+
+---
+
+## Webhook Delivery Endpoints (DLQ)
+
+### Delivery Stats
+
+```
+GET /api/v1/webhooks/deliveries/stats
+```
+
+Returns aggregate delivery statistics.
+
+**Response:** `200 OK`
+
+```json
+{
+  "total": 150,
+  "pending": 5,
+  "success": 130,
+  "failed": 15
+}
+```
+
+### List Failed Deliveries
+
+```
+GET /api/v1/webhooks/deliveries/failed
+```
+
+Returns all failed webhook deliveries (dead-letter queue) with joined webhook and event data.
+
+**Response:** `200 OK` — array of failed delivery objects.
+
+### Retry All Failed
+
+```
+POST /api/v1/webhooks/deliveries/retry-all
+```
+
+Resets all failed deliveries for retry (clears attempt counter, sets status back to pending).
+
+**Response:** `200 OK`
+
+```json
+{
+  "retried": 15
+}
+```
+
+### Retry Single Delivery
+
+```
+POST /api/v1/webhooks/deliveries/:deliveryId/retry
+```
+
+Retries a single failed delivery.
+
+**Response:** `200 OK` — `{ "success": true }`

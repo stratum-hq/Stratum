@@ -10,6 +10,8 @@ import * as auditService from "./services/audit-service.js";
 import * as consentService from "./services/consent-service.js";
 import * as retentionService from "./services/retention-service.js";
 import * as regionService from "./services/region-service.js";
+import * as keyRotationService from "./services/key-rotation-service.js";
+import * as roleService from "./services/role-service.js";
 import type {
   TenantNode,
   CreateTenantInput,
@@ -186,10 +188,10 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, name?: string, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
-    return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, name, expiresAt);
+  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
+    return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
   }
-  validateApiKey(key: string): Promise<{ tenant_id: string | null; key_id: string; scopes: string[] } | null> {
+  validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
     return apiKeyService.validateApiKey(this.pool, key);
   }
   revokeApiKey(keyId: string): Promise<boolean> {
@@ -294,6 +296,20 @@ export class Stratum {
     }
   }
 
+  // Webhook delivery operations
+  listFailedDeliveries(limit?: number): Promise<Record<string, unknown>[]> {
+    return eventService.listFailedDeliveries(this.pool, limit);
+  }
+  retryDelivery(deliveryId: string): Promise<boolean> {
+    return eventService.retryDelivery(this.pool, deliveryId);
+  }
+  retryFailedDeliveries(): Promise<number> {
+    return eventService.retryFailedDeliveries(this.pool);
+  }
+  getDeliveryStats(): Promise<eventService.DeliveryStats> {
+    return eventService.getDeliveryStats(this.pool);
+  }
+
   // Audit log operations
   queryAuditLogs(query: AuditLogQuery): Promise<AuditEntry[]> {
     return auditService.queryAuditLogs(this.pool, query);
@@ -390,6 +406,100 @@ export class Stratum {
         null, null, { new_region_id: newRegionId },
       );
     }
+  }
+
+  // Role operations (RBAC)
+  async createRole(input: roleService.CreateRoleInput, audit?: AuditContext): Promise<roleService.Role> {
+    const role = await roleService.createRole(this.pool, input);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "role.created", "role", role.id, input.tenant_id ?? null,
+        null, { name: role.name, scopes: role.scopes } as Record<string, unknown>,
+      );
+    }
+    return role;
+  }
+  getRole(id: string): Promise<roleService.Role | null> {
+    return roleService.getRole(this.pool, id);
+  }
+  listRoles(tenantId?: string): Promise<roleService.Role[]> {
+    return roleService.listRoles(this.pool, tenantId);
+  }
+  async updateRole(id: string, input: roleService.UpdateRoleInput, audit?: AuditContext): Promise<roleService.Role | null> {
+    const role = await roleService.updateRole(this.pool, id, input);
+    if (audit && role) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "role.updated", "role", id, role.tenant_id,
+        null, input as unknown as Record<string, unknown>,
+      );
+    }
+    return role;
+  }
+  async deleteRole(id: string, audit?: AuditContext): Promise<boolean> {
+    const deleted = await roleService.deleteRole(this.pool, id);
+    if (audit && deleted) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "role.deleted", "role", id, null,
+      );
+    }
+    return deleted;
+  }
+  assignRoleToKey(keyId: string, roleId: string): Promise<boolean> {
+    return roleService.assignRoleToKey(this.pool, keyId, roleId);
+  }
+  removeRoleFromKey(keyId: string): Promise<boolean> {
+    return roleService.removeRoleFromKey(this.pool, keyId);
+  }
+  resolveKeyScopes(keyId: string): Promise<string[]> {
+    return roleService.resolveKeyScopes(this.pool, keyId);
+  }
+
+  // Batch operations
+  async batchCreateTenants(inputs: CreateTenantInput[], audit?: AuditContext): Promise<tenantService.BatchCreateResult> {
+    const result = await tenantService.batchCreateTenants(this.pool, inputs);
+    for (const tenant of result.created) {
+      this.emitEvent(TenantEvent.TENANT_CREATED, tenant.id, { tenant });
+    }
+    if (audit && result.created.length > 0) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "tenant.batch_created", "tenant", result.created[0].id, null,
+        null, { count: result.created.length, slugs: result.created.map((t) => t.slug) } as Record<string, unknown>,
+      );
+    }
+    return result;
+  }
+  async batchSetConfig(
+    tenantId: string,
+    entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
+    audit?: AuditContext,
+  ): Promise<ConfigEntry[]> {
+    const results = await configService.batchSetConfig(this.pool, tenantId, entries);
+    for (const entry of results) {
+      this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: entry.key, entry });
+    }
+    if (audit && results.length > 0) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "config.batch_updated", "config", results[0].key, tenantId,
+        null, { count: results.length, keys: results.map((e) => e.key) } as Record<string, unknown>,
+      );
+    }
+    return results;
+  }
+
+  // Encryption key rotation
+  async rotateEncryptionKey(
+    oldKeyMaterial: string,
+    newKeyMaterial: string,
+    audit?: AuditContext,
+  ): Promise<keyRotationService.KeyRotationResult> {
+    const result = await keyRotationService.rotateEncryptionKey(this.pool, oldKeyMaterial, newKeyMaterial);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "encryption.key_rotated", "system", "encryption_key", null,
+        null, { config_entries_rotated: result.config_entries_rotated, webhooks_rotated: result.webhooks_rotated } as Record<string, unknown>,
+      );
+    }
+    return result;
   }
 
   /** Validates that a webhook URL does not target internal/private networks. */

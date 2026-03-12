@@ -1,10 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum/lib";
 import { z } from "zod";
+import { createTenantScopeGuard, fromBodyTenantId, fromQueryTenantId } from "../middleware/tenant-scope.js";
 
 const createApiKeySchema = z.object({
   tenant_id: z.string().uuid(),
   name: z.string().optional(),
+  rate_limit_max: z.number().int().min(1).max(100_000).optional(),
+  rate_limit_window: z.string().regex(/^\d+\s+(second|minute|hour|day)s?$/i).optional(),
 });
 
 export function createApiKeyRoutes(stratum: Stratum) {
@@ -12,21 +15,28 @@ export function createApiKeyRoutes(stratum: Stratum) {
     // POST /api/v1/api-keys — Create a new API key (plaintext returned once)
     app.post<{ Body: { tenant_id: string; name?: string } }>(
       "/",
+      { preHandler: createTenantScopeGuard(stratum, fromBodyTenantId) },
       async (request, reply) => {
         const parsed = createApiKeySchema.safeParse(request.body);
         if (!parsed.success) {
           reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid request body" }, details: parsed.error.issues });
           return;
         }
-        const { tenant_id, name } = parsed.data;
-        const result = await stratum.createApiKey(tenant_id, name);
+        const { tenant_id, name, rate_limit_max, rate_limit_window } = parsed.data;
+        const result = await stratum.createApiKey(tenant_id, {
+          name,
+          rateLimitMax: rate_limit_max,
+          rateLimitWindow: rate_limit_window,
+        });
         reply.status(201).send(result);
       },
     );
 
     // GET /api/v1/api-keys — List API keys (optional ?tenant_id=)
     app.get<{ Querystring: { tenant_id?: string } }>("/", async (request, reply) => {
-      const keys = await stratum.listApiKeys(request.query.tenant_id);
+      // Scoped keys can only list keys for their own tenant
+      const tenantId = request.apiKey?.tenant_id ?? request.query.tenant_id;
+      const keys = await stratum.listApiKeys(tenantId);
       reply.status(200).send(keys);
     });
 
