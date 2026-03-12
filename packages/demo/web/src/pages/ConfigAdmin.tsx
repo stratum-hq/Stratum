@@ -1,24 +1,6 @@
 import React from "react";
-import { ConfigEditor, PermissionEditor, useTenant } from "@stratum/react";
 
+// Config and permissions are now shown in the Dashboard. This page is no longer used.
 export function ConfigAdmin() {
-  const { tenant } = useTenant();
-
-  if (!tenant) {
-    return (
-      <div style={{ color: "#94a3b8", textAlign: "center", padding: 48 }}>
-        Select a tenant first to manage config and permissions
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h2 style={{ marginTop: 0 }}>Configuration — {tenant.name}</h2>
-      <ConfigEditor />
-
-      <h2 style={{ marginTop: 32 }}>Permissions — {tenant.name}</h2>
-      <PermissionEditor />
-    </div>
-  );
+  return null;
 }
