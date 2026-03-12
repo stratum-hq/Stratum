@@ -128,7 +128,7 @@ export async function updateWebhook(
 }
 
 export async function deleteWebhook(pool: pg.Pool, id: string): Promise<void> {
-  return withClient(pool, async (client) => {
+  return withTransaction(pool, async (client) => {
     const res = await client.query<{ id: string }>(
       `DELETE FROM webhooks WHERE id = $1 RETURNING id`,
       [id],

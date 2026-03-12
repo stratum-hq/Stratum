@@ -77,7 +77,7 @@ export async function queryAuditLogs(
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    values.push(query.limit);
+    values.push(query.limit ?? 100);
 
     const res = await client.query<AuditEntry>(
       `SELECT id, actor_id, actor_type, action, resource_type, resource_id, tenant_id,

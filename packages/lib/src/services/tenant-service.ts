@@ -365,6 +365,14 @@ export async function getAncestors(pool: pg.Pool, id: string): Promise<TenantNod
 
 export async function getDescendants(pool: pg.Pool, id: string): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
+    const existsRes = await client.query<{ id: string }>(
+      `SELECT id FROM tenants WHERE id = $1`,
+      [id],
+    );
+    if (existsRes.rows.length === 0) {
+      throw new TenantNotFoundError(id);
+    }
+
     // Use ltree <@ operator for efficient subtree query
     const res = await client.query<TenantNode>(
       `SELECT * FROM tenants

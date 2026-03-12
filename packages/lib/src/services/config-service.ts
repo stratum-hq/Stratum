@@ -8,6 +8,7 @@ import {
   ConfigLockedError,
   ConfigNotFoundError,
   TenantNotFoundError,
+  TenantArchivedError,
   parseAncestryPath,
 } from "@stratum/core";
 import { encrypt, decrypt } from "../crypto.js";
@@ -19,10 +20,18 @@ import { encrypt, decrypt } from "../crypto.js";
 export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<ResolvedConfig> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
-      `SELECT ancestry_path FROM tenants WHERE id = $1`,
+      `SELECT ancestry_path FROM tenants WHERE id = $1 AND status != 'archived'`,
       [tenantId],
     );
     if (tenantRes.rows.length === 0) {
+      // Distinguish archived vs truly missing
+      const archivedRes = await client.query<{ id: string }>(
+        `SELECT id FROM tenants WHERE id = $1`,
+        [tenantId],
+      );
+      if (archivedRes.rows.length > 0) {
+        throw new TenantArchivedError(tenantId);
+      }
       throw new TenantNotFoundError(tenantId);
     }
 
@@ -31,8 +40,11 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
     const allIds = [...ancestorIds, tenantId];
 
     // Single query: batch-load all config entries for the ancestor chain
+    // Only include non-archived tenants to prevent archived ancestors from participating in inheritance
     const entriesRes = await client.query<ConfigEntry>(
-      `SELECT * FROM config_entries WHERE tenant_id = ANY($1)`,
+      `SELECT ce.* FROM config_entries ce
+       JOIN tenants t ON t.id = ce.tenant_id
+       WHERE ce.tenant_id = ANY($1) AND t.status != 'archived'`,
       [allIds],
     );
 
