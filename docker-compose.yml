@@ -31,7 +31,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/v1/health', r => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))\""]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/v1/health',r=>{r.resume();r.on('end',()=>process.exit(r.statusCode===200?0:1))}).on('error',()=>process.exit(1))"]
       interval: 5s
       timeout: 10s
       retries: 20
