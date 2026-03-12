@@ -17,6 +17,10 @@ export function createAuditLogRoutes(stratum: Stratum) {
     // GET /api/v1/audit-logs — List audit logs with filters
     app.get("/", async (request, reply) => {
       const query = AuditLogQuerySchema.parse(request.query);
+      // Scoped keys can only see logs for their own tenant
+      if (request.apiKey?.tenant_id) {
+        query.tenant_id = request.apiKey.tenant_id;
+      }
       const entries = await stratum.queryAuditLogs(query);
       reply.status(200).send(entries);
     });

@@ -8,6 +8,7 @@ import { registerOpenApi } from "./openapi.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createAuthorizeMiddleware } from "./middleware/authorize.js";
+import { createPerKeyRateLimitMiddleware } from "./middleware/per-key-rate-limit.js";
 import { healthRoutes } from "./routes/health.js";
 import { createTenantRoutes } from "./routes/tenants.js";
 import { createConfigRoutes } from "./routes/config.js";
@@ -18,6 +19,7 @@ import { createAuditLogRoutes } from "./routes/audit-logs.js";
 import { createConsentRoutes } from "./routes/consent.js";
 import { createMaintenanceRoutes } from "./routes/maintenance.js";
 import { createRegionRoutes } from "./routes/regions.js";
+import { createRoleRoutes } from "./routes/roles.js";
 import { config } from "./config.js";
 import { getPool } from "./db/connection.js";
 
@@ -48,6 +50,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerOpenApi(app);
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  app.addHook("preHandler", createPerKeyRateLimitMiddleware());
   app.setErrorHandler(errorHandler);
 
   await app.register(healthRoutes);
@@ -59,6 +62,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(createAuditLogRoutes(stratum), { prefix: "/api/v1/audit-logs" });
   await app.register(createConsentRoutes(stratum), { prefix: "/api/v1/tenants/:tenantId/consent" });
   await app.register(createRegionRoutes(stratum), { prefix: "/api/v1/regions" });
+  await app.register(createRoleRoutes(stratum), { prefix: "/api/v1/roles" });
   await app.register(createMaintenanceRoutes(stratum), { prefix: "/api/v1/maintenance" });
 
   return app;

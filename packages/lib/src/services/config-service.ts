@@ -150,6 +150,68 @@ export async function setConfig(
 }
 
 /**
+ * Set multiple config keys for a tenant in a single transaction.
+ * All-or-nothing: if any key fails (e.g., locked by ancestor), the entire batch rolls back.
+ */
+export async function batchSetConfig(
+  pool: pg.Pool,
+  tenantId: string,
+  entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
+): Promise<ConfigEntry[]> {
+  return withTransaction(pool, async (client) => {
+    const tenantRes = await client.query<{ ancestry_path: string }>(
+      `SELECT ancestry_path FROM tenants WHERE id = $1`,
+      [tenantId],
+    );
+    if (tenantRes.rows.length === 0) {
+      throw new TenantNotFoundError(tenantId);
+    }
+
+    const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
+    const keys = entries.map((e) => e.key);
+
+    // Check all ancestor locks in a single query
+    if (ancestorIds.length > 0 && keys.length > 0) {
+      const lockedRes = await client.query<ConfigEntry>(
+        `SELECT * FROM config_entries
+         WHERE tenant_id = ANY($1)
+           AND key = ANY($2)
+           AND locked = true`,
+        [ancestorIds, keys],
+      );
+      if (lockedRes.rows.length > 0) {
+        const locker = lockedRes.rows[0];
+        throw new ConfigLockedError(locker.key, locker.source_tenant_id);
+      }
+    }
+
+    const results: ConfigEntry[] = [];
+    for (const entry of entries) {
+      const sensitive = entry.sensitive ?? false;
+      const storedValue = sensitive
+        ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
+        : JSON.stringify(entry.value);
+
+      const res = await client.query<ConfigEntry>(
+        `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
+         VALUES ($1, $2, $3, $4, $5, $1, false)
+         ON CONFLICT (tenant_id, key)
+         DO UPDATE SET
+           value = EXCLUDED.value,
+           locked = EXCLUDED.locked,
+           sensitive = EXCLUDED.sensitive,
+           updated_at = now()
+         RETURNING *`,
+        [tenantId, entry.key, storedValue, entry.locked ?? false, sensitive],
+      );
+      results.push(res.rows[0]);
+    }
+
+    return results;
+  });
+}
+
+/**
  * Delete a config override for a tenant, revealing the inherited parent value.
  */
 export async function deleteConfig(

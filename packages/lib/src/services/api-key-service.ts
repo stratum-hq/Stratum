@@ -35,21 +35,32 @@ export function generateKey(keyPrefix: string): { plaintextKey: string; keyHash:
   return { plaintextKey, keyHash };
 }
 
+export interface CreateApiKeyOptions {
+  name?: string;
+  expiresAt?: Date;
+  rateLimitMax?: number;
+  rateLimitWindow?: string;
+}
+
 export async function createApiKey(
   pool: pg.Pool,
   keyPrefix: string,
   tenantId: string,
-  name?: string,
+  nameOrOptions?: string | CreateApiKeyOptions,
   expiresAt?: Date,
 ): Promise<CreatedApiKey> {
+  // Support both old signature (name, expiresAt) and new options object
+  const opts: CreateApiKeyOptions = typeof nameOrOptions === "object" && nameOrOptions !== null
+    ? nameOrOptions
+    : { name: nameOrOptions, expiresAt };
   const { plaintextKey, keyHash } = generateKey(keyPrefix);
 
   return withClient(pool, async (client) => {
     const res = await client.query<ApiKeyRecord>(
-      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [tenantId, keyHash, keyPrefix, name ?? null, expiresAt ?? null],
+      [tenantId, keyHash, keyPrefix, opts.name ?? null, opts.expiresAt ?? null, opts.rateLimitMax ?? null, opts.rateLimitWindow ?? null],
     );
 
     const row = res.rows[0];
@@ -64,15 +75,24 @@ export async function createApiKey(
   });
 }
 
+export interface ValidatedApiKey {
+  tenant_id: string | null;
+  key_id: string;
+  scopes: string[];
+  rate_limit_max: number | null;
+  rate_limit_window: string | null;
+}
+
 export async function validateApiKey(
   pool: pg.Pool,
   key: string,
-): Promise<{ tenant_id: string | null; key_id: string; scopes: string[] } | null> {
+): Promise<ValidatedApiKey | null> {
   const keyHash = hashKey(key);
 
   return withClient(pool, async (client) => {
-    const res = await client.query<ApiKeyRecord & { scopes: string[] | null }>(
-      `SELECT * FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
+    const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null }>(
+      `SELECT id, tenant_id, key_hash, key_prefix, name, created_at, last_used_at, revoked_at, expires_at, scopes, rate_limit_max, rate_limit_window
+       FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
       [keyHash],
     );
 
@@ -90,7 +110,13 @@ export async function validateApiKey(
         // Non-critical: ignore update failures
       });
 
-    return { tenant_id: row.tenant_id, key_id: row.id, scopes: row.scopes ?? ["read", "write"] };
+    return {
+      tenant_id: row.tenant_id,
+      key_id: row.id,
+      scopes: row.scopes ?? ["read"],
+      rate_limit_max: row.rate_limit_max,
+      rate_limit_window: row.rate_limit_window,
+    };
   });
 }
 

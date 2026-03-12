@@ -115,9 +115,27 @@ Configurable via `ALLOWED_ORIGINS` environment variable (comma-separated). Defau
 
 ### Rate Limiting
 
-Configurable per-IP rate limiting via `@fastify/rate-limit`:
+Two layers of rate limiting protect the API:
+
+**Global (per-IP):** Configurable via `@fastify/rate-limit`:
 - `RATE_LIMIT_MAX` — max requests per window (default: 100)
 - `RATE_LIMIT_WINDOW` — time window (default: "1 minute")
+
+**Per-key:** In-memory sliding window enforced per API key:
+- API keys can specify `rate_limit_max` and `rate_limit_window` at creation time
+- Keys without per-key limits fall back to the global config
+- Returns 429 with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` headers
+- JWT-authenticated requests skip per-key rate limiting
+
+### Tenant Scope Enforcement
+
+Tenant-scoped API keys are restricted to their own tenant subtree:
+
+- Global keys (`tenant_id = null`) have unrestricted access across all tenants
+- Scoped keys can access their own tenant and its descendants (checked via `ancestry_path`)
+- Applied on all route groups: tenants, config, permissions, consent, API keys, webhooks
+- List endpoints (audit logs, API keys) are force-filtered to the key's tenant
+- Hierarchy check: O(depth) ancestry path lookup, fast-path for exact tenant match
 
 ## Field-Level Encryption
 

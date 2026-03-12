@@ -11,6 +11,8 @@ interface ApiKeyRecord {
   name: string;
   created_at: Date;
   scopes: string[];
+  rate_limit_max: number | null;
+  rate_limit_window: string | null;
 }
 
 declare module "fastify" {
@@ -44,6 +46,8 @@ export function createAuthMiddleware(stratum: Stratum) {
         name: "",
         created_at: new Date(),
         scopes: result.scopes,
+        rate_limit_max: result.rate_limit_max,
+        rate_limit_window: result.rate_limit_window,
       };
       request.authMethod = "api_key";
       return;
@@ -69,6 +73,8 @@ export function createAuthMiddleware(stratum: Stratum) {
           name: payload.name ?? "jwt",
           created_at: new Date(),
           scopes: jwtScopes,
+          rate_limit_max: null,
+          rate_limit_window: null,
         };
         request.authMethod = "jwt";
         return;

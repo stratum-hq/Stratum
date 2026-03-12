@@ -20,7 +20,11 @@ export type {
   ResolvedPermission,
 } from "@stratum/core";
 
-export type { ApiKeyRecord, CreatedApiKey } from "./services/api-key-service.js";
+export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
+export type { BatchCreateResult } from "./services/tenant-service.js";
+export type { KeyRotationResult } from "./services/key-rotation-service.js";
+export type { DeliveryStats } from "./services/event-service.js";
+export type { Role, CreateRoleInput, UpdateRoleInput } from "./services/role-service.js";
 
 // Re-export audit types for convenience
 export type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum/core";

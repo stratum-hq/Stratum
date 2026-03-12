@@ -540,6 +540,243 @@ function SecurityEventsSection() {
   );
 }
 
+// ── Section: Audit Logs ──────────────────────────────────────────────────────
+
+interface AuditEntry {
+  id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  actor_id: string;
+  actor_type: string;
+  tenant_id: string | null;
+  created_at: string;
+}
+
+function AuditLogSection() {
+  const { tenant } = useTenant();
+  const { apiCall } = useStratum();
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tenant) { setEntries([]); return; }
+    setLoading(true);
+    setError(null);
+    apiCall<AuditEntry[]>(`/api/v1/audit-logs?tenant_id=${tenant.id}&limit=20`)
+      .then((data) => setEntries(Array.isArray(data) ? data : []))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  }, [tenant?.id]);
+
+  const actionColors: Record<string, string> = {
+    "tenant.created": "#22c55e",
+    "tenant.updated": "#3b82f6",
+    "tenant.deleted": "#ef4444",
+    "config.updated": "#8b5cf6",
+    "permission.created": "#f59e0b",
+  };
+
+  return (
+    <div style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <span style={sectionTitleStyle}>Audit Log</span>
+        <span style={explanationStyle}>
+          Immutable audit trail. Every mutation is recorded with actor identity, resource type, and timestamp.
+        </span>
+      </div>
+      {loading && <div style={{ padding: "12px 16px", fontSize: 13, color: "#94a3b8" }}>Loading...</div>}
+      {error && <div style={{ padding: "12px 16px", fontSize: 13, color: "#ef4444" }}>Error: {error}</div>}
+      {!loading && !error && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Action</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Resource</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Actor</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={{ padding: "8px 16px" }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                    color: actionColors[e.action] || "#64748b",
+                    background: `${actionColors[e.action] || "#64748b"}11`,
+                  }}>
+                    {e.action}
+                  </span>
+                </td>
+                <td style={{ padding: "8px 16px", ...monoStyle, color: "#64748b", fontSize: 11 }}>
+                  {e.resource_type}{e.resource_id ? ` (${e.resource_id.slice(0, 8)}...)` : ""}
+                </td>
+                <td style={{ padding: "8px 16px", ...monoStyle, color: "#64748b", fontSize: 11 }}>
+                  {e.actor_type}: {e.actor_id.slice(0, 8)}...
+                </td>
+                <td style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 12 }}>
+                  {new Date(e.created_at).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+            {entries.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8" }}>
+                  No audit entries for this tenant
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ── Section: API Keys ────────────────────────────────────────────────────────
+
+interface ApiKeyEntry {
+  id: string;
+  tenant_id: string | null;
+  name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+}
+
+function ApiKeySection() {
+  const { tenant } = useTenant();
+  const { apiCall } = useStratum();
+  const [keys, setKeys] = useState<ApiKeyEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [mutating, setMutating] = useState(false);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  const fetchKeys = () => {
+    if (!tenant) { setKeys([]); return; }
+    setLoading(true);
+    setError(null);
+    apiCall<ApiKeyEntry[]>(`/api/v1/api-keys?tenant_id=${tenant.id}`)
+      .then((data) => setKeys(Array.isArray(data) ? data : []))
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchKeys(); }, [tenant?.id]);
+
+  const handleCreate = () => {
+    if (!tenant) return;
+    setMutating(true);
+    setCreatedKey(null);
+    apiCall<{ plaintext_key: string }>(`/api/v1/api-keys`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenant.id, name: newKeyName || undefined }),
+    })
+      .then((res) => { setCreatedKey(res.plaintext_key); setNewKeyName(""); fetchKeys(); })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
+  const handleRevoke = (keyId: string) => {
+    setMutating(true);
+    apiCall(`/api/v1/api-keys/${keyId}`, { method: "DELETE" })
+      .then(() => fetchKeys())
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12, padding: "4px 8px", borderRadius: 4, border: "1px solid #e2e8f0", ...monoStyle,
+  };
+  const btnStyle: React.CSSProperties = {
+    fontSize: 11, padding: "2px 8px", borderRadius: 4, border: "1px solid #e2e8f0",
+    background: "#f8fafc", color: "#475569", cursor: "pointer",
+  };
+
+  return (
+    <div style={sectionStyle}>
+      <div style={sectionHeaderStyle}>
+        <span style={sectionTitleStyle}>API Keys</span>
+        <span style={explanationStyle}>
+          Manage API keys for this tenant. Keys are scoped to the tenant and its descendants.
+          The plaintext key is shown only once at creation.
+        </span>
+      </div>
+      {loading && <div style={{ padding: "12px 16px", fontSize: 13, color: "#94a3b8" }}>Loading...</div>}
+      {error && <div style={{ padding: "12px 16px", fontSize: 13, color: "#ef4444" }}>Error: {error}</div>}
+      {createdKey && (
+        <div style={{ padding: "12px 16px", background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", fontSize: 12 }}>
+          <strong>New key created — copy now, it won&apos;t be shown again:</strong>
+          <code style={{ ...monoStyle, display: "block", marginTop: 4, padding: "6px 8px", background: "white", borderRadius: 4, wordBreak: "break-all" }}>
+            {createdKey}
+          </code>
+        </div>
+      )}
+      {!loading && !error && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Name</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Status</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Last Used</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Created</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keys.map((k) => (
+              <tr key={k.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={{ padding: "8px 16px", ...monoStyle }}>{k.name || "—"}</td>
+                <td style={{ padding: "8px 16px" }}>
+                  {k.revoked_at ? (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: 10 }}>REVOKED</span>
+                  ) : (
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#059669", background: "#f0fdf4", padding: "2px 8px", borderRadius: 10 }}>ACTIVE</span>
+                  )}
+                </td>
+                <td style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 12 }}>
+                  {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "Never"}
+                </td>
+                <td style={{ padding: "8px 16px", color: "#94a3b8", fontSize: 12 }}>
+                  {new Date(k.created_at).toLocaleString()}
+                </td>
+                <td style={{ padding: "8px 16px" }}>
+                  {!k.revoked_at && (
+                    <button style={{ ...btnStyle, color: "#dc2626" }} disabled={mutating} onClick={() => handleRevoke(k.id)}>Revoke</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {keys.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8" }}>
+                  No API keys for this tenant
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
+      {/* Create Key Form */}
+      {tenant && (
+        <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input style={{ ...inputStyle, width: 200 }} placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
+            <button style={{ ...btnStyle, background: "#2563eb", color: "white", border: "none" }} disabled={mutating} onClick={handleCreate}>Create Key</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
@@ -578,6 +815,8 @@ export function Dashboard() {
       <ConfigInheritanceSection />
       <PermissionsSection />
       <SecurityEventsSection />
+      <AuditLogSection />
+      <ApiKeySection />
     </div>
   );
 }

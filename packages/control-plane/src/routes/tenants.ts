@@ -14,9 +14,12 @@ import {
   setupDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
+import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
+    // Tenant-scoped keys can only access their own tenant subtree
+    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
     // GET /api/v1/tenants — List tenants (with cursor pagination)
     app.get("/", async (request, reply) => {
       const query = PaginationSchema.parse(request.query);
@@ -44,6 +47,22 @@ export function createTenantRoutes(stratum: Stratum) {
       }
 
       reply.status(201).send(tenant);
+    });
+
+    // POST /api/v1/tenants/batch — Create multiple tenants atomically
+    app.post("/batch", async (request, reply) => {
+      const body = request.body as { tenants?: unknown[] };
+      if (!Array.isArray(body?.tenants) || body.tenants.length === 0) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Body must contain a non-empty 'tenants' array" } });
+        return;
+      }
+      if (body.tenants.length > 100) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Batch limited to 100 tenants" } });
+        return;
+      }
+      const inputs = body.tenants.map((t) => CreateTenantInputSchema.parse(t));
+      const result = await stratum.batchCreateTenants(inputs, buildAuditContext(request));
+      reply.status(201).send(result);
     });
 
     // GET /api/v1/tenants/:id — Get tenant
