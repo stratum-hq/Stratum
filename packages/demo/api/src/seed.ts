@@ -240,10 +240,18 @@ async function seed() {
   ];
 
   for (const e of events) {
-    await pool.query(
-      `INSERT INTO security_events (tenant_id, event_type, severity, source_ip, description) VALUES ($1, $2, $3, $4, $5)`,
-      [e.tenant, e.type, e.severity, e.ip, e.desc]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [e.tenant]);
+      await client.query(
+        `INSERT INTO security_events (tenant_id, event_type, severity, source_ip, description) VALUES ($1, $2, $3, $4, $5)`,
+        [e.tenant, e.type, e.severity, e.ip, e.desc]
+      );
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
   }
   console.log(`  Inserted ${events.length} events\n`);
 
