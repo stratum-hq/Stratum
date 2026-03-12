@@ -27,7 +27,9 @@ RUN npm run build --workspace=@stratum/core && \
     npm run build --workspace=@stratum/sdk && \
     npm run build --workspace=@stratum/db-adapters && \
     npm run build --workspace=@stratum/react && \
-    npm run build:web --workspace=@stratum/demo
+    echo "=== packages/demo/web contents ===" && \
+    ls -la packages/demo/web/ && \
+    npx vite build packages/demo/web
 
 FROM nginx:alpine AS runner
 
