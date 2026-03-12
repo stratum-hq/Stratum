@@ -10,7 +10,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   return (
-    <StratumProvider controlPlaneUrl="/api/v1" apiKey="sk_live_demo_key">
+    <StratumProvider controlPlaneUrl="" apiKey="sk_live_demo_key">
       <div style={{ fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column", height: "100vh" }}>
         <header style={{ background: "#1e293b", color: "white", padding: "12px 24px", display: "flex", alignItems: "center", gap: 16 }}>
           <h1 style={{ margin: 0, fontSize: 18 }}>Stratum Demo — MSSP Dashboard</h1>
