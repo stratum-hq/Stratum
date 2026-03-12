@@ -2,17 +2,34 @@
 
 ## System Design
 
-Stratum is a monorepo with six packages that layer cleanly:
+Stratum is a monorepo with eight packages that layer cleanly:
 
 ```
 @stratum/react          UI components (React)
 @stratum/sdk            Client SDK (Node.js)
+@stratum/cli            CLI tool
+@stratum/demo           Demo application (MSSP security dashboard)
 @stratum/control-plane  REST API (Fastify)
+@stratum/lib            Framework-agnostic library (direct DB access)
 @stratum/db-adapters    Database layer (pg / Prisma)
 @stratum/core           Shared types & utilities
 ```
 
 All packages depend on `@stratum/core` for shared types. The SDK communicates with the control plane over HTTP. The db-adapters work directly with PostgreSQL.
+
+## Feature Overview
+
+| Feature | Version | Description |
+|---------|---------|-------------|
+| Tenant hierarchy | v1.0 | Tree structure with ltree, config inheritance, permission delegation |
+| Webhook events | v1.3 | Event-driven webhooks with encrypted secrets |
+| Audit logging | v1.4 | Immutable audit trail for all mutations |
+| Authorization | v1.5 | Scoped API keys (read/write/admin) with JWT support |
+| Data retention | v1.6 | GDPR Article 17/20 compliance, automated purge |
+| Field encryption | v1.7 | AES-256-GCM for sensitive config and webhook secrets |
+| API key management | v1.8 | Key rotation, expiration, dormant detection |
+| Consent management | v1.9 | Per-subject consent records with expiration |
+| Multi-region | v2.0 | Geographic regions with tenant migration |
 
 ## Tenant Hierarchy
 

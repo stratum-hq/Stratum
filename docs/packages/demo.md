@@ -7,7 +7,7 @@ Demo application showcasing Stratum's multi-tenancy features with an MSSP securi
 ### Prerequisites
 
 - PostgreSQL running (via Docker or local)
-- Control plane running on port 3100
+- Control plane running on port 3001
 
 ### Steps
 
@@ -18,7 +18,7 @@ docker-compose up db -d
 # 2. Build everything
 npm run build
 
-# 3. Start the control plane (port 3100)
+# 3. Start the control plane (port 3001)
 node packages/control-plane/dist/index.js
 
 # 4. Seed demo data (one-time)
@@ -33,9 +33,9 @@ npm run dev --workspace=@stratum/demo
 | Service | URL | Description |
 |---------|-----|-------------|
 | Web UI | http://localhost:3300 | React dashboard |
-| Demo API | http://localhost:3200 | Security events API |
-| Control Plane | http://localhost:3100 | Tenant management API |
-| Swagger Docs | http://localhost:3100/api/docs | Interactive API docs |
+| Demo API | http://localhost:3002 | Security events API |
+| Control Plane | http://localhost:3001 | Tenant management API |
+| Swagger Docs | http://localhost:3001/api/docs | Interactive API docs |
 
 ### Docker
 
@@ -109,10 +109,10 @@ The web app has three tabs:
 ```
 Browser (port 3300)
   |
-  |-- /api/v1/*  --> Control Plane (port 3100)
+  |-- /api/v1/*  --> Control Plane (port 3001)
   |                    Tenant CRUD, config, permissions
   |
-  |-- /api/events/* --> Demo API (port 3200)
+  |-- /api/events/* --> Demo API (port 3002)
                          Security events with RLS isolation
 ```
 

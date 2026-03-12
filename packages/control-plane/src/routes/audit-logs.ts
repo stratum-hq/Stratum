@@ -25,7 +25,7 @@ export function createAuditLogRoutes(stratum: Stratum) {
     app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const entry = await stratum.getAuditEntry(request.params.id);
       if (!entry) {
-        reply.status(404).send({ error: "Audit entry not found" });
+        reply.status(404).send({ error: { code: "NOT_FOUND", message: "Audit entry not found" } });
         return;
       }
       reply.status(200).send(entry);

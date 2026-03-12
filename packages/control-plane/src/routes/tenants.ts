@@ -3,6 +3,7 @@ import {
   CreateTenantInputSchema,
   UpdateTenantInputSchema,
   MoveTenantInputSchema,
+  MigrateRegionInputSchema,
   PaginationSchema,
   IsolationStrategyUnsupportedError,
   isSupportedIsolationStrategy,
@@ -90,8 +91,9 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants/:id/migrate-region — Migrate tenant to a new region
-    app.post<{ Params: { id: string }; Body: { region_id: string } }>("/:id/migrate-region", async (request, reply) => {
-      await stratum.migrateRegion(request.params.id, (request.body as { region_id: string }).region_id, buildAuditContext(request));
+    app.post<{ Params: { id: string } }>("/:id/migrate-region", async (request, reply) => {
+      const { region_id } = MigrateRegionInputSchema.parse(request.body);
+      await stratum.migrateRegion(request.params.id, region_id, buildAuditContext(request));
       reply.status(200).send({ success: true });
     });
 

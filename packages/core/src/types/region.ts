@@ -40,3 +40,9 @@ export const UpdateRegionInputSchema = z.object({
 });
 
 export type UpdateRegionInput = z.infer<typeof UpdateRegionInputSchema>;
+
+export const MigrateRegionInputSchema = z.object({
+  region_id: z.string().uuid(),
+});
+
+export type MigrateRegionInput = z.infer<typeof MigrateRegionInputSchema>;

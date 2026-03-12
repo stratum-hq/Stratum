@@ -3,26 +3,11 @@ export interface JwtResolverOptions {
   verify?: (token: string) => Record<string, unknown> | null;
 }
 
-function decodePayloadOnly(token: string): Record<string, unknown> | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-
-  try {
-    const payload = parts[1];
-    // Pad base64url to standard base64
-    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonStr = Buffer.from(padded, "base64").toString("utf-8");
-    return JSON.parse(jsonStr) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
 function verifyWithJsonwebtoken(token: string, secret: string): Record<string, unknown> | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const jwt = require("jsonwebtoken") as typeof import("jsonwebtoken");
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] });
     if (typeof decoded === "string") return null;
     return decoded as Record<string, unknown>;
   } catch {
@@ -54,14 +39,12 @@ export function resolveFromJwt(
     // Try jsonwebtoken signature verification
     claims = verifyWithJsonwebtoken(token, options.secret);
   } else {
-    // Decode-only fallback
-    if (!options?.secret && !options?.verify) {
-      console.warn(
-        "[stratum] JWT is being decoded without signature verification. " +
-        "Provide jwtSecret or jwtVerify in middleware options to enable verification.",
-      );
-    }
-    claims = decodePayloadOnly(token);
+    // No secret or verify function provided — refuse to trust unsigned tokens
+    console.warn(
+      "[stratum] JWT ignored: no jwtSecret or jwtVerify provided. " +
+      "Configure middleware options to enable JWT tenant resolution.",
+    );
+    return null;
   }
 
   if (!claims) return null;

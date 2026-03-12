@@ -105,7 +105,7 @@ export async function exportTenantData(
     const configEntries = await client.query(`SELECT * FROM config_entries WHERE tenant_id = $1`, [tenantId]);
     const permissions = await client.query(`SELECT * FROM permission_policies WHERE tenant_id = $1`, [tenantId]);
     const apiKeys = await client.query(`SELECT id, tenant_id, name, created_at, last_used_at, revoked_at, expires_at FROM api_keys WHERE tenant_id = $1`, [tenantId]);
-    const webhooks = await client.query(`SELECT * FROM webhooks WHERE tenant_id = $1`, [tenantId]);
+    const webhooks = await client.query(`SELECT id, tenant_id, url, events, active, description, created_at, updated_at FROM webhooks WHERE tenant_id = $1`, [tenantId]);
     const webhookEvents = await client.query(`SELECT * FROM webhook_events WHERE tenant_id = $1`, [tenantId]);
     const webhookDeliveries = await client.query(
       `SELECT wd.* FROM webhook_deliveries wd JOIN webhooks w ON wd.webhook_id = w.id WHERE w.tenant_id = $1`,

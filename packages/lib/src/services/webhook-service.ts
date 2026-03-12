@@ -8,6 +8,9 @@ import type {
 import { WebhookNotFoundError } from "@stratum/core";
 import { encrypt, decrypt } from "../crypto.js";
 
+/** Columns safe to return in API responses (excludes secret_hash). */
+const WEBHOOK_PUBLIC_COLS = "id, tenant_id, url, events, active, description, created_at, updated_at";
+
 /** Encrypts a webhook secret for storage. */
 function encryptSecret(secret: string): string {
   return encrypt(secret);
@@ -27,7 +30,7 @@ export async function createWebhook(
     const res = await client.query<Webhook>(
       `INSERT INTO webhooks (tenant_id, url, secret_hash, events, active, description)
        VALUES ($1, $2, $3, $4, true, $5)
-       RETURNING *`,
+       RETURNING ${WEBHOOK_PUBLIC_COLS}`,
       [
         input.tenant_id ?? null,
         input.url,
@@ -43,7 +46,7 @@ export async function createWebhook(
 export async function getWebhook(pool: pg.Pool, id: string): Promise<Webhook> {
   return withClient(pool, async (client) => {
     const res = await client.query<Webhook>(
-      `SELECT * FROM webhooks WHERE id = $1`,
+      `SELECT ${WEBHOOK_PUBLIC_COLS} FROM webhooks WHERE id = $1`,
       [id],
     );
     if (res.rows.length === 0) {
@@ -61,12 +64,12 @@ export async function listWebhooks(
     let res: pg.QueryResult<Webhook>;
     if (tenantId !== undefined && tenantId !== null) {
       res = await client.query<Webhook>(
-        `SELECT * FROM webhooks WHERE tenant_id = $1 ORDER BY created_at ASC`,
+        `SELECT ${WEBHOOK_PUBLIC_COLS} FROM webhooks WHERE tenant_id = $1 ORDER BY created_at ASC`,
         [tenantId],
       );
     } else {
       res = await client.query<Webhook>(
-        `SELECT * FROM webhooks ORDER BY created_at ASC`,
+        `SELECT ${WEBHOOK_PUBLIC_COLS} FROM webhooks ORDER BY created_at ASC`,
       );
     }
     return res.rows;
@@ -79,8 +82,8 @@ export async function updateWebhook(
   input: UpdateWebhookInput,
 ): Promise<Webhook> {
   return withTransaction(pool, async (client) => {
-    const existing = await client.query<Webhook>(
-      `SELECT * FROM webhooks WHERE id = $1`,
+    const existing = await client.query<{ id: string }>(
+      `SELECT id FROM webhooks WHERE id = $1`,
       [id],
     );
     if (existing.rows.length === 0) {
@@ -113,14 +116,18 @@ export async function updateWebhook(
     }
 
     if (sets.length === 0) {
-      return existing.rows[0];
+      const current = await client.query<Webhook>(
+        `SELECT ${WEBHOOK_PUBLIC_COLS} FROM webhooks WHERE id = $1`,
+        [id],
+      );
+      return current.rows[0];
     }
 
     sets.push(`updated_at = now()`);
     values.push(id);
 
     const res = await client.query<Webhook>(
-      `UPDATE webhooks SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`,
+      `UPDATE webhooks SET ${sets.join(", ")} WHERE id = $${idx} RETURNING ${WEBHOOK_PUBLIC_COLS}`,
       values,
     );
     return res.rows[0];

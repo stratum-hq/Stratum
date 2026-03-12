@@ -98,9 +98,68 @@ stratum.deletePermission(tenantId: string, policyId: string): Promise<void>
 ### API Keys
 
 ```typescript
-stratum.createApiKey(tenantId: string, name?: string): Promise<CreatedApiKey>
-stratum.validateApiKey(key: string): Promise<{ tenant_id: string | null; key_id: string } | null>
+stratum.createApiKey(tenantId: string, name?: string, expiresAt?: Date): Promise<CreatedApiKey>
+stratum.validateApiKey(key: string): Promise<{ tenant_id: string | null; key_id: string; scopes: string[] } | null>
 stratum.revokeApiKey(keyId: string): Promise<boolean>
+stratum.rotateApiKey(keyId: string, newName?: string): Promise<CreatedApiKey>
+stratum.listApiKeys(tenantId?: string): Promise<ApiKeyRecord[]>
+stratum.listDormantKeys(dormantDays?: number): Promise<ApiKeyRecord[]>
+```
+
+### Webhooks
+
+```typescript
+stratum.createWebhook(input: CreateWebhookInput, audit?: AuditContext): Promise<Webhook>
+stratum.getWebhook(id: string): Promise<Webhook>
+stratum.listWebhooks(tenantId?: string): Promise<Webhook[]>
+stratum.updateWebhook(id: string, input: UpdateWebhookInput, audit?: AuditContext): Promise<Webhook>
+stratum.deleteWebhook(id: string, audit?: AuditContext): Promise<void>
+stratum.testWebhook(id: string): Promise<{ success: boolean; response_code: number | null; error?: string }>
+```
+
+### Audit Logs
+
+```typescript
+stratum.queryAuditLogs(query: AuditLogQuery): Promise<AuditEntry[]>
+stratum.getAuditEntry(id: string): Promise<AuditEntry | null>
+```
+
+### Consent
+
+```typescript
+stratum.grantConsent(tenantId: string, input: GrantConsentInput, audit?: AuditContext): Promise<ConsentRecord>
+stratum.revokeConsent(tenantId: string, subjectId: string, purpose: string, audit?: AuditContext): Promise<boolean>
+stratum.listConsent(tenantId: string, subjectId?: string): Promise<ConsentRecord[]>
+stratum.getActiveConsent(tenantId: string, subjectId: string, purpose: string): Promise<ConsentRecord | null>
+```
+
+### Data Retention & GDPR
+
+```typescript
+stratum.purgeExpiredData(retentionDays?: number): Promise<{ deleted_count: number }>
+stratum.purgeTenant(tenantId: string, audit?: AuditContext): Promise<void>
+stratum.exportTenantData(tenantId: string): Promise<Record<string, unknown>>
+```
+
+### Regions
+
+```typescript
+stratum.createRegion(input: CreateRegionInput, audit?: AuditContext): Promise<Region>
+stratum.getRegion(id: string): Promise<Region>
+stratum.listRegions(): Promise<Region[]>
+stratum.updateRegion(id: string, input: UpdateRegionInput, audit?: AuditContext): Promise<Region>
+stratum.deleteRegion(id: string, audit?: AuditContext): Promise<void>
+stratum.migrateRegion(tenantId: string, newRegionId: string, audit?: AuditContext): Promise<void>
+```
+
+### Encryption
+
+```typescript
+import { encrypt, decrypt, reEncrypt } from "@stratum/lib";
+
+encrypt(plaintext: string): string           // Returns "v1:iv:tag:ciphertext"
+decrypt(ciphertext: string): string          // Decrypts v1 or legacy format
+reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
 ```
 
 ## Pool Helpers
@@ -168,5 +227,7 @@ import {
   PermissionLockedError,
   PermissionNotFoundError,
   PermissionRevocationDeniedError,
+  UnauthorizedError,
+  ForbiddenError,
 } from "@stratum/core";
 ```

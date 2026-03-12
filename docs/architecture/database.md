@@ -60,6 +60,7 @@ CREATE TABLE config_entries (
   inherited        BOOLEAN NOT NULL DEFAULT false,
   source_tenant_id UUID NOT NULL REFERENCES tenants(id),
   locked           BOOLEAN NOT NULL DEFAULT false,
+  sensitive        BOOLEAN NOT NULL DEFAULT false,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(tenant_id, key)
@@ -94,20 +95,92 @@ Server-generated API keys with hashed storage.
 
 ```sql
 CREATE TABLE api_keys (
-  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tenant_id    UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  key_hash     TEXT NOT NULL,
-  key_prefix   VARCHAR(16),
-  name         TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ,
-  revoked_at   TIMESTAMPTZ
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id        UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  key_hash         TEXT NOT NULL,
+  key_prefix       VARCHAR(16),
+  name             TEXT,
+  scopes           TEXT[] DEFAULT '{read,write}',
+  expires_at       TIMESTAMPTZ,
+  rate_limit_max   INTEGER,
+  rate_limit_window TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at     TIMESTAMPTZ,
+  revoked_at       TIMESTAMPTZ
 );
 
 CREATE UNIQUE INDEX idx_api_keys_hash ON api_keys(key_hash);
 ```
 
-Keys are stored as SHA-256 hashes. The plaintext key (`sk_live_*` or `sk_test_*`) is returned only once at creation time.
+Keys are stored as SHA-256 hashes. The plaintext key (`sk_live_*` or `sk_test_*`) is returned only once at creation time. Scopes control access: `read`, `write`, `admin`.
+
+### audit_logs
+
+Immutable audit trail for all mutations.
+
+```sql
+CREATE TABLE audit_logs (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  actor_id      TEXT NOT NULL,
+  actor_type    TEXT NOT NULL,
+  action        TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id   TEXT,
+  tenant_id     UUID REFERENCES tenants(id),
+  source_ip     TEXT,
+  request_id    TEXT,
+  before_state  JSONB,
+  after_state   JSONB,
+  metadata      JSONB NOT NULL DEFAULT '{}',
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Indexed on `tenant_id`, `action`, `created_at` for efficient filtered queries. Supports cursor-based pagination.
+
+### consent_records
+
+Per-tenant, per-subject consent tracking for GDPR compliance.
+
+```sql
+CREATE TABLE consent_records (
+  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  subject_id  TEXT NOT NULL,
+  purpose     TEXT NOT NULL,
+  granted     BOOLEAN NOT NULL DEFAULT true,
+  granted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at  TIMESTAMPTZ,
+  expires_at  TIMESTAMPTZ,
+  metadata    JSONB NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, subject_id, purpose)
+);
+```
+
+### regions
+
+Geographic or logical deployment zones for multi-region support.
+
+```sql
+CREATE TABLE regions (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  display_name      TEXT NOT NULL,
+  slug              TEXT NOT NULL UNIQUE,
+  control_plane_url TEXT,
+  database_url      TEXT,
+  is_primary        BOOLEAN NOT NULL DEFAULT false,
+  status            TEXT NOT NULL DEFAULT 'active',
+  metadata          JSONB NOT NULL DEFAULT '{}',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Status values: `active`, `draining`, `inactive`. The `database_url` is never exposed in API responses.
+
+The `tenants` table gains a nullable `region_id UUID REFERENCES regions(id)` column (migration 010).
 
 ## Row-Level Security
 

@@ -54,14 +54,14 @@ export function createAuthMiddleware(stratum: Stratum) {
     if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       try {
-        const payload = jwt.verify(token, config.jwtSecret) as jwt.JwtPayload;
+        const payload = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
         // Store a synthetic api key record from JWT claims
         // Extract scopes from JWT claims; default to full access for backward compat
         const jwtScopes = Array.isArray(payload.scopes)
           ? (payload.scopes as unknown[]).filter(
               (s): s is string => typeof s === "string" && ["read", "write", "admin"].includes(s),
             )
-          : ["read", "write", "admin"];
+          : ["read"];
         request.apiKey = {
           id: payload.sub ?? "",
           tenant_id: payload.tenant_id ?? null,
