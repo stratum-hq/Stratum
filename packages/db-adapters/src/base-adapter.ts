@@ -22,7 +22,7 @@ export abstract class BaseAdapter {
       await client.query("ROLLBACK");
       throw err;
     } finally {
-      await client.query("RESET app.current_tenant_id");
+      try { await client.query("RESET app.current_tenant_id"); } catch { /* connection already broken */ }
       client.release();
     }
   }

@@ -2,7 +2,7 @@ import { TenantNotFoundError } from "@stratum/core";
 import type { TenantContext } from "@stratum/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
-import { setTenantContext } from "../context.js";
+import { runWithTenantContext } from "../context.js";
 import { resolveFromJwt } from "../resolvers/jwt.js";
 import { resolveFromHeader } from "../resolvers/header.js";
 
@@ -15,7 +15,7 @@ export function fastifyPlugin(
 
   fastify.decorateRequest("tenant", null);
 
-  fastify.addHook("onRequest", async (request: any, reply: any) => {
+  fastify.addHook("onRequest", (request: any, reply: any, done: any) => {
     // Resolve tenant ID: JWT → header → custom resolvers
     let tenantId: string | null = null;
 
@@ -28,39 +28,43 @@ export function fastifyPlugin(
       tenantId = resolveFromHeader(request);
     }
 
-    if (!tenantId && middlewareOptions.resolvers) {
-      for (const resolver of middlewareOptions.resolvers) {
-        const result = await resolver.resolve(request);
-        if (result) {
-          tenantId = result;
-          break;
+    const resolveAndRun = async () => {
+      if (!tenantId && middlewareOptions.resolvers) {
+        for (const resolver of middlewareOptions.resolvers) {
+          const result = await resolver.resolve(request);
+          if (result) {
+            tenantId = result;
+            break;
+          }
         }
       }
-    }
 
-    if (!tenantId) {
-      reply.status(400).send({ error: { code: "MISSING_TENANT", message: "Tenant ID could not be resolved from request" } });
-      return;
-    }
-
-    let context: TenantContext;
-    try {
-      context = await client.resolveTenant(tenantId);
-    } catch (err) {
-      if (err instanceof TenantNotFoundError) {
-        reply.status(404).send({ error: { code: "TENANT_NOT_FOUND", message: `Tenant not found: ${tenantId}` } });
+      if (!tenantId) {
+        reply.status(400).send({ error: { code: "MISSING_TENANT", message: "Tenant ID could not be resolved from request" } });
         return;
       }
-      if (middlewareOptions.onError && err instanceof Error) {
-        middlewareOptions.onError(err, request);
+
+      let context: TenantContext;
+      try {
+        context = await client.resolveTenant(tenantId);
+      } catch (err) {
+        if (err instanceof TenantNotFoundError) {
+          reply.status(404).send({ error: { code: "TENANT_NOT_FOUND", message: `Tenant not found: ${tenantId}` } });
+          return;
+        }
+        if (middlewareOptions.onError && err instanceof Error) {
+          middlewareOptions.onError(err, request);
+        }
+        throw err;
       }
-      throw err;
-    }
 
-    request.tenant = context;
+      request.tenant = context;
 
-    // Use enterWith to bind context for the entire remaining request lifecycle
-    setTenantContext(context);
+      // Use run (not enterWith) to bind context only for this request's lifecycle
+      runWithTenantContext(context, done);
+    };
+
+    resolveAndRun().catch(done);
   });
 
   done();

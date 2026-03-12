@@ -16,9 +16,11 @@ function getEncryptionKey(): Buffer {
   return crypto.createHash("sha256").update("stratum-dev-key").digest();
 }
 
-/** Encrypts a value. Returns versioned format: v1:iv:authTag:ciphertext (all hex) */
-export function encrypt(plaintext: string): string {
-  const key = getEncryptionKey();
+function deriveKey(keyMaterial: string): Buffer {
+  return crypto.createHash("sha256").update(keyMaterial).digest();
+}
+
+function encryptWithKey(plaintext: string, key: Buffer): string {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv, { authTagLength: AUTH_TAG_LENGTH });
   const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
@@ -26,10 +28,8 @@ export function encrypt(plaintext: string): string {
   return `${CURRENT_KEY_VERSION}:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
 }
 
-/** Decrypts a versioned encrypted value. Supports v1 format and legacy (no version prefix). */
-export function decrypt(encrypted: string): string {
+function decryptWithKey(encrypted: string, key: Buffer): string {
   const parts = encrypted.split(":");
-  // Support legacy format (no version prefix): iv:authTag:ciphertext
   let ivHex: string, authTagHex: string, ciphertextHex: string;
   if (parts.length === 4 && parts[0].startsWith("v")) {
     // Versioned: v1:iv:authTag:ciphertext
@@ -40,7 +40,6 @@ export function decrypt(encrypted: string): string {
   } else {
     throw new Error("Invalid encrypted value format");
   }
-  const key = getEncryptionKey();
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
   const ciphertext = Buffer.from(ciphertextHex, "hex");
@@ -49,19 +48,18 @@ export function decrypt(encrypted: string): string {
   return decipher.update(ciphertext).toString("utf8") + decipher.final("utf8");
 }
 
-/** Re-encrypts a value with a new key. Used for key rotation. */
-export function reEncrypt(encrypted: string, oldKeyEnv: string, newKeyEnv: string): string {
-  const origKey = process.env.STRATUM_ENCRYPTION_KEY;
-  try {
-    process.env.STRATUM_ENCRYPTION_KEY = oldKeyEnv;
-    const plaintext = decrypt(encrypted);
-    process.env.STRATUM_ENCRYPTION_KEY = newKeyEnv;
-    return encrypt(plaintext);
-  } finally {
-    if (origKey !== undefined) {
-      process.env.STRATUM_ENCRYPTION_KEY = origKey;
-    } else {
-      delete process.env.STRATUM_ENCRYPTION_KEY;
-    }
-  }
+/** Encrypts a value. Returns versioned format: v1:iv:authTag:ciphertext (all hex) */
+export function encrypt(plaintext: string): string {
+  return encryptWithKey(plaintext, getEncryptionKey());
+}
+
+/** Decrypts a versioned encrypted value. Supports v1 format and legacy (no version prefix). */
+export function decrypt(encrypted: string): string {
+  return decryptWithKey(encrypted, getEncryptionKey());
+}
+
+/** Re-encrypts a value with a new key. Used for key rotation. Safe under concurrency — does not mutate process.env. */
+export function reEncrypt(encrypted: string, oldKeyMaterial: string, newKeyMaterial: string): string {
+  const plaintext = decryptWithKey(encrypted, deriveKey(oldKeyMaterial));
+  return encryptWithKey(plaintext, deriveKey(newKeyMaterial));
 }
