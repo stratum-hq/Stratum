@@ -67,10 +67,11 @@ export class StratumClient {
   }
 
   async getTenantTree(rootId?: string): Promise<TenantNode[]> {
-    const path = rootId
-      ? `/api/v1/tenants/${rootId}/descendants`
-      : `/api/v1/tenants`;
-    return this.fetch<TenantNode[]>(path);
+    if (rootId) {
+      return this.fetch<TenantNode[]>(`/api/v1/tenants/${rootId}/descendants`);
+    }
+    const result = await this.fetch<{ data: TenantNode[] }>(`/api/v1/tenants`);
+    return result.data;
   }
 
   async createTenant(input: CreateTenantInput): Promise<TenantNode> {
@@ -102,12 +103,11 @@ export class StratumClient {
     return node;
   }
 
-  async archiveTenant(tenantId: string): Promise<TenantNode> {
-    const node = await this.fetch<TenantNode>(`/api/v1/tenants/${tenantId}/archive`, {
-      method: "POST",
+  async archiveTenant(tenantId: string): Promise<void> {
+    await this.fetch<void>(`/api/v1/tenants/${tenantId}`, {
+      method: "DELETE",
     });
     this.cache.invalidate(tenantId);
-    return node;
   }
 
   async deleteTenant(tenantId: string): Promise<void> {

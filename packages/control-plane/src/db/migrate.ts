@@ -2,8 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { getPool } from "./connection.js";
 
-const migrateBaseDir = path.resolve(path.dirname(""), "packages/control-plane/src/db");
-
 async function migrate(): Promise<void> {
   const pool = getPool();
 
@@ -23,7 +21,7 @@ async function migrate(): Promise<void> {
   const appliedSet = new Set(applied.map((r: { name: string }) => r.name));
 
   // Get migration files
-  const migrationsDir = path.join(migrateBaseDir, "migrations");
+  const migrationsDir = path.resolve(__dirname, "migrations");
   const files = fs
     .readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))

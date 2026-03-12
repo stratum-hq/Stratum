@@ -14,21 +14,19 @@ function methodToScope(method: string): ScopeRequirement {
   }
 }
 
-// Route patterns that require admin scope
+// Route patterns that require admin scope for ALL methods
 const ADMIN_ROUTES = [
   /^\/api\/v1\/api-keys/,
   /^\/api\/v1\/audit-logs/,
   /^\/api\/v1\/maintenance/,
+  /^\/api\/v1\/tenants\/[^/]+\/purge$/,
+  /^\/api\/v1\/tenants\/[^/]+\/migrate-region$/,
 ];
 
 function getRequiredScope(method: string, url: string): ScopeRequirement {
   for (const pattern of ADMIN_ROUTES) {
     if (pattern.test(url)) {
-      // Admin routes: writes need admin, reads need admin
-      if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") {
-        return "admin";
-      }
-      return "read"; // Allow reading API keys/audit logs with read scope
+      return "admin";
     }
   }
   return methodToScope(method);

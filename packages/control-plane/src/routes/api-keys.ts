@@ -1,5 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum/lib";
+import { z } from "zod";
+
+const createApiKeySchema = z.object({
+  tenant_id: z.string().uuid(),
+  name: z.string().optional(),
+});
 
 export function createApiKeyRoutes(stratum: Stratum) {
   return async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
@@ -7,10 +13,12 @@ export function createApiKeyRoutes(stratum: Stratum) {
     app.post<{ Body: { tenant_id: string; name?: string } }>(
       "/",
       async (request, reply) => {
-        const { tenant_id, name } = request.body as {
-          tenant_id: string;
-          name?: string;
-        };
+        const parsed = createApiKeySchema.safeParse(request.body);
+        if (!parsed.success) {
+          reply.status(400).send({ error: "Invalid request body", details: parsed.error.issues });
+          return;
+        }
+        const { tenant_id, name } = parsed.data;
         const result = await stratum.createApiKey(tenant_id, name);
         reply.status(201).send(result);
       },

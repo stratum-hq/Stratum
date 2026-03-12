@@ -16,6 +16,7 @@ interface ApiKeyRecord {
 declare module "fastify" {
   interface FastifyRequest {
     apiKey?: ApiKeyRecord;
+    authMethod?: "api_key" | "jwt";
   }
 }
 
@@ -44,6 +45,7 @@ export function createAuthMiddleware(stratum: Stratum) {
         created_at: new Date(),
         scopes: result.scopes,
       };
+      request.authMethod = "api_key";
       return;
     }
 
@@ -68,6 +70,7 @@ export function createAuthMiddleware(stratum: Stratum) {
           created_at: new Date(),
           scopes: jwtScopes,
         };
+        request.authMethod = "jwt";
         return;
       } catch {
         throw new UnauthorizedError("Invalid or expired token");
