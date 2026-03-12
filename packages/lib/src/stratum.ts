@@ -207,6 +207,7 @@ export class Stratum {
 
   // Webhook operations
   async createWebhook(input: CreateWebhookInput, audit?: AuditContext): Promise<Webhook> {
+    this.validateWebhookUrl(input.url);
     const webhook = await webhookService.createWebhook(this.pool, input);
     if (audit) {
       await auditService.createAuditEntry(
@@ -223,6 +224,9 @@ export class Stratum {
     return webhookService.listWebhooks(this.pool, tenantId);
   }
   async updateWebhook(id: string, input: UpdateWebhookInput, audit?: AuditContext): Promise<Webhook> {
+    if (input.url !== undefined) {
+      this.validateWebhookUrl(input.url);
+    }
     const webhook = await webhookService.updateWebhook(this.pool, id, input);
     if (audit) {
       await auditService.createAuditEntry(

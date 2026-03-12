@@ -250,6 +250,7 @@ async function seed() {
       );
       await client.query("COMMIT");
     } finally {
+      await client.query("RESET app.current_tenant_id");
       client.release();
     }
   }

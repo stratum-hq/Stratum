@@ -6,7 +6,7 @@ import { Stratum } from "@stratum/lib";
 export function buildAuditContext(request: FastifyRequest): AuditContext {
   return {
     actor_id: request.apiKey?.id ?? "unknown",
-    actor_type: request.apiKey ? "api_key" : "jwt" as const,
+    actor_type: (request.authMethod || "api_key") as "api_key" | "jwt",
     source_ip: request.ip,
     request_id: request.id,
   };

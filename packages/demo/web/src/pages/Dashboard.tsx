@@ -5,9 +5,9 @@ import { useTenant, useStratum } from "@stratum/react";
 
 interface ConfigInheritanceEntry {
   key: string;
-  resolved_value: unknown;
+  value: unknown;
   source_tenant_id: string;
-  source_tenant_name?: string;
+  inherited: boolean;
   locked: boolean;
 }
 
@@ -18,15 +18,15 @@ interface ConfigInheritanceResponse {
 
 interface PermissionEntry {
   key: string;
-  granted: boolean;
-  delegation_mode: string;
-  revocation_mode?: string;
-  source_tenant_id?: string;
+  value: unknown;
+  mode: string;
+  source_tenant_id: string;
+  locked: boolean;
+  delegated: boolean;
 }
 
 interface PermissionsResponse {
-  data?: Record<string, PermissionEntry>;
-  permissions?: Record<string, PermissionEntry>;
+  [key: string]: PermissionEntry;
 }
 
 interface SecurityEvent {
@@ -134,7 +134,18 @@ function ConfigInheritanceSection() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Inline edit state
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editLocked, setEditLocked] = useState(false);
+  const [mutating, setMutating] = useState(false);
+
+  // Add config form state
+  const [addKey, setAddKey] = useState("");
+  const [addValue, setAddValue] = useState("");
+  const [addLocked, setAddLocked] = useState(false);
+
+  const fetchConfig = () => {
     if (!tenant) { setData([]); return; }
     setLoading(true);
     setError(null);
@@ -145,7 +156,65 @@ function ConfigInheritanceSection() {
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, [tenant?.id]);
+  };
+
+  useEffect(() => { fetchConfig(); }, [tenant?.id]);
+
+  const handleEdit = (entry: ConfigInheritanceEntry) => {
+    setEditingKey(entry.key);
+    setEditValue(JSON.stringify(entry.value));
+    setEditLocked(entry.locked);
+  };
+
+  const handleEditSubmit = (key: string) => {
+    if (!tenant) return;
+    setMutating(true);
+    let parsedValue: unknown;
+    try { parsedValue = JSON.parse(editValue); } catch { parsedValue = editValue; }
+    apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: parsedValue, locked: editLocked }),
+    })
+      .then(() => { setEditingKey(null); fetchConfig(); })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
+  const handleDelete = (key: string) => {
+    if (!tenant) return;
+    setMutating(true);
+    apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, { method: "DELETE" })
+      .then(() => fetchConfig())
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
+  const handleAdd = () => {
+    if (!tenant || !addKey.trim()) return;
+    setMutating(true);
+    let parsedValue: unknown;
+    try { parsedValue = JSON.parse(addValue); } catch { parsedValue = addValue; }
+    apiCall(`/api/v1/tenants/${tenant.id}/config/${addKey.trim()}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: parsedValue, locked: addLocked }),
+    })
+      .then(() => { setAddKey(""); setAddValue(""); setAddLocked(false); fetchConfig(); })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
+  const isLocal = (entry: ConfigInheritanceEntry) => tenant && entry.source_tenant_id === tenant.id;
+
+  const btnStyle: React.CSSProperties = {
+    fontSize: 11, padding: "2px 8px", borderRadius: 4, border: "1px solid #e2e8f0",
+    background: "#f8fafc", color: "#475569", cursor: "pointer", marginLeft: 4,
+  };
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12, padding: "4px 8px", borderRadius: 4, border: "1px solid #e2e8f0",
+    ...monoStyle,
+  };
 
   return (
     <div style={sectionStyle}>
@@ -169,29 +238,74 @@ function ConfigInheritanceSection() {
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Resolved Value</th>
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Source Tenant</th>
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Locked</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {data.map((entry) => (
-              <tr key={entry.key} style={{ borderBottom: "1px solid #f8fafc" }}>
-                <td style={{ padding: "8px 16px", ...monoStyle, color: "#0f172a" }}>{entry.key}</td>
-                <td style={{ padding: "8px 16px", ...monoStyle, color: "#0f172a", maxWidth: 260, wordBreak: "break-all" }}>
-                  {JSON.stringify(entry.resolved_value)}
-                </td>
-                <td style={{ padding: "8px 16px", ...monoStyle, color: "#64748b", fontSize: 11 }}>
-                  {entry.source_tenant_name || entry.source_tenant_id || "—"}
-                </td>
-                <td style={{ padding: "8px 16px" }}>
-                  {entry.locked ? (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: 10 }}>LOCKED</span>
-                  ) : (
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>—</span>
-                  )}
-                </td>
-              </tr>
+              <React.Fragment key={entry.key}>
+                <tr style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <td style={{ padding: "8px 16px", ...monoStyle, color: "#0f172a" }}>{entry.key}</td>
+                  <td style={{ padding: "8px 16px", ...monoStyle, color: "#0f172a", maxWidth: 260, wordBreak: "break-all" }}>
+                    {JSON.stringify(entry.value)}
+                  </td>
+                  <td style={{ padding: "8px 16px", ...monoStyle, color: "#64748b", fontSize: 11 }}>
+                    {entry.inherited ? "inherited" : "local"} ({entry.source_tenant_id?.slice(0, 8) || "—"})
+                  </td>
+                  <td style={{ padding: "8px 16px" }}>
+                    {entry.locked ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#dc2626", background: "#fef2f2", padding: "2px 8px", borderRadius: 10 }}>LOCKED</span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "8px 16px" }}>
+                    {isLocal(entry) && (
+                      <>
+                        <button style={btnStyle} disabled={mutating} onClick={() => handleEdit(entry)}>Edit</button>
+                        <button style={{ ...btnStyle, color: "#dc2626" }} disabled={mutating} onClick={() => handleDelete(entry.key)}>Delete Override</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+                {editingKey === entry.key && (
+                  <tr style={{ borderBottom: "1px solid #f8fafc", background: "#fefce8" }}>
+                    <td colSpan={5} style={{ padding: "8px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, color: "#64748b" }}>Value:</span>
+                        <input style={{ ...inputStyle, width: 200 }} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+                        <label style={{ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
+                          <input type="checkbox" checked={editLocked} onChange={(e) => setEditLocked(e.target.checked)} />
+                          Locked
+                        </label>
+                        <button style={{ ...btnStyle, background: "#2563eb", color: "white", border: "none" }} disabled={mutating} onClick={() => handleEditSubmit(entry.key)}>Save</button>
+                        <button style={btnStyle} onClick={() => setEditingKey(null)}>Cancel</button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* Add Config Form */}
+      {tenant && (
+        <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+            Add a config override for this tenant. The value is JSON-parsed (falls back to string). Locking prevents descendants from overriding.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <input style={{ ...inputStyle, width: 140 }} placeholder="key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
+            <input style={{ ...inputStyle, width: 200 }} placeholder="value (JSON or string)" value={addValue} onChange={(e) => setAddValue(e.target.value)} />
+            <label style={{ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
+              <input type="checkbox" checked={addLocked} onChange={(e) => setAddLocked(e.target.checked)} />
+              Locked
+            </label>
+            <button style={{ ...btnStyle, background: "#059669", color: "white", border: "none" }} disabled={mutating || !addKey.trim()} onClick={handleAdd}>Add Config</button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -206,31 +320,54 @@ function PermissionsSection() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  // Add permission form state
+  const [addKey, setAddKey] = useState("");
+  const [addMode, setAddMode] = useState("INHERITED");
+  const [addRevocationMode, setAddRevocationMode] = useState("CASCADE");
+  const [mutating, setMutating] = useState(false);
+
+  const fetchPermissions = () => {
     if (!tenant) { setData([]); return; }
     setLoading(true);
     setError(null);
-    apiCall<PermissionsResponse | Record<string, PermissionEntry>>(`/api/v1/tenants/${tenant.id}/permissions`)
+    apiCall<PermissionsResponse>(`/api/v1/tenants/${tenant.id}/permissions`)
       .then((res) => {
-        let record: Record<string, PermissionEntry> = {};
-        if (res && typeof res === "object" && ("data" in res || "permissions" in res)) {
-          const typed = res as PermissionsResponse;
-          record = typed.data ?? typed.permissions ?? {};
-        } else {
-          record = res as Record<string, PermissionEntry>;
-        }
         setData(
-          Object.entries(record).map(([k, val]) => ({ ...val, key: k }))
+          Object.entries(res).map(([k, val]) => ({ ...val, key: k }))
         );
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
-  }, [tenant?.id]);
+  };
+
+  useEffect(() => { fetchPermissions(); }, [tenant?.id]);
+
+  const handleAdd = () => {
+    if (!tenant || !addKey.trim()) return;
+    setMutating(true);
+    apiCall(`/api/v1/tenants/${tenant.id}/permissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: addKey.trim(), value: true, mode: addMode, revocation_mode: addRevocationMode }),
+    })
+      .then(() => { setAddKey(""); setAddMode("INHERITED"); setAddRevocationMode("CASCADE"); fetchPermissions(); })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
 
   const delegationColor: Record<string, string> = {
     LOCKED: "#dc2626",
     INHERITED: "#2563eb",
     DELEGATED: "#059669",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 12, padding: "4px 8px", borderRadius: 4, border: "1px solid #e2e8f0",
+    ...monoStyle,
+  };
+  const btnStyle: React.CSSProperties = {
+    fontSize: 11, padding: "2px 8px", borderRadius: 4, border: "1px solid #e2e8f0",
+    background: "#f8fafc", color: "#475569", cursor: "pointer",
   };
 
   return (
@@ -252,9 +389,9 @@ function PermissionsSection() {
           <thead>
             <tr style={{ borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Permission</th>
-              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Granted</th>
-              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Delegation Mode</th>
-              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Revocation Mode</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Value</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Mode</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Flags</th>
             </tr>
           </thead>
           <tbody>
@@ -265,34 +402,59 @@ function PermissionsSection() {
                   <span style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: perm.granted ? "#059669" : "#dc2626",
-                    background: perm.granted ? "#f0fdf4" : "#fef2f2",
+                    color: perm.value ? "#059669" : "#dc2626",
+                    background: perm.value ? "#f0fdf4" : "#fef2f2",
                     padding: "2px 8px",
                     borderRadius: 10,
                   }}>
-                    {perm.granted ? "YES" : "NO"}
+                    {perm.value ? "YES" : "NO"}
                   </span>
                 </td>
                 <td style={{ padding: "8px 16px" }}>
                   <span style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: delegationColor[perm.delegation_mode] || "#64748b",
+                    color: delegationColor[perm.mode] || "#64748b",
                     background: "#f8fafc",
                     padding: "2px 8px",
                     borderRadius: 10,
-                    border: `1px solid ${delegationColor[perm.delegation_mode] || "#e2e8f0"}22`,
+                    border: `1px solid ${delegationColor[perm.mode] || "#e2e8f0"}22`,
                   }}>
-                    {perm.delegation_mode || "—"}
+                    {perm.mode || "—"}
                   </span>
                 </td>
-                <td style={{ padding: "8px 16px", fontSize: 12, color: "#64748b" }}>
-                  {perm.revocation_mode || "—"}
+                <td style={{ padding: "8px 16px", fontSize: 12 }}>
+                  {perm.locked && <span style={{ color: "#dc2626", marginRight: 6 }}>locked</span>}
+                  {perm.delegated && <span style={{ color: "#059669" }}>delegated</span>}
+                  {!perm.locked && !perm.delegated && <span style={{ color: "#94a3b8" }}>—</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* Add Permission Form */}
+      {tenant && (
+        <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+            Grant a new permission to this tenant. Mode controls how descendants can interact with it.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <input style={{ ...inputStyle, width: 160 }} placeholder="permission.key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
+            <select style={inputStyle} value={addMode} onChange={(e) => setAddMode(e.target.value)}>
+              <option value="LOCKED">LOCKED</option>
+              <option value="INHERITED">INHERITED</option>
+              <option value="DELEGATED">DELEGATED</option>
+            </select>
+            <select style={inputStyle} value={addRevocationMode} onChange={(e) => setAddRevocationMode(e.target.value)}>
+              <option value="CASCADE">CASCADE</option>
+              <option value="SOFT">SOFT</option>
+              <option value="PERMANENT">PERMANENT</option>
+            </select>
+            <button style={{ ...btnStyle, background: "#2563eb", color: "white", border: "none" }} disabled={mutating || !addKey.trim()} onClick={handleAdd}>Add Permission</button>
+          </div>
+        </div>
       )}
     </div>
   );

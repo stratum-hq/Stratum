@@ -1,4 +1,5 @@
 import pg from "pg";
+import { ErrorCode, StratumError } from "@stratum/core";
 import { withClient, withTransaction } from "../pool-helpers.js";
 
 const DEFAULT_RETENTION_DAYS = 90;
@@ -52,6 +53,21 @@ export async function purgeTenant(
   tenantId: string,
 ): Promise<void> {
   await withTransaction(pool, async (client) => {
+    // Guard: reject if tenant has children (FK RESTRICT would crash otherwise)
+    const childCheck = await client.query(
+      `SELECT COUNT(*)::int AS count FROM tenants WHERE parent_id = $1`,
+      [tenantId],
+    );
+    const childCount: number = childCheck.rows[0].count;
+    if (childCount > 0) {
+      throw new StratumError(
+        ErrorCode.TENANT_HAS_CHILDREN,
+        `Cannot purge tenant ${tenantId}: has ${childCount} child tenant(s). Purge children first.`,
+        409,
+        { tenant_id: tenantId, child_count: childCount },
+      );
+    }
+
     // Delete in FK-safe order (children before parents)
     await client.query(`DELETE FROM config_entries WHERE tenant_id = $1`, [tenantId]);
     await client.query(`DELETE FROM permission_policies WHERE tenant_id = $1`, [tenantId]);
