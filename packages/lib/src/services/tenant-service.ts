@@ -100,24 +100,19 @@ export async function getTenant(
   includeArchived = false,
 ): Promise<TenantNode> {
   return withClient(pool, async (client) => {
-    const query = includeArchived
-      ? `SELECT * FROM tenants WHERE id = $1`
-      : `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`;
-    const res = await client.query<TenantNode>(query, [id]);
+    // Always fetch the row; check archived status in application logic (single query)
+    const res = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE id = $1`,
+      [id],
+    );
     if (res.rows.length === 0) {
-      // Check if it exists but is archived
-      if (!includeArchived) {
-        const archivedRes = await client.query<TenantNode>(
-          `SELECT * FROM tenants WHERE id = $1`,
-          [id],
-        );
-        if (archivedRes.rows.length > 0) {
-          throw new TenantArchivedError(id);
-        }
-      }
       throw new TenantNotFoundError(id);
     }
-    return res.rows[0];
+    const tenant = res.rows[0];
+    if (!includeArchived && tenant.status === "archived") {
+      throw new TenantArchivedError(id);
+    }
+    return tenant;
   });
 }
 

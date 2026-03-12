@@ -49,7 +49,7 @@ COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/lib/dist ./packages/lib/dist
 COPY --from=builder /app/packages/db-adapters/dist ./packages/db-adapters/dist
 COPY --from=builder /app/packages/control-plane/dist ./packages/control-plane/dist
-COPY --from=builder /app/packages/control-plane/src/db/migrations ./packages/control-plane/src/db/migrations
+COPY --from=builder /app/packages/control-plane/src/db/migrations ./packages/control-plane/dist/db/migrations
 
 EXPOSE 3001
 CMD ["node", "packages/control-plane/dist/index.js"]
