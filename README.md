@@ -227,8 +227,25 @@ Then open:
 ### Docker (full stack)
 
 ```bash
-docker-compose --profile demo up
+# First run (builds all images, seeds demo data):
+docker compose --profile demo up --build
+
+# Subsequent runs:
+docker compose --profile demo up
+
+# Full reset (wipes DB volume):
+docker compose --profile demo down -v && docker compose --profile demo up --build
 ```
+
+This starts five services:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| `db` | 5432 | PostgreSQL 16 with ltree, RLS, and `stratum_app` role |
+| `control-plane` | 3001 | Stratum REST API (runs migrations on startup) |
+| `demo-seed` | — | One-shot: seeds tenant hierarchy, config, permissions, and sample events |
+| `demo-api` | 3002 | Demo Express API (security events with RLS) |
+| `demo-web` | 3300 | React dashboard (nginx, proxies to control-plane + demo-api) |
 
 ## Key Concepts
 

@@ -1,7 +1,7 @@
 FROM node:18-alpine AS builder
 
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/sdk/package.json packages/sdk/
 COPY packages/db-adapters/package.json packages/db-adapters/

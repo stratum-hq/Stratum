@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.git/
+.omc/
+*.tsbuildinfo
+.turbo/
+coverage/
+package-lock.json
