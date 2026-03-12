@@ -15,8 +15,21 @@ The control plane supports two authentication methods:
 ### JWT Bearer Tokens
 
 - Header: `Authorization: Bearer <token>`
+- Algorithm: HS256 only (pinned to prevent algorithm confusion attacks)
 - Configurable claim path for tenant ID extraction
-- Optional signature verification via `jwtSecret` or custom `jwtVerify` function
+- Signature verification required via `jwtSecret` or custom `jwtVerify` function
+- Without verification configured, JWT tokens are ignored entirely (fail-closed)
+- Default scopes for JWTs without explicit `scopes` claim: `["read"]` (least privilege)
+
+### Authorization (Scopes)
+
+Three scopes control access: `read`, `write`, `admin`. See the [Authorization guide](../guides/authorization.md) for details.
+
+- Scope enforcement via `authorize` middleware (runs after authentication)
+- HTTP method mapping: GET → `read`, POST/PATCH/DELETE → `write`
+- Admin-only routes: api-keys, audit-logs, maintenance, purge, migrate-region
+- Returns `403 Forbidden` for insufficient scopes (not 401)
+- Fails closed: missing API key after auth middleware triggers 401
 
 ### Unauthenticated Endpoints
 
@@ -105,6 +118,27 @@ Configurable via `ALLOWED_ORIGINS` environment variable (comma-separated). Defau
 Configurable per-IP rate limiting via `@fastify/rate-limit`:
 - `RATE_LIMIT_MAX` — max requests per window (default: 100)
 - `RATE_LIMIT_WINDOW` — time window (default: "1 minute")
+
+## Field-Level Encryption
+
+Sensitive data is encrypted at rest using AES-256-GCM:
+
+- Webhook secrets and sensitive config values are encrypted before storage
+- Key versioned format (`v1:iv:tag:ciphertext`) supports rotation
+- Random 12-byte IV per encryption prevents pattern analysis
+- Key derived via SHA-256 from `STRATUM_ENCRYPTION_KEY` environment variable
+- In production, missing encryption key triggers an error
+- See the [Encryption guide](../guides/encryption.md) for details
+
+## GDPR Compliance
+
+Built-in tooling for data protection regulations:
+
+- **Data Export** (Article 20): `GET /api/v1/tenants/:id/export` returns all tenant data as structured JSON
+- **Right to Erasure** (Article 17): `POST /api/v1/tenants/:id/purge` hard-deletes all tenant data in FK-safe order
+- **Consent Management**: Per-tenant, per-subject consent records with expiration tracking
+- **Data Retention**: Configurable purge of expired audit logs, events, and deliveries
+- **Audit Trail**: Immutable audit log for all mutations with actor context
 
 ## Soft Delete
 

@@ -23,6 +23,7 @@ interface TenantNode {
   config: Record<string, unknown>;
   metadata: Record<string, unknown>;
   isolation_strategy: IsolationStrategy;
+  region_id: string | null;
   status: TenantStatus;
   deleted_at: string | null;
   created_at: string;
@@ -96,6 +97,7 @@ interface MoveTenantInput {
 interface SetConfigInput {
   value: unknown;
   locked?: boolean;
+  sensitive?: boolean;
 }
 
 interface CreatePermissionInput {
@@ -103,6 +105,75 @@ interface CreatePermissionInput {
   value?: unknown;
   mode?: PermissionMode;
   revocation_mode?: RevocationMode;
+}
+```
+
+### Audit Types
+
+```typescript
+interface AuditContext {
+  actor_id: string;
+  actor_type: 'api_key' | 'jwt' | 'system';
+  source_ip?: string;
+  request_id?: string;
+}
+
+interface AuditEntry {
+  id: string;
+  actor_id: string;
+  actor_type: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  tenant_id: string | null;
+  source_ip: string | null;
+  request_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+```
+
+### Consent Types
+
+```typescript
+interface ConsentRecord {
+  id: string;
+  tenant_id: string;
+  subject_id: string;
+  purpose: string;
+  granted: boolean;
+  granted_at: string;
+  revoked_at: string | null;
+  expires_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface GrantConsentInput {
+  subject_id: string;
+  purpose: string;
+  expires_at?: string;
+  metadata?: Record<string, unknown>;
+}
+```
+
+### Region Types
+
+```typescript
+interface Region {
+  id: string;
+  display_name: string;
+  slug: string;
+  control_plane_url: string | null;
+  database_url: string | null;
+  is_primary: boolean;
+  status: 'active' | 'draining' | 'inactive';
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 ```
 
@@ -174,12 +245,16 @@ import {
   StratumError,
   TenantNotFoundError,
   TenantArchivedError,
+  TenantHasChildrenError,
   ConfigLockedError,
   UnauthorizedError,
+  ForbiddenError,
 } from "@stratum/core";
 
 // All extend StratumError, which extends Error
 throw new TenantNotFoundError("tenant-123");
+// ForbiddenError → 403 (insufficient scopes)
+// TenantHasChildrenError → 409 (cannot archive/purge tenant with children)
 ```
 
 ## Constants

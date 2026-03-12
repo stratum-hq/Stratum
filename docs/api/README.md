@@ -59,7 +59,55 @@ All endpoints (except health) require one of:
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/v1/api-keys` | [Create API key](#create-api-key) (plaintext returned once) |
+| `GET` | `/api/v1/api-keys` | List API keys (optional `?tenant_id=` filter) |
 | `DELETE` | `/api/v1/api-keys/:id` | [Revoke API key](#revoke-api-key) |
+| `POST` | `/api/v1/api-keys/:id/rotate` | Rotate API key (revoke old + create new) |
+| `GET` | `/api/v1/api-keys/dormant` | List dormant keys (unused > N days) |
+
+### Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/webhooks` | Create webhook |
+| `GET` | `/api/v1/webhooks` | List webhooks |
+| `GET` | `/api/v1/webhooks/:id` | Get webhook |
+| `PATCH` | `/api/v1/webhooks/:id` | Update webhook |
+| `DELETE` | `/api/v1/webhooks/:id` | Delete webhook |
+| `POST` | `/api/v1/webhooks/:id/test` | Test webhook delivery |
+| `GET` | `/api/v1/webhooks/:id/deliveries` | List delivery history for a webhook |
+
+### Audit Logs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/audit-logs` | List audit logs (with filters, cursor pagination) |
+| `GET` | `/api/v1/audit-logs/:id` | Get single audit entry |
+
+### Consent
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/tenants/:id/consent` | Grant consent |
+| `GET` | `/api/v1/tenants/:id/consent` | List consent records |
+| `DELETE` | `/api/v1/tenants/:id/consent/:purpose` | Revoke consent |
+
+### Regions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/regions` | List regions |
+| `POST` | `/api/v1/regions` | Create region |
+| `PATCH` | `/api/v1/regions/:id` | Update region |
+| `DELETE` | `/api/v1/regions/:id` | Delete region |
+
+### GDPR & Maintenance
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/tenants/:id/export` | Export all tenant data (Article 20) |
+| `POST` | `/api/v1/tenants/:id/purge` | Hard-delete all tenant data (Article 17) |
+| `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate tenant to new region |
+| `POST` | `/api/v1/maintenance/purge-expired` | Purge expired logs/events |
 
 ---
 
@@ -424,12 +472,16 @@ All errors follow this format:
 | Code | Status | Description |
 |------|--------|-------------|
 | `UNAUTHORIZED` | 401 | Missing or invalid authentication |
+| `FORBIDDEN` | 403 | Insufficient scope for the requested operation |
 | `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
 | `TENANT_ARCHIVED` | 410 | Tenant has been archived |
 | `CONFIG_LOCKED` | 409 | Config key is locked by an ancestor |
 | `PERMISSION_LOCKED` | 409 | Permission is locked by an ancestor |
 | `PERMISSION_REVOCATION_DENIED` | 403 | Permission has PERMANENT revocation mode |
 | `MISSING_TENANT` | 400 | Tenant ID could not be resolved from request |
-| `HAS_CHILDREN` | 409 | Cannot archive tenant with active children |
+| `HAS_CHILDREN` | 409 | Cannot archive/purge tenant with active children |
 | `CYCLE_DETECTED` | 409 | Move would create a cycle in the tree |
 | `VALIDATION_ERROR` | 400 | Request body validation failed |
+| `NOT_FOUND` | 404 | Resource not found (API key, audit entry, consent record, etc.) |
+| `CONFLICT` | 409 | Resource conflict (e.g., slug already exists) |
+| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |

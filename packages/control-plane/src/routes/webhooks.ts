@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
-import { CreateWebhookInputSchema, UpdateWebhookInputSchema, UnauthorizedError } from "@stratum/core";
+import { CreateWebhookInputSchema, UpdateWebhookInputSchema, UnauthorizedError, ForbiddenError } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
 import { buildAuditContext } from "./audit-logs.js";
 
@@ -17,7 +17,7 @@ function assertTenantAccess(request: FastifyRequest, webhookTenantId: string | n
   if (apiKey.tenant_id === null) return;
   // Tenant-scoped keys must match the webhook's tenant
   if (webhookTenantId !== null && apiKey.tenant_id !== webhookTenantId) {
-    throw new UnauthorizedError("API key does not have access to this webhook's tenant");
+    throw new ForbiddenError("API key does not have access to this webhook's tenant");
   }
 }
 

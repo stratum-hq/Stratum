@@ -45,9 +45,11 @@ export {
   RegionSchema,
   CreateRegionInputSchema,
   UpdateRegionInputSchema,
+  MigrateRegionInputSchema,
   type Region,
   type CreateRegionInput,
   type UpdateRegionInput,
+  type MigrateRegionInput,
 } from "./types/region.js";
 
 // Types

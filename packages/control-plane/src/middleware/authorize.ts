@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { UnauthorizedError } from "@stratum/core";
+import { UnauthorizedError, ForbiddenError } from "@stratum/core";
 
 type ScopeRequirement = "read" | "write" | "admin";
 
@@ -19,7 +19,9 @@ const ADMIN_ROUTES = [
   /^\/api\/v1\/api-keys/,
   /^\/api\/v1\/audit-logs/,
   /^\/api\/v1\/maintenance/,
+  /^\/api\/v1\/regions/,
   /^\/api\/v1\/tenants\/[^/]+\/purge$/,
+  /^\/api\/v1\/tenants\/[^/]+\/export$/,
   /^\/api\/v1\/tenants\/[^/]+\/migrate-region$/,
 ];
 
@@ -42,14 +44,16 @@ export function createAuthorizeMiddleware() {
       return;
     }
 
-    // Skip if no apiKey (auth middleware will have already rejected)
-    if (!request.apiKey) return;
+    // If no apiKey, auth middleware should have rejected — fail closed
+    if (!request.apiKey) {
+      throw new UnauthorizedError("Authentication required");
+    }
 
     const requiredScope = getRequiredScope(request.method, request.url);
-    const scopes = request.apiKey.scopes ?? ["read", "write"];
+    const scopes = request.apiKey.scopes ?? ["read"];
 
     if (!scopes.includes(requiredScope)) {
-      throw new UnauthorizedError("Insufficient permissions for this operation");
+      throw new ForbiddenError("Insufficient permissions for this operation");
     }
   };
 }

@@ -17,8 +17,6 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/packages-8-8b5cf6?style=flat-square" alt="Packages" />
-  <img src="https://img.shields.io/badge/source_files-554-22c55e?style=flat-square" alt="Source Files" />
-  <img src="https://img.shields.io/badge/test_files-144-f59e0b?style=flat-square" alt="Test Files" />
   <img src="https://img.shields.io/badge/isolation-RLS%20%7C%20Schema%20%7C%20DB-ef4444?style=flat-square" alt="Isolation Strategies" />
 </p>
 
@@ -337,7 +335,7 @@ Every mutation is recorded with full context:
 ```typescript
 await stratum.createTenant(
   { name: "Acme", slug: "acme", isolation_strategy: "SHARED_RLS" },
-  { actor_id: "user-123", actor_type: "user", ip_address: "10.0.0.1" }
+  { actor_id: "user-123", actor_type: "api_key", source_ip: "10.0.0.1" }
 );
 // → audit_logs row: action="tenant.created", actor, before/after state, timestamp
 ```
@@ -377,7 +375,7 @@ Built-in data export (Article 20) and hard-purge (Article 17):
 ```typescript
 const archive = await stratum.exportTenantData(tenantId);  // full JSON export
 await stratum.purgeTenant(tenantId);                        // irreversible delete
-await stratum.cleanupExpiredRecords(90);                    // retention policy
+await stratum.purgeExpiredData(90);                         // retention policy
 ```
 
 ### Consent Management
@@ -385,13 +383,13 @@ await stratum.cleanupExpiredRecords(90);                    // retention policy
 Track per-tenant, per-subject consent with purpose and legal basis:
 
 ```typescript
-await stratum.recordConsent(tenantId, {
+await stratum.grantConsent(tenantId, {
   subject_id: "user-456",
-  purpose: "marketing_emails",
-  legal_basis: "consent",
-  granted: true,
+  purpose: "marketing",
+  expires_at: "2025-12-31T23:59:59Z",
+  metadata: { source: "signup_form" },
 });
-const consents = await stratum.getConsents(tenantId, "user-456");
+const consents = await stratum.listConsent(tenantId, "user-456");
 ```
 
 ### Multi-Region
@@ -400,12 +398,12 @@ Assign tenants to regions with automatic connection pool routing:
 
 ```typescript
 const region = await stratum.createRegion({
-  name: "EU West",
-  slug: "eu-west",
-  connection_url: "postgres://eu-host:5432/stratum",
+  display_name: "EU West",
+  slug: "eu_west",
+  control_plane_url: "https://eu.stratum.example.com",
 });
-await stratum.migrateTenantRegion(tenantId, region.id);
-// All subsequent queries for this tenant route to the EU pool
+await stratum.migrateRegion(tenantId, region.id);
+// Tenant is now assigned to the EU region
 ```
 
 ## Environment Variables
@@ -465,17 +463,25 @@ npm run dev            # Dev mode (watch)
 
 | Version | Feature | Status |
 |---------|---------|--------|
-| v1.0 | Shared RLS isolation, config inheritance, permission delegation | Current |
-| v1.1 | Schema-per-tenant isolation | Current |
-| v1.2 | Database-per-tenant isolation | Current |
-| v1.3 | Webhook events on tenant lifecycle | Current |
-| v1.4 | Audit logging with actor identity and before/after state | Current |
-| v1.5 | Authorization enforcement with scoped API keys (`read`/`write`/`admin`) | Current |
-| v1.6 | Data retention & GDPR purge (tenant data export, hard-delete, expired record cleanup) | Current |
-| v1.7 | Field-level encryption (AES-256-GCM with key versioning) | Current |
-| v1.8 | API key management (expiration, rotation, dormant detection) | Current |
-| v1.9 | Structured logging & consent management | Current |
-| v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Current |
+| v1.0 | Shared RLS isolation, config inheritance, permission delegation | Done |
+| v1.1 | Schema-per-tenant isolation | Done |
+| v1.2 | Database-per-tenant isolation | Done |
+| v1.3 | Webhook events on tenant lifecycle | Done |
+| v1.4 | Audit logging with actor identity and before/after state | Done |
+| v1.5 | Authorization enforcement with scoped API keys (`read`/`write`/`admin`) | Done |
+| v1.6 | Data retention & GDPR purge (tenant data export, hard-delete, expired record cleanup) | Done |
+| v1.7 | Field-level encryption (AES-256-GCM with key versioning) | Done |
+| v1.8 | API key management (expiration, rotation, dormant detection) | Done |
+| v1.9 | Structured logging & consent management | Done |
+| v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Done |
+| v2.1 | Per-key rate limiting (columns exist, enforcement pending) | Planned |
+| v2.2 | OpenTelemetry integration (distributed tracing, metrics export) | Planned |
+| v2.3 | Tenant-scoped data access enforcement on all routes (not just webhooks) | Planned |
+| v2.4 | Batch operations (bulk tenant creation, bulk config updates) | Planned |
+| v2.5 | Role-based access control (RBAC) beyond flat scopes | Planned |
+| v2.6 | Admin dashboard (production-grade management UI) | Planned |
+| v2.7 | Encryption key rotation CLI (zero-downtime re-encryption of all secrets) | Planned |
+| v2.8 | Webhook delivery dashboard and dead-letter queue | Planned |
 
 ## License
 

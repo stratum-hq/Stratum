@@ -15,7 +15,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       async (request, reply) => {
         const parsed = createApiKeySchema.safeParse(request.body);
         if (!parsed.success) {
-          reply.status(400).send({ error: "Invalid request body", details: parsed.error.issues });
+          reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid request body" }, details: parsed.error.issues });
           return;
         }
         const { tenant_id, name } = parsed.data;
@@ -40,8 +40,9 @@ export function createApiKeyRoutes(stratum: Stratum) {
 
     // POST /api/v1/api-keys/:id/rotate — Rotate an API key
     app.post<{ Params: { id: string } }>("/:id/rotate", async (request, reply) => {
-      const body = request.body as { name?: string } | undefined;
-      const result = await stratum.rotateApiKey(request.params.id, (body as { name?: string } | null)?.name);
+      const rotateSchema = z.object({ name: z.string().max(255).optional() });
+      const parsed = rotateSchema.parse(request.body ?? {});
+      const result = await stratum.rotateApiKey(request.params.id, parsed.name);
       reply.status(201).send(result);
     });
 
@@ -49,7 +50,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const revoked = await stratum.revokeApiKey(request.params.id);
       if (!revoked) {
-        reply.status(404).send({ error: "API key not found or already revoked" });
+        reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;
       }
       reply.status(204).send();

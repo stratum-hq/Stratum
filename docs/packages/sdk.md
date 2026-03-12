@@ -57,6 +57,18 @@ const client = new StratumClient({
 | `deleteTenant(id)` | `void` | Delete tenant |
 | `invalidateCache(id)` | `void` | Invalidate single cache entry |
 | `clearCache()` | `void` | Clear all cached data |
+| `rotateApiKey(keyId, name?)` | `{ id, plaintext_key, ... }` | Rotate an API key |
+| `listApiKeys(tenantId?)` | `ApiKeyRecord[]` | List API keys |
+| `listDormantKeys(days?)` | `ApiKeyRecord[]` | Find unused keys |
+| `createWebhook(input)` | `Webhook` | Create webhook |
+| `listWebhooks(tenantId?)` | `Webhook[]` | List webhooks |
+| `getWebhook(id)` | `Webhook` | Get single webhook |
+| `updateWebhook(id, input)` | `Webhook` | Update webhook |
+| `deleteWebhook(id)` | `void` | Delete webhook |
+| `listRegions()` | `Region[]` | List all regions |
+| `createRegion(input)` | `Region` | Create a region |
+| `updateRegion(id, input)` | `Region` | Update a region |
+| `deleteRegion(id)` | `void` | Delete a region |
 
 ### Express Middleware
 

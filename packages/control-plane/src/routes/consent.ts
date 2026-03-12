@@ -1,5 +1,5 @@
-import { FastifyInstance, FastifyRequest } from "fastify";
-import { GrantConsentInputSchema, UnauthorizedError } from "@stratum/core";
+import { FastifyInstance } from "fastify";
+import { GrantConsentInputSchema } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
 import { buildAuditContext } from "./audit-logs.js";
 
@@ -32,13 +32,13 @@ export function createConsentRoutes(stratum: Stratum) {
         const { tenantId, purpose } = request.params;
         const subjectId = request.query.subject_id;
         if (!subjectId) {
-          reply.status(400).send({ error: "subject_id query parameter is required" });
+          reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "subject_id query parameter is required" } });
           return;
         }
         const audit = buildAuditContext(request);
         const revoked = await stratum.revokeConsent(tenantId, subjectId, purpose, audit);
         if (!revoked) {
-          reply.status(404).send({ error: "Consent record not found" });
+          reply.status(404).send({ error: { code: "NOT_FOUND", message: "Consent record not found" } });
           return;
         }
         reply.status(200).send({ success: true });

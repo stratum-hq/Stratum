@@ -138,10 +138,10 @@ The middleware resolves the tenant ID in this order:
 
 ```typescript
 app.use(s.middleware({
-  // JWT options
+  // JWT options (jwtSecret or jwtVerify required to enable JWT resolution)
   jwtClaimPath: "tenant_id",          // path in JWT payload
-  jwtSecret: "your-jwt-secret",       // optional: verify signature
-  jwtVerify: (token) => { ... },      // optional: custom verify function
+  jwtSecret: "your-jwt-secret",       // verify signature (HS256)
+  jwtVerify: (token) => { ... },      // OR: custom verify function
 
   // Custom resolvers
   resolvers: [

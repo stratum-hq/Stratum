@@ -126,10 +126,8 @@ expressMiddleware(client, {
   },
 });
 
-// Option 3: No verification (decode only — NOT recommended for production)
-expressMiddleware(client, {
-  jwtClaimPath: "tenant_id",
-});
+// Note: Without jwtSecret or jwtVerify, JWT tokens are ignored entirely.
+// Always provide one of these options to enable JWT-based tenant resolution.
 ```
 
 ### Custom Resolvers
