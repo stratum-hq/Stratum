@@ -32,7 +32,8 @@ export function createApiKeyRoutes(stratum: Stratum) {
 
     // GET /api/v1/api-keys/dormant — List dormant API keys (must be before /:id)
     app.get<{ Querystring: { days?: string } }>("/dormant", async (request, reply) => {
-      const days = request.query.days ? parseInt(request.query.days, 10) : 90;
+      const raw = request.query.days ? parseInt(request.query.days, 10) : 90;
+      const days = Number.isNaN(raw) || raw < 1 ? 90 : Math.min(raw, 365);
       const keys = await stratum.listDormantKeys(days);
       reply.status(200).send(keys);
     });

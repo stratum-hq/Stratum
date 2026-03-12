@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
+import dns from "node:dns/promises";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { TenantEvent, WebhookEvent, WebhookDelivery, Webhook } from "@stratum/core";
-import { WebhookDeliveryStatus } from "@stratum/core";
+import type { TenantEvent } from "@stratum/core";
 import { getWebhooksForEvent, decryptSecret } from "./webhook-service.js";
 
 const MAX_ATTEMPTS = 5;
@@ -25,6 +25,11 @@ const BLOCKED_HOSTNAMES = new Set([
   "localhost.localdomain",
   "metadata.google.internal", // GCP metadata
 ]);
+
+/** Check if an IP matches any blocked private/reserved range. */
+function isBlockedIp(ip: string): boolean {
+  return BLOCKED_IP_PATTERNS.some((pattern) => pattern.test(ip));
+}
 
 /** Validates that a webhook URL does not target internal/private networks. */
 function validateWebhookUrl(url: string): void {
@@ -53,9 +58,42 @@ function validateWebhookUrl(url: string): void {
   }
 
   // Block private IP ranges
-  for (const pattern of BLOCKED_IP_PATTERNS) {
-    if (pattern.test(hostname)) {
-      throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
+  if (isBlockedIp(hostname)) {
+    throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
+  }
+}
+
+/**
+ * DNS-rebinding-safe validation: resolve hostname and check all resolved IPs
+ * against blocked ranges. Call this at delivery time, not just registration.
+ */
+async function validateWebhookUrlWithDns(url: string): Promise<void> {
+  // First run the synchronous checks
+  validateWebhookUrl(url);
+
+  const parsed = new URL(url);
+  const hostname = parsed.hostname.toLowerCase();
+
+  // If hostname is already an IP literal, synchronous check is sufficient
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.startsWith("[")) {
+    return;
+  }
+
+  // Resolve DNS and validate all returned IPs
+  let addresses: string[];
+  try {
+    const results = await dns.resolve4(hostname);
+    addresses = results;
+  } catch {
+    // DNS resolution failed — allow delivery attempt (will fail on fetch)
+    return;
+  }
+
+  for (const ip of addresses) {
+    if (isBlockedIp(ip)) {
+      throw new Error(
+        `Webhook URL hostname ${hostname} resolves to blocked IP ${ip}`,
+      );
     }
   }
 }
@@ -159,8 +197,8 @@ export async function deliverWebhook(
     created_at: event.created_at,
   });
 
-  // SSRF protection: validate URL before making request
-  validateWebhookUrl(webhook.url);
+  // SSRF protection: validate URL with DNS rebinding check before making request
+  await validateWebhookUrlWithDns(webhook.url);
 
   const rawSecret = decryptSecret(webhook.secret_hash);
   const signature = signPayload(rawSecret, payload);
