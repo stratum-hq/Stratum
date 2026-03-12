@@ -45,7 +45,8 @@ export function useTenantTree(rootId?: string) {
       const path = rootId
         ? `/api/v1/tenants/${rootId}/descendants`
         : `/api/v1/tenants`;
-      const nodes = await apiCall<TenantNode[]>(path);
+      const res = await apiCall<TenantNode[] | { data: TenantNode[] }>(path);
+      const nodes = Array.isArray(res) ? res : res.data;
       setTree(buildTree(nodes));
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
