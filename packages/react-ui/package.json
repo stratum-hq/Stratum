@@ -1,6 +1,7 @@
 {
   "name": "@stratum/react",
   "version": "0.1.0",
+  "type": "module",
   "description": "Stratum React UI components for multi-tenant administration",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
