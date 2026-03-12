@@ -91,6 +91,8 @@ The web app has three tabs:
 - Events are filtered by RLS — switching tenants shows only that tenant's events
 - Color-coded severity badges
 - Shows tenant info (name, isolation strategy, event count)
+- **Audit Log** — immutable audit trail viewer showing action, resource, actor, and timestamp for the selected tenant
+- **API Keys** — create and revoke API keys for the selected tenant with display-once plaintext key handling
 
 ### Tenants
 

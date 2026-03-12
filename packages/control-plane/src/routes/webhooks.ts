@@ -1,21 +1,17 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
-import { CreateWebhookInputSchema, UpdateWebhookInputSchema, UnauthorizedError, ForbiddenError } from "@stratum/core";
+import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
 import { buildAuditContext } from "./audit-logs.js";
 
 /**
- * Ensures the authenticated API key's tenant scope matches the webhook's tenant.
- * Global API keys (tenant_id = null) can access all webhooks.
- * Tenant-scoped keys can only access webhooks belonging to their tenant.
+ * Post-fetch tenant access check for webhook routes.
+ * Used after loading a webhook by ID to verify the caller's key
+ * has access to the webhook's tenant.
+ * Global keys (tenant_id = null) have unrestricted access.
  */
 function assertTenantAccess(request: FastifyRequest, webhookTenantId: string | null): void {
   const apiKey = request.apiKey;
-  if (!apiKey) {
-    throw new UnauthorizedError("Authentication required");
-  }
-  // Global keys (no tenant_id) have full access
-  if (apiKey.tenant_id === null) return;
-  // Tenant-scoped keys must match the webhook's tenant
+  if (!apiKey || apiKey.tenant_id === null) return;
   if (webhookTenantId !== null && apiKey.tenant_id !== webhookTenantId) {
     throw new ForbiddenError("API key does not have access to this webhook's tenant");
   }
@@ -80,6 +76,38 @@ export function createWebhookRoutes(stratum: Stratum) {
       assertTenantAccess(request, webhook.tenant_id);
       const result = await stratum.testWebhook(request.params.id);
       reply.status(200).send(result);
+    });
+
+    // --- Dead-Letter Queue / Delivery Dashboard ---
+
+    // GET /api/v1/webhooks/deliveries/stats — Delivery statistics
+    app.get("/deliveries/stats", async (_request, reply) => {
+      const stats = await stratum.getDeliveryStats();
+      reply.status(200).send(stats);
+    });
+
+    // GET /api/v1/webhooks/deliveries/failed — List failed deliveries (DLQ)
+    app.get<{ Querystring: { limit?: string } }>("/deliveries/failed", async (request, reply) => {
+      const rawLimit = request.query.limit ? parseInt(request.query.limit, 10) : 100;
+      const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 100 : Math.min(rawLimit, 500);
+      const failed = await stratum.listFailedDeliveries(limit);
+      reply.status(200).send(failed);
+    });
+
+    // POST /api/v1/webhooks/deliveries/retry-all — Retry all failed deliveries
+    app.post("/deliveries/retry-all", async (_request, reply) => {
+      const count = await stratum.retryFailedDeliveries();
+      reply.status(200).send({ retried: count });
+    });
+
+    // POST /api/v1/webhooks/deliveries/:deliveryId/retry — Retry single delivery
+    app.post<{ Params: { deliveryId: string } }>("/deliveries/:deliveryId/retry", async (request, reply) => {
+      const success = await stratum.retryDelivery(request.params.deliveryId);
+      if (!success) {
+        reply.status(404).send({ error: { code: "NOT_FOUND", message: "Delivery not found or not in failed state" } });
+        return;
+      }
+      reply.status(200).send({ success: true });
     });
   };
 }

@@ -43,8 +43,9 @@ See the full [API Reference](../api/README.md).
 - **Audit Logs**: Query with filters (tenant, action, date range, actor), cursor-based pagination
 - **Consent**: Grant, list, revoke per-tenant consent records with expiration
 - **Regions**: CRUD for multi-region support, tenant migration between regions
-- **Maintenance**: Automated purge of expired audit logs, events, and deliveries
-- **Webhooks**: CRUD, test delivery, event tracking
+- **Maintenance**: Automated purge of expired data, encryption key rotation
+- **Webhooks**: CRUD, test delivery, event tracking, dead-letter queue (failed listing, retry)
+- **Roles (RBAC)**: CRUD for named roles, assign/remove role from API keys
 - **Health**: `GET /api/v1/health`
 
 ### Swagger UI
@@ -144,6 +145,7 @@ Migrations include:
 | `009_consent.sql` | `consent_records` table |
 | `010_multi_region.sql` | `regions` table, `region_id` on `tenants` |
 | `011_demo_bootstrap.sql` | Demo seed data for interactive demo |
+| `012_roles.sql` | `roles` table, `role_id` on `api_keys` |
 
 ### Connection Pool
 
@@ -165,6 +167,32 @@ Scope-based access control applied after authentication:
 - Admin-only routes: api-keys, audit-logs, maintenance, purge, migrate-region
 - Returns 403 Forbidden for insufficient scopes
 - Fails closed if no API key is present
+
+### Per-Key Rate Limiting (`src/middleware/per-key-rate-limit.ts`)
+
+In-memory sliding window rate limiter enforced per API key:
+- Uses `rate_limit_max` and `rate_limit_window` from the API key record
+- Falls back to global `RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW` env vars when key has no per-key limits
+- Returns 429 with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining` headers
+- Skips rate limiting for JWT-authenticated requests
+
+### Tenant Scope Guard (`src/middleware/tenant-scope.ts`)
+
+Hierarchy-aware access enforcement for tenant-scoped API keys:
+- Global keys (`tenant_id = null`) have unrestricted access
+- Scoped keys can access their own tenant and its descendants via `ancestry_path`
+- Applied as a plugin-level `preHandler` on tenant, config, permission, and consent routes
+- Applied per-route on API key creation (checks body `tenant_id`)
+- Force-filters list endpoints (audit logs, API keys) to the key's tenant
+- Extractor functions: `fromParamId`, `fromParamTenantId`, `fromQueryTenantId`, `fromBodyTenantId`
+
+### Role Service (`src/services/role-service.ts` via `@stratum/lib`)
+
+Named role management for RBAC:
+- Roles have a name, description, and a set of scopes (`read`, `write`, `admin`)
+- Roles can be global (`tenant_id = null`) or tenant-scoped
+- Assigned to API keys via `role_id` — role scopes override key scopes when assigned
+- `resolveKeyScopes()` returns role scopes when a role is assigned, falls back to the key's own scopes
 
 ### Error Handler (`src/middleware/error-handler.ts`)
 

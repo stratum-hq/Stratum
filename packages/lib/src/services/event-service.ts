@@ -318,16 +318,85 @@ export async function processDeliveries(pool: pg.Pool): Promise<void> {
   }
 }
 
-export async function retryFailedDeliveries(pool: pg.Pool): Promise<void> {
-  await withClient(pool, async (client) => {
-    await client.query(
-      `UPDATE webhook_deliveries
-       SET status = 'pending', next_retry_at = NULL
-       WHERE status = 'failed'
-         AND attempts < $1`,
-      [MAX_ATTEMPTS],
+export async function retryFailedDeliveries(pool: pg.Pool): Promise<number> {
+  const result = await withClient(pool, async (client) => {
+    const res = await client.query<{ count: string }>(
+      `WITH updated AS (
+        UPDATE webhook_deliveries
+        SET status = 'pending', next_retry_at = NULL, attempts = 0
+        WHERE status = 'failed'
+        RETURNING id
+      ) SELECT COUNT(*) as count FROM updated`,
     );
+    return parseInt(res.rows[0].count, 10);
   });
 
-  await processDeliveries(pool);
+  if (result > 0) {
+    processDeliveries(pool).catch(() => {});
+  }
+  return result;
+}
+
+export async function retryDelivery(pool: pg.Pool, deliveryId: string): Promise<boolean> {
+  const updated = await withClient(pool, async (client) => {
+    const res = await client.query<{ id: string }>(
+      `UPDATE webhook_deliveries
+       SET status = 'pending', next_retry_at = NULL, attempts = 0
+       WHERE id = $1 AND status = 'failed'
+       RETURNING id`,
+      [deliveryId],
+    );
+    return res.rows.length > 0;
+  });
+
+  if (updated) {
+    processDeliveries(pool).catch(() => {});
+  }
+  return updated;
+}
+
+export interface DeliveryStats {
+  total: number;
+  pending: number;
+  success: number;
+  failed: number;
+}
+
+export async function getDeliveryStats(pool: pg.Pool): Promise<DeliveryStats> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<{ status: string; count: string }>(
+      `SELECT status, COUNT(*) as count FROM webhook_deliveries GROUP BY status`,
+    );
+    const counts: Record<string, number> = {};
+    let total = 0;
+    for (const row of res.rows) {
+      counts[row.status] = parseInt(row.count, 10);
+      total += counts[row.status];
+    }
+    return {
+      total,
+      pending: counts["pending"] ?? 0,
+      success: counts["success"] ?? 0,
+      failed: counts["failed"] ?? 0,
+    };
+  });
+}
+
+export async function listFailedDeliveries(
+  pool: pg.Pool,
+  limit = 100,
+): Promise<Record<string, unknown>[]> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<Record<string, unknown>>(
+      `SELECT wd.*, we.type as event_type, we.tenant_id as event_tenant_id, w.url as webhook_url
+       FROM webhook_deliveries wd
+       JOIN webhook_events we ON we.id = wd.event_id
+       JOIN webhooks w ON w.id = wd.webhook_id
+       WHERE wd.status = 'failed'
+       ORDER BY wd.completed_at DESC
+       LIMIT $1`,
+      [limit],
+    );
+    return res.rows;
+  });
 }

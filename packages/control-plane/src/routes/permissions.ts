@@ -2,9 +2,12 @@ import { FastifyInstance } from "fastify";
 import { CreatePermissionInputSchema, UpdatePermissionInputSchema } from "@stratum/core";
 import { Stratum } from "@stratum/lib";
 import { buildAuditContext } from "./audit-logs.js";
+import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
 
 export function createPermissionRoutes(stratum: Stratum) {
   return async function permissionRoutes(app: FastifyInstance): Promise<void> {
+    // Tenant-scoped keys can only access permissions for their own tenant subtree
+    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
     // GET /api/v1/tenants/:id/permissions — Get resolved permissions
     app.get<{ Params: { id: string } }>("/", async (request, reply) => {
       const resolved = await stratum.resolvePermissions(request.params.id);

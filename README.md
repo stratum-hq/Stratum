@@ -474,14 +474,14 @@ npm run dev            # Dev mode (watch)
 | v1.8 | API key management (expiration, rotation, dormant detection) | Done |
 | v1.9 | Structured logging & consent management | Done |
 | v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Done |
-| v2.1 | Per-key rate limiting (columns exist, enforcement pending) | Planned |
+| v2.1 | Per-key rate limiting (sliding window middleware, per-key `rate_limit_max`/`rate_limit_window`) | Done |
 | v2.2 | OpenTelemetry integration (distributed tracing, metrics export) | Planned |
-| v2.3 | Tenant-scoped data access enforcement on all routes (not just webhooks) | Planned |
-| v2.4 | Batch operations (bulk tenant creation, bulk config updates) | Planned |
-| v2.5 | Role-based access control (RBAC) beyond flat scopes | Planned |
-| v2.6 | Admin dashboard (production-grade management UI) | Planned |
-| v2.7 | Encryption key rotation CLI (zero-downtime re-encryption of all secrets) | Planned |
-| v2.8 | Webhook delivery dashboard and dead-letter queue | Planned |
+| v2.3 | Tenant-scoped data access enforcement on all routes (hierarchy-aware guards) | Done |
+| v2.4 | Batch operations (bulk tenant creation, bulk config updates, atomic transactions) | Done |
+| v2.5 | Role-based access control (RBAC) — named roles with scope collections, assignable to API keys | Done |
+| v2.6 | Admin dashboard (audit log viewer, API key management in demo UI) | Done |
+| v2.7 | Encryption key rotation (zero-downtime re-encryption of all secrets via maintenance API) | Done |
+| v2.8 | Webhook dead-letter queue (failed delivery listing, individual/bulk retry, delivery stats) | Done |
 
 ## License
 

@@ -334,6 +334,108 @@ export async function moveTenant(
   });
 }
 
+export interface BatchCreateResult {
+  created: TenantNode[];
+  errors: Array<{ index: number; slug: string; error: string }>;
+}
+
+/**
+ * Create multiple tenants in a single transaction.
+ * Stops on first error and rolls back all changes.
+ */
+export async function batchCreateTenants(
+  pool: pg.Pool,
+  inputs: CreateTenantInput[],
+): Promise<BatchCreateResult> {
+  const created: TenantNode[] = [];
+  const errors: Array<{ index: number; slug: string; error: string }> = [];
+
+  try {
+    await withTransaction(pool, async (client) => {
+      // Map of slug → created tenant for intra-batch parent references
+      const slugMap = new Map<string, TenantNode>();
+
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
+
+        let parentId = input.parent_id ?? null;
+        let parentNode: TenantNode | null = null;
+
+        if (parentId) {
+          // Check if parent was created earlier in this batch (by ID)
+          const batchParent = created.find((t) => t.id === parentId);
+          if (batchParent) {
+            parentNode = batchParent;
+          } else {
+            // Look up in DB
+            const parentRes = await client.query<TenantNode>(
+              `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
+              [parentId],
+            );
+            if (parentRes.rows.length === 0) {
+              throw new TenantNotFoundError(parentId);
+            }
+            parentNode = parentRes.rows[0];
+          }
+
+          // Advisory lock on parent
+          await client.query(
+            `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
+            [parentId],
+          );
+
+          const ancestry_path = appendToPath(parentNode.ancestry_path, parentNode.id);
+          const regionId = (input as Record<string, unknown>).region_id ?? (parentNode as Record<string, unknown>).region_id ?? null;
+
+          const res = await client.query<TenantNode>(
+            `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+             RETURNING *`,
+            [
+              parentId,
+              ancestry_path,
+              parseAncestryPath(ancestry_path).length,
+              input.name,
+              input.slug,
+              JSON.stringify(input.config ?? {}),
+              JSON.stringify(input.metadata ?? {}),
+              input.isolation_strategy ?? "SHARED_RLS",
+              regionId,
+            ],
+          );
+          const tenant = res.rows[0];
+          created.push(tenant);
+          slugMap.set(tenant.slug, tenant);
+        } else {
+          // Root tenant
+          const rootRegionId = (input as Record<string, unknown>).region_id ?? null;
+          const res = await client.query<TenantNode>(
+            `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
+             VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
+             RETURNING *`,
+            [
+              input.name,
+              input.slug,
+              JSON.stringify(input.config ?? {}),
+              JSON.stringify(input.metadata ?? {}),
+              input.isolation_strategy ?? "SHARED_RLS",
+              rootRegionId,
+            ],
+          );
+          const tenant = res.rows[0];
+          created.push(tenant);
+          slugMap.set(tenant.slug, tenant);
+        }
+      }
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    errors.push({ index: created.length, slug: inputs[created.length]?.slug ?? "unknown", error: message });
+  }
+
+  return { created, errors };
+}
+
 export async function getAncestors(pool: pg.Pool, id: string): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<TenantNode>(
