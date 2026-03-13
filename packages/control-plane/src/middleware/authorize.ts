@@ -39,8 +39,12 @@ export function createAuthorizeMiddleware() {
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
-    // Skip for health endpoint
-    if (request.url === "/api/v1/health" || request.url.startsWith("/api/v1/health?")) {
+    // Skip for health and documentation endpoints
+    if (
+      request.url === "/api/v1/health" ||
+      request.url.startsWith("/api/v1/health?") ||
+      request.url.startsWith("/api/docs")
+    ) {
       return;
     }
 

@@ -27,8 +27,12 @@ export function createAuthMiddleware(stratum: Stratum) {
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
-    // Skip auth for health endpoint
-    if (request.url === "/api/v1/health" || request.url.startsWith("/api/v1/health?")) {
+    // Skip auth for health and documentation endpoints
+    if (
+      request.url === "/api/v1/health" ||
+      request.url.startsWith("/api/v1/health?") ||
+      request.url.startsWith("/api/docs")
+    ) {
       return;
     }
 

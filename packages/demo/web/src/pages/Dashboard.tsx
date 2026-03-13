@@ -151,8 +151,22 @@ function ConfigInheritanceSection() {
     setError(null);
     apiCall<ConfigInheritanceResponse>(`/api/v1/tenants/${tenant.id}/config/inheritance`)
       .then((res) => {
-        const entries = res.data ?? res.inheritance ?? (Array.isArray(res) ? res as ConfigInheritanceEntry[] : []);
-        setData(entries);
+        if (Array.isArray(res)) {
+          setData(res as ConfigInheritanceEntry[]);
+        } else if (res && typeof res === "object") {
+          // API returns Record<string, ConfigEntry> — convert to array
+          const obj = (res as { data?: unknown; inheritance?: unknown });
+          const source = obj.data ?? obj.inheritance ?? res;
+          if (Array.isArray(source)) {
+            setData(source as ConfigInheritanceEntry[]);
+          } else if (source && typeof source === "object") {
+            setData(Object.values(source) as ConfigInheritanceEntry[]);
+          } else {
+            setData([]);
+          }
+        } else {
+          setData([]);
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setLoading(false));
