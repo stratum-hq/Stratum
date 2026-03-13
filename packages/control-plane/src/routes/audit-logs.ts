@@ -32,6 +32,11 @@ export function createAuditLogRoutes(stratum: Stratum) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "Audit entry not found" } });
         return;
       }
+      // Enforce tenant isolation for scoped keys
+      if (request.apiKey?.tenant_id && entry.tenant_id !== request.apiKey.tenant_id) {
+        reply.status(404).send({ error: { code: "NOT_FOUND", message: "Audit entry not found" } });
+        return;
+      }
       reply.status(200).send(entry);
     });
   };

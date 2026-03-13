@@ -2,7 +2,16 @@ node_modules/
 dist/
 .git/
 .omc/
+.claude/
 *.tsbuildinfo
 .turbo/
 coverage/
 package-lock.json
+.env
+.env.*
+*.log
+docs/
+README.md
+CLAUDE.md
+.vscode/
+.idea/

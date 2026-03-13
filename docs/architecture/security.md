@@ -8,7 +8,7 @@ The control plane supports two authentication methods:
 
 - Format: `sk_live_<base64>` (production) or `sk_test_<base64>` (development)
 - Header: `X-API-Key`
-- Storage: SHA-256 hashed — plaintext is never stored
+- Storage: HMAC-SHA256 hashed (keyed with `STRATUM_API_KEY_HMAC_SECRET`) — plaintext is never stored. Falls back to SHA-256 if HMAC secret is not configured. Legacy SHA-256 hashes are transparently upgraded to HMAC on next validation.
 - Generated with 256-bit entropy (`crypto.randomBytes(32)`)
 - Displayed once at creation time, cannot be retrieved again
 
@@ -144,7 +144,7 @@ Sensitive data is encrypted at rest using AES-256-GCM:
 - Webhook secrets and sensitive config values are encrypted before storage
 - Key versioned format (`v1:iv:tag:ciphertext`) supports rotation
 - Random 12-byte IV per encryption prevents pattern analysis
-- Key derived via SHA-256 from `STRATUM_ENCRYPTION_KEY` environment variable
+- Key derived via HKDF-SHA256 from `STRATUM_ENCRYPTION_KEY` environment variable
 - In production, missing encryption key triggers an error
 - See the [Encryption guide](../guides/encryption.md) for details
 
@@ -157,6 +157,23 @@ Built-in tooling for data protection regulations:
 - **Consent Management**: Per-tenant, per-subject consent records with expiration tracking
 - **Data Retention**: Configurable purge of expired audit logs, events, and deliveries
 - **Audit Trail**: Immutable audit log for all mutations with actor context
+
+## SSRF Protection
+
+Webhook delivery URLs are validated against SSRF attacks:
+
+- DNS resolution performed before connection (both IPv4 and IPv6 AAAA records)
+- Private/reserved IP ranges blocked: `10.x`, `172.16-31.x`, `192.168.x`, `127.x`, `169.254.x`, `::1`, `fe80::`, `fc00::`
+- Cloud metadata endpoints blocked: `169.254.169.254`, `metadata.google.internal`, `metadata.goog`, AWS IMDSv2 IPv6 (`fd00:ec2:`)
+- DNS rebinding protection: resolution fails closed (rejects on DNS failure)
+
+## Docker Security
+
+All Docker images run as non-root:
+
+- Node.js images: dedicated `stratum` user with UID/GID 1001
+- Nginx images: uses built-in `nginx` user with adjusted permissions
+- `.dockerignore` excludes `.env`, secrets, docs, IDE files, and build artifacts
 
 ## Soft Delete
 

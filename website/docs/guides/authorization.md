@@ -113,6 +113,8 @@ app.get("/custom/admin-route", requireScope("admin"), async (req, res) => {
 
 ## Migration
 
+API key hashing was upgraded from SHA-256 to HMAC-SHA256 in migration `013_api_key_hmac.sql`. When `STRATUM_API_KEY_HMAC_SECRET` is set, new keys use HMAC hashing and legacy SHA-256 keys are transparently upgraded on next validation.
+
 The scopes system was introduced in migration `006_api_key_scopes.sql`. This migration adds a `scopes` column to the `api_keys` table with a default value of `['read', 'write']`, ensuring backward compatibility with existing keys.
 
 Existing API keys created before this migration automatically receive `read` and `write` scopes. To grant `admin` access to an existing key, update it:

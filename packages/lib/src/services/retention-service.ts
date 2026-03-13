@@ -84,6 +84,9 @@ export async function purgeTenant(
     );
     await client.query(`DELETE FROM webhooks WHERE tenant_id = $1`, [tenantId]);
 
+    // Consent records
+    await client.query(`DELETE FROM consent_records WHERE tenant_id = $1`, [tenantId]);
+
     // Audit logs
     await client.query(`DELETE FROM audit_logs WHERE tenant_id = $1`, [tenantId]);
 

@@ -71,5 +71,8 @@ COPY --from=builder /app/packages/sdk/dist ./packages/sdk/dist
 COPY --from=builder /app/packages/db-adapters/dist ./packages/db-adapters/dist
 COPY --from=builder /app/packages/demo/api/dist ./packages/demo/api/dist
 
+RUN addgroup -g 1001 stratum && adduser -u 1001 -G stratum -s /bin/sh -D stratum
+USER 1001
+
 EXPOSE 3002
 CMD ["node", "packages/demo/api/dist/index.js"]

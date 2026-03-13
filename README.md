@@ -418,6 +418,7 @@ await stratum.migrateRegion(tenantId, region.id);
 | `RATE_LIMIT_MAX` | `100` | Max requests per rate limit window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate limit time window |
 | `STRATUM_ENCRYPTION_KEY` | — | AES-256-GCM key for field-level encryption (**required** in production) |
+| `STRATUM_API_KEY_HMAC_SECRET` | — | HMAC-SHA256 secret for API key hashing (recommended in production) |
 
 ## Documentation
 
@@ -451,12 +452,14 @@ npm run dev            # Dev mode (watch)
 
 ## Security
 
-- API keys: 256-bit entropy, SHA-256 hashed storage, display-once semantics, scoped authorization (`read`/`write`/`admin`), expiration and rotation
+- API keys: 256-bit entropy, HMAC-SHA256 hashed storage (keyed hash prevents offline brute-force from DB dumps), display-once semantics, scoped authorization (`read`/`write`/`admin`), expiration and rotation, transparent migration from legacy SHA-256
 - SQL injection: parameterized queries everywhere, table name regex validation for DDL
 - RLS: `FORCE ROW LEVEL SECURITY` on all tenant tables, BYPASSRLS startup check
-- HTTP: Helmet security headers, CORS, per-IP rate limiting, SSRF protection on webhook URLs
-- Field-level encryption: AES-256-GCM with key versioning for sensitive config entries and webhook secrets
+- HTTP: Helmet security headers, CORS, per-IP + per-key rate limiting, SSRF protection on webhook URLs (DNS rebinding, IPv4/IPv6 resolution, cloud metadata blocklists)
+- Field-level encryption: AES-256-GCM with HKDF key derivation and key versioning for sensitive config entries and webhook secrets
 - Audit logging: all mutations recorded with actor identity, resource tracking, and before/after state
+- Docker: non-root containers (UID 1001), minimal `.dockerignore`
+- Tenant isolation: fail-closed scope enforcement, post-fetch tenant access checks on all routes
 - Soft delete: tenants are archived, never hard-deleted (with GDPR hard-purge option)
 
 ## Roadmap
@@ -482,6 +485,19 @@ npm run dev            # Dev mode (watch)
 | v2.6 | Admin dashboard (audit log viewer, API key management in demo UI) | Done |
 | v2.7 | Encryption key rotation (zero-downtime re-encryption of all secrets via maintenance API) | Done |
 | v2.8 | Webhook dead-letter queue (failed delivery listing, individual/bulk retry, delivery stats) | Done |
+| v2.9 | Security hardening (HMAC API keys, Docker non-root, HKDF encryption, SSRF IPv6, fail-closed guards) | Done |
+
+### Future
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| OpenTelemetry | Distributed tracing and metrics export (requires `@opentelemetry/*` packages) | Medium |
+| JWT Scope Capping | Cap JWT tokens to read-only scopes to limit blast radius of token theft | Medium |
+| Fastify Upgrade | Upgrade to Fastify >= 5.8.2 (CVE fix for content-type boundary parsing) | High |
+| Swagger UI Fix | Swagger docs page renders blank white screen (CSP / static asset issue) | Low |
+| API Key Bulk Migration | Admin endpoint to force-upgrade all legacy SHA-256 key hashes to HMAC | Low |
+| Webhook Signature Rotation | Support multiple active signing keys during webhook secret rotation | Low |
+| Rate Limit Persistence | Move per-key rate limit state from in-memory to Redis for multi-instance deployments | Medium |
 
 ## License
 

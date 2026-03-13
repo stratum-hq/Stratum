@@ -5,19 +5,27 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURRENT_KEY_VERSION = "v1";
 
+function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
+  const salt = Buffer.alloc(32, 0);
+  return Buffer.from(
+    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), salt, info, 32),
+  );
+}
+
 function getEncryptionKey(): Buffer {
   const envKey = process.env.STRATUM_ENCRYPTION_KEY ?? process.env.WEBHOOK_ENCRYPTION_KEY;
   if (envKey) {
-    return crypto.createHash("sha256").update(envKey).digest();
+    return hkdfDeriveKey(envKey);
   }
   if (process.env.NODE_ENV === "production") {
     throw new Error("STRATUM_ENCRYPTION_KEY must be set in production");
   }
-  return crypto.createHash("sha256").update("stratum-dev-key").digest();
+  // Dev-only fallback — never use in staging or production
+  return hkdfDeriveKey("stratum-dev-key");
 }
 
 function deriveKey(keyMaterial: string): Buffer {
-  return crypto.createHash("sha256").update(keyMaterial).digest();
+  return hkdfDeriveKey(keyMaterial, "stratum-rotation-key");
 }
 
 function encryptWithKey(plaintext: string, key: Buffer): string {

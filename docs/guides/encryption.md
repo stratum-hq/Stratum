@@ -14,7 +14,7 @@ Stratum encrypts sensitive data at rest using AES-256-GCM authenticated encrypti
 - **Cipher**: AES-256-GCM (authenticated encryption with associated data)
 - **IV**: 12 bytes, randomly generated per encryption
 - **Auth Tag**: 16 bytes (built into GCM mode)
-- **Key Derivation**: SHA-256 hash of key material to produce a 32-byte key
+- **Key Derivation**: HKDF-SHA256 with application-specific info string to derive a 32-byte key
 
 ### Ciphertext Format
 
@@ -113,6 +113,6 @@ const plaintext = decrypt(ciphertext);
 | Confidentiality | AES-256 encryption |
 | Integrity | GCM authentication tag prevents tampering |
 | Uniqueness | Random IV per encryption prevents pattern analysis |
-| Key safety | Keys derived via SHA-256, never stored in plaintext |
+| Key safety | Keys derived via HKDF-SHA256, never stored in plaintext |
 | Versioning | Format prefix allows algorithm migration |
 | Concurrency | Re-encryption is stateless, safe under parallel access |

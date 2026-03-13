@@ -18,12 +18,15 @@ const BLOCKED_IP_PATTERNS = [
   /^::1$/, // IPv6 loopback
   /^fc00:/, // IPv6 unique local
   /^fe80:/, // IPv6 link-local
+  /^fd00:ec2:/, // AWS IMDSv2 IPv6
 ];
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "localhost.localdomain",
   "metadata.google.internal", // GCP metadata
+  "metadata.goog", // GCP alternate
+  "169.254.169.254", // AWS/Azure metadata
 ]);
 
 /** Check if an IP matches any blocked private/reserved range. */
@@ -52,11 +55,6 @@ function validateWebhookUrl(url: string): void {
     throw new Error(`Webhook URL targets a blocked host: ${hostname}`);
   }
 
-  // Block cloud metadata IPs (169.254.169.254, etc.)
-  if (hostname === "169.254.169.254") {
-    throw new Error(`Webhook URL targets cloud metadata endpoint`);
-  }
-
   // Block private IP ranges
   if (isBlockedIp(hostname)) {
     throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
@@ -79,14 +77,23 @@ async function validateWebhookUrlWithDns(url: string): Promise<void> {
     return;
   }
 
-  // Resolve DNS and validate all returned IPs
+  // Resolve DNS (both A and AAAA records) and validate all returned IPs
   let addresses: string[];
   try {
-    const results = await dns.resolve4(hostname);
-    addresses = results;
+    const [v4Result, v6Result] = await Promise.allSettled([
+      dns.resolve4(hostname),
+      dns.resolve6(hostname),
+    ]);
+    addresses = [
+      ...(v4Result.status === "fulfilled" ? v4Result.value : []),
+      ...(v6Result.status === "fulfilled" ? v6Result.value : []),
+    ];
+    if (addresses.length === 0) {
+      throw new Error("No DNS records found");
+    }
   } catch {
-    // DNS resolution failed — allow delivery attempt (will fail on fetch)
-    return;
+    // DNS resolution failed — fail closed to prevent SSRF via DNS rebinding
+    throw new Error(`DNS resolution failed for webhook host: ${hostname}`);
   }
 
   for (const ip of addresses) {
@@ -318,16 +325,27 @@ export async function processDeliveries(pool: pg.Pool): Promise<void> {
   }
 }
 
-export async function retryFailedDeliveries(pool: pg.Pool): Promise<number> {
+export async function retryFailedDeliveries(pool: pg.Pool, tenantId?: string): Promise<number> {
   const result = await withClient(pool, async (client) => {
-    const res = await client.query<{ count: string }>(
-      `WITH updated AS (
+    let query: string;
+    const params: unknown[] = [];
+    if (tenantId) {
+      query = `WITH updated AS (
+        UPDATE webhook_deliveries
+        SET status = 'pending', next_retry_at = NULL, attempts = 0
+        WHERE status = 'failed' AND webhook_id IN (SELECT id FROM webhooks WHERE tenant_id = $1)
+        RETURNING id
+      ) SELECT COUNT(*) as count FROM updated`;
+      params.push(tenantId);
+    } else {
+      query = `WITH updated AS (
         UPDATE webhook_deliveries
         SET status = 'pending', next_retry_at = NULL, attempts = 0
         WHERE status = 'failed'
         RETURNING id
-      ) SELECT COUNT(*) as count FROM updated`,
-    );
+      ) SELECT COUNT(*) as count FROM updated`;
+    }
+    const res = await client.query<{ count: string }>(query, params);
     return parseInt(res.rows[0].count, 10);
   });
 
@@ -362,11 +380,19 @@ export interface DeliveryStats {
   failed: number;
 }
 
-export async function getDeliveryStats(pool: pg.Pool): Promise<DeliveryStats> {
+export async function getDeliveryStats(pool: pg.Pool, tenantId?: string): Promise<DeliveryStats> {
   return withClient(pool, async (client) => {
-    const res = await client.query<{ status: string; count: string }>(
-      `SELECT status, COUNT(*) as count FROM webhook_deliveries GROUP BY status`,
-    );
+    let query: string;
+    const params: unknown[] = [];
+    if (tenantId) {
+      query = `SELECT wd.status, COUNT(*) as count FROM webhook_deliveries wd
+               JOIN webhooks w ON w.id = wd.webhook_id
+               WHERE w.tenant_id = $1 GROUP BY wd.status`;
+      params.push(tenantId);
+    } else {
+      query = `SELECT status, COUNT(*) as count FROM webhook_deliveries GROUP BY status`;
+    }
+    const res = await client.query<{ status: string; count: string }>(query, params);
     const counts: Record<string, number> = {};
     let total = 0;
     for (const row of res.rows) {
@@ -385,18 +411,31 @@ export async function getDeliveryStats(pool: pg.Pool): Promise<DeliveryStats> {
 export async function listFailedDeliveries(
   pool: pg.Pool,
   limit = 100,
+  tenantId?: string,
 ): Promise<Record<string, unknown>[]> {
   return withClient(pool, async (client) => {
-    const res = await client.query<Record<string, unknown>>(
-      `SELECT wd.*, we.type as event_type, we.tenant_id as event_tenant_id, w.url as webhook_url
-       FROM webhook_deliveries wd
-       JOIN webhook_events we ON we.id = wd.event_id
-       JOIN webhooks w ON w.id = wd.webhook_id
-       WHERE wd.status = 'failed'
-       ORDER BY wd.completed_at DESC
-       LIMIT $1`,
-      [limit],
-    );
+    let query: string;
+    const params: unknown[] = [];
+    if (tenantId) {
+      query = `SELECT wd.*, we.type as event_type, we.tenant_id as event_tenant_id, w.url as webhook_url
+               FROM webhook_deliveries wd
+               JOIN webhook_events we ON we.id = wd.event_id
+               JOIN webhooks w ON w.id = wd.webhook_id
+               WHERE wd.status = 'failed' AND w.tenant_id = $1
+               ORDER BY wd.completed_at DESC
+               LIMIT $2`;
+      params.push(tenantId, limit);
+    } else {
+      query = `SELECT wd.*, we.type as event_type, we.tenant_id as event_tenant_id, w.url as webhook_url
+               FROM webhook_deliveries wd
+               JOIN webhook_events we ON we.id = wd.event_id
+               JOIN webhooks w ON w.id = wd.webhook_id
+               WHERE wd.status = 'failed'
+               ORDER BY wd.completed_at DESC
+               LIMIT $1`;
+      params.push(limit);
+    }
+    const res = await client.query<Record<string, unknown>>(query, params);
     return res.rows;
   });
 }

@@ -81,8 +81,10 @@ export function createWebhookRoutes(stratum: Stratum) {
     // --- Dead-Letter Queue / Delivery Dashboard ---
 
     // GET /api/v1/webhooks/deliveries/stats — Delivery statistics
-    app.get("/deliveries/stats", async (_request, reply) => {
-      const stats = await stratum.getDeliveryStats();
+    app.get("/deliveries/stats", async (request, reply) => {
+      // Scoped keys: restrict to their tenant's deliveries
+      const tenantId = request.apiKey?.tenant_id ?? undefined;
+      const stats = await stratum.getDeliveryStats(tenantId);
       reply.status(200).send(stats);
     });
 
@@ -90,18 +92,28 @@ export function createWebhookRoutes(stratum: Stratum) {
     app.get<{ Querystring: { limit?: string } }>("/deliveries/failed", async (request, reply) => {
       const rawLimit = request.query.limit ? parseInt(request.query.limit, 10) : 100;
       const limit = Number.isNaN(rawLimit) || rawLimit < 1 ? 100 : Math.min(rawLimit, 500);
-      const failed = await stratum.listFailedDeliveries(limit);
+      const tenantId = request.apiKey?.tenant_id ?? undefined;
+      const failed = await stratum.listFailedDeliveries(limit, tenantId);
       reply.status(200).send(failed);
     });
 
     // POST /api/v1/webhooks/deliveries/retry-all — Retry all failed deliveries
-    app.post("/deliveries/retry-all", async (_request, reply) => {
-      const count = await stratum.retryFailedDeliveries();
+    app.post("/deliveries/retry-all", async (request, reply) => {
+      const tenantId = request.apiKey?.tenant_id ?? undefined;
+      const count = await stratum.retryFailedDeliveries(tenantId);
       reply.status(200).send({ retried: count });
     });
 
     // POST /api/v1/webhooks/deliveries/:deliveryId/retry — Retry single delivery
     app.post<{ Params: { deliveryId: string } }>("/deliveries/:deliveryId/retry", async (request, reply) => {
+      // Verify tenant access for scoped keys
+      if (request.apiKey?.tenant_id) {
+        const failed = await stratum.listFailedDeliveries(1000, request.apiKey.tenant_id);
+        if (!failed.some((d: { id: string }) => d.id === request.params.deliveryId)) {
+          reply.status(404).send({ error: { code: "NOT_FOUND", message: "Delivery not found or not in failed state" } });
+          return;
+        }
+      }
       const success = await stratum.retryDelivery(request.params.deliveryId);
       if (!success) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "Delivery not found or not in failed state" } });

@@ -297,17 +297,17 @@ export class Stratum {
   }
 
   // Webhook delivery operations
-  listFailedDeliveries(limit?: number): Promise<Record<string, unknown>[]> {
-    return eventService.listFailedDeliveries(this.pool, limit);
+  listFailedDeliveries(limit?: number, tenantId?: string): Promise<Record<string, unknown>[]> {
+    return eventService.listFailedDeliveries(this.pool, limit, tenantId);
   }
   retryDelivery(deliveryId: string): Promise<boolean> {
     return eventService.retryDelivery(this.pool, deliveryId);
   }
-  retryFailedDeliveries(): Promise<number> {
-    return eventService.retryFailedDeliveries(this.pool);
+  retryFailedDeliveries(tenantId?: string): Promise<number> {
+    return eventService.retryFailedDeliveries(this.pool, tenantId);
   }
-  getDeliveryStats(): Promise<eventService.DeliveryStats> {
-    return eventService.getDeliveryStats(this.pool);
+  getDeliveryStats(tenantId?: string): Promise<eventService.DeliveryStats> {
+    return eventService.getDeliveryStats(this.pool, tenantId);
   }
 
   // Audit log operations
