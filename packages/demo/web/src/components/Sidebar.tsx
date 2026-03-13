@@ -1,5 +1,5 @@
-import React from "react";
-import { useTenantTree, useTenant } from "@stratum/react";
+import React, { useState } from "react";
+import { useTenantTree, useTenant, useStratum } from "@stratum/react";
 import type { TenantTreeNode } from "@stratum/react";
 
 function TreeNode({
@@ -7,11 +7,15 @@ function TreeNode({
   selectedId,
   onSelect,
   onToggle,
+  onAddChild,
+  addingParentId,
 }: {
   node: TenantTreeNode;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
+  onAddChild: (parentId: string) => void;
+  addingParentId: string | null;
 }) {
   const hasChildren = node.children.length > 0;
   const isSelected = node.id === selectedId;
@@ -21,6 +25,7 @@ function TreeNode({
     1: "#8b5cf6",
     2: "#10b981",
     3: "#f59e0b",
+    4: "#ef4444",
   };
   const dotColor = depthColors[node.depth] || "#94a3b8";
 
@@ -53,8 +58,22 @@ function TreeNode({
           <span style={{ width: 14, flexShrink: 0 }} />
         )}
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0, display: "inline-block" }} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={node.slug}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }} title={node.slug}>
           {node.name}
+        </span>
+        <span
+          style={{
+            fontSize: 14,
+            color: isSelected ? "#93c5fd" : "#475569",
+            cursor: "pointer",
+            padding: "0 2px",
+            flexShrink: 0,
+            lineHeight: 1,
+          }}
+          title="Add child tenant"
+          onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
+        >
+          +
         </span>
       </div>
       {node.expanded && hasChildren && (
@@ -66,6 +85,8 @@ function TreeNode({
               selectedId={selectedId}
               onSelect={onSelect}
               onToggle={onToggle}
+              onAddChild={onAddChild}
+              addingParentId={addingParentId}
             />
           ))}
         </div>
@@ -75,8 +96,84 @@ function TreeNode({
 }
 
 export function Sidebar() {
-  const { tree, loading, toggleExpand } = useTenantTree();
+  const { tree, loading, toggleExpand, refresh } = useTenantTree();
   const { tenant, switchTenant } = useTenant();
+  const { apiCall } = useStratum();
+
+  const [addingParentId, setAddingParentId] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleAddChild = (parentId: string) => {
+    setAddingParentId(parentId);
+    setNewName("");
+    setNewSlug("");
+    setError(null);
+  };
+
+  const handleAddRoot = () => {
+    setAddingParentId("__root__");
+    setNewName("");
+    setNewSlug("");
+    setError(null);
+  };
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !newSlug.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        name: newName.trim(),
+        slug: newSlug.trim(),
+        isolation_strategy: "SHARED_RLS",
+      };
+      if (addingParentId && addingParentId !== "__root__") {
+        body.parent_id = addingParentId;
+      }
+      const created = await apiCall<{ id: string }>("/api/v1/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setAddingParentId(null);
+      setNewName("");
+      setNewSlug("");
+      await refresh();
+      switchTenant(created.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setAddingParentId(null);
+    setNewName("");
+    setNewSlug("");
+    setError(null);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontSize: 11,
+    padding: "3px 6px",
+    borderRadius: 3,
+    border: "1px solid #334155",
+    background: "#1e293b",
+    color: "#e2e8f0",
+    width: "100%",
+  };
+
+  const btnSmall: React.CSSProperties = {
+    fontSize: 10,
+    padding: "2px 8px",
+    borderRadius: 3,
+    border: "none",
+    cursor: "pointer",
+  };
 
   return (
     <aside style={{
@@ -112,9 +209,57 @@ export function Sidebar() {
             selectedId={tenant?.id ?? null}
             onSelect={switchTenant}
             onToggle={toggleExpand}
+            onAddChild={handleAddChild}
+            addingParentId={addingParentId}
           />
         ))}
       </div>
+
+      {/* Inline create form */}
+      {addingParentId && (
+        <div style={{ padding: "8px 12px", borderTop: "1px solid #1e293b", background: "#1e293b" }}>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
+            {addingParentId === "__root__" ? "New root tenant" : "New child tenant"}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <input style={inputStyle} placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
+            <input style={inputStyle} placeholder="slug_name" value={newSlug} onChange={(e) => setNewSlug(e.target.value)} />
+            {error && <div style={{ fontSize: 10, color: "#ef4444" }}>{error}</div>}
+            <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+              <button
+                style={{ ...btnSmall, background: "#2563eb", color: "white" }}
+                disabled={creating || !newName.trim() || !newSlug.trim()}
+                onClick={handleCreate}
+              >
+                {creating ? "..." : "Create"}
+              </button>
+              <button style={{ ...btnSmall, background: "#334155", color: "#94a3b8" }} onClick={handleCancel}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add root tenant button */}
+      {!addingParentId && (
+        <div style={{ padding: "8px 12px", borderTop: "1px solid #1e293b" }}>
+          <button
+            style={{
+              ...btnSmall,
+              width: "100%",
+              padding: "5px 8px",
+              background: "#1e293b",
+              color: "#64748b",
+              border: "1px solid #334155",
+              fontSize: 11,
+            }}
+            onClick={handleAddRoot}
+          >
+            + Add Root Tenant
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

@@ -80,6 +80,7 @@ export interface TenantContext {
 }
 
 export interface ResolvedPermission {
+  policy_id: string;
   key: string;
   value: unknown;
   mode: string;

@@ -34,17 +34,27 @@ export function StratumProvider({
 
   const apiCall = useCallback(
     async <T,>(path: string, options?: RequestInit): Promise<T> => {
+      const headers: Record<string, string> = {
+        "X-API-Key": apiKey,
+      };
+      // Only set Content-Type for requests that have a body
+      if (options?.body) {
+        headers["Content-Type"] = "application/json";
+      }
       const res = await fetch(`${baseUrl}${path}`, {
         ...options,
         headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": apiKey,
+          ...headers,
           ...options?.headers,
         },
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: { message: res.statusText } })) as { error?: { message?: string } };
         throw new Error(body.error?.message || `API error: ${res.status}`);
+      }
+      // 204 No Content — return empty object instead of trying to parse JSON
+      if (res.status === 204) {
+        return {} as T;
       }
       return res.json() as Promise<T>;
     },

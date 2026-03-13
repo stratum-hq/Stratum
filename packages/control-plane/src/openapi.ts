@@ -34,6 +34,6 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
       docExpansion: "list",
       deepLinking: true,
     },
-    staticCSP: true,
+    staticCSP: false,
   });
 }
