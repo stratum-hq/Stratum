@@ -12,6 +12,7 @@ export interface ApiKeyRecord {
   last_used_at: Date | null;
   revoked_at: Date | null;
   expires_at: Date | null;
+  hash_version: number;
 }
 
 export interface CreatedApiKey {
@@ -24,15 +25,42 @@ export interface CreatedApiKey {
   plaintext_key: string;
 }
 
-function hashKey(key: string): string {
+// --- Hashing ---
+
+const HASH_V1_SHA256 = 1;
+const HASH_V2_HMAC = 2;
+
+function getHmacSecret(): string | undefined {
+  return process.env.STRATUM_API_KEY_HMAC_SECRET;
+}
+
+/** Legacy SHA-256 hash (v1). */
+function sha256Hash(key: string): string {
   return crypto.createHash("sha256").update(key).digest("hex");
 }
 
-export function generateKey(keyPrefix: string): { plaintextKey: string; keyHash: string } {
+/** HMAC-SHA256 hash (v2). Requires STRATUM_API_KEY_HMAC_SECRET. */
+function hmacHash(key: string, secret: string): string {
+  return crypto.createHmac("sha256", secret).update(key).digest("hex");
+}
+
+/**
+ * Hash a key using the best available method.
+ * Returns HMAC-SHA256 if STRATUM_API_KEY_HMAC_SECRET is set, otherwise SHA-256.
+ */
+function hashKey(key: string): { keyHash: string; hashVersion: number } {
+  const secret = getHmacSecret();
+  if (secret) {
+    return { keyHash: hmacHash(key, secret), hashVersion: HASH_V2_HMAC };
+  }
+  return { keyHash: sha256Hash(key), hashVersion: HASH_V1_SHA256 };
+}
+
+export function generateKey(keyPrefix: string): { plaintextKey: string; keyHash: string; hashVersion: number } {
   const random = crypto.randomBytes(32).toString("base64url");
   const plaintextKey = `${keyPrefix}${random}`;
-  const keyHash = hashKey(plaintextKey);
-  return { plaintextKey, keyHash };
+  const { keyHash, hashVersion } = hashKey(plaintextKey);
+  return { plaintextKey, keyHash, hashVersion };
 }
 
 export interface CreateApiKeyOptions {
@@ -53,14 +81,14 @@ export async function createApiKey(
   const opts: CreateApiKeyOptions = typeof nameOrOptions === "object" && nameOrOptions !== null
     ? nameOrOptions
     : { name: nameOrOptions, expiresAt };
-  const { plaintextKey, keyHash } = generateKey(keyPrefix);
+  const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
 
   return withClient(pool, async (client) => {
     const res = await client.query<ApiKeyRecord>(
-      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window, hash_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [tenantId, keyHash, keyPrefix, opts.name ?? null, opts.expiresAt ?? null, opts.rateLimitMax ?? null, opts.rateLimitWindow ?? null],
+      [tenantId, keyHash, keyPrefix, opts.name ?? null, opts.expiresAt ?? null, opts.rateLimitMax ?? null, opts.rateLimitWindow ?? null, hashVersion],
     );
 
     const row = res.rows[0];
@@ -87,36 +115,56 @@ export async function validateApiKey(
   pool: pg.Pool,
   key: string,
 ): Promise<ValidatedApiKey | null> {
-  const keyHash = hashKey(key);
+  const hmacSecret = getHmacSecret();
+
+  // Build candidate hashes: try HMAC first (if secret is set), then SHA-256 fallback
+  const candidates: Array<{ hash: string; version: number }> = [];
+  if (hmacSecret) {
+    candidates.push({ hash: hmacHash(key, hmacSecret), version: HASH_V2_HMAC });
+  }
+  candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
 
   return withClient(pool, async (client) => {
-    const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null }>(
-      `SELECT id, tenant_id, key_hash, key_prefix, name, created_at, last_used_at, revoked_at, expires_at, scopes, rate_limit_max, rate_limit_window
-       FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
-      [keyHash],
-    );
+    for (const candidate of candidates) {
+      const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null }>(
+        `SELECT id, tenant_id, key_hash, key_prefix, name, created_at, last_used_at, revoked_at, expires_at, scopes, rate_limit_max, rate_limit_window, hash_version
+         FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
+        [candidate.hash],
+      );
 
-    if (res.rows.length === 0) {
-      return null;
+      if (res.rows.length === 0) continue;
+
+      const row = res.rows[0];
+
+      // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is available,
+      // re-hash with HMAC and update the stored hash in-place
+      if (row.hash_version === HASH_V1_SHA256 && hmacSecret) {
+        const upgradedHash = hmacHash(key, hmacSecret);
+        pool
+          .query(
+            `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
+            [upgradedHash, HASH_V2_HMAC, row.id],
+          )
+          .catch(() => {
+            // Non-critical: upgrade will happen on next request
+          });
+      } else {
+        // Update last_used_at — fire-and-forget
+        pool
+          .query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id])
+          .catch(() => {});
+      }
+
+      return {
+        tenant_id: row.tenant_id,
+        key_id: row.id,
+        scopes: row.scopes ?? ["read"],
+        rate_limit_max: row.rate_limit_max,
+        rate_limit_window: row.rate_limit_window,
+      };
     }
 
-    const row = res.rows[0];
-
-    // Update last_used_at — fire-and-forget on the pool to avoid
-    // racing with client.release() in the withClient wrapper
-    pool
-      .query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id])
-      .catch(() => {
-        // Non-critical: ignore update failures
-      });
-
-    return {
-      tenant_id: row.tenant_id,
-      key_id: row.id,
-      scopes: row.scopes ?? ["read"],
-      rate_limit_max: row.rate_limit_max,
-      rate_limit_window: row.rate_limit_window,
-    };
+    return null;
   });
 }
 
@@ -148,12 +196,12 @@ export async function rotateApiKey(
     const old = oldRes.rows[0];
 
     // Create new key for same tenant
-    const { plaintextKey, keyHash } = generateKey(keyPrefix);
+    const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
     const res = await client.query<{ id: string; tenant_id: string | null; name: string | null; key_prefix: string | null; created_at: Date }>(
-      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, hash_version)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id, tenant_id, name, key_prefix, created_at`,
-      [old.tenant_id, keyHash, keyPrefix, newName ?? `${old.name ?? "key"} (rotated)`],
+      [old.tenant_id, keyHash, keyPrefix, newName ?? `${old.name ?? "key"} (rotated)`, hashVersion],
     );
 
     // Revoke old key

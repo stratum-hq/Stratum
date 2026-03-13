@@ -112,7 +112,7 @@ CREATE TABLE api_keys (
 CREATE UNIQUE INDEX idx_api_keys_hash ON api_keys(key_hash);
 ```
 
-Keys are stored as SHA-256 hashes. The plaintext key (`sk_live_*` or `sk_test_*`) is returned only once at creation time.
+Keys are stored as HMAC-SHA256 hashes (keyed with `STRATUM_API_KEY_HMAC_SECRET`). Falls back to SHA-256 if the secret is not configured. Legacy hashes are transparently upgraded on next validation. The plaintext key (`sk_live_*` or `sk_test_*`) is returned only once at creation time.
 
 ## Row-Level Security
 

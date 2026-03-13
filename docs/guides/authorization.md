@@ -20,7 +20,7 @@ curl http://localhost:3001/api/v1/tenants \
   -H "X-API-Key: sk_live_abc123..."
 ```
 
-Keys are stored as SHA-256 hashes. The plaintext is returned only once at creation time and cannot be retrieved again.
+Keys are stored as HMAC-SHA256 hashes (keyed with `STRATUM_API_KEY_HMAC_SECRET`). If the HMAC secret is not configured, falls back to SHA-256. Legacy SHA-256 hashes are transparently upgraded to HMAC on next successful validation. The plaintext is returned only once at creation time and cannot be retrieved again.
 
 ### JWT Bearer Tokens
 

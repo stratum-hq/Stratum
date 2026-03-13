@@ -29,6 +29,7 @@ All configuration is via environment variables:
 | `RATE_LIMIT_MAX` | `100` | Max requests per rate limit window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate limit window duration |
 | `STRATUM_ENCRYPTION_KEY` | `stratum-dev-key` | AES-256-GCM encryption key for sensitive data |
+| `STRATUM_API_KEY_HMAC_SECRET` | — | HMAC-SHA256 secret for API key hashing (recommended in production) |
 
 ## API Endpoints
 
@@ -89,7 +90,8 @@ Manages PostgreSQL RLS setup:
 
 Full API key lifecycle:
 - 256-bit random generation with `sk_live_`/`sk_test_` prefix
-- SHA-256 hashed storage (plaintext never stored)
+- HMAC-SHA256 hashed storage (keyed with `STRATUM_API_KEY_HMAC_SECRET`) — prevents offline brute-force from DB dumps. Falls back to SHA-256 when HMAC secret is not set.
+- Transparent hash upgrade: legacy SHA-256 keys are automatically re-hashed to HMAC on next successful validation
 - Validation with `last_used_at` tracking and scope enforcement
 - Revocation via timestamp
 - Key rotation (atomic revoke + create)
@@ -120,6 +122,7 @@ Data retention and GDPR erasure:
 ### crypto
 
 Shared AES-256-GCM encryption:
+- Key derived via HKDF-SHA256 (not raw SHA-256)
 - Key versioned format (`v1:iv:tag:ciphertext`)
 - Used by webhook secrets and sensitive config values
 - `reEncrypt()` for zero-downtime key rotation
@@ -146,6 +149,7 @@ Migrations include:
 | `010_multi_region.sql` | `regions` table, `region_id` on `tenants` |
 | `011_demo_bootstrap.sql` | Demo seed data for interactive demo |
 | `012_roles.sql` | `roles` table, `role_id` on `api_keys` |
+| `013_api_key_hmac.sql` | `hash_version` column on `api_keys` for HMAC migration |
 
 ### Connection Pool
 

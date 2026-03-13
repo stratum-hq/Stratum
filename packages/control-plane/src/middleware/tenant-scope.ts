@@ -33,8 +33,10 @@ export function createTenantScopeGuard(
       const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
       if (ancestorIds.includes(apiKey.tenant_id)) return;
     } catch {
-      // Tenant not found — let the route handler deal with 404
-      return;
+      // Tenant not found — fail closed for scoped keys
+      throw new ForbiddenError(
+        "API key tenant scope does not grant access to this tenant",
+      );
     }
 
     throw new ForbiddenError(

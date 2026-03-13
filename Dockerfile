@@ -51,5 +51,8 @@ COPY --from=builder /app/packages/db-adapters/dist ./packages/db-adapters/dist
 COPY --from=builder /app/packages/control-plane/dist ./packages/control-plane/dist
 COPY --from=builder /app/packages/control-plane/src/db/migrations ./packages/control-plane/dist/db/migrations
 
+RUN addgroup -g 1001 stratum && adduser -u 1001 -G stratum -s /bin/sh -D stratum
+USER 1001
+
 EXPOSE 3001
 CMD ["node", "packages/control-plane/dist/index.js"]

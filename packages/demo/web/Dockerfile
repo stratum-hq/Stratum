@@ -35,5 +35,12 @@ FROM nginx:alpine AS runner
 COPY packages/demo/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/packages/demo/web/dist /usr/share/nginx/html
 
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d && \
+    chmod -R 755 /var/cache/nginx && \
+    sed -i '/^pid/d' /etc/nginx/nginx.conf && \
+    echo "pid /tmp/nginx.pid;" >> /etc/nginx/nginx.conf
+
+USER nginx
+
 EXPOSE 3300
 CMD ["nginx", "-g", "daemon off;"]
