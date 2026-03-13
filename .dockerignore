@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# Re-include dist for packages needed by multitenant-kuma Docker build
+!packages/core/dist/
+!packages/lib/dist/
 .git/
 .omc/
 .claude/
