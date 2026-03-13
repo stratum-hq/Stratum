@@ -491,6 +491,7 @@ npm run dev            # Dev mode (watch)
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
+| **npm Publishing** | Publish all packages to npm under the `@stratum` scope so integrators can `npm install @stratum/lib` directly | **High** |
 | OpenTelemetry | Distributed tracing and metrics export (requires `@opentelemetry/*` packages) | Medium |
 | JWT Scope Capping | Cap JWT tokens to read-only scopes to limit blast radius of token theft | Medium |
 | Fastify Upgrade | Upgrade to Fastify >= 5.8.2 (CVE fix for content-type boundary parsing) | High |
@@ -498,6 +499,109 @@ npm run dev            # Dev mode (watch)
 | API Key Bulk Migration | Admin endpoint to force-upgrade all legacy SHA-256 key hashes to HMAC | Low |
 | Webhook Signature Rotation | Support multiple active signing keys during webhook secret rotation | Low |
 | Rate Limit Persistence | Move per-key rate limit state from in-memory to Redis for multi-instance deployments | Medium |
+
+## Publishing to npm
+
+All packages are scoped under `@stratum/` and structured for npm publishing. They are not yet published — currently consumed via `file:` paths or by copying `packages/` into your project.
+
+### When packages are published
+
+Once on npm, integrators will be able to install directly:
+
+```bash
+# Pick the packages you need
+npm install @stratum/core @stratum/lib pg          # Direct library (no HTTP)
+npm install @stratum/sdk @stratum/core             # SDK + middleware
+npm install @stratum/react @stratum/core           # React components
+npm install @stratum/db-adapters @stratum/core pg  # Database adapters
+npm install @stratum/cli                           # CLI tools (npx @stratum/cli init)
+```
+
+No cloning, no `file:` paths, no copying packages — just `npm install` and go.
+
+### Publishing checklist
+
+Before the first publish:
+
+1. **Claim the npm scope**: Register the `@stratum` org on npmjs.com (or use a private registry like GitHub Packages / Verdaccio)
+2. **Add `publishConfig`** to each package.json:
+   ```json
+   {
+     "publishConfig": {
+       "access": "public",
+       "registry": "https://registry.npmjs.org/"
+     }
+   }
+   ```
+3. **Add `files` whitelist** to each package.json to keep published packages lean:
+   ```json
+   {
+     "files": ["dist", "README.md", "LICENSE"]
+   }
+   ```
+4. **Version strategy**: Use `npm version` or a tool like [changesets](https://github.com/changesets/changesets) for coordinated versioning across the monorepo
+5. **CI publishing**: Add a GitHub Actions workflow that builds, tests, and publishes on tagged releases
+
+### Publishing commands
+
+```bash
+# Build all packages
+npm run build
+
+# Publish all (from repo root, using npm workspaces)
+npm publish --workspaces --access public
+
+# Or publish individually
+cd packages/core && npm publish --access public
+cd packages/lib && npm publish --access public
+cd packages/sdk && npm publish --access public
+cd packages/db-adapters && npm publish --access public
+cd packages/react-ui && npm publish --access public
+cd packages/cli && npm publish --access public
+cd packages/control-plane && npm publish --access public
+```
+
+### Current consumption (pre-npm)
+
+Until packages are published, there are two ways to use Stratum in other projects:
+
+**Option A — Copy packages (recommended for now)**:
+```bash
+# Copy only what you need into your project
+cp -r stratum/packages/core your-project/packages/core
+cp -r stratum/packages/lib your-project/packages/lib
+
+# Reference via file: paths in your package.json
+# "@stratum/core": "file:./packages/core"
+# "@stratum/lib": "file:./packages/lib"
+
+npm install
+```
+
+**Option B — Link from the monorepo**:
+```bash
+# From the Stratum repo
+cd packages/core && npm link
+cd packages/lib && npm link
+
+# From your project
+npm link @stratum/core @stratum/lib
+```
+
+### Private registry alternative
+
+If you don't want to publish publicly, use a private registry:
+
+```bash
+# GitHub Packages
+npm config set @stratum:registry https://npm.pkg.github.com
+
+# Verdaccio (self-hosted)
+npm config set @stratum:registry http://localhost:4873
+
+# Then publish normally
+npm publish --workspaces
+```
 
 ## License
 
