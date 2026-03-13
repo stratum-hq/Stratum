@@ -1,8 +1,4 @@
 node_modules/
-dist/
-# Re-include dist for packages needed by multitenant-kuma Docker build
-!packages/core/dist/
-!packages/lib/dist/
 .git/
 .omc/
 .claude/
@@ -18,3 +14,8 @@ README.md
 CLAUDE.md
 .vscode/
 .idea/
+
+# Exclude dist everywhere except packages needed for multitenant-kuma
+**/dist/
+!packages/core/dist/**
+!packages/lib/dist/**
