@@ -72,6 +72,7 @@ export async function resolvePermissions(
         switch (policy.mode) {
           case PermissionMode.LOCKED:
             resolved.set(policy.key, {
+              policy_id: policy.id,
               key: policy.key,
               value: policy.value,
               mode: policy.mode,
@@ -83,6 +84,7 @@ export async function resolvePermissions(
 
           case PermissionMode.DELEGATED:
             resolved.set(policy.key, {
+              policy_id: policy.id,
               key: policy.key,
               value: policy.value,
               mode: policy.mode,
@@ -95,6 +97,7 @@ export async function resolvePermissions(
           case PermissionMode.INHERITED:
           default:
             resolved.set(policy.key, {
+              policy_id: policy.id,
               key: policy.key,
               value: policy.value,
               mode: policy.mode,
