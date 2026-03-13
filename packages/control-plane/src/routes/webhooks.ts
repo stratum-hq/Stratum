@@ -109,7 +109,7 @@ export function createWebhookRoutes(stratum: Stratum) {
       // Verify tenant access for scoped keys
       if (request.apiKey?.tenant_id) {
         const failed = await stratum.listFailedDeliveries(1000, request.apiKey.tenant_id);
-        if (!failed.some((d: { id: string }) => d.id === request.params.deliveryId)) {
+        if (!failed.some((d) => d.id === request.params.deliveryId)) {
           reply.status(404).send({ error: { code: "NOT_FOUND", message: "Delivery not found or not in failed state" } });
           return;
         }
