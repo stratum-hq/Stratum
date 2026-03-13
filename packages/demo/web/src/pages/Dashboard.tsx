@@ -17,6 +17,7 @@ interface ConfigInheritanceResponse {
 }
 
 interface PermissionEntry {
+  policy_id: string;
   key: string;
   value: unknown;
   mode: string;
@@ -369,6 +370,15 @@ function PermissionsSection() {
       .finally(() => setMutating(false));
   };
 
+  const handleDelete = (policyId: string) => {
+    if (!tenant) return;
+    setMutating(true);
+    apiCall(`/api/v1/tenants/${tenant.id}/permissions/${policyId}`, { method: "DELETE" })
+      .then(() => fetchPermissions())
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setMutating(false));
+  };
+
   const delegationColor: Record<string, string> = {
     LOCKED: "#dc2626",
     INHERITED: "#2563eb",
@@ -406,6 +416,7 @@ function PermissionsSection() {
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Value</th>
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Mode</th>
               <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Flags</th>
+              <th style={{ padding: "8px 16px", textAlign: "left", fontWeight: 600, color: "#475569" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -441,6 +452,11 @@ function PermissionsSection() {
                   {perm.locked && <span style={{ color: "#dc2626", marginRight: 6 }}>locked</span>}
                   {perm.delegated && <span style={{ color: "#059669" }}>delegated</span>}
                   {!perm.locked && !perm.delegated && <span style={{ color: "#94a3b8" }}>—</span>}
+                </td>
+                <td style={{ padding: "8px 16px" }}>
+                  {tenant && perm.source_tenant_id === tenant.id && (
+                    <button style={{ ...btnStyle, color: "#dc2626", borderColor: "#fecaca" }} disabled={mutating} onClick={() => handleDelete(perm.policy_id)}>Delete</button>
+                  )}
                 </td>
               </tr>
             ))}
