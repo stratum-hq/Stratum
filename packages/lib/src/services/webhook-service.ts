@@ -160,7 +160,8 @@ export async function listWebhookDeliveries(
       throw new WebhookNotFoundError(webhookId);
     }
     const res = await client.query<Record<string, unknown>>(
-      `SELECT * FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 100`,
+      `SELECT id, webhook_id, event_id, status, attempts, next_retry_at, last_error, response_code, created_at, completed_at
+       FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 100`,
       [webhookId],
     );
     return res.rows;
@@ -174,7 +175,7 @@ export async function getWebhooksForEvent(
 ): Promise<Webhook[]> {
   return withClient(pool, async (client) => {
     const res = await client.query<Webhook>(
-      `SELECT * FROM webhooks
+      `SELECT ${WEBHOOK_PUBLIC_COLS}, secret_encrypted FROM webhooks
        WHERE active = true
          AND $1 = ANY(events)
          AND (tenant_id IS NULL OR tenant_id = $2)`,

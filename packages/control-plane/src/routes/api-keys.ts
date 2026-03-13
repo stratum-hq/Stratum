@@ -50,6 +50,14 @@ export function createApiKeyRoutes(stratum: Stratum) {
 
     // POST /api/v1/api-keys/:id/rotate — Rotate an API key
     app.post<{ Params: { id: string } }>("/:id/rotate", async (request, reply) => {
+      // Verify caller has access to this key's tenant
+      if (request.apiKey?.tenant_id) {
+        const keys = await stratum.listApiKeys(request.apiKey.tenant_id);
+        if (!keys.some(k => k.id === request.params.id)) {
+          reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
+          return;
+        }
+      }
       const rotateSchema = z.object({ name: z.string().max(255).optional() });
       const parsed = rotateSchema.parse(request.body ?? {});
       const result = await stratum.rotateApiKey(request.params.id, parsed.name);
@@ -58,6 +66,14 @@ export function createApiKeyRoutes(stratum: Stratum) {
 
     // DELETE /api/v1/api-keys/:id — Revoke an API key
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
+      // Verify caller has access to this key's tenant
+      if (request.apiKey?.tenant_id) {
+        const keys = await stratum.listApiKeys(request.apiKey.tenant_id);
+        if (!keys.some(k => k.id === request.params.id)) {
+          reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
+          return;
+        }
+      }
       const revoked = await stratum.revokeApiKey(request.params.id);
       if (!revoked) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });

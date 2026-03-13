@@ -31,6 +31,8 @@ The server automatically runs database migrations on startup.
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3300` | CORS origins (comma-separated) |
 | `RATE_LIMIT_MAX` | `100` | Max requests per rate limit window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate limit window duration |
+| `STRATUM_ENCRYPTION_KEY` | `stratum-dev-key` | AES-256-GCM encryption key for sensitive data |
+| `STRATUM_API_KEY_HMAC_SECRET` | — | HMAC-SHA256 secret for API key hashing (recommended in production) |
 
 ## Architecture
 

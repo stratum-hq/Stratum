@@ -13,7 +13,7 @@ The control plane supports two authentication methods:
 
 - Format: `sk_live_<base64>` (production) or `sk_test_<base64>` (development)
 - Header: `X-API-Key`
-- Storage: SHA-256 hashed — plaintext is never stored. Secrets additionally encrypted with AES-256-GCM at rest
+- Storage: HMAC-SHA256 hashed (keyed with `STRATUM_API_KEY_HMAC_SECRET`) — plaintext is never stored. Falls back to SHA-256 if HMAC secret is not configured. Legacy SHA-256 hashes are transparently upgraded to HMAC on next validation. Secrets additionally encrypted with AES-256-GCM at rest
 - Generated with 256-bit entropy (`crypto.randomBytes(32)`)
 - Displayed once at creation time, cannot be retrieved again
 - **Scopes**: each key carries a `scopes` array (`read`, `write`, `admin`) controlling permitted operations
@@ -131,14 +131,20 @@ New API keys default to `['read', 'write']`. JWT tokens receive full `['read', '
 
 ## SSRF Protection
 
-Webhook registration validates target URLs against private and reserved IP ranges to prevent Server-Side Request Forgery:
+Webhook delivery URLs are validated against SSRF attacks:
 
-- Private networks: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- Loopback: `127.0.0.0/8`, `::1`
-- Cloud metadata endpoints: `169.254.169.254`
-- Link-local: `169.254.0.0/16`
+- DNS resolution performed before connection (both IPv4 and IPv6 AAAA records)
+- Private/reserved IP ranges blocked: `10.x`, `172.16-31.x`, `192.168.x`, `127.x`, `169.254.x`, `::1`, `fe80::`, `fc00::`
+- Cloud metadata endpoints blocked: `169.254.169.254`, `metadata.google.internal`, `metadata.goog`, AWS IMDSv2 IPv6 (`fd00:ec2:`)
+- DNS rebinding protection: resolution fails closed (rejects on DNS failure)
 
-URLs resolving to blocked addresses are rejected at registration time.
+## Docker Security
+
+All Docker images run as non-root:
+
+- Node.js images: dedicated `stratum` user with UID/GID 1001
+- Nginx images: uses built-in `nginx` user with adjusted permissions
+- `.dockerignore` excludes `.env`, secrets, docs, IDE files, and build artifacts
 
 ## Field-Level Encryption
 
@@ -179,6 +185,7 @@ When deploying to production, ensure:
 - [ ] Database connections use TLS (`?sslmode=require`)
 - [ ] Rate limiting is configured appropriately
 - [ ] `STRATUM_ENCRYPTION_KEY` is set to a 256-bit key for field-level encryption
+- [ ] `STRATUM_API_KEY_HMAC_SECRET` is set to a strong random secret for API key hashing
 - [ ] API key scopes are reviewed — avoid granting `admin` scope unless necessary
 - [ ] Webhook URLs are validated (SSRF protection is enabled by default)
 - [ ] Audit log retention period is configured for your compliance requirements
