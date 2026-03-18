@@ -8,10 +8,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 // Lazy-loaded OTel API — stays `null` when the package is absent.
-let otel: typeof import("@opentelemetry/api") | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let otel: any = null;
 
 try {
-  otel = await import("@opentelemetry/api");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  otel = require("@opentelemetry/api");
 } catch {
   // @opentelemetry/api is not installed — telemetry is a no-op.
 }
@@ -30,7 +32,8 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
   const { SpanStatusCode, SpanKind } = otel;
 
   // Store spans keyed by request id so the onResponse hook can close them.
-  const inflightSpans = new Map<string, import("@opentelemetry/api").Span>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inflightSpans = new Map<string, any>();
 
   app.addHook("onRequest", async (request: FastifyRequest, _reply: FastifyReply) => {
     const span = tracer.startSpan(`HTTP ${request.method} ${request.routeOptions?.url ?? request.url}`, {
