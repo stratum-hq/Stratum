@@ -1766,9 +1766,9 @@ export function Dashboard() {
                 setContextModal({ open: false, data: null, loading: false });
               }
             }}
-            title="View full resolved context for this tenant (config, permissions, ancestors)"
+            title="View full resolved context: inherited config, permissions, and ancestor chain"
           >
-            View as Tenant
+            Resolved Context
           </button>
         </div>
 
