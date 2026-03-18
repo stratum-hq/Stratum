@@ -11,18 +11,20 @@
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/packages-8-8b5cf6?style=flat-square" alt="Packages" />
+  <img src="https://img.shields.io/badge/tests-290+-22c55e?style=flat-square" alt="Tests" />
   <img src="https://img.shields.io/badge/isolation-RLS%20%7C%20Schema%20%7C%20DB-ef4444?style=flat-square" alt="Isolation Strategies" />
+  <img src="https://img.shields.io/badge/npm-%40stratum--hq%2F*-cb3837?style=flat-square&logo=npm&logoColor=white" alt="npm scope" />
 </p>
 
 ---
 
-Stratum gives you a complete multi-tenant platform with tree-structured hierarchies, config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance (data export and erasure), scoped API key management, consent tracking, and multi-region support. Built for MSSP/MSP/client architectures and any product that needs nested tenant boundaries.
+Stratum gives you a complete multi-tenant platform with tree-structured hierarchies, config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance (data export and erasure), scoped API key management, consent tracking, multi-region support, OpenTelemetry observability, Redis-backed rate limiting, config diff comparison, tenant impersonation, and a full design system with dark mode. Built for MSSP/MSP/client architectures and any product that needs nested tenant boundaries.
 
 ## Two Integration Paths
 
@@ -33,12 +35,12 @@ Stratum gives you a complete multi-tenant platform with tree-structured hierarch
 ### Direct Library
 
 ```bash
-npm install @stratum/lib
+npm install @stratum-hq/lib
 ```
 
 ```typescript
 import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 
 const pool = new Pool({ connectionString: DATABASE_URL });
 const stratum = new Stratum({ pool });
@@ -60,11 +62,11 @@ No HTTP overhead. Maximum performance. Embed directly in your Node.js app or ser
 ### HTTP API + SDK
 
 ```bash
-npm install @stratum/sdk
+npm install @stratum-hq/sdk
 ```
 
 ```typescript
-import { stratum } from "@stratum/sdk";
+import { stratum } from "@stratum-hq/sdk";
 
 const s = stratum({
   controlPlaneUrl: "http://localhost:3001",
@@ -90,75 +92,83 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 
 ```
                         ┌──────────────────────┐
-                        │    @stratum/lib      │  Direct library (no HTTP)
-                        │    Pool → Stratum    │
+                        │  @stratum-hq/lib     │  Direct library (no HTTP)
+                        │  Pool → Stratum      │
                         └──────────┬───────────┘
                                    │
                    ┌───────────────┼───────────────┐
                    │               │               │
           ┌────────▼────────┐ ┌────▼─────────┐ ┌───▼──────────┐
-          │  Control Plane  │ │  @stratum/   │ │  @stratum/   │
-          │  Fastify REST   │ │  sdk         │ │  react       │
-          │  Auth · Scopes  │ │  HTTP client │ │  UI comps    │
-          │  Audit · GDPR   │ │  middleware  │ │  provider    │
+          │  Control Plane  │ │ @stratum-hq/ │ │ @stratum-hq/ │
+          │  Fastify v5 API │ │ sdk          │ │ react         │
+          │  Auth · Scopes  │ │ HTTP client  │ │ UI comps      │
+          │  OTel · Redis   │ │ middleware   │ │ provider      │
+          │  Audit · GDPR   │ │ LRU cache   │ │ design system │
           └────────┬────────┘ └────┬─────────┘ └──────────────┘
                    │               │
           ┌────────▼───────────────▼────────┐
-          │       @stratum/db-adapters      │
+          │     @stratum-hq/db-adapters     │
           │   Raw pg · Prisma · RLS · Pool  │
           └────────────────┬────────────────┘
                            │
-                ┌──────────▼──────────┐
-                │    PostgreSQL 16    │
-                │  ltree · RLS · AES  │
-                └─────────────────────┘
+          ┌────────────────▼────────────────┐
+          │         PostgreSQL 16           │
+          │   ltree · RLS · AES · ltree    │
+          └────────┬───────────────┬────────┘
+                   │               │
+          ┌────────▼────────┐ ┌────▼─────────┐
+          │  Redis (opt.)   │ │  OTel Coll.  │
+          │  Rate limiting  │ │  Traces +    │
+          │  Fail-open      │ │  Metrics     │
+          └─────────────────┘ └──────────────┘
 ```
 
 ## Packages
 
 | Package | Description | Key Features |
 |---------|-------------|--------------|
-| [`@stratum/core`](docs/packages/core.md) | Shared foundation | Types, Zod schemas, error classes, audit/consent/region types |
-| [`@stratum/lib`](docs/packages/lib.md) | Direct library | Tenants, config, permissions, audit, encryption, GDPR, regions |
-| [`@stratum/control-plane`](docs/packages/control-plane.md) | REST API server | Fastify, auth + scopes, audit logging, structured logging |
-| [`@stratum/sdk`](docs/packages/sdk.md) | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware, key rotation |
-| [`@stratum/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, regional pools |
-| [`@stratum/react`](docs/packages/react-ui.md) | React components | Provider, tenant switcher, tree, config/permission editors |
-| [`@stratum/demo`](docs/packages/demo.md) | Demo MSSP app | Security events dashboard with full RLS isolation |
-| [`@stratum/cli`](docs/packages/cli.md) | Developer CLI | Project init, DB migration, framework scaffolding |
+| [`@stratum-hq/core`](docs/packages/core.md) | Shared foundation | Types, Zod schemas, error classes, audit/consent/region types |
+| [`@stratum-hq/lib`](docs/packages/lib.md) | Direct library | Tenants, config, permissions, audit, encryption, GDPR, regions, batch operations |
+| [`@stratum-hq/control-plane`](docs/packages/control-plane.md) | REST API server | Fastify v5, auth + scopes, OTel tracing, Redis rate limiting, config diff, tenant impersonation |
+| [`@stratum-hq/sdk`](docs/packages/sdk.md) | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware, key rotation |
+| [`@stratum-hq/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, regional pools |
+| [`@stratum-hq/react`](docs/packages/react-ui.md) | React components | Provider, tenant switcher, tree, config/permission editors, design system, Storybook |
+| [`@stratum-hq/demo`](docs/packages/demo.md) | Demo MSSP app | Security events dashboard with full RLS isolation |
+| [`@stratum-hq/cli`](docs/packages/cli.md) | Developer CLI | Project init, DB migration, framework scaffolding, `stratum doctor` |
 
 ## Quick Start
 
 ### Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 20
 - **PostgreSQL** 16+ (via Docker or local)
 - **npm** >= 10
 
 ### Option A: Add to Existing Project (CLI)
 
 ```bash
-npx @stratum/cli init
+npx @stratum-hq/cli init
 ```
 
 The CLI detects your framework, asks your preferred integration path, and generates all boilerplate. Then migrate your tables:
 
 ```bash
-npx @stratum/cli health                    # verify DB setup
-npx @stratum/cli migrate --scan            # show table RLS status
-npx @stratum/cli migrate orders            # add tenant_id + RLS to a table
-npx @stratum/cli scaffold react --out src  # generate React components
+npx @stratum-hq/cli health                    # verify DB setup
+npx @stratum-hq/cli doctor                    # run 10 health checks
+npx @stratum-hq/cli migrate --scan            # show table RLS status
+npx @stratum-hq/cli migrate orders            # add tenant_id + RLS to a table
+npx @stratum-hq/cli scaffold react --out src  # generate React components
 ```
 
 ### Option B: Direct Library (fastest)
 
 ```bash
-npm install @stratum/lib @stratum/core pg
+npm install @stratum-hq/lib @stratum-hq/core pg
 ```
 
 ```typescript
 import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const stratum = new Stratum({ pool });
@@ -211,7 +221,7 @@ node packages/control-plane/dist/index.js
 npx tsx packages/demo/api/src/seed.ts
 
 # Start the demo app (new terminal)
-npm run dev --workspace=@stratum/demo
+npm run dev --workspace=@stratum-hq/demo
 ```
 
 Then open:
@@ -276,6 +286,41 @@ Root:    max_users = 1000
 ```
 
 Parents can **lock** a key to prevent any descendant from overriding it.
+
+#### Batch Config Updates
+
+Batch config updates support **partial success** — each key is applied independently and returns its own result. A failure on one key does not roll back others:
+
+```json
+POST /api/v1/tenants/:id/config/batch
+{
+  "entries": [
+    { "key": "max_users", "value": 1000, "locked": false },
+    { "key": "locked_key", "value": "override", "locked": false }
+  ]
+}
+// → { "results": [{ "key": "max_users", "status": "ok" }, { "key": "locked_key", "status": "error", "message": "Key is locked" }] }
+```
+
+### Config Diff API
+
+Compare resolved configuration between any two tenants:
+
+```
+GET /api/v1/config/diff?tenant_a=<UUID>&tenant_b=<UUID>
+```
+
+Returns a key-by-key comparison showing which values differ, which are inherited, and where each value originates. Useful for debugging config inheritance and verifying tenant setup.
+
+### Tenant Impersonation
+
+Resolve the full context for any tenant (admin scope required):
+
+```
+GET /api/v1/tenants/:id/context
+```
+
+Returns the complete resolved state for a tenant — config, permissions, ancestry chain, and metadata. Designed for support tooling and admin dashboards where you need to "see what the tenant sees."
 
 ### Permission Delegation
 
@@ -406,6 +451,103 @@ await stratum.migrateRegion(tenantId, region.id);
 // Tenant is now assigned to the EU region
 ```
 
+## OpenTelemetry Integration
+
+Stratum includes optional OpenTelemetry support for distributed tracing and metrics. When `@opentelemetry/api` is available, every request is traced automatically with spans for route handling, database queries, and middleware. When the package is not installed, tracing is a no-op with zero overhead.
+
+- **Traces**: Per-request spans with tenant ID, route, and timing
+- **Metrics**: Request count, latency histograms, error rates
+- **Zero config**: Works automatically if `@opentelemetry/api` is in your dependency tree
+- **Graceful degradation**: No errors or performance impact when OTel is absent
+
+## Redis-Backed Rate Limiting
+
+Per-key rate limiting can be backed by Redis for multi-instance deployments. When `REDIS_URL` is configured, rate limit state is shared across all control plane instances. Without Redis, rate limiting falls back to in-memory (per-instance).
+
+- **Fail-open**: If Redis is unavailable, requests are allowed through (not blocked)
+- **Per-key windows**: Each API key has its own sliding window counter
+- **Configurable**: `RATE_LIMIT_MAX` and `RATE_LIMIT_WINDOW` control the limits
+
+```bash
+# Enable Redis rate limiting
+REDIS_URL=redis://localhost:6379 node packages/control-plane/dist/index.js
+```
+
+## Stratum Doctor
+
+The `stratum doctor` CLI command runs 10 automated health checks against your Stratum installation:
+
+```bash
+npx @stratum-hq/cli doctor
+```
+
+| Check | What It Verifies |
+|-------|-----------------|
+| Database connectivity | PostgreSQL is reachable and returns server version |
+| Schema tables | All 7 core Stratum tables exist |
+| RLS enabled | All tenant-scoped tables have RLS enabled and forced |
+| RLS policies | All tenant-scoped tables have `tenant_isolation` policy |
+| Missing indexes | All `tenant_id` columns are indexed |
+| Orphaned tenants | No tenants point to missing or archived parents |
+| Stale API keys | No active keys unused for 90+ days |
+| Expired API keys | No expired keys that are still unrevoked |
+| Encryption key | `STRATUM_ENCRYPTION_KEY` environment variable is set |
+| Tree depth | Tenant hierarchy does not exceed depth limit (20) |
+
+Results are color-coded: green (pass), yellow (warning), red (fail). The command exits with code 1 if any check fails.
+
+## Design System and Storybook
+
+Stratum ships with a full design system documented in [`DESIGN.md`](DESIGN.md). All design tokens are exposed as CSS custom properties for easy theming.
+
+### Key design features:
+
+- **CSS Custom Properties**: All tokens (`--color-*`, `--space-*`, `--font-*`, `--radius-*`, `--shadow-*`, `--duration-*`) are overridable
+- **Dark mode**: Auto-detect via `prefers-color-scheme` + manual toggle via `data-theme` attribute
+- **Typography**: Satoshi (display), DM Sans (body/UI), JetBrains Mono (code)
+- **Hierarchy badges**: Teal = inherited, yellow = locked, gray = own — Stratum's visual signature
+- **Responsive breakpoints**: Desktop (>1024px), Tablet (768-1024px), Mobile (<768px)
+- **Tabbed dashboard**: Fixed sidebar + flexible content area with responsive collapse
+- **Skeleton loaders**: Loading states for all data-fetching components
+- **Toast notifications**: Top-right, auto-dismiss, semantic color accents, max 3 stacked
+- **i18n**: 39 extracted message keys, fully customizable
+- **Component Storybook**: 27 stories covering all components and states
+
+### Accessibility
+
+- `:focus-visible` ring on all interactive elements (2px, primary blue, 3px offset)
+- ARIA attributes on all interactive components (`aria-live="polite"` on toasts)
+- Minimum 44x44px touch targets
+- `prefers-reduced-motion` respected — all animations disabled
+- Color contrast WCAG AA compliant (4.5:1 normal text, 3:1 large text)
+- Skip-to-content link as first focusable element
+
+### Theming
+
+```css
+:root {
+  --color-primary: #7C3AED;      /* Override blue with purple */
+  --color-accent: #0D9488;        /* Keep teal for inheritance */
+  --font-display: 'Your Font', sans-serif;
+}
+```
+
+Headless component variants (`Headless*`) carry no styles — integrators provide their own.
+
+## SDK Generation
+
+Python and Go SDK generation scripts are available in [`scripts/`](scripts/):
+
+```bash
+# Generate Python SDK
+./scripts/generate-sdks.sh python
+
+# Generate Go SDK
+./scripts/generate-sdks.sh go
+```
+
+SDKs are generated from the OpenAPI spec (`scripts/openapi-spec.json`) using OpenAPI Generator.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -417,10 +559,13 @@ await stratum.migrateRegion(tenantId, region.id);
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://localhost:3300` | CORS origins (comma-separated) |
 | `RATE_LIMIT_MAX` | `100` | Max requests per rate limit window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate limit time window |
+| `REDIS_URL` | — | Redis connection URL for distributed rate limiting (optional, fail-open) |
 | `STRATUM_ENCRYPTION_KEY` | — | AES-256-GCM key for field-level encryption (**required** in production) |
 | `STRATUM_API_KEY_HMAC_SECRET` | — | HMAC-SHA256 secret for API key hashing (recommended in production) |
 
 ## Documentation
+
+### Guides
 
 | Guide | Description |
 |-------|-------------|
@@ -428,11 +573,11 @@ await stratum.migrateRegion(tenantId, region.id);
 | [Architecture](docs/architecture/overview.md) | System design, request flow, caching |
 | [API Reference](docs/api/README.md) | All REST endpoints with examples |
 | [SDK Integration](docs/guides/sdk-integration.md) | Express/Fastify middleware, tenant resolution |
-| [Direct Library](docs/packages/lib.md) | Using `@stratum/lib` without HTTP |
+| [Direct Library](docs/packages/lib.md) | Using `@stratum-hq/lib` without HTTP |
 | [Database & RLS](docs/architecture/database.md) | Schema, RLS policies, advisory locks |
 | [Security](docs/architecture/security.md) | Auth, SQL injection prevention, RLS guarantees |
 | [React Components](docs/packages/react-ui.md) | Provider, hooks, tenant tree, config editor |
-| [CLI Reference](docs/packages/cli.md) | Project init, DB migration, scaffolding |
+| [CLI Reference](docs/packages/cli.md) | Project init, DB migration, scaffolding, doctor |
 | [Audit Logging](docs/guides/audit-logging.md) | Audit trail with actor context and before/after state |
 | [Authorization & Scopes](docs/guides/authorization.md) | API key scopes, JWT privileges, route enforcement |
 | [GDPR & Data Retention](docs/guides/gdpr.md) | Tenant data export, hard-purge, retention policies |
@@ -440,109 +585,65 @@ await stratum.migrateRegion(tenantId, region.id);
 | [Consent Management](docs/guides/consent.md) | GDPR consent records with purpose tracking |
 | [Multi-Region](docs/guides/multi-region.md) | Region management, tenant migration, regional pools |
 
+### Documentation Website
+
+A full documentation site built with Starlight (Astro) is available in the [`website/`](website/) directory:
+
+```bash
+cd website && npm install && npm run dev
+```
+
+The docs site includes API reference, integration guides, architecture diagrams, and interactive examples.
+
 ## Development
 
 ```bash
 npm run build          # Build all packages
-npm run test           # Run all tests
+npm run test           # Run all tests (290+ across all packages)
 npm run lint           # Type-check all packages
 npm run format         # Format with Prettier
 npm run dev            # Dev mode (watch)
 ```
 
-## Security
+### Integration Tests
 
-- API keys: 256-bit entropy, HMAC-SHA256 hashed storage (keyed hash prevents offline brute-force from DB dumps), display-once semantics, scoped authorization (`read`/`write`/`admin`), expiration and rotation, transparent migration from legacy SHA-256
-- SQL injection: parameterized queries everywhere, table name regex validation for DDL
-- RLS: `FORCE ROW LEVEL SECURITY` on all tenant tables, BYPASSRLS startup check
-- HTTP: Helmet security headers, CORS, per-IP + per-key rate limiting, SSRF protection on webhook URLs (DNS rebinding, IPv4/IPv6 resolution, cloud metadata blocklists)
-- Field-level encryption: AES-256-GCM with HKDF key derivation and key versioning for sensitive config entries and webhook secrets
-- Audit logging: all mutations recorded with actor identity, resource tracking, and before/after state
-- Docker: non-root containers (UID 1001), minimal `.dockerignore`
-- Tenant isolation: fail-closed scope enforcement, post-fetch tenant access checks on all routes
-- Soft delete: tenants are archived, never hard-deleted (with GDPR hard-purge option)
+A Docker Compose `test-db` service is provided for integration tests:
 
-## Roadmap
+```bash
+docker compose up test-db -d    # Start test PostgreSQL instance
+npm run test                    # Run full test suite
+```
 
-| Version | Feature | Status |
-|---------|---------|--------|
-| v1.0 | Shared RLS isolation, config inheritance, permission delegation | Done |
-| v1.1 | Schema-per-tenant isolation | Done |
-| v1.2 | Database-per-tenant isolation | Done |
-| v1.3 | Webhook events on tenant lifecycle | Done |
-| v1.4 | Audit logging with actor identity and before/after state | Done |
-| v1.5 | Authorization enforcement with scoped API keys (`read`/`write`/`admin`) | Done |
-| v1.6 | Data retention & GDPR purge (tenant data export, hard-delete, expired record cleanup) | Done |
-| v1.7 | Field-level encryption (AES-256-GCM with key versioning) | Done |
-| v1.8 | API key management (expiration, rotation, dormant detection) | Done |
-| v1.9 | Structured logging & consent management | Done |
-| v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Done |
-| v2.1 | Per-key rate limiting (sliding window middleware, per-key `rate_limit_max`/`rate_limit_window`) | Done |
-| v2.2 | OpenTelemetry integration (distributed tracing, metrics export) | Planned |
-| v2.3 | Tenant-scoped data access enforcement on all routes (hierarchy-aware guards) | Done |
-| v2.4 | Batch operations (bulk tenant creation, bulk config updates, atomic transactions) | Done |
-| v2.5 | Role-based access control (RBAC) — named roles with scope collections, assignable to API keys | Done |
-| v2.6 | Admin dashboard (audit log viewer, API key management in demo UI) | Done |
-| v2.7 | Encryption key rotation (zero-downtime re-encryption of all secrets via maintenance API) | Done |
-| v2.8 | Webhook dead-letter queue (failed delivery listing, individual/bulk retry, delivery stats) | Done |
-| v2.9 | Security hardening (HMAC API keys, Docker non-root, HKDF encryption, SSRF IPv6, fail-closed guards) | Done |
+### CI/CD
 
-### Future
+GitHub Actions workflows are configured in `.github/workflows/`:
 
-| Feature | Description | Priority |
-|---------|-------------|----------|
-| **npm Publishing** | Publish all packages to npm under the `@stratum` scope so integrators can `npm install @stratum/lib` directly | **High** |
-| OpenTelemetry | Distributed tracing and metrics export (requires `@opentelemetry/*` packages) | Medium |
-| JWT Scope Capping | Cap JWT tokens to read-only scopes to limit blast radius of token theft | Medium |
-| Fastify Upgrade | Upgrade to Fastify >= 5.8.2 (CVE fix for content-type boundary parsing) | High |
-| Swagger UI Fix | Swagger docs page renders blank white screen (CSP / static asset issue) | Low |
-| API Key Bulk Migration | Admin endpoint to force-upgrade all legacy SHA-256 key hashes to HMAC | Low |
-| Webhook Signature Rotation | Support multiple active signing keys during webhook secret rotation | Low |
-| Rate Limit Persistence | Move per-key rate limit state from in-memory to Redis for multi-instance deployments | Medium |
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `ci.yml` | Push / PR | Build, lint, test (290+ tests) across all packages |
+| `publish.yml` | Release tag | Build, test, publish all packages to npm via changesets |
 
 ## Publishing to npm
 
-All packages are scoped under `@stratum/` and structured for npm publishing. They are not yet published — currently consumed via `file:` paths or by copying `packages/` into your project.
-
-### When packages are published
-
-Once on npm, integrators will be able to install directly:
+All packages are published to npm under the `@stratum-hq/` scope. The publishing pipeline is fully automated:
 
 ```bash
-# Pick the packages you need
-npm install @stratum/core @stratum/lib pg          # Direct library (no HTTP)
-npm install @stratum/sdk @stratum/core             # SDK + middleware
-npm install @stratum/react @stratum/core           # React components
-npm install @stratum/db-adapters @stratum/core pg  # Database adapters
-npm install @stratum/cli                           # CLI tools (npx @stratum/cli init)
+# Install any package directly from npm
+npm install @stratum-hq/core @stratum-hq/lib pg          # Direct library (no HTTP)
+npm install @stratum-hq/sdk @stratum-hq/core             # SDK + middleware
+npm install @stratum-hq/react @stratum-hq/core           # React components
+npm install @stratum-hq/db-adapters @stratum-hq/core pg  # Database adapters
+npm install @stratum-hq/cli                               # CLI tools (npx @stratum-hq/cli init)
 ```
 
-No cloning, no `file:` paths, no copying packages — just `npm install` and go.
+### How publishing works
 
-### Publishing checklist
+- Each package has `publishConfig` with `"access": "public"` and `"registry": "https://registry.npmjs.org/"`
+- Each package has a `files` whitelist (`dist`, `README.md`, `LICENSE`) for lean published packages
+- Versioning is coordinated via [changesets](https://github.com/changesets/changesets)
+- The `publish.yml` GitHub Actions workflow builds, tests, and publishes on tagged releases
 
-Before the first publish:
-
-1. **Claim the npm scope**: Register the `@stratum` org on npmjs.com (or use a private registry like GitHub Packages / Verdaccio)
-2. **Add `publishConfig`** to each package.json:
-   ```json
-   {
-     "publishConfig": {
-       "access": "public",
-       "registry": "https://registry.npmjs.org/"
-     }
-   }
-   ```
-3. **Add `files` whitelist** to each package.json to keep published packages lean:
-   ```json
-   {
-     "files": ["dist", "README.md", "LICENSE"]
-   }
-   ```
-4. **Version strategy**: Use `npm version` or a tool like [changesets](https://github.com/changesets/changesets) for coordinated versioning across the monorepo
-5. **CI publishing**: Add a GitHub Actions workflow that builds, tests, and publishes on tagged releases
-
-### Publishing commands
+### Manual publishing
 
 ```bash
 # Build all packages
@@ -561,47 +662,74 @@ cd packages/cli && npm publish --access public
 cd packages/control-plane && npm publish --access public
 ```
 
-### Current consumption (pre-npm)
-
-Until packages are published, there are two ways to use Stratum in other projects:
-
-**Option A — Copy packages (recommended for now)**:
-```bash
-# Copy only what you need into your project
-cp -r stratum/packages/core your-project/packages/core
-cp -r stratum/packages/lib your-project/packages/lib
-
-# Reference via file: paths in your package.json
-# "@stratum/core": "file:./packages/core"
-# "@stratum/lib": "file:./packages/lib"
-
-npm install
-```
-
-**Option B — Link from the monorepo**:
-```bash
-# From the Stratum repo
-cd packages/core && npm link
-cd packages/lib && npm link
-
-# From your project
-npm link @stratum/core @stratum/lib
-```
-
 ### Private registry alternative
 
 If you don't want to publish publicly, use a private registry:
 
 ```bash
 # GitHub Packages
-npm config set @stratum:registry https://npm.pkg.github.com
+npm config set @stratum-hq:registry https://npm.pkg.github.com
 
 # Verdaccio (self-hosted)
-npm config set @stratum:registry http://localhost:4873
+npm config set @stratum-hq:registry http://localhost:4873
 
 # Then publish normally
 npm publish --workspaces
 ```
+
+## Security
+
+- API keys: 256-bit entropy, HMAC-SHA256 hashed storage (keyed hash prevents offline brute-force from DB dumps), display-once semantics, scoped authorization (`read`/`write`/`admin`), expiration and rotation, transparent migration from legacy SHA-256
+- SQL injection: parameterized queries everywhere, table name regex validation for DDL
+- RLS: `FORCE ROW LEVEL SECURITY` on all tenant tables, BYPASSRLS startup check
+- HTTP: Helmet security headers, CORS, per-IP + per-key rate limiting (Redis-backed or in-memory), SSRF protection on webhook URLs (DNS rebinding, IPv4/IPv6 resolution, cloud metadata blocklists)
+- Field-level encryption: AES-256-GCM with HKDF key derivation and key versioning for sensitive config entries and webhook secrets
+- Audit logging: all mutations recorded with actor identity, resource tracking, and before/after state
+- Docker: non-root containers (UID 1001), minimal `.dockerignore`
+- Tenant isolation: fail-closed scope enforcement, post-fetch tenant access checks on all routes
+- Soft delete: tenants are archived, never hard-deleted (with GDPR hard-purge option)
+- OpenTelemetry: optional distributed tracing for security event correlation
+
+## Roadmap
+
+| Version | Feature | Status |
+|---------|---------|--------|
+| v1.0 | Shared RLS isolation, config inheritance, permission delegation | Done |
+| v1.1 | Schema-per-tenant isolation | Done |
+| v1.2 | Database-per-tenant isolation | Done |
+| v1.3 | Webhook events on tenant lifecycle | Done |
+| v1.4 | Audit logging with actor identity and before/after state | Done |
+| v1.5 | Authorization enforcement with scoped API keys (`read`/`write`/`admin`) | Done |
+| v1.6 | Data retention & GDPR purge (tenant data export, hard-delete, expired record cleanup) | Done |
+| v1.7 | Field-level encryption (AES-256-GCM with key versioning) | Done |
+| v1.8 | API key management (expiration, rotation, dormant detection) | Done |
+| v1.9 | Structured logging & consent management | Done |
+| v2.0 | Multi-region support (region CRUD, tenant migration, regional pool routing) | Done |
+| v2.1 | Per-key rate limiting (sliding window middleware, per-key `rate_limit_max`/`rate_limit_window`) | Done |
+| v2.2 | OpenTelemetry integration (distributed tracing, metrics export) | Done |
+| v2.3 | Tenant-scoped data access enforcement on all routes (hierarchy-aware guards) | Done |
+| v2.4 | Batch operations (bulk tenant creation, bulk config updates, partial success) | Done |
+| v2.5 | Role-based access control (RBAC) — named roles with scope collections, assignable to API keys | Done |
+| v2.6 | Admin dashboard (audit log viewer, API key management in demo UI) | Done |
+| v2.7 | Encryption key rotation (zero-downtime re-encryption of all secrets via maintenance API) | Done |
+| v2.8 | Webhook dead-letter queue (failed delivery listing, individual/bulk retry, delivery stats) | Done |
+| v2.9 | Security hardening (HMAC API keys, Docker non-root, HKDF encryption, SSRF IPv6, fail-closed guards) | Done |
+| v3.0 | npm publishing pipeline (changesets, GitHub Actions CI/CD, `@stratum-hq/*` scope) | Done |
+| v3.1 | Fastify v5 upgrade (CVE fix for content-type boundary parsing) | Done |
+| v3.2 | Redis-backed rate limiting (optional via `REDIS_URL`, fail-open) | Done |
+| v3.3 | Config diff API, tenant impersonation, `stratum doctor` CLI | Done |
+| v3.4 | Design system (CSS custom properties, dark mode, Storybook, i18n, accessibility) | Done |
+| v3.5 | Documentation website (Starlight/Astro), Python + Go SDK generation | Done |
+| v3.6 | Comprehensive test suite (290+ tests across all packages) | Done |
+
+### Future
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| JWT Scope Capping | Cap JWT tokens to read-only scopes to limit blast radius of token theft | Medium |
+| Swagger UI Fix | Swagger docs page renders blank white screen (CSP / static asset issue) | Low |
+| API Key Bulk Migration | Admin endpoint to force-upgrade all legacy SHA-256 key hashes to HMAC | Low |
+| Webhook Signature Rotation | Support multiple active signing keys during webhook secret rotation | Low |
 
 ## License
 
