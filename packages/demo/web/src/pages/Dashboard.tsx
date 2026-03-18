@@ -1812,8 +1812,7 @@ export function Dashboard() {
               boxShadow: "var(--shadow-xl)",
               width: "min(90vw, 720px)",
               maxHeight: "80vh",
-              display: "flex", flexDirection: "column",
-              overflow: "hidden",
+              overflow: "auto",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1843,7 +1842,7 @@ export function Dashboard() {
                 &times;
               </button>
             </div>
-            <div style={{ overflow: "auto", flex: 1, minHeight: 0, padding: "var(--space-lg, 16px) var(--space-xl, 24px)" }}>
+            <div style={{ padding: "var(--space-lg, 16px) var(--space-xl, 24px)" }}>
               {contextModal.loading ? (
                 <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--color-neutral-400, #94A3B8)" }}>
                   Loading context...
