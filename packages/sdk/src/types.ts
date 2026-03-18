@@ -1,6 +1,6 @@
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission } from "@stratum-hq/core";
+import type { TenantContextLegacy, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission } from "@stratum-hq/core";
 
-export type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission };
+export type { TenantContextLegacy, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission };
 
 export type { TenantResolver } from "./resolvers/custom.js";
 

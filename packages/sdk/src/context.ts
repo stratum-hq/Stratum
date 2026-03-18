@@ -1,22 +1,22 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { TenantContextNotFoundError } from "@stratum-hq/core";
-import type { TenantContext } from "@stratum-hq/core";
+import { TenantContextLegacyNotFoundError } from "@stratum-hq/core";
+import type { TenantContextLegacy } from "@stratum-hq/core";
 
-export const tenantStorage = new AsyncLocalStorage<TenantContext>();
+export const tenantStorage = new AsyncLocalStorage<TenantContextLegacy>();
 
-export function getTenantContext(): TenantContext {
+export function getTenantContextLegacy(): TenantContextLegacy {
   const ctx = tenantStorage.getStore();
   if (!ctx) {
-    throw new TenantContextNotFoundError();
+    throw new TenantContextLegacyNotFoundError();
   }
   return ctx;
 }
 
-export function runWithTenantContext<T>(context: TenantContext, fn: () => T): T {
+export function runWithTenantContextLegacy<T>(context: TenantContextLegacy, fn: () => T): T {
   return tenantStorage.run(context, fn);
 }
 
-export function setTenantContext(context: TenantContext): void {
+export function setTenantContextLegacy(context: TenantContextLegacy): void {
   // Bind the current store value — for middleware entry points
   tenantStorage.enterWith(context);
 }
