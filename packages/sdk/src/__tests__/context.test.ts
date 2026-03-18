@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   tenantStorage,
-  getTenantContextLegacy,
-  runWithTenantContextLegacy,
-  setTenantContextLegacy,
+  getTenantContext,
+  runWithTenantContext,
+  setTenantContext,
 } from "../context.js";
 import type { TenantContextLegacy } from "@stratum-hq/core";
-import { TenantContextLegacyNotFoundError } from "@stratum-hq/core";
+import { TenantContextNotFoundError } from "@stratum-hq/core";
 
 const makeContext = (tenantId: string): TenantContextLegacy => ({
   tenant_id: tenantId,
@@ -18,32 +18,32 @@ const makeContext = (tenantId: string): TenantContextLegacy => ({
 });
 
 describe("tenant context utilities", () => {
-  describe("getTenantContextLegacy", () => {
-    it("throws TenantContextLegacyNotFoundError when called outside a run", () => {
+  describe("getTenantContext", () => {
+    it("throws TenantContextNotFoundError when called outside a run", () => {
       // AsyncLocalStorage store is undefined outside of a run() call
       // (assuming no prior enterWith in this test fiber)
       expect(() => {
         // Run in a fresh async context via tenantStorage.run to ensure isolation,
-        // then call getTenantContextLegacy outside any store — we verify the error type.
+        // then call getTenantContext outside any store — we verify the error type.
         const outside = () => {
-          // Deliberately do NOT set up a context — just call getTenantContextLegacy
+          // Deliberately do NOT set up a context — just call getTenantContext
           // We can't guarantee the outer scope has no context, so use a nested
           // storage run with undefined to simulate absence.
           return tenantStorage.run(undefined as unknown as TenantContextLegacy, () =>
-            getTenantContextLegacy(),
+            getTenantContext(),
           );
         };
         outside();
-      }).toThrow(TenantContextLegacyNotFoundError);
+      }).toThrow(TenantContextNotFoundError);
     });
   });
 
-  describe("runWithTenantContextLegacy", () => {
+  describe("runWithTenantContext", () => {
     it("provides context within the callback", () => {
       const ctx = makeContext("tenant-123");
 
-      runWithTenantContextLegacy(ctx, () => {
-        const stored = getTenantContextLegacy();
+      runWithTenantContext(ctx, () => {
+        const stored = getTenantContext();
         expect(stored).toEqual(ctx);
         expect(stored.tenant_id).toBe("tenant-123");
       });
@@ -51,9 +51,9 @@ describe("tenant context utilities", () => {
 
     it("context is no longer accessible after the callback returns", () => {
       const ctx = makeContext("tenant-abc");
-      runWithTenantContextLegacy(ctx, () => {
+      runWithTenantContext(ctx, () => {
         // context is available inside
-        expect(getTenantContextLegacy().tenant_id).toBe("tenant-abc");
+        expect(getTenantContext().tenant_id).toBe("tenant-abc");
       });
 
       // After the synchronous callback, we are back in the outer scope.
@@ -68,7 +68,7 @@ describe("tenant context utilities", () => {
 
     it("returns the value from the callback", () => {
       const ctx = makeContext("tenant-ret");
-      const result = runWithTenantContextLegacy(ctx, () => 42);
+      const result = runWithTenantContext(ctx, () => 42);
       expect(result).toBe(42);
     });
 
@@ -77,16 +77,16 @@ describe("tenant context utilities", () => {
 
       await Promise.all([
         new Promise<void>((resolve) => {
-          runWithTenantContextLegacy(makeContext("tenant-a"), async () => {
+          runWithTenantContext(makeContext("tenant-a"), async () => {
             await new Promise((r) => setTimeout(r, 10));
-            results.push(getTenantContextLegacy().tenant_id);
+            results.push(getTenantContext().tenant_id);
             resolve();
           });
         }),
         new Promise<void>((resolve) => {
-          runWithTenantContextLegacy(makeContext("tenant-b"), async () => {
+          runWithTenantContext(makeContext("tenant-b"), async () => {
             await new Promise((r) => setTimeout(r, 5));
-            results.push(getTenantContextLegacy().tenant_id);
+            results.push(getTenantContext().tenant_id);
             resolve();
           });
         }),
@@ -97,19 +97,19 @@ describe("tenant context utilities", () => {
       expect(results).toHaveLength(2);
     });
 
-    it("nested runWithTenantContextLegacy sees the inner context", () => {
+    it("nested runWithTenantContext sees the inner context", () => {
       const outer = makeContext("outer-tenant");
       const inner = makeContext("inner-tenant");
 
-      runWithTenantContextLegacy(outer, () => {
-        expect(getTenantContextLegacy().tenant_id).toBe("outer-tenant");
+      runWithTenantContext(outer, () => {
+        expect(getTenantContext().tenant_id).toBe("outer-tenant");
 
-        runWithTenantContextLegacy(inner, () => {
-          expect(getTenantContextLegacy().tenant_id).toBe("inner-tenant");
+        runWithTenantContext(inner, () => {
+          expect(getTenantContext().tenant_id).toBe("inner-tenant");
         });
 
         // After inner run exits, outer context is restored
-        expect(getTenantContextLegacy().tenant_id).toBe("outer-tenant");
+        expect(getTenantContext().tenant_id).toBe("outer-tenant");
       });
     });
   });
@@ -130,15 +130,15 @@ describe("tenant context utilities", () => {
     });
   });
 
-  describe("setTenantContextLegacy", () => {
-    it("sets context accessible via getTenantContextLegacy in the same execution context", () => {
+  describe("setTenantContext", () => {
+    it("sets context accessible via getTenantContext in the same execution context", () => {
       const ctx = makeContext("entered-tenant");
 
-      // setTenantContextLegacy uses enterWith — affects the current async context.
+      // setTenantContext uses enterWith — affects the current async context.
       // We isolate this via tenantStorage.run to avoid polluting other tests.
       tenantStorage.run(undefined as unknown as TenantContextLegacy, () => {
-        setTenantContextLegacy(ctx);
-        const stored = getTenantContextLegacy();
+        setTenantContext(ctx);
+        const stored = getTenantContext();
         expect(stored.tenant_id).toBe("entered-tenant");
       });
     });

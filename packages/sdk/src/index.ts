@@ -2,7 +2,7 @@ import { StratumClient } from "./client.js";
 import type { StratumClientOptions } from "./client.js";
 import { expressMiddleware } from "./middleware/express.js";
 import { fastifyPlugin } from "./middleware/fastify.js";
-import { getTenantContextLegacy, runWithTenantContextLegacy } from "./context.js";
+import { getTenantContext, runWithTenantContext } from "./context.js";
 import type { MiddlewareOptions } from "./types.js";
 
 export function stratum(options: StratumClientOptions) {
@@ -13,15 +13,15 @@ export function stratum(options: StratumClientOptions) {
     plugin: (opts?: MiddlewareOptions) =>
       (fastify: any, _opts: any, done: any) =>
         fastifyPlugin(fastify, { client, ...opts }, done),
-    getTenantContextLegacy,
-    runWithTenantContextLegacy,
+    getTenantContext,
+    runWithTenantContext,
   };
 }
 
 // Named exports for direct usage
 export { StratumClient } from "./client.js";
 export type { StratumClientOptions } from "./client.js";
-export { getTenantContextLegacy, runWithTenantContextLegacy, setTenantContextLegacy, tenantStorage } from "./context.js";
+export { getTenantContext, runWithTenantContext, setTenantContext, tenantStorage } from "./context.js";
 export { expressMiddleware } from "./middleware/express.js";
 export { fastifyPlugin } from "./middleware/fastify.js";
 export { resolveFromHeader } from "./resolvers/header.js";
