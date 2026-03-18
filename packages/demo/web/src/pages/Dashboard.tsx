@@ -1814,6 +1814,7 @@ export function Dashboard() {
               boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
               width: 680,
               maxWidth: "90vw",
+              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
             }}
             onClick={(e) => e.stopPropagation()}
           >
