@@ -607,7 +607,7 @@ describe("setConfig", () => {
     });
 
     await expect(
-      configService.setConfig(pool, "child-id", "locked_key", { value: "override" }),
+      configService.setConfig(pool, "child-id", "locked_key", { value: "override", locked: false, sensitive: false }),
     ).rejects.toThrow(ConfigLockedError);
   });
 });
