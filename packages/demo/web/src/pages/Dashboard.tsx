@@ -1628,6 +1628,7 @@ export function Dashboard() {
   const { tenant, loading } = useTenant();
   const { apiCall } = useStratum();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [contextModal, setContextModal] = useState<{ open: boolean; data: Record<string, unknown> | null; loading: boolean }>({ open: false, data: null, loading: false });
 
   // Stats collected from child sections
   const [configStats, setConfigStats] = useState({ total: 0, inherited: 0, locked: 0 });
@@ -1757,11 +1758,12 @@ export function Dashboard() {
           <button
             className="stratum-view-as-btn"
             onClick={async () => {
+              setContextModal({ open: true, data: null, loading: true });
               try {
                 const ctx = await apiCall<Record<string, unknown>>(`/api/v1/tenants/${tenant.id}/context`);
-                alert(JSON.stringify(ctx, null, 2));
-              } catch (err) {
-                alert(`Failed to load tenant context: ${err instanceof Error ? err.message : err}`);
+                setContextModal({ open: true, data: ctx, loading: false });
+              } catch {
+                setContextModal({ open: false, data: null, loading: false });
               }
             }}
             title="View full resolved context for this tenant (config, permissions, ancestors)"
@@ -1792,6 +1794,151 @@ export function Dashboard() {
           {renderTabContent()}
         </div>
       </div>
+
+      {/* Tenant Context Modal */}
+      {contextModal.open && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)",
+          }}
+          onClick={() => setContextModal({ open: false, data: null, loading: false })}
+        >
+          <div
+            style={{
+              background: "var(--color-neutral-50, #F8FAFC)",
+              borderRadius: "var(--radius-xl, 12px)",
+              boxShadow: "var(--shadow-xl)",
+              width: "min(90vw, 720px)",
+              maxHeight: "80vh",
+              display: "flex", flexDirection: "column",
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "var(--space-lg, 16px) var(--space-xl, 24px)",
+              borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)",
+            }}>
+              <div>
+                <div style={{ fontFamily: "var(--font-display, Satoshi, sans-serif)", fontWeight: 700, fontSize: "1rem" }}>
+                  Tenant Context
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--color-neutral-500, #64748B)", fontFamily: "var(--font-mono, monospace)" }}>
+                  {tenant.name} &middot; {tenant.id.slice(0, 8)}...
+                </div>
+              </div>
+              <button
+                onClick={() => setContextModal({ open: false, data: null, loading: false })}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  fontSize: "1.25rem", color: "var(--color-neutral-400, #94A3B8)",
+                  width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: "var(--radius-md, 6px)",
+                }}
+                aria-label="Close"
+              >
+                &times;
+              </button>
+            </div>
+            <div style={{ overflow: "auto", padding: "var(--space-lg, 16px) var(--space-xl, 24px)" }}>
+              {contextModal.loading ? (
+                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--color-neutral-400, #94A3B8)" }}>
+                  Loading context...
+                </div>
+              ) : contextModal.data ? (
+                <>
+                  {/* Config section */}
+                  <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                      Resolved Config
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Key</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries((contextModal.data.config as Record<string, any>) || {}).map(([key, entry]) => (
+                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--color-neutral-600)" }}>{JSON.stringify(entry.value)}</td>
+                            <td style={{ padding: "6px 12px" }}>
+                              {entry.locked ? (
+                                <span style={{ background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
+                              ) : entry.inherited ? (
+                                <span style={{ background: "#CCFBF1", color: "#0D9488", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
+                              ) : (
+                                <span style={{ background: "#F1F5F9", color: "#475569", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Permissions section */}
+                  <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                      Resolved Permissions
+                    </div>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
+                      <thead>
+                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Permission</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Mode</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries((contextModal.data.permissions as Record<string, any>) || {}).map(([key, perm]) => (
+                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
+                            <td style={{ padding: "6px 12px" }}>
+                              {perm.value ? (
+                                <span style={{ color: "#059669", fontWeight: 600 }}>YES</span>
+                              ) : (
+                                <span style={{ color: "#DC2626", fontWeight: 600 }}>NO</span>
+                              )}
+                            </td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--color-neutral-500)" }}>{perm.mode}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Ancestors section */}
+                  <div>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                      Ancestor Chain
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {((contextModal.data.ancestors as any[]) || []).map((a: any, i: number) => (
+                        <span key={a.id} style={{
+                          background: "var(--color-neutral-100, #F1F5F9)",
+                          padding: "4px 12px", borderRadius: 9999,
+                          fontSize: "0.75rem", fontFamily: "var(--font-body, sans-serif)",
+                          color: "var(--color-neutral-700, #334155)",
+                        }}>
+                          {i > 0 && <span style={{ color: "var(--color-neutral-400)", marginInlineEnd: 4 }}>{"\u2192"}</span>}
+                          {a.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
