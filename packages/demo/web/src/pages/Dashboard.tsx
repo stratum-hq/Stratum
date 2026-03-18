@@ -1626,6 +1626,7 @@ function OverviewTab({
 
 export function Dashboard() {
   const { tenant, loading } = useTenant();
+  const { apiCall } = useStratum();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
   // Stats collected from child sections
@@ -1755,8 +1756,15 @@ export function Dashboard() {
           <span className="stratum-dash-depth">depth {tenant.depth}</span>
           <button
             className="stratum-view-as-btn"
-            onClick={() => window.open(`/api/v1/tenants/${tenant.id}/context`, "_blank")}
-            title="Open full tenant context in a new tab (impersonation endpoint)"
+            onClick={async () => {
+              try {
+                const ctx = await apiCall<Record<string, unknown>>(`/api/v1/tenants/${tenant.id}/context`);
+                alert(JSON.stringify(ctx, null, 2));
+              } catch (err) {
+                alert(`Failed to load tenant context: ${err instanceof Error ? err.message : err}`);
+              }
+            }}
+            title="View full resolved context for this tenant (config, permissions, ancestors)"
           >
             View as Tenant
           </button>
