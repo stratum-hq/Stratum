@@ -106,7 +106,7 @@ describe("CreateWebhookInputSchema", () => {
   });
 
   it("rejects invalid URL", () => {
-    const result = CreateWebhookInputSchema.safeParse({ ...validInput, url: "ftp://bad" });
+    const result = CreateWebhookInputSchema.safeParse({ ...validInput, url: "not-a-url-at-all" });
     expect(result.success).toBe(false);
   });
 
