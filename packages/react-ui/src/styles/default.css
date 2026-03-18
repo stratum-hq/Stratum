@@ -1,32 +1,342 @@
-/* Stratum Default Theme */
+/* Stratum Design System — @stratum-hq/react-ui */
 
+/* ============================================================
+   Font Imports
+   ============================================================ */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ============================================================
+   Design Tokens — Light Mode (Default)
+   ============================================================ */
+:root {
+  /* --- Brand Colors --- */
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --color-accent: #0D9488;
+  --color-accent-hover: #0F766E;
+  --color-accent-light: #CCFBF1;
+  --color-accent-muted: #F0FDFA;
+
+  /* --- Neutrals (Warm Slate) --- */
+  --color-neutral-950: #0C1222;
+  --color-neutral-900: #0F172A;
+  --color-neutral-800: #1E293B;
+  --color-neutral-700: #334155;
+  --color-neutral-600: #475569;
+  --color-neutral-500: #64748B;
+  --color-neutral-400: #94A3B8;
+  --color-neutral-300: #CBD5E1;
+  --color-neutral-200: #E2E8F0;
+  --color-neutral-100: #F1F5F9;
+  --color-neutral-50: #F8FAFC;
+
+  /* --- Semantic Colors --- */
+  --color-success: #059669;
+  --color-success-bg: #D1FAE5;
+  --color-warning: #D97706;
+  --color-warning-bg: #FEF3C7;
+  --color-error: #DC2626;
+  --color-error-bg: #FEE2E2;
+  --color-info: #2563EB;
+  --color-info-bg: #DBEAFE;
+
+  /* --- Surfaces --- */
+  --color-bg-page: var(--color-neutral-50);
+  --color-bg-surface: #FFFFFF;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-hover: var(--color-neutral-100);
+  --color-bg-active: var(--color-info-bg);
+  --color-bg-sidebar: var(--color-neutral-900);
+  --color-bg-sidebar-hover: var(--color-neutral-800);
+
+  /* --- Text --- */
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-600);
+  --color-text-tertiary: var(--color-neutral-500);
+  --color-text-disabled: var(--color-neutral-400);
+  --color-text-on-primary: #FFFFFF;
+  --color-text-active: #1D4ED8;
+
+  /* --- Borders --- */
+  --color-border-default: var(--color-neutral-200);
+  --color-border-strong: var(--color-neutral-300);
+  --color-border-input: var(--color-neutral-300);
+
+  /* --- Badge: Inherited --- */
+  --color-badge-inherited-bg: var(--color-accent-light);
+  --color-badge-inherited-text: var(--color-accent);
+
+  /* --- Badge: Locked --- */
+  --color-badge-locked-bg: var(--color-warning-bg);
+  --color-badge-locked-text: #92400E;
+
+  /* --- Badge: Own --- */
+  --color-badge-own-bg: var(--color-neutral-100);
+  --color-badge-own-text: var(--color-neutral-600);
+
+  /* --- Badge: Delegated --- */
+  --color-badge-delegated-bg: var(--color-success-bg);
+  --color-badge-delegated-text: #065F46;
+
+  /* --- Typography --- */
+  --font-display: 'Satoshi', system-ui, -apple-system, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-code: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+
+  --font-size-xs: 0.6875rem;   /* 11px */
+  --font-size-sm: 0.75rem;     /* 12px */
+  --font-size-base: 0.8125rem; /* 13px */
+  --font-size-md: 0.875rem;    /* 14px */
+  --font-size-lg: 1rem;        /* 16px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 2rem;       /* 32px */
+  --font-size-4xl: 2.5rem;     /* 40px */
+
+  /* --- Spacing --- */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-4xl: 64px;
+
+  /* --- Border Radius --- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(12, 18, 34, 0.05);
+  --shadow-md: 0 2px 8px rgba(12, 18, 34, 0.08), 0 1px 2px rgba(12, 18, 34, 0.04);
+  --shadow-lg: 0 4px 16px rgba(12, 18, 34, 0.10), 0 2px 4px rgba(12, 18, 34, 0.06);
+  --shadow-xl: 0 8px 32px rgba(12, 18, 34, 0.12), 0 4px 8px rgba(12, 18, 34, 0.06);
+
+  /* --- Motion --- */
+  --duration-micro: 75ms;
+  --duration-short: 150ms;
+  --duration-medium: 250ms;
+  --duration-long: 400ms;
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   Dark Mode Tokens — Manual Toggle
+   ============================================================ */
+[data-theme="dark"] {
+  --color-primary: #3B82F6;
+  --color-primary-hover: #60A5FA;
+  --color-accent: #2DD4BF;
+  --color-accent-hover: #5EEAD4;
+  --color-accent-light: #134E4A;
+  --color-accent-muted: #0D3D38;
+
+  --color-neutral-950: #0A0F1A;
+  --color-neutral-900: #0C1222;
+  --color-neutral-800: #1E293B;
+  --color-neutral-700: #334155;
+  --color-neutral-600: #94A3B8;
+  --color-neutral-500: #94A3B8;
+  --color-neutral-400: #64748B;
+  --color-neutral-300: #475569;
+  --color-neutral-200: #334155;
+  --color-neutral-100: #1E293B;
+  --color-neutral-50: #0F172A;
+
+  --color-success: #34D399;
+  --color-success-bg: #064E3B;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #78350F;
+  --color-error: #F87171;
+  --color-error-bg: #7F1D1D;
+  --color-info: #3B82F6;
+  --color-info-bg: #1E3A5F;
+
+  --color-bg-page: #0A0F1A;
+  --color-bg-surface: var(--color-neutral-900);
+  --color-bg-elevated: var(--color-neutral-800);
+  --color-bg-hover: var(--color-neutral-800);
+  --color-bg-active: var(--color-info-bg);
+  --color-bg-sidebar: #0A0F1A;
+  --color-bg-sidebar-hover: var(--color-neutral-900);
+
+  --color-text-primary: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-tertiary: #64748B;
+  --color-text-disabled: #475569;
+  --color-text-on-primary: #FFFFFF;
+  --color-text-active: #60A5FA;
+
+  --color-border-default: var(--color-neutral-700);
+  --color-border-strong: var(--color-neutral-600);
+  --color-border-input: var(--color-neutral-700);
+
+  --color-badge-inherited-bg: var(--color-accent-light);
+  --color-badge-inherited-text: var(--color-accent);
+
+  --color-badge-locked-bg: var(--color-warning-bg);
+  --color-badge-locked-text: var(--color-warning);
+
+  --color-badge-own-bg: var(--color-neutral-800);
+  --color-badge-own-text: var(--color-neutral-600);
+
+  --color-badge-delegated-bg: var(--color-success-bg);
+  --color-badge-delegated-text: var(--color-success);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================================
+   Dark Mode Tokens — Auto-detect (when no data-theme is set)
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-primary: #3B82F6;
+    --color-primary-hover: #60A5FA;
+    --color-accent: #2DD4BF;
+    --color-accent-hover: #5EEAD4;
+    --color-accent-light: #134E4A;
+    --color-accent-muted: #0D3D38;
+
+    --color-neutral-950: #0A0F1A;
+    --color-neutral-900: #0C1222;
+    --color-neutral-800: #1E293B;
+    --color-neutral-700: #334155;
+    --color-neutral-600: #94A3B8;
+    --color-neutral-500: #94A3B8;
+    --color-neutral-400: #64748B;
+    --color-neutral-300: #475569;
+    --color-neutral-200: #334155;
+    --color-neutral-100: #1E293B;
+    --color-neutral-50: #0F172A;
+
+    --color-success: #34D399;
+    --color-success-bg: #064E3B;
+    --color-warning: #FBBF24;
+    --color-warning-bg: #78350F;
+    --color-error: #F87171;
+    --color-error-bg: #7F1D1D;
+    --color-info: #3B82F6;
+    --color-info-bg: #1E3A5F;
+
+    --color-bg-page: #0A0F1A;
+    --color-bg-surface: var(--color-neutral-900);
+    --color-bg-elevated: var(--color-neutral-800);
+    --color-bg-hover: var(--color-neutral-800);
+    --color-bg-active: var(--color-info-bg);
+    --color-bg-sidebar: #0A0F1A;
+    --color-bg-sidebar-hover: var(--color-neutral-900);
+
+    --color-text-primary: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-text-tertiary: #64748B;
+    --color-text-disabled: #475569;
+    --color-text-on-primary: #FFFFFF;
+    --color-text-active: #60A5FA;
+
+    --color-border-default: var(--color-neutral-700);
+    --color-border-strong: var(--color-neutral-600);
+    --color-border-input: var(--color-neutral-700);
+
+    --color-badge-inherited-bg: var(--color-accent-light);
+    --color-badge-inherited-text: var(--color-accent);
+
+    --color-badge-locked-bg: var(--color-warning-bg);
+    --color-badge-locked-text: var(--color-warning);
+
+    --color-badge-own-bg: var(--color-neutral-800);
+    --color-badge-own-text: var(--color-neutral-600);
+
+    --color-badge-delegated-bg: var(--color-success-bg);
+    --color-badge-delegated-text: var(--color-success);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
+    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* ============================================================
+   Accessibility — Focus Visible
+   ============================================================ */
+.stratum-tenant-switcher button:focus-visible,
+.stratum-tenant-switcher input:focus-visible,
+.stratum-tenant-switcher [tabindex]:focus-visible,
+.stratum-tree button:focus-visible,
+.stratum-tree [tabindex]:focus-visible,
+.stratum-config-editor button:focus-visible,
+.stratum-config-editor input:focus-visible,
+.stratum-permission-editor button:focus-visible,
+.stratum-permission-editor input:focus-visible,
+.stratum-permission-editor select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+/* ============================================================
+   Accessibility — Reduced Motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Tenant Switcher
+   ============================================================ */
 .stratum-tenant-switcher {
   position: relative;
   display: inline-block;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
 }
 
 .stratum-tenant-switcher__trigger {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: white;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
   cursor: pointer;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
   min-width: 200px;
-  text-align: left;
+  text-align: start;
+  transition: border-color var(--duration-micro) var(--ease-enter),
+              box-shadow var(--duration-micro) var(--ease-enter);
+}
+
+.stratum-tenant-switcher__trigger:hover {
+  border-color: var(--color-border-strong);
 }
 
 .stratum-tenant-switcher__dropdown {
   position: absolute;
   top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  inset-inline-start: 0;
+  inset-inline-end: 0;
+  margin-top: var(--space-xs);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-md);
   z-index: 50;
   max-height: 300px;
   overflow-y: auto;
@@ -34,44 +344,56 @@
 
 .stratum-tenant-switcher__search {
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-sm) var(--space-md);
   border: none;
-  border-bottom: 1px solid #e5e7eb;
-  font-size: 14px;
+  border-bottom: 1px solid var(--color-border-default);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
   outline: none;
   box-sizing: border-box;
+}
+
+.stratum-tenant-switcher__search::placeholder {
+  color: var(--color-text-tertiary);
 }
 
 .stratum-tenant-switcher__list {
   list-style: none;
   margin: 0;
-  padding: 4px 0;
+  padding: var(--space-xs) 0;
 }
 
 .stratum-tenant-switcher__item {
-  padding: 6px 12px;
+  padding: var(--space-sm) var(--space-md);
   cursor: pointer;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  transition: background-color var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-tenant-switcher__item:hover {
-  background: #f3f4f6;
+  background: var(--color-bg-hover);
 }
 
 .stratum-tenant-switcher__item--active {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--color-bg-active);
+  color: var(--color-text-active);
 }
 
 .stratum-tenant-switcher__slug {
-  color: #9ca3af;
-  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
-/* Tree */
+/* ============================================================
+   Tenant Tree
+   ============================================================ */
 .stratum-tree {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
 }
 
 .stratum-tree__root {
@@ -89,18 +411,20 @@
 .stratum-tree__node {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
   cursor: default;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  transition: background-color var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-tree__node:hover {
-  background: #f3f4f6;
+  background: var(--color-bg-hover);
 }
 
 .stratum-tree__node--selected {
-  background: #eff6ff;
+  background: var(--color-bg-active);
 }
 
 .stratum-tree__toggle {
@@ -109,168 +433,360 @@
   cursor: pointer;
   padding: 0;
   font-size: 10px;
-  width: 16px;
-  color: #6b7280;
+  width: var(--space-lg);
+  color: var(--color-text-tertiary);
+  transition: color var(--duration-micro) var(--ease-enter);
+}
+
+.stratum-tree__toggle:hover {
+  color: var(--color-text-primary);
 }
 
 .stratum-tree__spacer {
-  width: 16px;
+  width: var(--space-lg);
   display: inline-block;
 }
 
 .stratum-tree__label {
   cursor: pointer;
   flex: 1;
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
 }
 
 .stratum-tree__badge {
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: #dbeafe;
-  color: #1e40af;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-family: var(--font-body);
   font-weight: 500;
 }
 
 .stratum-tree__meta {
-  color: #9ca3af;
-  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
-/* Config Editor */
+/* ============================================================
+   Config Editor
+   ============================================================ */
 .stratum-config-editor__table {
   width: 100%;
   border-collapse: collapse;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
 }
 
 .stratum-config-editor__table th {
-  text-align: left;
-  padding: 8px 12px;
-  border-bottom: 2px solid #e5e7eb;
+  text-align: start;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border-default);
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .stratum-config-editor__table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.stratum-config-editor__table code {
+  font-family: var(--font-code);
+  font-size: var(--font-size-sm);
 }
 
 .stratum-config-editor__row--locked {
-  background: #fef3c7;
+  background: var(--color-warning-bg);
 }
 
 .stratum-config-editor__source {
-  color: #9ca3af;
-  font-family: monospace;
-  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-code);
+  font-size: var(--font-size-sm);
 }
 
 .stratum-config-editor__add {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 0;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) 0;
 }
 
 .stratum-config-editor__add input {
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  transition: border-color var(--duration-micro) var(--ease-enter);
 }
 
-/* Permission Editor */
+.stratum-config-editor__add input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.stratum-config-editor__add input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* ============================================================
+   Permission Editor
+   ============================================================ */
 .stratum-permission-editor__table {
   width: 100%;
   border-collapse: collapse;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
 }
 
 .stratum-permission-editor__table th {
-  text-align: left;
-  padding: 8px 12px;
-  border-bottom: 2px solid #e5e7eb;
+  text-align: start;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border-default);
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .stratum-permission-editor__table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.stratum-permission-editor__table code {
+  font-family: var(--font-code);
+  font-size: var(--font-size-sm);
 }
 
 .stratum-permission-editor__source {
-  color: #9ca3af;
-  font-family: monospace;
-  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-code);
+  font-size: var(--font-size-sm);
 }
 
 .stratum-permission-editor__add {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 8px 0;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-sm) 0;
 }
 
 .stratum-permission-editor__add input,
 .stratum-permission-editor__add select {
-  padding: 6px 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  transition: border-color var(--duration-micro) var(--ease-enter);
 }
 
-/* Badges */
+.stratum-permission-editor__add input:hover,
+.stratum-permission-editor__add select:hover {
+  border-color: var(--color-border-strong);
+}
+
+.stratum-permission-editor__add input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* ============================================================
+   Badges
+   ============================================================ */
 .stratum-badge {
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
   font-weight: 500;
 }
 
 .stratum-badge--locked {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-badge-locked-bg);
+  color: var(--color-badge-locked-text);
 }
 
 .stratum-badge--inherited {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--color-badge-inherited-bg);
+  color: var(--color-badge-inherited-text);
 }
 
 .stratum-badge--delegated {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--color-badge-delegated-bg);
+  color: var(--color-badge-delegated-text);
 }
 
 .stratum-badge--own {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--color-badge-own-bg);
+  color: var(--color-badge-own-text);
 }
 
-/* Buttons */
+/* ============================================================
+   Buttons (Config + Permission Editors)
+   ============================================================ */
 .stratum-config-editor button,
 .stratum-permission-editor button {
-  padding: 4px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: white;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
   cursor: pointer;
-  font-size: 13px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  transition: background-color var(--duration-micro) var(--ease-enter),
+              border-color var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-config-editor button:hover,
 .stratum-permission-editor button:hover {
-  background: #f3f4f6;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
 }
 
 .stratum-config-editor button:disabled,
 .stratum-permission-editor button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ============================================================
+   Skeleton Loaders
+   ============================================================ */
+.stratum-skeleton {
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-sm);
+  animation: stratum-shimmer 1.5s ease-in-out infinite;
+}
+
+.stratum-skeleton--circle {
+  border-radius: var(--radius-full);
+}
+
+@keyframes stratum-shimmer {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+/* Table Skeleton — matches ConfigEditor/PermissionEditor table styling */
+.stratum-table-skeleton__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+}
+
+.stratum-table-skeleton__table th {
+  text-align: start;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--color-border-default);
+}
+
+.stratum-table-skeleton__table td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-bg-hover);
+}
+
+/* ============================================================
+   Toast Notifications
+   ============================================================ */
+.stratum-toast-container {
+  position: fixed;
+  top: var(--space-lg);
+  inset-inline-end: var(--space-lg);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  pointer-events: none;
+  max-width: 400px;
+}
+
+.stratum-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-inline-start: 4px solid var(--color-neutral-400);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  pointer-events: auto;
+  animation: stratum-toast-enter var(--duration-medium) var(--ease-enter);
+}
+
+.stratum-toast--success {
+  border-inline-start-color: var(--color-success);
+}
+
+.stratum-toast--error {
+  border-inline-start-color: var(--color-error);
+}
+
+.stratum-toast--warning {
+  border-inline-start-color: var(--color-warning);
+}
+
+.stratum-toast--info {
+  border-inline-start-color: var(--color-info);
+}
+
+.stratum-toast__message {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.stratum-toast__dismiss {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  padding: var(--space-xs);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: color var(--duration-micro) var(--ease-enter),
+              background-color var(--duration-micro) var(--ease-enter);
+}
+
+.stratum-toast__dismiss:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.stratum-toast__dismiss:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+@keyframes stratum-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }

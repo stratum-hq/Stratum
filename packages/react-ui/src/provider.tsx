@@ -1,10 +1,16 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import type { TenantNode, TenantContext, ResolvedConfig, ResolvedPermission } from "@stratum-hq/core";
+import { defaultMessages, type Messages } from "./i18n.js";
+import { useToast } from "./hooks/use-toast.js";
+import type { UseToastReturn } from "./hooks/use-toast.js";
+import { ToastContainer } from "./components/ToastContainer.js";
 
 export interface StratumProviderProps {
   controlPlaneUrl: string;
   apiKey: string;
   initialTenantId?: string;
+  /** Partial message overrides merged on top of `defaultMessages`. */
+  messages?: Messages;
   children: ReactNode;
 }
 
@@ -15,20 +21,35 @@ export interface StratumContextValue {
   error: Error | null;
   switchTenant: (tenantId: string) => Promise<void>;
   apiCall: <T>(path: string, options?: RequestInit) => Promise<T>;
+  /** Resolved messages (user overrides merged with defaults). */
+  messages: Record<string, string>;
+  /** Toast notification system */
+  toast: UseToastReturn["toast"];
 }
 
 const StratumContext = createContext<StratumContextValue | null>(null);
+
+/** @internal Exported for Storybook / testing mock providers. */
+export { StratumContext };
 
 export function StratumProvider({
   controlPlaneUrl,
   apiKey,
   initialTenantId,
+  messages: userMessages,
   children,
 }: StratumProviderProps) {
+  const { toasts, toast, dismiss } = useToast();
+
   const [currentTenant, setCurrentTenant] = useState<TenantNode | null>(null);
   const [tenantContext, setTenantContext] = useState<TenantContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  const mergedMessages = useMemo<Record<string, string>>(
+    () => ({ ...defaultMessages, ...userMessages }),
+    [userMessages],
+  );
 
   const baseUrl = controlPlaneUrl.replace(/\/$/, "");
 
@@ -97,9 +118,10 @@ export function StratumProvider({
 
   return (
     <StratumContext.Provider
-      value={{ currentTenant, tenantContext, loading, error, switchTenant, apiCall }}
+      value={{ currentTenant, tenantContext, loading, error, switchTenant, apiCall, messages: mergedMessages, toast }}
     >
       {children}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </StratumContext.Provider>
   );
 }

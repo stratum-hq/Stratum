@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import type { TenantNode } from "@stratum-hq/core";
 import { useTenantTree } from "../hooks/use-tenant-tree.js";
 import { useTenant } from "../hooks/use-tenant.js";
+import { useMessages } from "../hooks/use-messages.js";
 
 export interface TenantSwitcherProps {
   rootId?: string;
@@ -12,6 +13,7 @@ export interface TenantSwitcherProps {
 export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwitcherProps) {
   const { tree, loading } = useTenantTree(rootId);
   const { tenant, switchTenant } = useTenant();
+  const { t } = useMessages();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -44,7 +46,7 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
     setSearch("");
   };
 
-  if (loading) return <div className={className}>Loading tenants...</div>;
+  if (loading) return <div className={className}>{t("tenantSwitcher.loading")}</div>;
 
   return (
     <div className={`stratum-tenant-switcher ${className || ""}`}>
@@ -55,8 +57,8 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        {tenant ? tenant.name : "Select tenant..."}
-        <span aria-hidden="true"> ▾</span>
+        {tenant ? tenant.name : t("tenantSwitcher.placeholder")}
+        <span aria-hidden="true"> &#9662;</span>
       </button>
 
       {isOpen && (
@@ -65,9 +67,9 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
             type="text"
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
-            placeholder="Search tenants..."
+            placeholder={t("tenantSwitcher.searchPlaceholder")}
             className="stratum-tenant-switcher__search"
-            aria-label="Search tenants"
+            aria-label={t("tenantSwitcher.searchLabel")}
           />
           <ul className="stratum-tenant-switcher__list">
             {filtered.map(({ node, depth }) => (
@@ -76,7 +78,7 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
                 role="option"
                 aria-selected={tenant?.id === node.id}
                 className={`stratum-tenant-switcher__item ${tenant?.id === node.id ? "stratum-tenant-switcher__item--active" : ""}`}
-                style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                style={{ paddingInlineStart: `calc(${depth} * var(--space-lg) + var(--space-sm))` }}
                 onClick={() => handleSelect(node.id)}
                 onKeyDown={(e) => e.key === "Enter" && handleSelect(node.id)}
                 tabIndex={0}
