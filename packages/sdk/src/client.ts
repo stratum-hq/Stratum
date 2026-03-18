@@ -1,5 +1,5 @@
 import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
+import type { TenantContextLegacy, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 import { LRUCache } from "./cache.js";
 
 export interface StratumClientOptions {
@@ -13,7 +13,7 @@ export class StratumClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly regionUrl: string | undefined;
-  private readonly cache: LRUCache<string, TenantContext>;
+  private readonly cache: LRUCache<string, TenantContextLegacy>;
   private readonly cacheEnabled: boolean;
 
   constructor(options: StratumClientOptions) {
@@ -21,7 +21,7 @@ export class StratumClient {
     this.apiKey = options.apiKey;
     this.regionUrl = options.regionUrl?.replace(/\/$/, "");
     this.cacheEnabled = options.cache?.enabled !== false;
-    this.cache = new LRUCache<string, TenantContext>({
+    this.cache = new LRUCache<string, TenantContextLegacy>({
       ttlMs: options.cache?.ttlMs,
       maxSize: options.cache?.maxSize,
     });
@@ -54,13 +54,13 @@ export class StratumClient {
     return response.json() as Promise<T>;
   }
 
-  async resolveTenant(tenantId: string): Promise<TenantContext> {
+  async resolveTenant(tenantId: string): Promise<TenantContextLegacy> {
     if (this.cacheEnabled) {
       const cached = this.cache.get(tenantId);
       if (cached) return cached;
     }
 
-    const context = await this.fetch<TenantContext>(`/api/v1/tenants/${tenantId}/context`);
+    const context = await this.fetch<TenantContextLegacy>(`/api/v1/tenants/${tenantId}/context`);
     if (this.cacheEnabled) {
       this.cache.set(tenantId, context);
     }
