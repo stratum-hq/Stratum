@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from "react";
-import type { TenantNode, TenantContext, ResolvedConfig, ResolvedPermission } from "@stratum-hq/core";
+import type { TenantNode, TenantContextLegacy, ResolvedConfig, ResolvedPermission } from "@stratum-hq/core";
 import { defaultMessages, type Messages } from "./i18n.js";
 import { useToast } from "./hooks/use-toast.js";
 import type { UseToastReturn } from "./hooks/use-toast.js";
@@ -16,7 +16,7 @@ export interface StratumProviderProps {
 
 export interface StratumContextValue {
   currentTenant: TenantNode | null;
-  tenantContext: TenantContext | null;
+  tenantContext: TenantContextLegacy | null;
   loading: boolean;
   error: Error | null;
   switchTenant: (tenantId: string) => Promise<void>;
@@ -42,7 +42,7 @@ export function StratumProvider({
   const { toasts, toast, dismiss } = useToast();
 
   const [currentTenant, setCurrentTenant] = useState<TenantNode | null>(null);
-  const [tenantContext, setTenantContext] = useState<TenantContext | null>(null);
+  const [tenantContext, setTenantContext] = useState<TenantContextLegacy | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
