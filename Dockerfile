@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 COPY package.json ./
@@ -20,12 +20,12 @@ COPY packages/lib/ packages/lib/
 COPY packages/db-adapters/ packages/db-adapters/
 COPY packages/control-plane/ packages/control-plane/
 COPY tsconfig.base.json ./
-RUN npm run build --workspace=@stratum/core && \
-    npm run build --workspace=@stratum/lib && \
-    npm run build --workspace=@stratum/db-adapters && \
-    npm run build --workspace=@stratum/control-plane
+RUN npm run build --workspace=@stratum-hq/core && \
+    npm run build --workspace=@stratum-hq/lib && \
+    npm run build --workspace=@stratum-hq/db-adapters && \
+    npm run build --workspace=@stratum-hq/control-plane
 
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
