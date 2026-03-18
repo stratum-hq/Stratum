@@ -51,7 +51,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "root-id",
           key: "theme",
-          value: JSON.stringify("dark"),
+          value: "dark",
           locked: false,
           sensitive: false,
           source_tenant_id: "root-id",
@@ -59,7 +59,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "root-id",
           key: "max_users",
-          value: JSON.stringify(100),
+          value: 100,
           locked: false,
           sensitive: false,
           source_tenant_id: "root-id",
@@ -68,7 +68,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "msp-id",
           key: "theme",
-          value: JSON.stringify("light"),
+          value: "light",
           locked: false,
           sensitive: false,
           source_tenant_id: "msp-id",
@@ -76,7 +76,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "msp-id",
           key: "region",
-          value: JSON.stringify("us-east"),
+          value: "us-east",
           locked: false,
           sensitive: false,
           source_tenant_id: "msp-id",
@@ -85,7 +85,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "client-id",
           key: "max_users",
-          value: JSON.stringify(50),
+          value: 50,
           locked: false,
           sensitive: false,
           source_tenant_id: "client-id",
@@ -129,7 +129,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "parent-id",
           key: "feature_flag",
-          value: JSON.stringify(true),
+          value: true,
           locked: false,
           sensitive: false,
           source_tenant_id: "parent-id",
@@ -162,7 +162,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "parent-id",
           key: "color",
-          value: JSON.stringify("blue"),
+          value: "blue",
           locked: false,
           sensitive: false,
           source_tenant_id: "parent-id",
@@ -170,7 +170,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "child-id",
           key: "color",
-          value: JSON.stringify("red"),
+          value: "red",
           locked: false,
           sensitive: false,
           source_tenant_id: "child-id",
@@ -203,7 +203,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "parent-id",
           key: "security_policy",
-          value: JSON.stringify("strict"),
+          value: "strict",
           locked: true,
           sensitive: false,
           source_tenant_id: "parent-id",
@@ -212,7 +212,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "child-id",
           key: "security_policy",
-          value: JSON.stringify("relaxed"),
+          value: "relaxed",
           locked: false,
           sensitive: false,
           source_tenant_id: "child-id",
@@ -285,7 +285,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "root-id",
           key: "setting",
-          value: JSON.stringify("from-root"),
+          value: "from-root",
           locked: false,
           sensitive: false,
           source_tenant_id: "root-id",
@@ -320,7 +320,7 @@ describe("resolveConfig", () => {
         {
           tenant_id: "root-id",
           key: "root_setting",
-          value: JSON.stringify("value"),
+          value: "value",
           locked: false,
           sensitive: false,
           source_tenant_id: "root-id",
