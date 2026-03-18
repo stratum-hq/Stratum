@@ -109,7 +109,7 @@ function TreeNode({
             }}
             title="Has descendants (config inherits downward)"
           >
-            \u2193
+            {"\u2193"}
           </span>
         )}
         <span
