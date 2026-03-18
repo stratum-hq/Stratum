@@ -127,14 +127,14 @@ Run the control plane as a service. Use from any language. Built-in LRU caching,
 
 | Package | Description | Key Features |
 |---------|-------------|--------------|
-| [`@stratum-hq/core`](docs/packages/core.md) | Shared foundation | Types, Zod schemas, error classes, audit/consent/region types |
-| [`@stratum-hq/lib`](docs/packages/lib.md) | Direct library | Tenants, config, permissions, audit, encryption, GDPR, regions, batch operations |
-| [`@stratum-hq/control-plane`](docs/packages/control-plane.md) | REST API server | Fastify v5, auth + scopes, OTel tracing, Redis rate limiting, config diff, tenant impersonation |
-| [`@stratum-hq/sdk`](docs/packages/sdk.md) | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware, key rotation |
-| [`@stratum-hq/db-adapters`](docs/packages/db-adapters.md) | Database layer | Raw pg + Prisma adapters, RLS management, regional pools |
-| [`@stratum-hq/react`](docs/packages/react-ui.md) | React components | Provider, tenant switcher, tree, config/permission editors, design system, Storybook |
-| [`@stratum-hq/demo`](docs/packages/demo.md) | Demo MSSP app | Security events dashboard with full RLS isolation |
-| [`@stratum-hq/cli`](docs/packages/cli.md) | Developer CLI | Project init, DB migration, framework scaffolding, `stratum doctor` |
+| `@stratum-hq/core` | Shared foundation | Types, Zod schemas, error classes, audit/consent/region types |
+| `@stratum-hq/lib` | Direct library | Tenants, config, permissions, audit, encryption, GDPR, regions, batch operations |
+| `@stratum-hq/control-plane` | REST API server | Fastify v5, auth + scopes, OTel tracing, Redis rate limiting, config diff, tenant impersonation |
+| `@stratum-hq/sdk` | Node.js SDK | HTTP client, LRU cache, Express/Fastify middleware, key rotation |
+| `@stratum-hq/db-adapters` | Database layer | Raw pg + Prisma adapters, RLS management, regional pools |
+| `@stratum-hq/react` | React components | Provider, tenant switcher, tree, config/permission editors, design system, Storybook |
+| `@stratum-hq/demo` | Demo MSSP app | Security events dashboard with full RLS isolation |
+| `@stratum-hq/cli` | Developer CLI | Project init, DB migration, framework scaffolding, `stratum doctor` |
 
 ## Quick Start
 
@@ -565,35 +565,17 @@ SDKs are generated from the OpenAPI spec (`scripts/openapi-spec.json`) using Ope
 
 ## Documentation
 
-### Guides
-
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/guides/getting-started.md) | Setup, first tenant, first API key |
-| [Architecture](docs/architecture/overview.md) | System design, request flow, caching |
-| [API Reference](docs/api/README.md) | All REST endpoints with examples |
-| [SDK Integration](docs/guides/sdk-integration.md) | Express/Fastify middleware, tenant resolution |
-| [Direct Library](docs/packages/lib.md) | Using `@stratum-hq/lib` without HTTP |
-| [Database & RLS](docs/architecture/database.md) | Schema, RLS policies, advisory locks |
-| [Security](docs/architecture/security.md) | Auth, SQL injection prevention, RLS guarantees |
-| [React Components](docs/packages/react-ui.md) | Provider, hooks, tenant tree, config editor |
-| [CLI Reference](docs/packages/cli.md) | Project init, DB migration, scaffolding, doctor |
-| [Audit Logging](docs/guides/audit-logging.md) | Audit trail with actor context and before/after state |
-| [Authorization & Scopes](docs/guides/authorization.md) | API key scopes, JWT privileges, route enforcement |
-| [GDPR & Data Retention](docs/guides/gdpr.md) | Tenant data export, hard-purge, retention policies |
-| [Encryption](docs/guides/encryption.md) | AES-256-GCM field-level encryption and key versioning |
-| [Consent Management](docs/guides/consent.md) | GDPR consent records with purpose tracking |
-| [Multi-Region](docs/guides/multi-region.md) | Region management, tenant migration, regional pools |
-
-### Documentation Website
-
-A full documentation site built with Starlight (Astro) is available in the [`website/`](website/) directory:
+Full documentation is available via the Starlight docs site in [`website/`](website/):
 
 ```bash
 cd website && npm install && npm run dev
 ```
 
-The docs site includes API reference, integration guides, architecture diagrams, and interactive examples.
+The docs site covers:
+- **Getting Started** — installation, quick start, core concepts
+- **Guides** — tenant hierarchy, config inheritance, permissions, isolation strategies, API keys, webhooks, GDPR, multi-region
+- **API Reference** — all REST endpoints with request/response examples
+- **Package Docs** — detailed docs for each `@stratum-hq/*` package
 
 ## Development
 
