@@ -9,11 +9,13 @@ const mockQuery = vi.fn();
 const mockRelease = vi.fn();
 const mockConnect = vi.fn();
 
+// Create a mock Pool class that will be used directly
+class MockPool {
+  connect = mockConnect;
+}
+
 vi.mock("pg", () => {
-  class Pool {
-    connect = mockConnect;
-  }
-  return { default: { Pool } };
+  return { default: { Pool: MockPool }, Pool: MockPool };
 });
 
 // ---------------------------------------------------------------------------
@@ -56,10 +58,8 @@ describe("BaseAdapter", () => {
     mockConnect.mockResolvedValue(mockClient);
     mockQuery.mockResolvedValue({ rows: [] });
 
-    // Import Pool after mock is set up
-    const pg = require("pg");
-    const pool = new pg.default.Pool();
-    adapter = new TestAdapter(pool);
+    const pool = new MockPool();
+    adapter = new TestAdapter(pool as any);
   });
 
   describe("executeWithTenantContext", () => {
