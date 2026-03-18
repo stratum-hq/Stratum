@@ -1,8 +1,8 @@
 import { TenantNotFoundError } from "@stratum-hq/core";
-import type { TenantContext } from "@stratum-hq/core";
+import type { TenantContextLegacy } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
-import { runWithTenantContext } from "../context.js";
+import { runWithTenantContextLegacy } from "../context.js";
 import { resolveFromJwt } from "../resolvers/jwt.js";
 import { resolveFromHeader } from "../resolvers/header.js";
 
@@ -44,7 +44,7 @@ export function fastifyPlugin(
         return;
       }
 
-      let context: TenantContext;
+      let context: TenantContextLegacy;
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
@@ -61,7 +61,7 @@ export function fastifyPlugin(
       request.tenant = context;
 
       // Use run (not enterWith) to bind context only for this request's lifecycle
-      runWithTenantContext(context, done);
+      runWithTenantContextLegacy(context, done);
     };
 
     resolveAndRun().catch(done);

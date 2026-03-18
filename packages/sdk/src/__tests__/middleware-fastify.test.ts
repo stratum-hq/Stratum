@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fastifyPlugin } from "../middleware/fastify.js";
-import type { TenantContext } from "@stratum-hq/core";
+import type { TenantContextLegacy } from "@stratum-hq/core";
 import { TenantNotFoundError } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeTenantContext(tenantId: string): TenantContext {
+function makeTenantContextLegacy(tenantId: string): TenantContextLegacy {
   return {
     tenant_id: tenantId,
     ancestry_path: `/${tenantId}`,
@@ -21,7 +21,7 @@ function makeTenantContext(tenantId: string): TenantContext {
 function makeRequest(headers: Record<string, string> = {}) {
   return {
     headers: { ...headers },
-    tenant: undefined as TenantContext | undefined,
+    tenant: undefined as TenantContextLegacy | undefined,
   };
 }
 
@@ -35,7 +35,7 @@ function makeReply() {
 function makeClient(overrides: Partial<{ resolveTenant: ReturnType<typeof vi.fn> }> = {}) {
   return {
     resolveTenant:
-      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeTenantContext("default-tenant")),
+      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeTenantContextLegacy("default-tenant")),
   } as unknown as import("../client.js").StratumClient;
 }
 
@@ -109,7 +109,7 @@ describe("fastifyPlugin", () => {
 
   describe("tenant resolution from header", () => {
     it("sets request.tenant from X-Tenant-ID header", async () => {
-      const ctx = makeTenantContext("tenant-fast");
+      const ctx = makeTenantContextLegacy("tenant-fast");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -129,7 +129,7 @@ describe("fastifyPlugin", () => {
     });
 
     it("calls done() on successful resolution", async () => {
-      const ctx = makeTenantContext("t-1");
+      const ctx = makeTenantContextLegacy("t-1");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -267,7 +267,7 @@ describe("fastifyPlugin", () => {
 
   describe("custom resolvers", () => {
     it("uses custom resolver when header resolution fails", async () => {
-      const ctx = makeTenantContext("custom-fastify");
+      const ctx = makeTenantContextLegacy("custom-fastify");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -291,7 +291,7 @@ describe("fastifyPlugin", () => {
     });
 
     it("stops at the first resolver that returns a value", async () => {
-      const ctx = makeTenantContext("first-fast");
+      const ctx = makeTenantContextLegacy("first-fast");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });

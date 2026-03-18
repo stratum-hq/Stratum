@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { expressMiddleware } from "../middleware/express.js";
-import type { TenantContext } from "@stratum-hq/core";
+import type { TenantContextLegacy } from "@stratum-hq/core";
 import { TenantNotFoundError } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeTenantContext(tenantId: string): TenantContext {
+function makeTenantContextLegacy(tenantId: string): TenantContextLegacy {
   return {
     tenant_id: tenantId,
     ancestry_path: `/${tenantId}`,
@@ -23,7 +23,7 @@ function makeReq(headers: Record<string, string> = {}) {
     headers: {
       ...headers,
     },
-    tenant: undefined as TenantContext | undefined,
+    tenant: undefined as TenantContextLegacy | undefined,
   };
 }
 
@@ -37,7 +37,7 @@ function makeRes() {
 function makeClient(overrides: Partial<{ resolveTenant: ReturnType<typeof vi.fn> }> = {}) {
   return {
     resolveTenant:
-      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeTenantContext("default-tenant")),
+      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeTenantContextLegacy("default-tenant")),
   } as unknown as import("../client.js").StratumClient;
 }
 
@@ -54,7 +54,7 @@ describe("expressMiddleware", () => {
 
   describe("tenant resolution from header", () => {
     it("sets req.tenant from X-Tenant-ID header", async () => {
-      const ctx = makeTenantContext("tenant-from-header");
+      const ctx = makeTenantContextLegacy("tenant-from-header");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -69,7 +69,7 @@ describe("expressMiddleware", () => {
     });
 
     it("calls next() on successful resolution", async () => {
-      const ctx = makeTenantContext("t-1");
+      const ctx = makeTenantContextLegacy("t-1");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -184,7 +184,7 @@ describe("expressMiddleware", () => {
 
   describe("custom resolvers", () => {
     it("uses custom resolver when header resolution fails", async () => {
-      const ctx = makeTenantContext("custom-resolved");
+      const ctx = makeTenantContextLegacy("custom-resolved");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -205,7 +205,7 @@ describe("expressMiddleware", () => {
     });
 
     it("stops at the first resolver that returns a value", async () => {
-      const ctx = makeTenantContext("first-resolved");
+      const ctx = makeTenantContextLegacy("first-resolved");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
