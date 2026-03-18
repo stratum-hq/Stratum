@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { ForbiddenError } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { ForbiddenError } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 
 /**
  * Tenant-scope enforcement middleware.

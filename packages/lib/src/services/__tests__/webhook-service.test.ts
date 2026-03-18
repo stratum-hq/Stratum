@@ -8,8 +8,8 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as webhookService from "../webhook-service.js";
-import { WebhookNotFoundError } from "@stratum/core";
-import type { Webhook } from "@stratum/core";
+import { WebhookNotFoundError } from "@stratum-hq/core";
+import type { Webhook } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -57,7 +57,7 @@ describe("createWebhook", () => {
       tenant_id: null,
       url: "https://example.com/webhook",
       secret: "mysecretatleast16chars",
-      events: ["tenant.created" as import("@stratum/core").TenantEvent],
+      events: ["tenant.created" as import("@stratum-hq/core").TenantEvent],
     });
 
     expect(result).toEqual(mockWebhook);

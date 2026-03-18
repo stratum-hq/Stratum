@@ -8,7 +8,7 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as consentService from "../consent-service.js";
-import type { ConsentRecord, GrantConsentInput } from "@stratum/core";
+import type { ConsentRecord, GrantConsentInput } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;

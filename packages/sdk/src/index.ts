@@ -37,4 +37,4 @@ export type {
   UpdateTenantInput,
   MoveTenantInput,
   ResolvedPermission,
-} from "@stratum/core";
+} from "@stratum-hq/core";

@@ -5,8 +5,8 @@ import {
   runWithTenantContext,
   setTenantContext,
 } from "../context.js";
-import type { TenantContext } from "@stratum/core";
-import { TenantContextNotFoundError } from "@stratum/core";
+import type { TenantContext } from "@stratum-hq/core";
+import { TenantContextNotFoundError } from "@stratum-hq/core";
 
 const makeContext = (tenantId: string): TenantContext => ({
   tenant_id: tenantId,

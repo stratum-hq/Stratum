@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { TenantContextNotFoundError } from "@stratum/core";
-import type { TenantContext } from "@stratum/core";
+import { TenantContextNotFoundError } from "@stratum-hq/core";
+import type { TenantContext } from "@stratum-hq/core";
 
 export const tenantStorage = new AsyncLocalStorage<TenantContext>();
 

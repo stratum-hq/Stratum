@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import dns from "node:dns/promises";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { TenantEvent } from "@stratum/core";
+import type { TenantEvent } from "@stratum-hq/core";
 import { getWebhooksForEvent, decryptSecret } from "./webhook-service.js";
 
 const MAX_ATTEMPTS = 5;

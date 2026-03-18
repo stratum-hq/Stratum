@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { SetConfigInputSchema } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { SetConfigInputSchema } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
 
@@ -43,8 +43,8 @@ export function createConfigRoutes(stratum: Stratum) {
         const entry = e as Record<string, unknown>;
         return { key: entry.key as string, value: parsed.value, locked: parsed.locked, sensitive: parsed.sensitive };
       });
-      const results = await stratum.batchSetConfig(request.params.id, entries, buildAuditContext(request));
-      reply.status(200).send(results);
+      const batchResult = await stratum.batchSetConfig(request.params.id, entries, buildAuditContext(request));
+      reply.status(200).send(batchResult);
     });
 
     // GET /api/v1/tenants/:id/config/inheritance — Get full inheritance view

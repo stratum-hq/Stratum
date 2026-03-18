@@ -1,4 +1,4 @@
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission } from "@stratum/core";
+import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission } from "@stratum-hq/core";
 
 export type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, ResolvedPermission };
 

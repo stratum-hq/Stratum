@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useTenantTree, useTenant, useStratum } from "@stratum/react";
-import type { TenantTreeNode } from "@stratum/react";
+import { useTenantTree, useTenant, useStratum } from "@stratum-hq/react";
+import type { TenantTreeNode } from "@stratum-hq/react";
 
 function TreeNode({
   node,

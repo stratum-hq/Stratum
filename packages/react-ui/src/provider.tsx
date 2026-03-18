@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import type { TenantNode, TenantContext, ResolvedConfig, ResolvedPermission } from "@stratum/core";
+import type { TenantNode, TenantContext, ResolvedConfig, ResolvedPermission } from "@stratum-hq/core";
 
 export interface StratumProviderProps {
   controlPlaneUrl: string;
