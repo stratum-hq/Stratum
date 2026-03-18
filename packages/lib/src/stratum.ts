@@ -21,6 +21,7 @@ import type {
   ConfigEntry,
   SetConfigInput,
   ResolvedConfig,
+  BatchSetConfigResult,
   PermissionPolicy,
   CreatePermissionInput,
   UpdatePermissionInput,
@@ -36,8 +37,8 @@ import type {
   Region,
   CreateRegionInput,
   UpdateRegionInput,
-} from "@stratum/core";
-import { TenantEvent } from "@stratum/core";
+} from "@stratum-hq/core";
+import { TenantEvent } from "@stratum-hq/core";
 
 export interface StratumOptions {
   pool: pg.Pool;
@@ -472,18 +473,23 @@ export class Stratum {
     tenantId: string,
     entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
     audit?: AuditContext,
-  ): Promise<ConfigEntry[]> {
-    const results = await configService.batchSetConfig(this.pool, tenantId, entries);
-    for (const entry of results) {
-      this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: entry.key, entry });
+  ): Promise<BatchSetConfigResult> {
+    const batchResult = await configService.batchSetConfig(this.pool, tenantId, entries);
+    const succeededResults = batchResult.results.filter((r) => r.status === "ok" && r.entry);
+    for (const r of succeededResults) {
+      this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: r.key, entry: r.entry });
     }
-    if (audit && results.length > 0) {
+    if (audit && succeededResults.length > 0) {
       await auditService.createAuditEntry(
-        this.pool, audit, "config.batch_updated", "config", results[0].key, tenantId,
-        null, { count: results.length, keys: results.map((e) => e.key) } as Record<string, unknown>,
+        this.pool, audit, "config.batch_updated", "config", succeededResults[0].key, tenantId,
+        null, {
+          count: succeededResults.length,
+          keys: succeededResults.map((r) => r.key),
+          failed: batchResult.failed,
+        } as Record<string, unknown>,
       );
     }
-    return results;
+    return batchResult;
   }
 
   // Encryption key rotation

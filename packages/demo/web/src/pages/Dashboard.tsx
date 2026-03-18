@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useTenant, useStratum } from "@stratum/react";
+import { useTenant, useStratum } from "@stratum-hq/react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

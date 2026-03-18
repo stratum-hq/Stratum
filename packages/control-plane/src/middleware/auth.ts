@@ -1,8 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import jwt from "jsonwebtoken";
 import { config } from "../config.js";
-import { UnauthorizedError } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { UnauthorizedError } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 
 interface ApiKeyRecord {
   id: string;

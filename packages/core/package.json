@@ -1,5 +1,5 @@
 {
-  "name": "@stratum/core",
+  "name": "@stratum-hq/core",
   "version": "0.1.0",
   "description": "Stratum shared types, utilities, and validation schemas",
   "main": "./dist/index.js",
@@ -10,11 +10,20 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "zod": "^3.22.0"

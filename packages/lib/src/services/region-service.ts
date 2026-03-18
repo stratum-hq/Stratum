@@ -1,6 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { Region, CreateRegionInput, UpdateRegionInput } from "@stratum/core";
+import type { Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 
 export async function createRegion(pool: pg.Pool, input: CreateRegionInput): Promise<Region> {
   return withClient(pool, async (client) => {

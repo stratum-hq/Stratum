@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
 import { buildAuditContext } from "./audit-logs.js";
 

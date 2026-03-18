@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
-import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 
 /**

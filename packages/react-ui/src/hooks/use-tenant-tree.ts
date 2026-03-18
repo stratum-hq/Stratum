@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { TenantNode } from "@stratum/core";
+import type { TenantNode } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 
 export interface TenantTreeNode extends TenantNode {

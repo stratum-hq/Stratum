@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
-import { AuditLogQuerySchema } from "@stratum/core";
-import type { AuditContext } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { AuditLogQuerySchema } from "@stratum-hq/core";
+import type { AuditContext } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 
 export function buildAuditContext(request: FastifyRequest): AuditContext {
   return {

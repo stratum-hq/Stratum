@@ -15,7 +15,7 @@ import {
   parseAncestryPath,
   getAncestorIds,
   isDescendantOf,
-} from "@stratum/core";
+} from "@stratum-hq/core";
 
 export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {

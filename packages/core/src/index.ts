@@ -86,6 +86,8 @@ export {
   type SetConfigInput,
   type ResolvedConfigEntry,
   type ResolvedConfig,
+  type BatchSetConfigKeyResult,
+  type BatchSetConfigResult,
 } from "./types/config.js";
 
 export {

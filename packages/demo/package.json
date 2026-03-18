@@ -1,5 +1,5 @@
 {
-  "name": "@stratum/demo",
+  "name": "@stratum-hq/demo",
   "version": "0.1.0",
   "private": true,
   "description": "Stratum demo application - MSSP hierarchy with tenant isolation",
@@ -17,10 +17,10 @@
     "clean": "rm -rf api/dist web/dist"
   },
   "dependencies": {
-    "@stratum/core": "*",
-    "@stratum/db-adapters": "*",
-    "@stratum/react": "*",
-    "@stratum/sdk": "*",
+    "@stratum-hq/core": "*",
+    "@stratum-hq/db-adapters": "*",
+    "@stratum-hq/react": "*",
+    "@stratum-hq/sdk": "*",
     "@types/cors": "^2.8.19",
     "cors": "^2.8.6",
     "express": "^4.18.0",

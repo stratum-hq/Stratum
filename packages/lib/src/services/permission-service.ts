@@ -12,7 +12,7 @@ import {
   PermissionRevocationDeniedError,
   TenantNotFoundError,
   parseAncestryPath,
-} from "@stratum/core";
+} from "@stratum-hq/core";
 
 /**
  * Resolve effective permissions for a tenant by batch-loading all ancestor

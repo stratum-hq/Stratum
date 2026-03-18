@@ -1,4 +1,4 @@
-import { withTransaction } from "@stratum/lib";
+import { withTransaction } from "@stratum-hq/lib";
 import {
   createSchema,
   dropSchema,
@@ -6,7 +6,7 @@ import {
   tenantSchemaName,
   createDatabase,
   databaseExists,
-} from "@stratum/db-adapters";
+} from "@stratum-hq/db-adapters";
 import { getPool } from "../db/connection.js";
 
 const registeredTables: Set<string> = new Set();
@@ -105,7 +105,7 @@ export async function setupDatabaseForTenant(
  *
  * This closes any open connection pools for the tenant database but does NOT
  * drop the database — data preservation is left to the operator.
- * To actually drop the database, use dropDatabase() from @stratum/db-adapters directly.
+ * To actually drop the database, use dropDatabase() from @stratum-hq/db-adapters directly.
  */
 export async function teardownDatabaseForTenant(_tenantSlug: string): Promise<void> {
   // Pool cleanup is managed externally via DatabasePoolManager.closePool().

@@ -8,7 +8,7 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as auditService from "../audit-service.js";
-import type { AuditContext, AuditEntry } from "@stratum/core";
+import type { AuditContext, AuditEntry } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
