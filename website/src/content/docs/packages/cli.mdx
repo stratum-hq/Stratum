@@ -1,0 +1,179 @@
+---
+title: "@stratum-hq/cli"
+description: Command-line tool for project initialization, database migration, and framework scaffolding.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/cli` helps you integrate Stratum into existing projects. It detects your framework, generates boilerplate, manages database migrations, and scaffolds framework-specific code.
+
+## Installation
+
+```bash
+npm install -g @stratum-hq/cli
+
+# Or use directly without installing:
+npx @stratum-hq/cli <command>
+```
+
+## Commands
+
+### stratum init
+
+Interactive project setup wizard:
+
+```bash
+stratum init
+```
+
+What it does:
+
+1. Detects your framework and ORM from `package.json` (Express, Fastify, Next.js, Prisma, etc.)
+2. Asks: direct library (`@stratum-hq/lib`) or HTTP API + SDK (`@stratum-hq/sdk`)?
+3. Generates config file, middleware/plugin, database setup, `.env` template
+4. If React is detected, generates provider, tenant guard components, and custom hooks
+5. Prints install instructions for required packages
+
+### stratum health
+
+Validate your database is ready for Stratum:
+
+```bash
+stratum health
+stratum health --database-url postgres://user:pass@host:5432/mydb
+```
+
+Checks:
+
+- Database connectivity
+- PostgreSQL version (16+ recommended, 14+ required)
+- Required extensions: `uuid-ossp` and `ltree`
+- BYPASSRLS privilege (must be disabled for the application role)
+- Stratum schema tables (tenants, config_entries, etc.)
+- RLS status on all user tables
+
+### stratum migrate
+
+Add tenant isolation to existing database tables:
+
+```bash
+# Scan all tables and show RLS status
+stratum migrate --scan
+
+# Migrate a specific table
+stratum migrate orders
+
+# Migrate all unmigrated tables interactively
+stratum migrate --all
+```
+
+For each table, migration:
+
+1. Adds `tenant_id UUID NOT NULL` column
+2. Enables `ROW LEVEL SECURITY` + `FORCE ROW LEVEL SECURITY`
+3. Creates `tenant_isolation` policy
+4. Creates index on `tenant_id`
+5. Adds foreign key to `tenants` table (if it exists)
+
+### stratum generate api-key
+
+Generate an API key from the command line:
+
+```bash
+stratum generate api-key --name "my-service"
+stratum generate api-key --name "admin" --tenant <tenant-uuid>
+```
+
+The plaintext key is displayed once and never stored.
+
+### stratum scaffold
+
+Generate framework-specific integration boilerplate without the full `init` wizard:
+
+```bash
+stratum scaffold express         # Express middleware + routes
+stratum scaffold fastify         # Fastify plugin
+stratum scaffold nextjs          # Next.js middleware + API helpers + layout
+stratum scaffold react           # React provider + guards + hooks
+stratum scaffold prisma          # Tenant-scoped Prisma client
+stratum scaffold docker          # Docker Compose for Stratum + PostgreSQL
+stratum scaffold env             # .env template with all variables
+```
+
+#### scaffold express
+
+Generates:
+
+- `stratum-middleware.ts` -- SDK client + `expressMiddleware` setup
+- `tenant-routes.ts` -- example routes using `req.tenant`
+
+#### scaffold fastify
+
+Generates:
+
+- `stratum-plugin.ts` -- SDK client + `fastifyPlugin` setup
+
+#### scaffold nextjs
+
+Generates:
+
+- `middleware.ts` -- Edge middleware for tenant resolution (subdomain, header, or path)
+- `lib/stratum.ts` -- server-side helpers for API routes and Server Components
+- `components/tenant-layout.tsx` -- client component with `StratumProvider`
+
+#### scaffold react
+
+Generates:
+
+- `stratum-provider.tsx` -- `AppStratumProvider` wrapper
+- `tenant-guard.tsx` -- `PermissionGuard` and `ConfigGuard` components
+- `use-tenant.ts` -- `usePermission()`, `useConfig()`, `useIsRootTenant()` hooks
+
+#### scaffold prisma
+
+Generates:
+
+- `stratum-prisma.ts` -- tenant-scoped Prisma client using `@stratum-hq/db-adapters`
+
+#### scaffold docker
+
+Generates:
+
+- `docker-compose.stratum.yml` -- PostgreSQL + control plane services
+
+#### scaffold env
+
+Generates:
+
+- `.env.stratum` -- all Stratum environment variables with defaults and descriptions
+
+## Global Options
+
+| Flag | Description |
+|------|-------------|
+| `--database-url`, `-d` | PostgreSQL connection string |
+| `--name` | Name for generated API key |
+| `--tenant` | Tenant ID for generated API key |
+| `--out` | Output directory for scaffolded files |
+| `--force` | Overwrite existing files |
+| `--help`, `-h` | Show help |
+| `--version`, `-v` | Show version |
+
+## Examples
+
+```bash
+# Initialize a new Express + Prisma project
+npx @stratum-hq/cli init
+
+# Check database readiness
+npx @stratum-hq/cli health -d postgres://user:pass@localhost/mydb
+
+# Add RLS to your orders table
+npx @stratum-hq/cli migrate orders
+
+# Scaffold React components into src/components
+npx @stratum-hq/cli scaffold react --out src/components
+
+# Generate a tenant-scoped API key
+npx @stratum-hq/cli generate api-key --name "web-app" --tenant abc123
+```

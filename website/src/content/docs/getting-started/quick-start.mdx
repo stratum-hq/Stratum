@@ -1,0 +1,216 @@
+---
+title: Quick Start
+description: Create your first tenant hierarchy in under 5 minutes.
+---
+
+import { Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+
+This guide walks you through creating a tenant hierarchy, setting config with inheritance, and delegating permissions — in under 5 minutes.
+
+## 5-Minute Setup
+
+<Steps>
+
+1. **Start PostgreSQL**
+
+   ```bash
+   docker run -d --name stratum-db \
+     -e POSTGRES_USER=stratum \
+     -e POSTGRES_PASSWORD=stratum_dev \
+     -e POSTGRES_DB=stratum \
+     -p 5432:5432 postgres:16
+   ```
+
+2. **Create your application**
+
+   <Tabs>
+     <TabItem label="Direct Library">
+       ```bash
+       mkdir my-app && cd my-app
+       npm init -y
+       npm install @stratum-hq/lib @stratum-hq/core pg
+       ```
+     </TabItem>
+     <TabItem label="CLI (fastest)">
+       ```bash
+       mkdir my-app && cd my-app
+       npm init -y
+       npx @stratum-hq/cli init
+       ```
+
+       The CLI detects your framework, asks your integration path, and generates all boilerplate.
+     </TabItem>
+   </Tabs>
+
+3. **Create a tenant hierarchy**
+
+   ```typescript
+   // app.ts
+   import { Pool } from "pg";
+   import { Stratum } from "@stratum-hq/lib";
+
+   const pool = new Pool({
+     connectionString: "postgres://stratum:stratum_dev@localhost:5432/stratum",
+   });
+   const stratum = new Stratum({ pool });
+
+   // Create the root MSSP tenant
+   const root = await stratum.createTenant({
+     name: "AcmeSec",
+     slug: "acmesec",
+     isolation_strategy: "SHARED_RLS",
+   });
+
+   // Create an MSP under the root
+   const msp = await stratum.createTenant({
+     name: "NorthStar MSP",
+     slug: "northstar_msp",
+     parent_id: root.id,
+   });
+
+   // Create clients under the MSP
+   const clientA = await stratum.createTenant({
+     name: "Client Alpha",
+     slug: "client_alpha",
+     parent_id: msp.id,
+   });
+
+   const clientB = await stratum.createTenant({
+     name: "Client Beta",
+     slug: "client_beta",
+     parent_id: msp.id,
+   });
+
+   console.log("Hierarchy created:");
+   console.log(`  ${root.name} (depth: ${root.depth})`);
+   console.log(`    ${msp.name} (depth: ${msp.depth})`);
+   console.log(`      ${clientA.name} (depth: ${clientA.depth})`);
+   console.log(`      ${clientB.name} (depth: ${clientB.depth})`);
+   ```
+
+4. **Set config with inheritance**
+
+   ```typescript
+   // Set config at the root — all descendants inherit it
+   await stratum.setConfig(root.id, "max_users", {
+     value: 1000,
+     locked: false,
+   });
+   await stratum.setConfig(root.id, "theme", {
+     value: "dark",
+     locked: true, // no descendant can override this
+   });
+
+   // MSP overrides max_users (allowed because it's not locked)
+   await stratum.setConfig(msp.id, "max_users", { value: 500 });
+
+   // Resolve config for a client — inheritance kicks in
+   const config = await stratum.resolveConfig(clientA.id);
+   console.log(config);
+   // {
+   //   max_users: { value: 500, inherited: true, source_tenant_id: msp.id },
+   //   theme: { value: "dark", inherited: true, locked: true, source_tenant_id: root.id }
+   // }
+   ```
+
+5. **Create a permission policy**
+
+   ```typescript
+   // Root grants "manage_users" and locks it
+   await stratum.createPermission(root.id, {
+     key: "manage_users",
+     value: true,
+     mode: "LOCKED",
+     revocation_mode: "CASCADE",
+   });
+
+   // Resolve permissions for the client
+   const perms = await stratum.resolvePermissions(clientA.id);
+   console.log(perms.manage_users);
+   // {
+   //   key: "manage_users",
+   //   value: true,
+   //   mode: "LOCKED",
+   //   source_tenant_id: root.id,
+   //   locked: true,
+   //   delegated: false,
+   // }
+   ```
+
+</Steps>
+
+## Adding the SDK to an Express App
+
+Once you have tenants, integrate them into your web application:
+
+```typescript
+import express from "express";
+import { stratum } from "@stratum-hq/sdk";
+
+const app = express();
+
+const s = stratum({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+});
+
+// Middleware resolves tenant from X-Tenant-ID header or JWT
+app.use(s.middleware());
+
+app.get("/dashboard", (req, res) => {
+  const ctx = req.tenant;
+
+  res.json({
+    tenant: ctx.tenant_id,
+    config: ctx.resolved_config,
+    permissions: ctx.resolved_permissions,
+    isolation: ctx.isolation_strategy,
+  });
+});
+
+app.listen(3000);
+```
+
+Send a request with a tenant header:
+
+```bash
+curl http://localhost:3000/dashboard \
+  -H "X-Tenant-ID: <client-alpha-uuid>"
+```
+
+## Using the REST API Directly
+
+If you prefer HTTP calls over the library, start the control plane and use `curl`:
+
+```bash
+# Create a root tenant
+curl -X POST http://localhost:3001/api/v1/tenants \
+  -H "X-API-Key: sk_test_bootstrap" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "AcmeSec",
+    "slug": "acmesec",
+    "isolation_strategy": "SHARED_RLS"
+  }'
+
+# Create a child
+curl -X POST http://localhost:3001/api/v1/tenants \
+  -H "X-API-Key: sk_test_bootstrap" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "NorthStar MSP",
+    "slug": "northstar_msp",
+    "parent_id": "ROOT_TENANT_ID"
+  }'
+
+# Resolve config
+curl http://localhost:3001/api/v1/tenants/CHILD_ID/config \
+  -H "X-API-Key: sk_test_bootstrap"
+```
+
+## Next Steps
+
+- Read [Concepts](/getting-started/concepts/) to understand the full data model
+- Explore [Config Inheritance](/guides/config-inheritance/) for advanced patterns
+- Set up [Webhooks](/guides/webhooks/) to react to tenant lifecycle events
+- Configure [Isolation Strategies](/guides/isolation-strategies/) for your security requirements

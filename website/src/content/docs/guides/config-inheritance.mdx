@@ -1,0 +1,230 @@
+---
+title: Config Inheritance
+description: Manage configuration that flows from parent tenants to children with locking and encryption.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Config inheritance is one of Stratum's defining features. Parent tenants set defaults, children inherit or override them, and locked keys enforce consistency across the tree.
+
+## How Inheritance Works
+
+Config values flow **root to leaf**. When you resolve config for a tenant, Stratum walks up the ancestry path and merges entries. For each key:
+
+1. If the tenant has its own value, that wins (unless the key is locked by an ancestor)
+2. Otherwise, the nearest ancestor's value is inherited
+3. Locked keys cannot be overridden at any depth
+
+```
+Root:    max_users = 1000 (unlocked), theme = "dark" (locked)
+  MSP:   max_users = 500                ← overrides root
+    Client A: (no overrides)            ← inherits max_users=500, theme="dark"
+    Client B: max_users = 100           ← overrides MSP
+```
+
+## Setting Config
+
+### Single Key
+
+```typescript
+await stratum.setConfig(tenantId, "max_users", {
+  value: 1000,
+  locked: false,
+});
+```
+
+Via the API:
+
+```bash
+curl -X PUT http://localhost:3001/api/v1/tenants/TENANT_ID/config/max_users \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": 1000, "locked": false}'
+```
+
+### Batch Set
+
+Set up to 200 keys in a single atomic transaction:
+
+```typescript
+await stratum.batchSetConfig(
+  tenantId,
+  [
+    { key: "max_users", value: 1000, locked: false },
+    { key: "theme", value: "dark", locked: true },
+    { key: "api_secret", value: "sk_live_abc", sensitive: true },
+  ],
+  auditContext
+);
+```
+
+Via the API:
+
+```bash
+curl -X PUT http://localhost:3001/api/v1/tenants/TENANT_ID/config/batch \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entries": [
+      {"key": "max_users", "value": 1000, "locked": false},
+      {"key": "theme", "value": "dark", "locked": true}
+    ]
+  }'
+```
+
+If any key is locked by an ancestor, the entire batch rolls back.
+
+## Resolving Config
+
+### Merged View
+
+Returns the effective config for a tenant with all inheritance applied:
+
+```typescript
+const config = await stratum.resolveConfig(tenantId);
+```
+
+Each entry in the result:
+
+```typescript
+{
+  "max_users": {
+    "key": "max_users",
+    "value": 500,
+    "source_tenant_id": "msp-uuid",  // which tenant set this value
+    "inherited": true,                // true = came from an ancestor
+    "locked": false
+  }
+}
+```
+
+### Inheritance View
+
+Returns the full ancestry-aware view showing where each key is set at every level:
+
+```typescript
+const inheritance = await stratum.getConfigWithInheritance(tenantId);
+```
+
+Via the API:
+
+```bash
+curl http://localhost:3001/api/v1/tenants/TENANT_ID/config/inheritance \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+## Locking Keys
+
+When a key is locked, no descendant can override it:
+
+```typescript
+// Root sets max_users as locked
+await stratum.setConfig(rootId, "max_users", {
+  value: 1000,
+  locked: true,
+});
+
+// Child tries to override — fails with 409 CONFIG_LOCKED
+try {
+  await stratum.setConfig(childId, "max_users", { value: 500 });
+} catch (err) {
+  // ConfigLockedError: Config key "max_users" is locked by ancestor
+}
+```
+
+<Aside type="tip">
+  Lock keys that represent security policies or compliance requirements — settings
+  that should be uniform across the entire subtree.
+</Aside>
+
+## Deleting Config
+
+Remove a tenant's override for a key. If an ancestor has set the key, the tenant reverts to inheriting that value:
+
+```typescript
+await stratum.deleteConfig(tenantId, "max_users");
+```
+
+Via the API:
+
+```bash
+curl -X DELETE http://localhost:3001/api/v1/tenants/TENANT_ID/config/max_users \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+## Sensitive Values
+
+Mark a config value as `sensitive` to encrypt it at rest with AES-256-GCM:
+
+```typescript
+await stratum.setConfig(tenantId, "api_secret", {
+  value: "sk_live_abc123",
+  locked: true,
+  sensitive: true,
+});
+```
+
+Sensitive values are encrypted before storage and decrypted when resolved. The encryption key is set via the `STRATUM_ENCRYPTION_KEY` environment variable. See the [field-level encryption documentation](/guides/api-keys/) for key rotation procedures.
+
+## Config Values
+
+Config values can be any JSON type: strings, numbers, booleans, objects, or arrays:
+
+```typescript
+await stratum.setConfig(tenantId, "features", {
+  value: { dark_mode: true, beta_access: false },
+});
+
+await stratum.setConfig(tenantId, "retention_days", {
+  value: 90,
+});
+
+await stratum.setConfig(tenantId, "allowed_domains", {
+  value: ["example.com", "acme.corp"],
+});
+```
+
+## Common Patterns
+
+### Feature Flags
+
+```typescript
+// Root enables a feature for the entire tree
+await stratum.setConfig(rootId, "feature_audit_log", {
+  value: true,
+  locked: false,
+});
+
+// MSP disables it for its subtree
+await stratum.setConfig(mspId, "feature_audit_log", {
+  value: false,
+});
+```
+
+### Tiered Limits
+
+```typescript
+// Set defaults at root
+await stratum.setConfig(rootId, "max_api_calls", { value: 10000 });
+await stratum.setConfig(rootId, "max_storage_gb", { value: 50 });
+
+// Premium MSP gets higher limits
+await stratum.setConfig(premiumMspId, "max_api_calls", { value: 100000 });
+await stratum.setConfig(premiumMspId, "max_storage_gb", { value: 500 });
+```
+
+### Compliance Settings
+
+```typescript
+// Lock encryption requirement across the tree
+await stratum.setConfig(rootId, "require_encryption", {
+  value: true,
+  locked: true,
+});
+
+// Lock data residency region
+await stratum.setConfig(euMspId, "data_region", {
+  value: "eu-west-1",
+  locked: true,
+});
+```

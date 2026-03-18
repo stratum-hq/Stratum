@@ -1,0 +1,2261 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Stratum Control Plane API",
+    "version": "0.1.0",
+    "description": "Universal Tenant Context Engine - Control Plane",
+    "contact": {
+      "name": "Stratum HQ",
+      "url": "https://github.com/stratum-hq"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "security": [
+    { "apiKey": [] },
+    { "bearerAuth": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      },
+      "Tenant": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "parent_id": { "type": "string", "format": "uuid", "nullable": true },
+          "ancestry_path": { "type": "string" },
+          "depth": { "type": "integer" },
+          "status": { "type": "string", "enum": ["active", "archived", "suspended"] },
+          "isolation_strategy": { "type": "string", "enum": ["SHARED_RLS", "SCHEMA_PER_TENANT", "DB_PER_TENANT"], "nullable": true },
+          "region_id": { "type": "string", "format": "uuid", "nullable": true },
+          "metadata": { "type": "object", "additionalProperties": true, "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "slug", "ancestry_path", "depth", "status", "created_at", "updated_at"]
+      },
+      "CreateTenantInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "parent_id": { "type": "string", "format": "uuid", "nullable": true },
+          "isolation_strategy": { "type": "string", "enum": ["SHARED_RLS", "SCHEMA_PER_TENANT", "DB_PER_TENANT"] },
+          "region_id": { "type": "string", "format": "uuid" },
+          "metadata": { "type": "object", "additionalProperties": true }
+        },
+        "required": ["name", "slug"]
+      },
+      "UpdateTenantInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "archived", "suspended"] },
+          "metadata": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "MoveTenantInput": {
+        "type": "object",
+        "properties": {
+          "new_parent_id": { "type": "string", "format": "uuid", "nullable": true }
+        },
+        "required": ["new_parent_id"]
+      },
+      "MigrateRegionInput": {
+        "type": "object",
+        "properties": {
+          "region_id": { "type": "string", "format": "uuid" }
+        },
+        "required": ["region_id"]
+      },
+      "TenantList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Tenant" }
+          },
+          "cursor": { "type": "string", "nullable": true },
+          "has_more": { "type": "boolean" }
+        },
+        "required": ["items", "has_more"]
+      },
+      "BatchCreateTenantsInput": {
+        "type": "object",
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CreateTenantInput" },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": ["tenants"]
+      },
+      "TenantContext": {
+        "type": "object",
+        "properties": {
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "ancestry_path": { "type": "string" },
+          "depth": { "type": "integer" },
+          "isolation_strategy": { "type": "string", "nullable": true },
+          "resolved_config": { "type": "object", "additionalProperties": true },
+          "resolved_permissions": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionPolicy" } }
+        },
+        "required": ["tenant_id", "ancestry_path", "depth", "resolved_config", "resolved_permissions"]
+      },
+      "TenantExportData": {
+        "type": "object",
+        "properties": {
+          "tenant": { "$ref": "#/components/schemas/Tenant" },
+          "config": { "type": "object", "additionalProperties": true },
+          "permissions": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionPolicy" } },
+          "consent_records": { "type": "array", "items": { "$ref": "#/components/schemas/ConsentRecord" } },
+          "audit_logs": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLogEntry" } }
+        },
+        "required": ["tenant"]
+      },
+      "ConfigEntry": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": {},
+          "locked": { "type": "boolean" },
+          "sensitive": { "type": "boolean" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["key", "value", "tenant_id"]
+      },
+      "SetConfigInput": {
+        "type": "object",
+        "properties": {
+          "value": {},
+          "locked": { "type": "boolean" },
+          "sensitive": { "type": "boolean" }
+        },
+        "required": ["value"]
+      },
+      "BatchSetConfigInput": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "value": {},
+                "locked": { "type": "boolean" },
+                "sensitive": { "type": "boolean" }
+              },
+              "required": ["key", "value"]
+            },
+            "minItems": 1,
+            "maxItems": 200
+          }
+        },
+        "required": ["entries"]
+      },
+      "ConfigInheritanceView": {
+        "type": "object",
+        "properties": {
+          "resolved": { "type": "object", "additionalProperties": true },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tenant_id": { "type": "string", "format": "uuid" },
+                "tenant_name": { "type": "string" },
+                "config": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        },
+        "required": ["resolved", "layers"]
+      },
+      "PermissionPolicy": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "effect": { "type": "string", "enum": ["allow", "deny"] },
+          "conditions": { "type": "object", "additionalProperties": true, "nullable": true },
+          "priority": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "tenant_id", "resource", "action", "effect"]
+      },
+      "CreatePermissionInput": {
+        "type": "object",
+        "properties": {
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "effect": { "type": "string", "enum": ["allow", "deny"] },
+          "conditions": { "type": "object", "additionalProperties": true },
+          "priority": { "type": "integer" }
+        },
+        "required": ["resource", "action", "effect"]
+      },
+      "UpdatePermissionInput": {
+        "type": "object",
+        "properties": {
+          "resource": { "type": "string" },
+          "action": { "type": "string" },
+          "effect": { "type": "string", "enum": ["allow", "deny"] },
+          "conditions": { "type": "object", "additionalProperties": true },
+          "priority": { "type": "integer" }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "name": { "type": "string", "nullable": true },
+          "prefix": { "type": "string" },
+          "rate_limit_max": { "type": "integer", "nullable": true },
+          "rate_limit_window": { "type": "string", "nullable": true },
+          "last_used_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "revoked_at": { "type": "string", "format": "date-time", "nullable": true }
+        },
+        "required": ["id", "prefix", "created_at"]
+      },
+      "ApiKeyCreated": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "key": { "type": "string", "description": "The plaintext API key. Only returned once at creation time." },
+          "prefix": { "type": "string" },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "name": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "key", "prefix", "created_at"]
+      },
+      "CreateApiKeyInput": {
+        "type": "object",
+        "properties": {
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "rate_limit_max": { "type": "integer", "minimum": 1, "maximum": 100000 },
+          "rate_limit_window": { "type": "string", "pattern": "^\\d+\\s+(second|minute|hour|day)s?$" }
+        },
+        "required": ["tenant_id"]
+      },
+      "RotateApiKeyInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "maxLength": 255 }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "url": { "type": "string", "format": "uri" },
+          "events": { "type": "array", "items": { "type": "string" } },
+          "secret": { "type": "string" },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "url", "events", "active", "created_at", "updated_at"]
+      },
+      "CreateWebhookInput": {
+        "type": "object",
+        "properties": {
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "url": { "type": "string", "format": "uri" },
+          "events": { "type": "array", "items": { "type": "string" } },
+          "secret": { "type": "string" }
+        },
+        "required": ["url", "events"]
+      },
+      "UpdateWebhookInput": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "events": { "type": "array", "items": { "type": "string" } },
+          "secret": { "type": "string" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "webhook_id": { "type": "string", "format": "uuid" },
+          "event_type": { "type": "string" },
+          "payload": { "type": "object", "additionalProperties": true },
+          "status": { "type": "string", "enum": ["pending", "success", "failed"] },
+          "http_status": { "type": "integer", "nullable": true },
+          "attempts": { "type": "integer" },
+          "last_attempt_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "webhook_id", "event_type", "status", "attempts", "created_at"]
+      },
+      "WebhookTestResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "http_status": { "type": "integer", "nullable": true },
+          "response_body": { "type": "string", "nullable": true },
+          "error": { "type": "string", "nullable": true }
+        },
+        "required": ["success"]
+      },
+      "DeliveryStats": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "pending": { "type": "integer" },
+          "success": { "type": "integer" },
+          "failed": { "type": "integer" }
+        },
+        "required": ["total", "pending", "success", "failed"]
+      },
+      "AuditLogEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "action": { "type": "string" },
+          "resource_type": { "type": "string" },
+          "resource_id": { "type": "string" },
+          "actor_id": { "type": "string" },
+          "actor_type": { "type": "string", "enum": ["api_key", "jwt"] },
+          "source_ip": { "type": "string" },
+          "request_id": { "type": "string" },
+          "changes": { "type": "object", "additionalProperties": true, "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "action", "resource_type", "resource_id", "actor_id", "actor_type", "created_at"]
+      },
+      "ConsentRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "subject_id": { "type": "string" },
+          "purpose": { "type": "string" },
+          "granted": { "type": "boolean" },
+          "granted_at": { "type": "string", "format": "date-time" },
+          "revoked_at": { "type": "string", "format": "date-time", "nullable": true },
+          "expires_at": { "type": "string", "format": "date-time", "nullable": true },
+          "metadata": { "type": "object", "additionalProperties": true, "nullable": true }
+        },
+        "required": ["id", "tenant_id", "subject_id", "purpose", "granted", "granted_at"]
+      },
+      "GrantConsentInput": {
+        "type": "object",
+        "properties": {
+          "subject_id": { "type": "string" },
+          "purpose": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" },
+          "metadata": { "type": "object", "additionalProperties": true }
+        },
+        "required": ["subject_id", "purpose"]
+      },
+      "Region": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "provider": { "type": "string" },
+          "endpoint": { "type": "string", "format": "uri", "nullable": true },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "code", "active", "created_at", "updated_at"]
+      },
+      "CreateRegionInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "provider": { "type": "string" },
+          "endpoint": { "type": "string", "format": "uri" }
+        },
+        "required": ["name", "code"]
+      },
+      "UpdateRegionInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "code": { "type": "string" },
+          "provider": { "type": "string" },
+          "endpoint": { "type": "string", "format": "uri" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "scopes": { "type": "array", "items": { "type": "string", "enum": ["read", "write", "admin"] } },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "name", "scopes", "created_at", "updated_at"]
+      },
+      "CreateRoleInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "description": { "type": "string", "maxLength": 500 },
+          "scopes": { "type": "array", "items": { "type": "string", "enum": ["read", "write", "admin"] }, "minItems": 1 },
+          "tenant_id": { "type": "string", "format": "uuid", "nullable": true }
+        },
+        "required": ["name", "scopes"]
+      },
+      "UpdateRoleInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "description": { "type": "string", "maxLength": 500 },
+          "scopes": { "type": "array", "items": { "type": "string", "enum": ["read", "write", "admin"] }, "minItems": 1 }
+        }
+      },
+      "AssignRoleInput": {
+        "type": "object",
+        "properties": {
+          "role_id": { "type": "string", "format": "uuid" }
+        },
+        "required": ["role_id"]
+      },
+      "PurgeExpiredResult": {
+        "type": "object",
+        "properties": {
+          "purged_audit_logs": { "type": "integer" },
+          "purged_deliveries": { "type": "integer" },
+          "purged_consent_records": { "type": "integer" }
+        },
+        "required": ["purged_audit_logs", "purged_deliveries", "purged_consent_records"]
+      },
+      "RotateEncryptionKeyInput": {
+        "type": "object",
+        "properties": {
+          "old_key": { "type": "string" },
+          "new_key": { "type": "string" }
+        },
+        "required": ["old_key", "new_key"]
+      },
+      "RotateEncryptionKeyResult": {
+        "type": "object",
+        "properties": {
+          "re_encrypted_count": { "type": "integer" }
+        },
+        "required": ["re_encrypted_count"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ok"] },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "db": { "type": "string", "enum": ["connected", "disconnected"] },
+          "redis": { "type": "string", "enum": ["connected", "disconnected", "not_configured"] }
+        },
+        "required": ["status", "timestamp", "db", "redis"]
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" }
+        },
+        "required": ["success"]
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "description": "Returns the health status of the control plane, including database and Redis connectivity.",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "List tenants",
+        "description": "List tenants with cursor-based pagination.",
+        "operationId": "listTenants",
+        "parameters": [
+          { "name": "cursor", "in": "query", "schema": { "type": "string" }, "description": "Pagination cursor" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }, "description": "Number of items per page" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of tenants",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantList" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Tenants"],
+        "summary": "Create tenant",
+        "description": "Create a new tenant. Optionally specify a parent for hierarchical tenancy.",
+        "operationId": "createTenant",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTenantInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created tenant",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tenant" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/batch": {
+      "post": {
+        "tags": ["Tenants"],
+        "summary": "Batch create tenants",
+        "description": "Create multiple tenants atomically. Limited to 100 tenants per request.",
+        "operationId": "batchCreateTenants",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BatchCreateTenantsInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created tenants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Tenant" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Get tenant",
+        "description": "Get a tenant by ID.",
+        "operationId": "getTenant",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tenant" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Tenants"],
+        "summary": "Update tenant",
+        "description": "Update a tenant's name, slug, status, or metadata.",
+        "operationId": "updateTenant",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTenantInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated tenant",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tenant" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Tenants"],
+        "summary": "Delete tenant",
+        "description": "Soft-delete (archive) a tenant.",
+        "operationId": "deleteTenant",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Tenant deleted" },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/move": {
+      "post": {
+        "tags": ["Tenants"],
+        "summary": "Move tenant",
+        "description": "Move a tenant to a new parent in the hierarchy.",
+        "operationId": "moveTenant",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MoveTenantInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved tenant",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Tenant" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/ancestors": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Get tenant ancestors",
+        "description": "Get all ancestors of a tenant in the hierarchy.",
+        "operationId": "getTenantAncestors",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ancestor tenants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Tenant" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/descendants": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Get tenant descendants",
+        "description": "Get all descendants of a tenant in the hierarchy.",
+        "operationId": "getTenantDescendants",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of descendant tenants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Tenant" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/children": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Get tenant children",
+        "description": "Get direct children of a tenant.",
+        "operationId": "getTenantChildren",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of child tenants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Tenant" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/context": {
+      "get": {
+        "tags": ["Tenants"],
+        "summary": "Resolve tenant context",
+        "description": "Resolve the full tenant context including inherited config and permissions.",
+        "operationId": "resolveTenantContext",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved tenant context",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantContext" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/migrate-region": {
+      "post": {
+        "tags": ["Tenants"],
+        "summary": "Migrate tenant region",
+        "description": "Migrate a tenant to a different region.",
+        "operationId": "migrateTenantRegion",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MigrateRegionInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Migration initiated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant or region not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/purge": {
+      "post": {
+        "tags": ["Tenants", "GDPR"],
+        "summary": "Purge tenant data",
+        "description": "GDPR Article 17: Hard-delete all tenant data. This is irreversible.",
+        "operationId": "purgeTenant",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Tenant data purged" },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/export": {
+      "get": {
+        "tags": ["Tenants", "GDPR"],
+        "summary": "Export tenant data",
+        "description": "GDPR Article 20: Export all tenant data for data portability.",
+        "operationId": "exportTenantData",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported tenant data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TenantExportData" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/config": {
+      "get": {
+        "tags": ["Config"],
+        "summary": "Get resolved config",
+        "description": "Get the resolved (inherited) configuration for a tenant.",
+        "operationId": "resolveConfig",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved config key-value map",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/config/{key}": {
+      "put": {
+        "tags": ["Config"],
+        "summary": "Set config value",
+        "description": "Set a configuration value for a tenant. Creates or overwrites the key.",
+        "operationId": "setConfig",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetConfigInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Config entry set",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConfigEntry" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Config"],
+        "summary": "Delete config override",
+        "description": "Delete a configuration override for a tenant, reverting to the inherited value.",
+        "operationId": "deleteConfig",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Config entry deleted" },
+          "404": {
+            "description": "Tenant or config key not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/config/batch": {
+      "put": {
+        "tags": ["Config"],
+        "summary": "Batch set config",
+        "description": "Set multiple configuration keys atomically. Limited to 200 entries per request.",
+        "operationId": "batchSetConfig",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BatchSetConfigInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch set result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ConfigEntry" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/config/inheritance": {
+      "get": {
+        "tags": ["Config"],
+        "summary": "Get config inheritance",
+        "description": "Get the full inheritance view showing config at each level of the hierarchy.",
+        "operationId": "getConfigInheritance",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Config inheritance view",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConfigInheritanceView" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/permissions": {
+      "get": {
+        "tags": ["Permissions"],
+        "summary": "Get resolved permissions",
+        "description": "Get the resolved (inherited) permission policies for a tenant.",
+        "operationId": "resolvePermissions",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved permission policies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PermissionPolicy" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Permissions"],
+        "summary": "Create permission policy",
+        "description": "Create a new permission policy for a tenant.",
+        "operationId": "createPermission",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePermissionInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created permission policy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PermissionPolicy" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{id}/permissions/{policyId}": {
+      "patch": {
+        "tags": ["Permissions"],
+        "summary": "Update permission policy",
+        "description": "Update an existing permission policy.",
+        "operationId": "updatePermission",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "policyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdatePermissionInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated permission policy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PermissionPolicy" }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant or policy not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Permissions"],
+        "summary": "Delete permission policy",
+        "description": "Delete a permission policy.",
+        "operationId": "deletePermission",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "policyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Permission policy deleted" },
+          "404": {
+            "description": "Tenant or policy not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys": {
+      "post": {
+        "tags": ["API Keys"],
+        "summary": "Create API key",
+        "description": "Create a new API key. The plaintext key is only returned once.",
+        "operationId": "createApiKey",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateApiKeyInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created API key with plaintext secret",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiKeyCreated" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["API Keys"],
+        "summary": "List API keys",
+        "description": "List API keys, optionally filtered by tenant.",
+        "operationId": "listApiKeys",
+        "parameters": [
+          { "name": "tenant_id", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Filter by tenant ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ApiKey" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/dormant": {
+      "get": {
+        "tags": ["API Keys"],
+        "summary": "List dormant API keys",
+        "description": "List API keys that have not been used within the specified number of days.",
+        "operationId": "listDormantApiKeys",
+        "parameters": [
+          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 90, "minimum": 1, "maximum": 365 }, "description": "Number of days of inactivity" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of dormant API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ApiKey" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/{id}": {
+      "delete": {
+        "tags": ["API Keys"],
+        "summary": "Revoke API key",
+        "description": "Revoke an API key, permanently disabling it.",
+        "operationId": "revokeApiKey",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "API key revoked" },
+          "404": {
+            "description": "API key not found or already revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/{id}/rotate": {
+      "post": {
+        "tags": ["API Keys"],
+        "summary": "Rotate API key",
+        "description": "Rotate an API key, revoking the old one and issuing a new one.",
+        "operationId": "rotateApiKey",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RotateApiKeyInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New API key with plaintext secret",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ApiKeyCreated" }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found or already revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Create webhook",
+        "description": "Create a new webhook subscription.",
+        "operationId": "createWebhook",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateWebhookInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created webhook",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Webhook" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List webhooks",
+        "description": "List webhooks, optionally filtered by tenant.",
+        "operationId": "listWebhooks",
+        "parameters": [
+          { "name": "tenant_id", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Filter by tenant ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of webhooks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Webhook" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "Get webhook",
+        "description": "Get a webhook by ID.",
+        "operationId": "getWebhook",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Webhook" }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Webhooks"],
+        "summary": "Update webhook",
+        "description": "Update a webhook's URL, events, secret, or active status.",
+        "operationId": "updateWebhook",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateWebhookInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated webhook",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Webhook" }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Webhooks"],
+        "summary": "Delete webhook",
+        "description": "Delete a webhook subscription.",
+        "operationId": "deleteWebhook",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Webhook deleted" },
+          "404": {
+            "description": "Webhook not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}/deliveries": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List webhook deliveries",
+        "description": "List delivery attempts for a specific webhook.",
+        "operationId": "listWebhookDeliveries",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/WebhookDelivery" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}/test": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Test webhook",
+        "description": "Send a test event to a webhook endpoint.",
+        "operationId": "testWebhook",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WebhookTestResult" }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/deliveries/stats": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "Get delivery statistics",
+        "description": "Get aggregate statistics for webhook deliveries.",
+        "operationId": "getDeliveryStats",
+        "responses": {
+          "200": {
+            "description": "Delivery statistics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryStats" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/deliveries/failed": {
+      "get": {
+        "tags": ["Webhooks"],
+        "summary": "List failed deliveries",
+        "description": "List failed webhook deliveries (dead-letter queue).",
+        "operationId": "listFailedDeliveries",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100, "minimum": 1, "maximum": 500 }, "description": "Maximum number of results" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of failed deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/WebhookDelivery" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/deliveries/retry-all": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Retry all failed deliveries",
+        "description": "Retry all failed webhook deliveries in the dead-letter queue.",
+        "operationId": "retryAllFailedDeliveries",
+        "responses": {
+          "200": {
+            "description": "Retry result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "retried": { "type": "integer" }
+                  },
+                  "required": ["retried"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/deliveries/{deliveryId}/retry": {
+      "post": {
+        "tags": ["Webhooks"],
+        "summary": "Retry single delivery",
+        "description": "Retry a specific failed webhook delivery.",
+        "operationId": "retryDelivery",
+        "parameters": [
+          { "name": "deliveryId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retry successful",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Delivery not found or not in failed state",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "tags": ["Audit Logs"],
+        "summary": "Query audit logs",
+        "description": "Query audit logs with optional filters for tenant, action, resource type, date range, etc.",
+        "operationId": "queryAuditLogs",
+        "parameters": [
+          { "name": "tenant_id", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Filter by tenant ID" },
+          { "name": "action", "in": "query", "schema": { "type": "string" }, "description": "Filter by action" },
+          { "name": "resource_type", "in": "query", "schema": { "type": "string" }, "description": "Filter by resource type" },
+          { "name": "actor_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by actor ID" },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Start of date range" },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "End of date range" },
+          { "name": "cursor", "in": "query", "schema": { "type": "string" }, "description": "Pagination cursor" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "minimum": 1, "maximum": 200 }, "description": "Number of items per page" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AuditLogEntry" }
+                    },
+                    "cursor": { "type": "string", "nullable": true },
+                    "has_more": { "type": "boolean" }
+                  },
+                  "required": ["items", "has_more"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit-logs/{id}": {
+      "get": {
+        "tags": ["Audit Logs"],
+        "summary": "Get audit log entry",
+        "description": "Get a single audit log entry by ID.",
+        "operationId": "getAuditLogEntry",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log entry",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuditLogEntry" }
+              }
+            }
+          },
+          "404": {
+            "description": "Audit entry not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/consent": {
+      "post": {
+        "tags": ["Consent"],
+        "summary": "Grant consent",
+        "description": "Grant a consent record for a subject within a tenant.",
+        "operationId": "grantConsent",
+        "parameters": [
+          { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GrantConsentInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created consent record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConsentRecord" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Consent"],
+        "summary": "List consent records",
+        "description": "List consent records for a tenant, optionally filtered by subject.",
+        "operationId": "listConsent",
+        "parameters": [
+          { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "subject_id", "in": "query", "schema": { "type": "string" }, "description": "Filter by subject ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of consent records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ConsentRecord" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/consent/{purpose}": {
+      "delete": {
+        "tags": ["Consent"],
+        "summary": "Revoke consent",
+        "description": "Revoke a consent record for a specific subject and purpose.",
+        "operationId": "revokeConsent",
+        "parameters": [
+          { "name": "tenantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "purpose", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "subject_id", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Subject ID (required)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consent revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing subject_id parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Consent record not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/regions": {
+      "post": {
+        "tags": ["Regions"],
+        "summary": "Create region",
+        "description": "Create a new region for data residency.",
+        "operationId": "createRegion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRegionInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created region",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Region" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Regions"],
+        "summary": "List regions",
+        "description": "List all regions.",
+        "operationId": "listRegions",
+        "responses": {
+          "200": {
+            "description": "List of regions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Region" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/regions/{id}": {
+      "get": {
+        "tags": ["Regions"],
+        "summary": "Get region",
+        "description": "Get a region by ID.",
+        "operationId": "getRegion",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Region details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Region" }
+              }
+            }
+          },
+          "404": {
+            "description": "Region not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Regions"],
+        "summary": "Update region",
+        "description": "Update a region's properties.",
+        "operationId": "updateRegion",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRegionInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated region",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Region" }
+              }
+            }
+          },
+          "404": {
+            "description": "Region not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Regions"],
+        "summary": "Delete region",
+        "description": "Delete a region.",
+        "operationId": "deleteRegion",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Region deleted" },
+          "404": {
+            "description": "Region not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roles": {
+      "post": {
+        "tags": ["Roles"],
+        "summary": "Create role",
+        "description": "Create a new role with specified scopes.",
+        "operationId": "createRole",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRoleInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created role",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Role" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Roles"],
+        "summary": "List roles",
+        "description": "List roles, optionally filtered by tenant.",
+        "operationId": "listRoles",
+        "parameters": [
+          { "name": "tenant_id", "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "Filter by tenant ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of roles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Role" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roles/{id}": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Get role",
+        "description": "Get a role by ID.",
+        "operationId": "getRole",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role details",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Role" }
+              }
+            }
+          },
+          "404": {
+            "description": "Role not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Roles"],
+        "summary": "Update role",
+        "description": "Update a role's name, description, or scopes.",
+        "operationId": "updateRole",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRoleInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated role",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Role" }
+              }
+            }
+          },
+          "404": {
+            "description": "Role not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Roles"],
+        "summary": "Delete role",
+        "description": "Delete a role.",
+        "operationId": "deleteRole",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "204": { "description": "Role deleted" },
+          "404": {
+            "description": "Role not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/roles/assign/{keyId}": {
+      "post": {
+        "tags": ["Roles"],
+        "summary": "Assign role to API key",
+        "description": "Assign a role to an API key.",
+        "operationId": "assignRoleToKey",
+        "parameters": [
+          { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AssignRoleInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role assigned",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found or already revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Roles"],
+        "summary": "Remove role from API key",
+        "description": "Remove the assigned role from an API key.",
+        "operationId": "removeRoleFromKey",
+        "parameters": [
+          { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role removed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SuccessResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found or already revoked",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance/purge-expired": {
+      "post": {
+        "tags": ["Maintenance"],
+        "summary": "Purge expired data",
+        "description": "Purge expired audit logs, deliveries, and consent records.",
+        "operationId": "purgeExpiredData",
+        "parameters": [
+          { "name": "retention_days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 3650 }, "description": "Number of days to retain data" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Purge result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PurgeExpiredResult" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance/rotate-encryption-key": {
+      "post": {
+        "tags": ["Maintenance"],
+        "summary": "Rotate encryption key",
+        "description": "Re-encrypt all sensitive data with a new encryption key.",
+        "operationId": "rotateEncryptionKey",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RotateEncryptionKeyInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rotation result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RotateEncryptionKeyResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Health", "description": "Health check endpoints" },
+    { "name": "Tenants", "description": "Tenant management and hierarchy operations" },
+    { "name": "Config", "description": "Tenant configuration with inheritance" },
+    { "name": "Permissions", "description": "Tenant permission policies with inheritance" },
+    { "name": "API Keys", "description": "API key lifecycle management" },
+    { "name": "Webhooks", "description": "Webhook subscriptions and delivery management" },
+    { "name": "Audit Logs", "description": "Audit trail querying" },
+    { "name": "Consent", "description": "GDPR consent management" },
+    { "name": "Regions", "description": "Data residency region management" },
+    { "name": "Roles", "description": "Role-based access control" },
+    { "name": "Maintenance", "description": "System maintenance operations" },
+    { "name": "GDPR", "description": "GDPR compliance endpoints (Article 17 & 20)" }
+  ]
+}
