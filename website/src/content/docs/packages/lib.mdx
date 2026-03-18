@@ -1,0 +1,232 @@
+---
+title: "@stratum-hq/lib"
+description: Framework-agnostic library for direct tenant management with no HTTP overhead.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/lib` is the direct library for embedding Stratum in your Node.js application. It talks directly to PostgreSQL with no HTTP server in between, giving you maximum performance for tenant operations.
+
+## Installation
+
+```bash
+npm install @stratum-hq/lib @stratum-hq/core pg
+```
+
+## When to Use
+
+| Use Case | Package |
+|----------|---------|
+| Node.js app, maximum performance | `@stratum-hq/lib` |
+| Serverless functions | `@stratum-hq/lib` |
+| Testing and scripting | `@stratum-hq/lib` |
+| Polyglot stack, service separation | `@stratum-hq/sdk` + control plane |
+| React admin UI | `@stratum-hq/sdk` + `@stratum-hq/react` |
+
+## Quick Start
+
+```typescript
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const stratum = new Stratum({ pool });
+
+const tenant = await stratum.createTenant({
+  name: "Acme Corp",
+  slug: "acme_corp",
+  isolation_strategy: "SHARED_RLS",
+});
+
+const config = await stratum.resolveConfig(tenant.id);
+const permissions = await stratum.resolvePermissions(tenant.id);
+```
+
+## Constructor
+
+```typescript
+const stratum = new Stratum({
+  pool: pgPool,              // Required: pg.Pool instance
+  keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
+});
+```
+
+The pool is **borrowed, not owned** -- Stratum never creates or closes the pool. You manage the pool lifecycle.
+
+## API Reference
+
+### Tenants
+
+```typescript
+stratum.createTenant(input, audit?): Promise<TenantNode>
+stratum.getTenant(id, includeArchived?): Promise<TenantNode>
+stratum.listTenants(pagination): Promise<PaginatedResult<TenantNode>>
+stratum.updateTenant(id, patch, audit?): Promise<TenantNode>
+stratum.deleteTenant(id, audit?): Promise<void>
+stratum.moveTenant(id, newParentId, audit?): Promise<TenantNode>
+stratum.getAncestors(id): Promise<TenantNode[]>
+stratum.getDescendants(id): Promise<TenantNode[]>
+stratum.getChildren(id): Promise<TenantNode[]>
+stratum.batchCreateTenants(inputs, audit?): Promise<BatchCreateResult>
+```
+
+### Config
+
+```typescript
+stratum.resolveConfig(tenantId): Promise<ResolvedConfig>
+stratum.setConfig(tenantId, key, input, audit?): Promise<ConfigEntry>
+stratum.deleteConfig(tenantId, key, audit?): Promise<void>
+stratum.getConfigWithInheritance(tenantId): Promise<ResolvedConfig>
+stratum.batchSetConfig(tenantId, entries, audit?): Promise<ConfigEntry[]>
+```
+
+### Permissions
+
+```typescript
+stratum.resolvePermissions(tenantId): Promise<Record<string, ResolvedPermission>>
+stratum.createPermission(tenantId, input, audit?): Promise<PermissionPolicy>
+stratum.updatePermission(tenantId, policyId, input, audit?): Promise<PermissionPolicy>
+stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
+```
+
+### API Keys
+
+```typescript
+stratum.createApiKey(tenantId, options?): Promise<CreatedApiKey>
+stratum.validateApiKey(key): Promise<ValidatedApiKey | null>
+stratum.revokeApiKey(keyId): Promise<boolean>
+stratum.rotateApiKey(keyId, newName?): Promise<CreatedApiKey>
+stratum.listApiKeys(tenantId?): Promise<ApiKeyRecord[]>
+stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
+```
+
+### Webhooks
+
+```typescript
+stratum.createWebhook(input, audit?): Promise<Webhook>
+stratum.getWebhook(id): Promise<Webhook>
+stratum.listWebhooks(tenantId?): Promise<Webhook[]>
+stratum.updateWebhook(id, input, audit?): Promise<Webhook>
+stratum.deleteWebhook(id, audit?): Promise<void>
+stratum.testWebhook(id): Promise<TestResult>
+```
+
+### Audit Logs
+
+```typescript
+stratum.queryAuditLogs(query): Promise<AuditEntry[]>
+stratum.getAuditEntry(id): Promise<AuditEntry | null>
+```
+
+### Consent
+
+```typescript
+stratum.grantConsent(tenantId, input, audit?): Promise<ConsentRecord>
+stratum.revokeConsent(tenantId, subjectId, purpose, audit?): Promise<boolean>
+stratum.listConsent(tenantId, subjectId?): Promise<ConsentRecord[]>
+stratum.getActiveConsent(tenantId, subjectId, purpose): Promise<ConsentRecord | null>
+```
+
+### GDPR & Data Retention
+
+```typescript
+stratum.exportTenantData(tenantId): Promise<Record<string, unknown>>
+stratum.purgeTenant(tenantId, audit?): Promise<void>
+stratum.purgeExpiredData(retentionDays?): Promise<{ deleted_count: number }>
+```
+
+### Regions
+
+```typescript
+stratum.createRegion(input, audit?): Promise<Region>
+stratum.getRegion(id): Promise<Region>
+stratum.listRegions(): Promise<Region[]>
+stratum.updateRegion(id, input, audit?): Promise<Region>
+stratum.deleteRegion(id, audit?): Promise<void>
+stratum.migrateRegion(tenantId, newRegionId, audit?): Promise<void>
+```
+
+### Roles (RBAC)
+
+```typescript
+stratum.createRole(input, audit?): Promise<Role>
+stratum.getRole(id): Promise<Role | null>
+stratum.listRoles(tenantId?): Promise<Role[]>
+stratum.updateRole(id, input, audit?): Promise<Role | null>
+stratum.deleteRole(id, audit?): Promise<boolean>
+stratum.assignRoleToKey(keyId, roleId): Promise<boolean>
+stratum.removeRoleFromKey(keyId): Promise<boolean>
+stratum.resolveKeyScopes(keyId): Promise<string[]>
+```
+
+### Webhook Deliveries (DLQ)
+
+```typescript
+stratum.getDeliveryStats(tenantId?): Promise<DeliveryStats>
+stratum.listFailedDeliveries(limit?, tenantId?): Promise<FailedDelivery[]>
+stratum.retryDelivery(deliveryId): Promise<boolean>
+stratum.retryFailedDeliveries(tenantId?): Promise<{ retried: number }>
+```
+
+### Encryption
+
+```typescript
+import { encrypt, decrypt, reEncrypt } from "@stratum-hq/lib";
+
+encrypt(plaintext: string): string           // "v1:iv:tag:ciphertext"
+decrypt(ciphertext: string): string
+reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
+
+stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
+```
+
+## Pool Helpers
+
+Low-level helpers for advanced use:
+
+```typescript
+import { withClient, withTransaction } from "@stratum-hq/lib";
+
+const result = await withClient(pool, async (client) => {
+  return client.query("SELECT * FROM tenants WHERE id = $1", [id]);
+});
+
+await withTransaction(pool, async (client) => {
+  await client.query("INSERT INTO ...");
+  await client.query("UPDATE ...");
+});
+```
+
+## Prerequisites
+
+`@stratum-hq/lib` assumes the Stratum database schema exists. Run the control plane migrations first, or apply the migration SQL manually:
+
+```bash
+# Option 1: Start the control plane (runs migrations automatically)
+node packages/control-plane/dist/index.js
+
+# Option 2: Apply SQL directly
+psql -d stratum -f packages/control-plane/src/db/migrations/001_init.sql
+```
+
+## Error Handling
+
+All errors come from `@stratum-hq/core`:
+
+```typescript
+import {
+  TenantNotFoundError,
+  TenantArchivedError,
+  ConfigLockedError,
+  PermissionLockedError,
+  PermissionRevocationDeniedError,
+} from "@stratum-hq/core";
+
+try {
+  await stratum.setConfig(childId, "locked_key", { value: 500 });
+} catch (err) {
+  if (err instanceof ConfigLockedError) {
+    console.log("Cannot override locked key");
+  }
+}
+```

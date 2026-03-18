@@ -1,0 +1,158 @@
+---
+title: Config API
+description: REST API reference for tenant configuration with inheritance, locking, and batch operations.
+---
+
+Config endpoints are nested under tenants. All endpoints require authentication and enforce tenant scope for scoped API keys.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/tenants/:id/config` | Get resolved config |
+| `PUT` | `/api/v1/tenants/:id/config/:key` | Set config value |
+| `DELETE` | `/api/v1/tenants/:id/config/:key` | Delete config override |
+| `PUT` | `/api/v1/tenants/:id/config/batch` | Batch set (up to 200, atomic) |
+| `GET` | `/api/v1/tenants/:id/config/inheritance` | Get full inheritance view |
+
+---
+
+## Get Resolved Config
+
+```
+GET /api/v1/tenants/:id/config
+```
+
+Returns resolved config for the tenant with all inheritance applied. Walks up the ancestry path and merges entries.
+
+**Response:** `200 OK`
+
+```json
+{
+  "max_users": {
+    "key": "max_users",
+    "value": 500,
+    "source_tenant_id": "msp-uuid",
+    "inherited": true,
+    "locked": false
+  },
+  "theme": {
+    "key": "theme",
+    "value": "dark",
+    "source_tenant_id": "root-uuid",
+    "inherited": true,
+    "locked": true
+  }
+}
+```
+
+Each entry tells you:
+
+| Field | Description |
+|-------|-------------|
+| `value` | The effective value (any JSON type) |
+| `source_tenant_id` | Which tenant set this value |
+| `inherited` | `true` if the value came from an ancestor |
+| `locked` | `true` if no descendant can override this key |
+
+---
+
+## Set Config Value
+
+```
+PUT /api/v1/tenants/:id/config/:key
+```
+
+**Body:**
+
+```json
+{
+  "value": "any JSON value",
+  "locked": false,
+  "sensitive": false
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `value` | any | Required | The config value (string, number, boolean, object, array) |
+| `locked` | boolean | `false` | Prevent descendants from overriding |
+| `sensitive` | boolean | `false` | Encrypt at rest with AES-256-GCM |
+
+Returns `409 CONFIG_LOCKED` if the key is locked by an ancestor.
+
+**Response:** `200 OK` -- returns the config entry.
+
+---
+
+## Delete Config Override
+
+```
+DELETE /api/v1/tenants/:id/config/:key
+```
+
+Removes the tenant's override for this key. If an ancestor has set the key, the tenant reverts to inheriting that value.
+
+**Response:** `204 No Content`
+
+---
+
+## Batch Set Config
+
+```
+PUT /api/v1/tenants/:id/config/batch
+```
+
+Sets up to 200 config keys in a single atomic transaction. If any key is locked by an ancestor, the entire batch rolls back.
+
+**Body:**
+
+```json
+{
+  "entries": [
+    {"key": "max_users", "value": 500, "locked": false},
+    {"key": "theme", "value": "dark", "locked": true},
+    {"key": "api_secret", "value": "sk_live_abc", "sensitive": true}
+  ]
+}
+```
+
+Each entry in the `entries` array supports the same fields as the single `PUT` endpoint (value, locked, sensitive), plus a `key` field.
+
+**Limits:**
+
+- Maximum 200 entries per batch
+- Empty arrays return `400 VALIDATION_ERROR`
+
+**Response:** `200 OK` -- returns array of config entries.
+
+---
+
+## Get Config Inheritance
+
+```
+GET /api/v1/tenants/:id/config/inheritance
+```
+
+Returns the full config with inheritance metadata -- showing which level set each value, whether it is inherited or overridden, and the full ancestry chain.
+
+**Response:** `200 OK`
+
+---
+
+## Error Responses
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `CONFIG_LOCKED` | 409 | Key is locked by an ancestor |
+| `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
+| `VALIDATION_ERROR` | 400 | Invalid request body or empty batch |
+
+```json
+{
+  "error": {
+    "code": "CONFIG_LOCKED",
+    "message": "Config key \"max_users\" is locked by ancestor tenant-uuid"
+  }
+}
+```

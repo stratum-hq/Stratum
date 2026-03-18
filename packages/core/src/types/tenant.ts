@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ResolvedConfig } from "./config.js";
 
 export const IsolationStrategy = {
   SHARED_RLS: "SHARED_RLS",
@@ -70,13 +71,22 @@ export const MoveTenantInputSchema = z.object({
 
 export type MoveTenantInput = z.infer<typeof MoveTenantInputSchema>;
 
-export interface TenantContext {
+/** Legacy shape used by the inline /:id/context endpoint. */
+export interface TenantContextLegacy {
   tenant_id: string;
   ancestry_path: string;
   depth: number;
   resolved_config: Record<string, unknown>;
   resolved_permissions: Record<string, ResolvedPermission>;
   isolation_strategy: IsolationStrategy;
+}
+
+/** Full impersonation context returned by getTenantContext(). */
+export interface TenantContext {
+  tenant: TenantNode;
+  config: ResolvedConfig;
+  permissions: Record<string, ResolvedPermission>;
+  ancestors: TenantNode[];
 }
 
 export interface ResolvedPermission {

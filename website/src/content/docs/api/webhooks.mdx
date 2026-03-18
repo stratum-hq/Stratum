@@ -1,0 +1,234 @@
+---
+title: Webhooks API
+description: REST API reference for webhook management, deliveries, and the dead-letter queue.
+---
+
+## Webhook Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/webhooks` | Create webhook |
+| `GET` | `/api/v1/webhooks` | List webhooks |
+| `GET` | `/api/v1/webhooks/:id` | Get webhook |
+| `PATCH` | `/api/v1/webhooks/:id` | Update webhook |
+| `DELETE` | `/api/v1/webhooks/:id` | Delete webhook |
+| `POST` | `/api/v1/webhooks/:id/test` | Test webhook delivery |
+| `GET` | `/api/v1/webhooks/:id/deliveries` | List deliveries for webhook |
+
+## Delivery Endpoints (DLQ)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/webhooks/deliveries/stats` | Get delivery statistics |
+| `GET` | `/api/v1/webhooks/deliveries/failed` | List failed deliveries |
+| `POST` | `/api/v1/webhooks/deliveries/retry-all` | Retry all failed |
+| `POST` | `/api/v1/webhooks/deliveries/:deliveryId/retry` | Retry single delivery |
+
+## Other Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/audit-logs` | List audit logs (with filters) |
+| `GET` | `/api/v1/audit-logs/:id` | Get single audit entry |
+| `POST` | `/api/v1/tenants/:id/consent` | Grant consent |
+| `GET` | `/api/v1/tenants/:id/consent` | List consent records |
+| `DELETE` | `/api/v1/tenants/:id/consent/:purpose` | Revoke consent |
+| `POST` | `/api/v1/maintenance/purge-expired` | Purge expired data |
+| `POST` | `/api/v1/maintenance/rotate-encryption-key` | Rotate encryption key |
+
+---
+
+## Create Webhook
+
+```
+POST /api/v1/webhooks
+```
+
+**Body:**
+
+```json
+{
+  "url": "https://your-app.com/webhooks/stratum",
+  "tenant_id": "uuid (optional, null for global)",
+  "events": ["tenant.created", "config.updated"],
+  "secret": "your-signing-secret"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | HTTPS endpoint for deliveries |
+| `tenant_id` | UUID | No | Scope to a tenant (null for all events) |
+| `events` | string[] | Yes | Event types to subscribe to |
+| `secret` | string | No | HMAC-SHA256 signing secret (encrypted at rest) |
+
+**Supported events:** `tenant.created`, `tenant.updated`, `tenant.deleted`, `tenant.moved`, `config.updated`, `config.deleted`, `permission.created`, `permission.updated`, `permission.deleted`
+
+**Response:** `201 Created` -- returns the webhook object.
+
+---
+
+## List Webhooks
+
+```
+GET /api/v1/webhooks?tenant_id=<uuid>
+```
+
+Scoped keys automatically filter to their own tenant's webhooks.
+
+**Response:** `200 OK` -- array of webhook objects.
+
+---
+
+## Update Webhook
+
+```
+PATCH /api/v1/webhooks/:id
+```
+
+**Body** (all optional):
+
+```json
+{
+  "url": "https://new-endpoint.com/hook",
+  "events": ["tenant.created", "tenant.updated"],
+  "secret": "new-signing-secret"
+}
+```
+
+**Response:** `200 OK` -- returns the updated webhook.
+
+---
+
+## Test Webhook
+
+```
+POST /api/v1/webhooks/:id/test
+```
+
+Sends a synthetic test event to the webhook URL and reports the response.
+
+**Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "response_code": 200
+}
+```
+
+---
+
+## Delivery Statistics
+
+```
+GET /api/v1/webhooks/deliveries/stats
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "total": 150,
+  "pending": 5,
+  "success": 130,
+  "failed": 15
+}
+```
+
+---
+
+## List Failed Deliveries
+
+```
+GET /api/v1/webhooks/deliveries/failed?limit=100
+```
+
+Returns failed deliveries (dead-letter queue) with joined webhook and event data.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | integer | 100 | Max results (1--500) |
+
+**Response:** `200 OK` -- array of failed delivery objects.
+
+---
+
+## Retry All Failed
+
+```
+POST /api/v1/webhooks/deliveries/retry-all
+```
+
+Resets all failed deliveries for retry (clears attempt counter, sets status to pending).
+
+**Response:** `200 OK`
+
+```json
+{
+  "retried": 15
+}
+```
+
+---
+
+## Retry Single Delivery
+
+```
+POST /api/v1/webhooks/deliveries/:deliveryId/retry
+```
+
+**Response:** `200 OK` -- `{"success": true}`
+
+---
+
+## Audit Logs
+
+```
+GET /api/v1/audit-logs
+```
+
+**Query Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `tenant_id` | UUID | Filter by tenant |
+| `action` | string | Filter by action (e.g., `tenant.created`) |
+| `resource_type` | string | Filter by resource type |
+| `actor_id` | string | Filter by actor |
+| `from` | ISO 8601 | Start of date range |
+| `to` | ISO 8601 | End of date range |
+| `limit` | number | Max results, 1--100 (default: 50) |
+| `cursor` | UUID | Cursor for keyset pagination |
+
+**Response:** `200 OK` -- array of audit entries.
+
+---
+
+## Rotate Encryption Key
+
+```
+POST /api/v1/maintenance/rotate-encryption-key
+```
+
+Re-encrypts all sensitive config entries and webhook secrets from the old key to the new key in a single atomic transaction.
+
+**Body:**
+
+```json
+{
+  "old_key": "current-encryption-key",
+  "new_key": "new-encryption-key"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "config_entries_rotated": 12,
+  "webhooks_rotated": 5
+}
+```
+
+After rotation, update the `STRATUM_ENCRYPTION_KEY` environment variable and restart the control plane.

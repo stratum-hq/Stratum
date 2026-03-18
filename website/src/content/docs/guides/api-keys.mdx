@@ -1,0 +1,230 @@
+---
+title: API Keys & Auth
+description: Manage API keys with scopes, rotation, rate limiting, and RBAC.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Stratum authenticates requests using API keys or JWT bearer tokens. Each key carries scopes that control what operations it can perform, and keys can optionally be scoped to a specific tenant subtree.
+
+## Authentication Methods
+
+### API Keys
+
+Pass the key in the `X-API-Key` header:
+
+```bash
+curl http://localhost:3001/api/v1/tenants \
+  -H "X-API-Key: sk_live_abc123..."
+```
+
+Keys use a recognizable prefix format: `sk_live_` for production, `sk_test_` for development. They are 256-bit random values, stored as HMAC-SHA256 hashes (keyed with `STRATUM_API_KEY_HMAC_SECRET`).
+
+### JWT Bearer Tokens
+
+```bash
+curl http://localhost:3001/api/v1/tenants \
+  -H "Authorization: Bearer eyJhbG..."
+```
+
+JWTs are verified using the `JWT_SECRET` environment variable. Without a `scopes` claim, tokens default to read-only access.
+
+## Scopes
+
+Three scopes control access:
+
+| Scope | Allows |
+|-------|--------|
+| `read` | GET, HEAD, OPTIONS requests |
+| `write` | POST, PUT, PATCH, DELETE on standard routes |
+| `admin` | Admin-only routes (key management, audit, GDPR, regions) |
+
+Scopes are flat and independent. A key with `["read", "write"]` can read and mutate standard routes. A key with `["admin"]` can access admin routes but needs `["read", "admin"]` for GET requests too.
+
+### Admin-Only Routes
+
+These always require the `admin` scope:
+
+| Route Pattern | Description |
+|---------------|-------------|
+| `/api/v1/api-keys/*` | API key management |
+| `/api/v1/audit-logs/*` | Audit log access |
+| `/api/v1/maintenance/*` | Purge and rotation operations |
+| `/api/v1/regions/*` | Region management |
+| `/api/v1/tenants/:id/purge` | GDPR hard-delete |
+| `/api/v1/tenants/:id/export` | GDPR data export |
+| `/api/v1/tenants/:id/migrate-region` | Region migration |
+
+## Creating API Keys
+
+```typescript
+const { plaintext_key, id } = await stratum.createApiKey(
+  "tenant-uuid",
+  { name: "my-service" }
+);
+// Save plaintext_key — it is only returned once
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/api-keys \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id": "TENANT_UUID", "name": "my-service"}'
+```
+
+<Aside type="caution">
+  The `plaintext_key` is only returned in the creation response. Store it
+  securely — it cannot be retrieved again.
+</Aside>
+
+## Tenant-Scoped vs Global Keys
+
+- **Tenant-scoped** (`tenant_id` set): Can only access data for that tenant and its descendants
+- **Global** (`tenant_id` null): Unrestricted access to all tenants
+
+Tenant scope enforcement checks the ancestry path on every request — a key scoped to tenant A cannot access tenant B's data, even via list endpoints.
+
+## Per-Key Rate Limiting
+
+Keys can specify custom rate limits at creation:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/api-keys \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "TENANT_UUID",
+    "name": "limited-key",
+    "rate_limit_max": 50,
+    "rate_limit_window": "1 minute"
+  }'
+```
+
+| Field | Range | Default |
+|-------|-------|---------|
+| `rate_limit_max` | 1 -- 100,000 | Global `RATE_LIMIT_MAX` (100) |
+| `rate_limit_window` | e.g., `"30 seconds"`, `"1 hour"` | Global `RATE_LIMIT_WINDOW` (1 minute) |
+
+Rate-limited responses include standard headers:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+X-RateLimit-Limit: 50
+X-RateLimit-Remaining: 0
+```
+
+## Key Rotation
+
+Rotate a key to issue a new one while revoking the old:
+
+```typescript
+const newKey = await stratum.rotateApiKey("key-uuid");
+// newKey.plaintext_key is the replacement key
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/api-keys/KEY_UUID/rotate \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+## Revoking Keys
+
+```typescript
+await stratum.revokeApiKey("key-uuid");
+```
+
+Via the API:
+
+```bash
+curl -X DELETE http://localhost:3001/api/v1/api-keys/KEY_UUID \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+## Dormant Key Detection
+
+Find keys that haven't been used recently:
+
+```typescript
+const dormant = await stratum.listDormantKeys(90); // unused > 90 days
+```
+
+Via the API:
+
+```bash
+curl "http://localhost:3001/api/v1/api-keys/dormant?days=90" \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+## Role-Based Access Control (RBAC)
+
+Beyond flat scopes, Stratum supports named roles that bundle scopes into reusable collections.
+
+### Creating Roles
+
+```typescript
+const role = await stratum.createRole({
+  name: "Editor",
+  scopes: ["read", "write"],
+  description: "Read and write access",
+});
+```
+
+Roles can be global (`tenant_id` null) or tenant-scoped.
+
+### Assigning Roles to Keys
+
+```typescript
+await stratum.assignRoleToKey("key-uuid", role.id);
+
+// Resolve effective scopes (role scopes override key defaults)
+const scopes = await stratum.resolveKeyScopes("key-uuid");
+// ["read", "write"]
+```
+
+Removing a role reverts the key to its own default scopes:
+
+```typescript
+await stratum.removeRoleFromKey("key-uuid");
+```
+
+## Field-Level Encryption
+
+Sensitive config values and webhook secrets are encrypted at rest using AES-256-GCM:
+
+- **Cipher**: AES-256-GCM with HKDF-SHA256 key derivation
+- **IV**: 12 bytes, randomly generated per encryption
+- **Format**: `v1:<iv_hex>:<authTag_hex>:<ciphertext_hex>`
+
+Set the encryption key:
+
+```bash
+export STRATUM_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+```
+
+### Key Rotation
+
+Re-encrypt all sensitive data with a new key:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/maintenance/rotate-encryption-key \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"old_key": "current-key", "new_key": "new-key"}'
+```
+
+The rotation is atomic — either all values are re-encrypted or none are. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
+
+## Best Practices
+
+1. **Use tenant-scoped keys** for application services that only need one tenant
+2. **Use `read` scope** for monitoring and analytics
+3. **Rotate keys regularly** using the rotate endpoint for zero-downtime replacement
+4. **Monitor dormant keys** and revoke keys unused for 90+ days
+5. **Never commit keys** to source control
+6. **Set `JWT_SECRET`** in production (the dev fallback is insecure)
+7. **Set `STRATUM_API_KEY_HMAC_SECRET`** in production for keyed hash storage

@@ -1,5 +1,6 @@
 export { Stratum, type StratumOptions } from "./stratum.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
+export { traced, getTracer, isTracingEnabled } from "./telemetry.js";
 
 // Re-export core types for convenience
 export type {

@@ -1,0 +1,192 @@
+---
+title: GDPR Compliance
+description: Data export, hard-purge, consent tracking, and data retention policies.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Stratum provides built-in tooling for GDPR compliance: data export (Article 20), hard-purge (Article 17), consent management, audit logging, and configurable data retention policies.
+
+## Data Export (Article 20)
+
+Export all data belonging to a tenant as a structured JSON archive:
+
+```typescript
+const archive = await stratum.exportTenantData("tenant-uuid");
+```
+
+Via the API:
+
+```bash
+curl http://localhost:3001/api/v1/tenants/TENANT_UUID/export \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+The export includes:
+
+| Table | Contents |
+|-------|----------|
+| `tenant` | Tenant record (name, slug, metadata, status) |
+| `config_entries` | All config key-value pairs |
+| `permission_policies` | All permission policies |
+| `api_keys` | Key metadata (no plaintext secrets) |
+| `webhooks` | Webhook registrations |
+| `webhook_events` | Event history |
+| `webhook_deliveries` | Delivery history |
+| `audit_logs` | Full audit trail |
+| `consent_records` | Consent records with purposes |
+
+API keys are exported without plaintext secrets for security.
+
+## Tenant Purge (Article 17)
+
+Hard-delete **all** data belonging to a tenant. This operation is irreversible.
+
+```typescript
+await stratum.purgeTenant("tenant-uuid");
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/tenants/TENANT_UUID/purge \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+### Deletion Order
+
+Data is deleted in foreign-key-safe order:
+
+<Steps>
+1. Config entries
+2. Permission policies
+3. API keys
+4. Webhook deliveries (via webhook FK join)
+5. Webhook events
+6. Webhooks
+7. Audit logs
+8. Consent records (via `ON DELETE CASCADE`)
+9. The tenant record itself
+</Steps>
+
+### Hierarchical Constraint
+
+A tenant with active children **cannot** be purged. You must purge children first, working leaf-to-root:
+
+```typescript
+// Purge the subtree bottom-up
+await stratum.purgeTenant("child-1");
+await stratum.purgeTenant("child-2");
+await stratum.purgeTenant("parent");
+```
+
+Attempting to purge a tenant with children returns `409 HAS_CHILDREN`.
+
+## Consent Management
+
+Track per-tenant, per-subject consent with purpose, expiration, and metadata.
+
+### Grant Consent
+
+```typescript
+await stratum.grantConsent(tenantId, {
+  subject_id: "user-456",
+  purpose: "marketing",
+  expires_at: "2025-12-31T23:59:59Z",
+  metadata: { source: "signup_form", ip: "10.0.0.1" },
+});
+```
+
+### Check Active Consent
+
+```typescript
+const consent = await stratum.getActiveConsent(tenantId, "user-456", "marketing");
+if (consent) {
+  // Consent is active (not revoked, not expired)
+  sendMarketingEmail(userId);
+}
+```
+
+`getActiveConsent()` returns `null` if consent is revoked or expired.
+
+### Revoke Consent
+
+```typescript
+await stratum.revokeConsent(tenantId, "user-456", "marketing");
+```
+
+### Predefined Purposes
+
+| Constant | Value |
+|----------|-------|
+| `DATA_PROCESSING` | `data_processing` |
+| `ANALYTICS` | `analytics` |
+| `MARKETING` | `marketing` |
+| `THIRD_PARTY_SHARING` | `third_party_sharing` |
+
+You can also use any custom string as a purpose.
+
+## Data Retention
+
+Automatically purge expired transactional data (audit logs, webhook events, webhook deliveries) older than a configurable retention period.
+
+```typescript
+const result = await stratum.purgeExpiredData(90); // 90 days
+console.log(`Deleted ${result.deleted_count} expired records`);
+```
+
+Via the API:
+
+```bash
+# Default: 90 days
+curl -X POST http://localhost:3001/api/v1/maintenance/purge-expired \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+
+# Custom: 180 days
+curl -X POST "http://localhost:3001/api/v1/maintenance/purge-expired?retention_days=180" \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+### What Gets Purged
+
+| Table | Records Deleted |
+|-------|-----------------|
+| `webhook_deliveries` | Deliveries older than cutoff |
+| `webhook_events` | Events older than cutoff |
+| `audit_logs` | Logs older than cutoff |
+
+Tenant records, config entries, and permissions are **not** affected by retention purges.
+
+### Limits
+
+- Default: 90 days
+- Maximum: 3,650 days (10 years)
+- Invalid values fall back to the default
+
+<Aside type="tip">
+  Set up a cron job or scheduled task to call `purge-expired` periodically (e.g.,
+  daily) to keep your database lean.
+</Aside>
+
+## Recommended GDPR Workflow
+
+<Steps>
+1. **Export** the tenant's data and deliver it to the data subject
+2. **Archive** the tenant (`DELETE /api/v1/tenants/:id`) for a grace period
+3. **Purge** after the grace period (`POST /api/v1/tenants/:id/purge`)
+4. **Schedule** regular `purge-expired` calls for log retention
+</Steps>
+
+## Authorization
+
+All GDPR operations require the `admin` scope:
+
+| Route | Required Scope |
+|-------|---------------|
+| `GET /api/v1/tenants/:id/export` | `admin` |
+| `POST /api/v1/tenants/:id/purge` | `admin` |
+| `POST /api/v1/maintenance/purge-expired` | `admin` |
+
+## Audit Trail
+
+All GDPR operations are recorded in the audit log with full context (actor, resource, before/after state). This provides evidence of compliance actions for regulatory audits.

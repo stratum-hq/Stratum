@@ -1,0 +1,287 @@
+---
+title: Tenants API
+description: REST API reference for tenant CRUD, hierarchy navigation, and batch operations.
+---
+
+Base URL: `http://localhost:3001` (default, configurable via `PORT` env var)
+
+All endpoints require authentication via `X-API-Key` or `Authorization: Bearer` header.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/tenants` | List tenants (cursor pagination) |
+| `POST` | `/api/v1/tenants` | Create tenant |
+| `POST` | `/api/v1/tenants/batch` | Batch create (up to 100, atomic) |
+| `GET` | `/api/v1/tenants/:id` | Get tenant |
+| `PATCH` | `/api/v1/tenants/:id` | Update tenant |
+| `DELETE` | `/api/v1/tenants/:id` | Archive tenant (soft delete) |
+| `POST` | `/api/v1/tenants/:id/move` | Move tenant in hierarchy |
+| `GET` | `/api/v1/tenants/:id/ancestors` | Get ancestors (root to parent) |
+| `GET` | `/api/v1/tenants/:id/descendants` | Get all descendants |
+| `GET` | `/api/v1/tenants/:id/children` | Get direct children |
+| `GET` | `/api/v1/tenants/:id/context` | Resolve full context |
+| `GET` | `/api/v1/tenants/:id/export` | Export tenant data (GDPR, admin) |
+| `POST` | `/api/v1/tenants/:id/purge` | Hard-delete tenant data (GDPR, admin) |
+| `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate to region (admin) |
+
+---
+
+## List Tenants
+
+```
+GET /api/v1/tenants?cursor=<uuid>&limit=50
+```
+
+**Query Parameters:**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `cursor` | UUID | -- | Cursor for pagination (tenant ID) |
+| `limit` | number | 50 | Max results (1--100) |
+
+**Response:** `200 OK`
+
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "parent_id": null,
+      "name": "Acme Corp",
+      "slug": "acme_corp",
+      "ancestry_path": "/550e8400-e29b-41d4-a716-446655440000",
+      "depth": 0,
+      "config": {},
+      "metadata": {},
+      "isolation_strategy": "SHARED_RLS",
+      "status": "active",
+      "deleted_at": null,
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "next_cursor": "uuid | null",
+  "has_more": false
+}
+```
+
+---
+
+## Create Tenant
+
+```
+POST /api/v1/tenants
+```
+
+**Body:**
+
+```json
+{
+  "name": "Acme Corp",
+  "slug": "acme_corp",
+  "parent_id": "uuid (optional)",
+  "config": {},
+  "metadata": {},
+  "isolation_strategy": "SHARED_RLS"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Display name (1--255 chars) |
+| `slug` | string | Yes | URL-safe identifier (`^[a-z][a-z0-9_]{0,62}$`) |
+| `parent_id` | UUID | No | Parent tenant ID (null for root) |
+| `isolation_strategy` | enum | No | `SHARED_RLS`, `SCHEMA_PER_TENANT`, `DB_PER_TENANT` |
+| `config` | object | No | Initial config key-value pairs |
+| `metadata` | object | No | Arbitrary metadata |
+
+**Response:** `201 Created` -- returns the tenant object.
+
+---
+
+## Get Tenant
+
+```
+GET /api/v1/tenants/:id
+```
+
+**Response:** `200 OK` -- returns the tenant object.
+
+---
+
+## Update Tenant
+
+```
+PATCH /api/v1/tenants/:id
+```
+
+**Body** (all fields optional):
+
+```json
+{
+  "name": "New Name",
+  "slug": "new_slug",
+  "config": {"key": "value"},
+  "metadata": {"key": "value"}
+}
+```
+
+**Response:** `200 OK` -- returns the updated tenant.
+
+---
+
+## Archive Tenant
+
+```
+DELETE /api/v1/tenants/:id
+```
+
+Soft-deletes the tenant (sets `status = 'archived'`). Fails with `409 HAS_CHILDREN` if the tenant has active children.
+
+**Response:** `204 No Content`
+
+---
+
+## Move Tenant
+
+```
+POST /api/v1/tenants/:id/move
+```
+
+**Body:**
+
+```json
+{
+  "new_parent_id": "uuid"
+}
+```
+
+Moves the tenant (and all descendants) under a new parent. Performs cycle detection and acquires advisory locks.
+
+**Response:** `200 OK` -- returns the updated tenant.
+
+---
+
+## Batch Create Tenants
+
+```
+POST /api/v1/tenants/batch
+```
+
+Creates up to 100 tenants in a single atomic transaction. If any tenant fails validation, the entire batch rolls back.
+
+**Body:**
+
+```json
+{
+  "tenants": [
+    {"name": "Client A", "slug": "client_a", "parent_id": "uuid"},
+    {"name": "Client B", "slug": "client_b", "parent_id": "uuid"}
+  ]
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "created": [],
+  "errors": []
+}
+```
+
+---
+
+## Get Ancestors
+
+```
+GET /api/v1/tenants/:id/ancestors
+```
+
+**Response:** `200 OK` -- array of tenant objects from root to parent.
+
+---
+
+## Get Descendants
+
+```
+GET /api/v1/tenants/:id/descendants
+```
+
+**Response:** `200 OK` -- all descendants (uses `ltree` for efficient subtree query).
+
+---
+
+## Get Children
+
+```
+GET /api/v1/tenants/:id/children
+```
+
+**Response:** `200 OK` -- direct children only.
+
+---
+
+## Resolve Context
+
+```
+GET /api/v1/tenants/:id/context
+```
+
+Returns the full tenant context including resolved config and permissions.
+
+**Response:** `200 OK`
+
+```json
+{
+  "tenant_id": "uuid",
+  "ancestry_path": "/uuid1/uuid2",
+  "depth": 1,
+  "isolation_strategy": "SHARED_RLS",
+  "resolved_config": {
+    "max_users": {
+      "key": "max_users",
+      "value": 500,
+      "source_tenant_id": "uuid",
+      "inherited": true,
+      "locked": false
+    }
+  },
+  "resolved_permissions": {
+    "manage_users": {
+      "key": "manage_users",
+      "value": true,
+      "mode": "LOCKED",
+      "source_tenant_id": "uuid",
+      "locked": true,
+      "delegated": false
+    }
+  }
+}
+```
+
+---
+
+## Error Responses
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
+| `TENANT_ARCHIVED` | 410 | Tenant has been archived |
+| `HAS_CHILDREN` | 409 | Cannot archive tenant with active children |
+| `CYCLE_DETECTED` | 409 | Move would create a cycle |
+| `CONFLICT` | 409 | Slug already exists |
+| `VALIDATION_ERROR` | 400 | Invalid request body |
+
+All errors follow this format:
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message"
+  }
+}
+```
