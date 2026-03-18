@@ -9,6 +9,7 @@ vi.mock("../../pool-helpers.js", () => ({
 import * as poolHelpers from "../../pool-helpers.js";
 import * as tenantService from "../tenant-service.js";
 import { makeMockPool } from "./test-helpers.js";
+import type { CreateTenantInput } from "@stratum-hq/core";
 import {
   TenantNotFoundError,
   TenantArchivedError,
@@ -16,24 +17,32 @@ import {
   TenantHasChildrenError,
 } from "@stratum-hq/core";
 
-const NOW = "2024-01-01T00:00:00.000Z";
-
-function makeTenant(overrides: Partial<ReturnType<typeof makeTenantFull>> = {}) {
-  return makeTenantFull(overrides);
+function makeInput(overrides: Partial<CreateTenantInput> = {}): CreateTenantInput {
+  return {
+    parent_id: null,
+    name: "Test",
+    slug: "test",
+    config: {},
+    metadata: {},
+    isolation_strategy: "SHARED_RLS",
+    ...overrides,
+  } as CreateTenantInput;
 }
 
-function makeTenantFull(overrides: Record<string, unknown> = {}) {
+const NOW = "2024-01-01T00:00:00.000Z";
+
+function makeTenant(overrides: Record<string, unknown> = {}) {
   return {
     id: "tenant-1",
-    parent_id: null,
+    parent_id: null as string | null,
     ancestry_path: "/",
     depth: 0,
     name: "Root",
     slug: "root",
     config: {},
     metadata: {},
-    isolation_strategy: "SHARED_RLS" as const,
-    status: "active" as const,
+    isolation_strategy: "SHARED_RLS",
+    status: "active" as string,
     region_id: null,
     deleted_at: null,
     created_at: NOW,
@@ -83,11 +92,11 @@ describe("createTenant", () => {
       return fn(client);
     });
 
-    const result = await tenantService.createTenant(pool, {
+    const result = await tenantService.createTenant(pool, makeInput({
       parent_id: "parent-1",
       name: "Child",
       slug: "child",
-    });
+    }));
 
     expect(result.id).toBe("child-1");
     expect(result.parent_id).toBe("parent-1");
@@ -119,11 +128,11 @@ describe("createTenant", () => {
       return fn(client);
     });
 
-    const result = await tenantService.createTenant(pool, {
+    const result = await tenantService.createTenant(pool, makeInput({
       parent_id: null,
       name: "Root Org",
       slug: "root_org",
-    });
+    }));
 
     expect(result.id).toBe("root-1");
     expect(result.parent_id).toBeNull();
@@ -155,11 +164,11 @@ describe("createTenant", () => {
     });
 
     await expect(
-      tenantService.createTenant(pool, {
+      tenantService.createTenant(pool, makeInput({
         parent_id: "archived-parent",
         name: "Child",
         slug: "child",
-      }),
+      })),
     ).rejects.toThrow(TenantArchivedError);
   });
 
@@ -178,11 +187,11 @@ describe("createTenant", () => {
     });
 
     await expect(
-      tenantService.createTenant(pool, {
+      tenantService.createTenant(pool, makeInput({
         parent_id: "nonexistent",
         name: "Child",
         slug: "child",
-      }),
+      })),
     ).rejects.toThrow(TenantNotFoundError);
   });
 });
