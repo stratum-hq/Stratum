@@ -39,7 +39,7 @@ describe("secret encryption", () => {
   });
 
   it("decryptSecret throws on invalid format", () => {
-    expect(() => webhookService.decryptSecret("invalid")).toThrow("Invalid encrypted secret format");
+    expect(() => webhookService.decryptSecret("invalid")).toThrow("Invalid encrypted value format");
   });
 });
 
@@ -155,7 +155,7 @@ describe("updateWebhook", () => {
 describe("deleteWebhook", () => {
   it("resolves when webhook exists", async () => {
     const pool = makeMockPool();
-    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = {
         query: vi.fn().mockResolvedValue({ rows: [{ id: mockWebhook.id }] }),
       } as unknown as import("pg").PoolClient;
@@ -167,7 +167,7 @@ describe("deleteWebhook", () => {
 
   it("throws WebhookNotFoundError when webhook not found", async () => {
     const pool = makeMockPool();
-    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = {
         query: vi.fn().mockResolvedValue({ rows: [] }),
       } as unknown as import("pg").PoolClient;
