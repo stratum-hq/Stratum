@@ -43,3 +43,6 @@ coverage/
 # OMC state
 .omc/
 .gstack/
+
+# Internal planning (kept locally, not in repo)
+TODOS.md
