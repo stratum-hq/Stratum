@@ -39,8 +39,10 @@ function makeTenantNode(tenantId: string): TenantNode {
     ancestry_path: `/${tenantId}`,
     depth: 0,
     isolation_strategy: "SHARED_RLS",
-    status: "ACTIVE",
+    status: "active",
     metadata: {},
+    config: {},
+    deleted_at: null,
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
   } as TenantNode;
