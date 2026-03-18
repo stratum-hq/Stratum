@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import ReactDOM from "react-dom";
 import { useTenant, useStratum, useTenantTree } from "@stratum-hq/react";
 import type { TenantTreeNode } from "@stratum-hq/react";
 
@@ -1795,37 +1796,39 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Tenant Context Modal */}
-      {contextModal.open && (
+      {/* Tenant Context Modal — rendered via portal to body */}
+      {contextModal.open && ReactDOM.createPortal(
         <div
           style={{
-            position: "fixed", inset: 0, zIndex: 1000,
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
             display: "flex", alignItems: "center", justifyContent: "center",
             background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)",
+            overflow: "auto", padding: 24,
           }}
           onClick={() => setContextModal({ open: false, data: null, loading: false })}
         >
           <div
             style={{
-              background: "var(--color-neutral-50, #F8FAFC)",
-              borderRadius: "var(--radius-xl, 12px)",
-              boxShadow: "var(--shadow-xl)",
-              width: "min(90vw, 720px)",
-              maxHeight: "80vh",
-              overflow: "auto",
+              background: "#F8FAFC",
+              borderRadius: 12,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              width: 720,
+              maxWidth: "90vw",
+              margin: "auto",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "var(--space-lg, 16px) var(--space-xl, 24px)",
-              borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)",
+              padding: "16px 24px",
+              borderBottom: "1px solid #E2E8F0",
+              position: "sticky", top: 0, background: "#F8FAFC", borderRadius: "12px 12px 0 0", zIndex: 1,
             }}>
               <div>
-                <div style={{ fontFamily: "var(--font-display, Satoshi, sans-serif)", fontWeight: 700, fontSize: "1rem" }}>
+                <div style={{ fontWeight: 700, fontSize: "1rem" }}>
                   Tenant Context
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--color-neutral-500, #64748B)", fontFamily: "var(--font-mono, monospace)" }}>
+                <div style={{ fontSize: "0.75rem", color: "#64748B", fontFamily: "ui-monospace, monospace" }}>
                   {tenant.name} &middot; {tenant.id.slice(0, 8)}...
                 </div>
               </div>
@@ -1833,16 +1836,16 @@ export function Dashboard() {
                 onClick={() => setContextModal({ open: false, data: null, loading: false })}
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  fontSize: "1.25rem", color: "var(--color-neutral-400, #94A3B8)",
+                  fontSize: "1.5rem", color: "#94A3B8", lineHeight: 1,
                   width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
-                  borderRadius: "var(--radius-md, 6px)",
+                  borderRadius: 6,
                 }}
                 aria-label="Close"
               >
                 &times;
               </button>
             </div>
-            <div style={{ padding: "var(--space-lg, 16px) var(--space-xl, 24px)" }}>
+            <div style={{ padding: "16px 24px" }}>
               {contextModal.loading ? (
                 <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--color-neutral-400, #94A3B8)" }}>
                   Loading context...
@@ -1936,7 +1939,8 @@ export function Dashboard() {
               ) : null}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
