@@ -1812,9 +1812,9 @@ export function Dashboard() {
               background: "#F8FAFC",
               borderRadius: 12,
               boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-              width: 720,
-              maxWidth: "90vw",
-              margin: "auto",
+              width: "95vw",
+              height: "95vh",
+              overflow: "auto",
             }}
             onClick={(e) => e.stopPropagation()}
           >
