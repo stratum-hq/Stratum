@@ -1,5 +1,5 @@
 {
-  "name": "@stratum/react",
+  "name": "@stratum-hq/react",
   "version": "0.1.0",
   "type": "module",
   "description": "Stratum React UI components for multi-tenant administration",
@@ -12,14 +12,24 @@
     },
     "./styles": "./dist/styles/default.css"
   },
+  "files": [
+    "dist",
+    "styles",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
-    "@stratum/core": "*"
+    "@stratum-hq/core": "*"
   },
   "peerDependencies": {
     "react": "^18.0.0",

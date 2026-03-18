@@ -3,7 +3,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import helmet from "@fastify/helmet";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 import { registerOpenApi } from "./openapi.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createAuthMiddleware } from "./middleware/auth.js";

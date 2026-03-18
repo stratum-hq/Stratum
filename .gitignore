@@ -42,3 +42,4 @@ coverage/
 
 # OMC state
 .omc/
+.gstack/

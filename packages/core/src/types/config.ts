@@ -32,3 +32,16 @@ export interface ResolvedConfigEntry {
 }
 
 export type ResolvedConfig = Record<string, ResolvedConfigEntry>;
+
+export interface BatchSetConfigKeyResult {
+  key: string;
+  status: "ok" | "error";
+  entry?: ConfigEntry;
+  error?: string;
+}
+
+export interface BatchSetConfigResult {
+  results: BatchSetConfigKeyResult[];
+  succeeded: number;
+  failed: number;
+}

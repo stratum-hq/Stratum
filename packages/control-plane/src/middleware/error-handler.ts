@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply, FastifyError } from "fastify";
 import { ZodError } from "zod";
-import { StratumError } from "@stratum/core";
+import { StratumError } from "@stratum-hq/core";
 import { config } from "../config.js";
 
 export function errorHandler(

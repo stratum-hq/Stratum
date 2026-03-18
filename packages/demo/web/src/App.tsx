@@ -1,5 +1,5 @@
 import React from "react";
-import { StratumProvider } from "@stratum/react";
+import { StratumProvider } from "@stratum-hq/react";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Sidebar } from "./components/Sidebar.js";
 

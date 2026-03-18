@@ -1,6 +1,6 @@
 import pg from "pg";
 import { withClient } from "../pool-helpers.js";
-import type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum/core";
+import type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum-hq/core";
 
 export async function createAuditEntry(
   pool: pg.Pool,

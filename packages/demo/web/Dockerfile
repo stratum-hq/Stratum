@@ -23,10 +23,10 @@ COPY packages/react-ui/ packages/react-ui/
 COPY packages/demo/ packages/demo/
 COPY tsconfig.base.json ./
 
-RUN npm run build --workspace=@stratum/core && \
-    npm run build --workspace=@stratum/sdk && \
-    npm run build --workspace=@stratum/db-adapters && \
-    npm run build --workspace=@stratum/react && \
+RUN npm run build --workspace=@stratum-hq/core && \
+    npm run build --workspace=@stratum-hq/sdk && \
+    npm run build --workspace=@stratum-hq/db-adapters && \
+    npm run build --workspace=@stratum-hq/react && \
     npx vite build packages/demo/web
 
 FROM nginx:alpine AS runner

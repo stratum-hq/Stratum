@@ -8,7 +8,7 @@ COPY packages/db-adapters/package.json packages/db-adapters/
 COPY packages/demo/package.json packages/demo/
 
 # Narrow workspaces to only the packages in this build, and strip
-# web-only dependencies from demo (react, @stratum/react) since
+# web-only dependencies from demo (react, @stratum-hq/react) since
 # this image only runs the API server.
 RUN node -e " \
   const fs = require('fs'); \
@@ -16,7 +16,7 @@ RUN node -e " \
   root.workspaces = ['packages/core', 'packages/sdk', 'packages/db-adapters', 'packages/demo']; \
   fs.writeFileSync('package.json', JSON.stringify(root, null, 2)); \
   const demo = JSON.parse(fs.readFileSync('packages/demo/package.json', 'utf8')); \
-  delete demo.dependencies['@stratum/react']; \
+  delete demo.dependencies['@stratum-hq/react']; \
   delete demo.dependencies['react']; \
   delete demo.dependencies['react-dom']; \
   fs.writeFileSync('packages/demo/package.json', JSON.stringify(demo, null, 2));"
@@ -30,10 +30,10 @@ COPY tsconfig.base.json ./
 
 # Restore the stripped demo package.json for the build step
 # (tsc needs the original for type resolution, but won't install anything)
-RUN npm run build --workspace=@stratum/core && \
-    npm run build --workspace=@stratum/sdk && \
-    npm run build --workspace=@stratum/db-adapters && \
-    npm run build:api --workspace=@stratum/demo
+RUN npm run build --workspace=@stratum-hq/core && \
+    npm run build --workspace=@stratum-hq/sdk && \
+    npm run build --workspace=@stratum-hq/db-adapters && \
+    npm run build:api --workspace=@stratum-hq/demo
 
 FROM node:18-alpine AS runner
 
@@ -51,7 +51,7 @@ COPY --from=builder /app/packages/demo/package.json ./packages/demo/tmp.json
 RUN node -e " \
   const fs = require('fs'); \
   const demo = JSON.parse(fs.readFileSync('packages/demo/tmp.json', 'utf8')); \
-  delete demo.dependencies['@stratum/react']; \
+  delete demo.dependencies['@stratum-hq/react']; \
   delete demo.dependencies['react']; \
   delete demo.dependencies['react-dom']; \
   fs.writeFileSync('packages/demo/package.json', JSON.stringify(demo, null, 2)); \

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import type { TenantNode } from "@stratum/core";
+import type { TenantNode } from "@stratum-hq/core";
 import { useTenantTree } from "../hooks/use-tenant-tree.js";
 import { useTenant } from "../hooks/use-tenant.js";
 

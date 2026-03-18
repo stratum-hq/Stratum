@@ -1,4 +1,4 @@
-import { DEFAULT_CACHE_TTL_MS } from "@stratum/core";
+import { DEFAULT_CACHE_TTL_MS } from "@stratum-hq/core";
 
 interface CacheEntry<V> {
   value: V;

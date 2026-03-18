@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { CreateRegionInputSchema, UpdateRegionInputSchema } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { CreateRegionInputSchema, UpdateRegionInputSchema } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 
 export function createRegionRoutes(stratum: Stratum) {

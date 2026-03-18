@@ -1,6 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { ConsentRecord, GrantConsentInput } from "@stratum/core";
+import type { ConsentRecord, GrantConsentInput } from "@stratum-hq/core";
 
 export async function grantConsent(
   pool: pg.Pool,

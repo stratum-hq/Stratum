@@ -5,12 +5,14 @@ import {
   type SetConfigInput,
   type ResolvedConfigEntry,
   type ResolvedConfig,
+  type BatchSetConfigResult,
+  type BatchSetConfigKeyResult,
   ConfigLockedError,
   ConfigNotFoundError,
   TenantNotFoundError,
   TenantArchivedError,
   parseAncestryPath,
-} from "@stratum/core";
+} from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
 
 /**
@@ -151,13 +153,14 @@ export async function setConfig(
 
 /**
  * Set multiple config keys for a tenant in a single transaction.
- * All-or-nothing: if any key fails (e.g., locked by ancestor), the entire batch rolls back.
+ * Partial success: locked keys are skipped and reported as errors,
+ * while unlocked keys are set successfully within the same transaction.
  */
 export async function batchSetConfig(
   pool: pg.Pool,
   tenantId: string,
   entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
-): Promise<ConfigEntry[]> {
+): Promise<BatchSetConfigResult> {
   return withTransaction(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1`,
@@ -170,7 +173,8 @@ export async function batchSetConfig(
     const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
     const keys = entries.map((e) => e.key);
 
-    // Check all ancestor locks in a single query
+    // Batch-load all ancestor locks in a single query
+    const lockedKeys = new Map<string, string>();
     if (ancestorIds.length > 0 && keys.length > 0) {
       const lockedRes = await client.query<ConfigEntry>(
         `SELECT * FROM config_entries
@@ -179,14 +183,27 @@ export async function batchSetConfig(
            AND locked = true`,
         [ancestorIds, keys],
       );
-      if (lockedRes.rows.length > 0) {
-        const locker = lockedRes.rows[0];
-        throw new ConfigLockedError(locker.key, locker.source_tenant_id);
+      for (const row of lockedRes.rows) {
+        lockedKeys.set(row.key, row.source_tenant_id);
       }
     }
 
-    const results: ConfigEntry[] = [];
+    const results: BatchSetConfigKeyResult[] = [];
+    let succeeded = 0;
+    let failed = 0;
+
     for (const entry of entries) {
+      const lockerTenantId = lockedKeys.get(entry.key);
+      if (lockerTenantId) {
+        results.push({
+          key: entry.key,
+          status: "error",
+          error: `Config '${entry.key}' is locked by tenant ${lockerTenantId} and cannot be overridden`,
+        });
+        failed++;
+        continue;
+      }
+
       const sensitive = entry.sensitive ?? false;
       const storedValue = sensitive
         ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
@@ -204,10 +221,15 @@ export async function batchSetConfig(
          RETURNING *`,
         [tenantId, entry.key, storedValue, entry.locked ?? false, sensitive],
       );
-      results.push(res.rows[0]);
+      results.push({
+        key: entry.key,
+        status: "ok",
+        entry: res.rows[0],
+      });
+      succeeded++;
     }
 
-    return results;
+    return { results, succeeded, failed };
   });
 }
 

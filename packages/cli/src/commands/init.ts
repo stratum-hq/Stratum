@@ -80,8 +80,8 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
 
   // 2. Integration path
   const pathIdx = await select("Integration path:", [
-    "Direct library (@stratum/lib) — in-process, max performance",
-    "HTTP API + SDK (@stratum/sdk) — service separation, polyglot",
+    "Direct library (@stratum-hq/lib) — in-process, max performance",
+    "HTTP API + SDK (@stratum-hq/sdk) — service separation, polyglot",
   ]);
   const integrationPath: "lib" | "sdk" = pathIdx === 0 ? "lib" : "sdk";
 
@@ -118,7 +118,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   console.log();
   log.heading("Configuration Summary");
   log.info(`Framework:    ${info.framework}`);
-  log.info(`Integration:  ${info.integrationPath === "lib" ? "@stratum/lib (direct)" : "@stratum/sdk (HTTP)"}`);
+  log.info(`Integration:  ${info.integrationPath === "lib" ? "@stratum-hq/lib (direct)" : "@stratum-hq/sdk (HTTP)"}`);
   log.info(`Database:     ${info.orm}`);
   log.info(`React:        ${info.hasReact ? "yes" : "no"}`);
   console.log();
@@ -146,19 +146,19 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   console.log();
   log.heading("Next Steps");
 
-  const packages: string[] = ["@stratum/core"];
+  const packages: string[] = ["@stratum-hq/core"];
   if (info.integrationPath === "lib") {
-    packages.push("@stratum/lib", "pg");
+    packages.push("@stratum-hq/lib", "pg");
   } else {
-    packages.push("@stratum/sdk");
+    packages.push("@stratum-hq/sdk");
   }
   if (info.orm === "prisma") {
-    packages.push("@stratum/db-adapters");
+    packages.push("@stratum-hq/db-adapters");
   } else if (info.orm === "pg") {
-    packages.push("@stratum/db-adapters");
+    packages.push("@stratum-hq/db-adapters");
   }
   if (info.hasReact) {
-    packages.push("@stratum/react");
+    packages.push("@stratum-hq/react");
   }
 
   log.info(`1. Install packages:`);
@@ -192,7 +192,7 @@ DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
 JWT_SECRET=change-me-in-production
 NODE_ENV=development
 
-# Control Plane (if using @stratum/sdk)
+# Control Plane (if using @stratum-hq/sdk)
 STRATUM_URL=http://localhost:3001
 STRATUM_API_KEY=sk_test_your_key_here
 
@@ -242,7 +242,7 @@ function generateMiddleware(outDir: string, info: ProjectInfo, force: boolean): 
       const content = `// stratum-middleware.ts
 // Express middleware for Stratum tenant resolution
 
-import { StratumClient, expressMiddleware } from "@stratum/sdk";
+import { StratumClient, expressMiddleware } from "@stratum-hq/sdk";
 import { stratumConfig } from "./stratum.config";
 
 export const stratumClient = new StratumClient({
@@ -273,7 +273,7 @@ export const tenantMiddleware = expressMiddleware(stratumClient, {
 // Express middleware for Stratum tenant resolution (direct library)
 
 import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 import type { Request, Response, NextFunction } from "express";
 import { stratumConfig } from "./stratum.config";
 
@@ -320,7 +320,7 @@ process.on("SIGTERM", () => pool.end());
       const content = `// stratum-plugin.ts
 // Fastify plugin for Stratum tenant resolution
 
-import { StratumClient, fastifyPlugin } from "@stratum/sdk";
+import { StratumClient, fastifyPlugin } from "@stratum-hq/sdk";
 import { stratumConfig } from "./stratum.config";
 
 export const stratumClient = new StratumClient({
@@ -330,7 +330,7 @@ export const stratumClient = new StratumClient({
 });
 
 // Usage:
-// import { fastifyPlugin } from "@stratum/sdk";
+// import { fastifyPlugin } from "@stratum-hq/sdk";
 // import { stratumClient } from "./stratum-plugin";
 //
 // app.register(fastifyPlugin, {
@@ -352,7 +352,7 @@ export { fastifyPlugin };
 // Fastify plugin for Stratum tenant resolution (direct library)
 
 import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { stratumConfig } from "./stratum.config";
 
@@ -438,7 +438,7 @@ export const config = {
 
 ${info.integrationPath === "lib"
   ? `import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -457,7 +457,7 @@ export async function getTenantFromHeaders(headers: Headers) {
 
   return { tenant_id: tenantId, resolved_config: config, resolved_permissions: permissions };
 }`
-  : `import { StratumClient } from "@stratum/sdk";
+  : `import { StratumClient } from "@stratum-hq/sdk";
 
 export const stratumClient = new StratumClient({
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -498,7 +498,7 @@ export async function getTenantFromHeaders(headers: Headers) {
 
 ${info.integrationPath === "lib"
   ? `import { Pool } from "pg";
-import { Stratum } from "@stratum/lib";
+import { Stratum } from "@stratum-hq/lib";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
@@ -517,7 +517,7 @@ export async function getTenantContext(tenantId: string) {
 
 // Cleanup on shutdown
 process.on("SIGTERM", () => pool.end());`
-  : `import { StratumClient } from "@stratum/sdk";
+  : `import { StratumClient } from "@stratum-hq/sdk";
 
 export const stratumClient = new StratumClient({
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -545,9 +545,9 @@ function generateDbSetup(outDir: string, info: ProjectInfo, force: boolean): voi
 
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum/db-adapters";
+import { withTenant } from "@stratum-hq/db-adapters";
 ${info.integrationPath === "sdk"
-  ? `import { getTenantContext } from "@stratum/sdk";`
+  ? `import { getTenantContext } from "@stratum-hq/sdk";`
   : ``}
 
 const prisma = new PrismaClient();
@@ -577,9 +577,9 @@ export { prisma, pool };
 // PostgreSQL client with Stratum tenant-scoped queries
 
 import { Pool } from "pg";
-import { createTenantPool } from "@stratum/db-adapters";
+import { createTenantPool } from "@stratum-hq/db-adapters";
 ${info.integrationPath === "sdk"
-  ? `import { getTenantContext } from "@stratum/sdk";`
+  ? `import { getTenantContext } from "@stratum-hq/sdk";`
   : ``}
 
 const pool = new Pool({
@@ -610,7 +610,7 @@ function generateReactSetup(outDir: string, _info: ProjectInfo, force: boolean):
 // Stratum React provider for your application
 
 import React from "react";
-import { StratumProvider, useStratum } from "@stratum/react";
+import { StratumProvider, useStratum } from "@stratum-hq/react";
 
 interface AppProviderProps {
   children: React.ReactNode;
@@ -645,7 +645,7 @@ export { useStratum };
 // Conditional rendering based on tenant permissions and config
 
 import React from "react";
-import { useStratum } from "@stratum/react";
+import { useStratum } from "@stratum-hq/react";
 
 interface PermissionGuardProps {
   permission: string;
@@ -733,7 +733,7 @@ export function TenantInfo({ field }: TenantInfoProps) {
   const hooksContent = `// use-tenant.ts
 // Custom hooks for common Stratum patterns
 
-import { useStratum } from "@stratum/react";
+import { useStratum } from "@stratum-hq/react";
 
 /**
  * Returns true if the current tenant has the specified permission.

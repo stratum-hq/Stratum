@@ -16,7 +16,7 @@ vi.mock("../webhook-service.js", () => ({
 import * as poolHelpers from "../../pool-helpers.js";
 import * as webhookServiceMock from "../webhook-service.js";
 import * as eventService from "../event-service.js";
-import { TenantEvent } from "@stratum/core";
+import { TenantEvent } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;

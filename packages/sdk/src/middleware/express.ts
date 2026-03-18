@@ -1,4 +1,4 @@
-import { TenantNotFoundError } from "@stratum/core";
+import { TenantNotFoundError } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";

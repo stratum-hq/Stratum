@@ -1,5 +1,5 @@
 import pg from "pg";
-import { ErrorCode, StratumError } from "@stratum/core";
+import { ErrorCode, StratumError } from "@stratum-hq/core";
 import { withClient, withTransaction } from "../pool-helpers.js";
 
 const DEFAULT_RETENTION_DAYS = 90;

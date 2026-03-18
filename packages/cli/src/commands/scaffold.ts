@@ -65,7 +65,7 @@ export async function scaffold(
 
 function scaffoldExpress(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "stratum-middleware.ts"), `// Stratum Express middleware
-import { StratumClient, expressMiddleware } from "@stratum/sdk";
+import { StratumClient, expressMiddleware } from "@stratum-hq/sdk";
 
 const client = new StratumClient({
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -119,7 +119,7 @@ export default router;
 
 function scaffoldFastify(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "stratum-plugin.ts"), `// Stratum Fastify plugin
-import { StratumClient, fastifyPlugin } from "@stratum/sdk";
+import { StratumClient, fastifyPlugin } from "@stratum-hq/sdk";
 
 export const stratumClient = new StratumClient({
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -162,7 +162,7 @@ export const config = {
 `, force);
 
   writeFile(path.join(outDir, "lib/stratum.ts"), `// Stratum helpers for Next.js
-import { StratumClient } from "@stratum/sdk";
+import { StratumClient } from "@stratum-hq/sdk";
 
 export const stratumClient = new StratumClient({
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -186,7 +186,7 @@ export async function getTenantFromHeaders(headers: Headers) {
   writeFile(path.join(outDir, "components/tenant-layout.tsx"), `// Tenant-aware layout component
 "use client";
 
-import { StratumProvider, useStratum } from "@stratum/react";
+import { StratumProvider, useStratum } from "@stratum-hq/react";
 import React from "react";
 
 export function TenantLayout({ children }: { children: React.ReactNode }) {
@@ -219,7 +219,7 @@ function TenantBoundary({ children }: { children: React.ReactNode }) {
 function scaffoldReact(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "stratum-provider.tsx"), `// Stratum React provider
 import React from "react";
-import { StratumProvider, useStratum } from "@stratum/react";
+import { StratumProvider, useStratum } from "@stratum-hq/react";
 
 export function AppStratumProvider({ children }: { children: React.ReactNode }) {
   return (
@@ -238,7 +238,7 @@ export { useStratum };
   writeFile(path.join(outDir, "tenant-guard.tsx"), `// Conditional rendering by permission/config
 "use client";
 import React from "react";
-import { useStratum } from "@stratum/react";
+import { useStratum } from "@stratum-hq/react";
 
 export function PermissionGuard({
   permission, children, fallback = null,
@@ -264,7 +264,7 @@ export function ConfigGuard({
 `, force);
 
   writeFile(path.join(outDir, "use-tenant.ts"), `// Custom hooks for tenant context
-import { useStratum } from "@stratum/react";
+import { useStratum } from "@stratum-hq/react";
 
 export function usePermission(key: string): boolean {
   const { tenantContext, loading } = useStratum();
@@ -295,8 +295,8 @@ function scaffoldPrisma(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "stratum-prisma.ts"), `// Tenant-scoped Prisma client
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum/db-adapters";
-import { getTenantContext } from "@stratum/sdk";
+import { withTenant } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
 
 const prisma = new PrismaClient();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -315,7 +315,7 @@ export const tenantPrisma = withTenant(
 export { prisma, pool };
 `, force);
 
-  log.info("Install: npm install @stratum/db-adapters @prisma/client pg");
+  log.info("Install: npm install @stratum-hq/db-adapters @prisma/client pg");
   log.info("Use tenantPrisma instead of prisma for tenant-scoped queries.");
 }
 
@@ -344,7 +344,7 @@ services:
     image: stratum/control-plane:latest
     # Or build from source:
     # build:
-    #   context: ./node_modules/@stratum/control-plane
+    #   context: ./node_modules/@stratum-hq/control-plane
     #   dockerfile: Dockerfile
     depends_on:
       stratum-db:
@@ -375,7 +375,7 @@ DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
 # Authentication
 JWT_SECRET=change-me-in-production
 
-# Control Plane (if using @stratum/sdk)
+# Control Plane (if using @stratum-hq/sdk)
 STRATUM_URL=http://localhost:3001
 STRATUM_API_KEY=sk_test_your_key_here
 

@@ -7,8 +7,8 @@ import {
   PaginationSchema,
   IsolationStrategyUnsupportedError,
   isSupportedIsolationStrategy,
-} from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+} from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 import {
   setupSchemaForTenant,
   setupDatabaseForTenant,

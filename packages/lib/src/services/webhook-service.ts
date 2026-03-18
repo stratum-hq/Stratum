@@ -4,8 +4,8 @@ import type {
   Webhook,
   CreateWebhookInput,
   UpdateWebhookInput,
-} from "@stratum/core";
-import { WebhookNotFoundError } from "@stratum/core";
+} from "@stratum-hq/core";
+import { WebhookNotFoundError } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
 
 /** Columns safe to return in API responses (excludes secret_hash). */

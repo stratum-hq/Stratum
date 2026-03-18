@@ -1,4 +1,4 @@
-import type { ResolvedPermission } from "@stratum/core";
+import type { ResolvedPermission } from "@stratum-hq/core";
 import { usePermissions } from "../../hooks/use-permissions.js";
 
 export interface HeadlessPermissionEditorAPI {

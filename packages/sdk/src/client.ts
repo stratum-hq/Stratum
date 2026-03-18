@@ -1,5 +1,5 @@
-import { TenantNotFoundError, UnauthorizedError } from "@stratum/core";
-import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum/core";
+import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+import type { TenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 import { LRUCache } from "./cache.js";
 
 export interface StratumClientOptions {

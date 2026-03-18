@@ -1,4 +1,4 @@
-import { TENANT_HEADER } from "@stratum/core";
+import { TENANT_HEADER } from "@stratum-hq/core";
 
 export function resolveFromHeader(req: unknown): string | null {
   const r = req as Record<string, unknown>;

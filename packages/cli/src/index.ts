@@ -13,7 +13,7 @@ async function main(): Promise<void> {
 
   // Handle top-level flags before parsing
   if (argv.includes("--version") || argv.includes("-v")) {
-    console.log("@stratum/cli v0.1.0");
+    console.log("@stratum-hq/cli v0.1.0");
     return;
   }
   if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
       case "version":
       case "--version":
       case "-v":
-        console.log("@stratum/cli v0.1.0");
+        console.log("@stratum-hq/cli v0.1.0");
         break;
       default:
         if (command) {

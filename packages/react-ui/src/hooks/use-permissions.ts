@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { ResolvedPermission } from "@stratum/core";
+import type { ResolvedPermission } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 import { useTenant } from "./use-tenant.js";
 

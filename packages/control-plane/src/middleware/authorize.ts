@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { UnauthorizedError, ForbiddenError } from "@stratum/core";
+import { UnauthorizedError, ForbiddenError } from "@stratum-hq/core";
 
 type ScopeRequirement = "read" | "write" | "admin";
 

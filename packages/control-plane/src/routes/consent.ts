@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
-import { GrantConsentInputSchema } from "@stratum/core";
-import { Stratum } from "@stratum/lib";
+import { GrantConsentInputSchema } from "@stratum-hq/core";
+import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { createTenantScopeGuard, fromParamTenantId } from "../middleware/tenant-scope.js";
 
