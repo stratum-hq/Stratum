@@ -65,7 +65,8 @@ export class Stratum {
     type: TenantEvent,
     tenantId: string,
     data: Record<string, unknown>,
-    parentSpan?: import("@opentelemetry/api").Span,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parentSpan?: any,
   ): void {
     eventService.emitEvent(this.pool, type, tenantId, data).catch((err) => {
       // Record emission failure on the parent span if available, but never throw
