@@ -1,0 +1,185 @@
+---
+title: Tenant Hierarchy
+description: Model, navigate, and manipulate tree-structured tenant hierarchies.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Stratum models tenants as a tree using PostgreSQL's `ltree` extension, enabling efficient subtree queries, ancestor lookups, and hierarchy-safe mutations.
+
+## Creating a Hierarchy
+
+Every tenant without a `parent_id` becomes a root. Pass `parent_id` to nest tenants:
+
+```typescript
+import { Stratum } from "@stratum-hq/lib";
+
+const root = await stratum.createTenant({
+  name: "AcmeSec",
+  slug: "acmesec",
+  isolation_strategy: "SHARED_RLS",
+});
+
+const msp = await stratum.createTenant({
+  name: "NorthStar MSP",
+  slug: "northstar_msp",
+  parent_id: root.id,
+});
+
+const client = await stratum.createTenant({
+  name: "Client Alpha",
+  slug: "client_alpha",
+  parent_id: msp.id,
+});
+```
+
+This produces the following structure:
+
+```
+AcmeSec                          depth: 0, ancestry_ltree: "acmesec"
+└── NorthStar MSP                depth: 1, ancestry_ltree: "acmesec.northstar_msp"
+    └── Client Alpha             depth: 2, ancestry_ltree: "acmesec.northstar_msp.client_alpha"
+```
+
+## Ancestry Paths
+
+Each tenant has two path fields:
+
+| Field | Format | Purpose |
+|-------|--------|---------|
+| `ancestry_path` | `/uuid1/uuid2/uuid3` | UUID chain for programmatic ancestor resolution |
+| `ancestry_ltree` | `slug1.slug2.slug3` | Slug-based path for PostgreSQL `ltree` queries |
+
+The `ancestry_path` encodes the full chain of parent UUIDs. Stratum uses this to walk up the tree when resolving config and permissions.
+
+The `ancestry_ltree` is used internally for subtree operations using PostgreSQL's `@>` (ancestor-of) and `<@` (descendant-of) operators, which are indexed and efficient even at millions of rows.
+
+## Navigating the Tree
+
+### Get Ancestors
+
+Returns all tenants from root down to the direct parent, ordered by depth:
+
+```typescript
+const ancestors = await stratum.getAncestors(client.id);
+// [root, msp] — ordered root-first
+```
+
+Via the API:
+
+```bash
+curl http://localhost:3001/api/v1/tenants/CLIENT_UUID/ancestors \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+### Get Descendants
+
+Returns the entire subtree below a tenant (uses `ltree` for efficiency):
+
+```typescript
+const descendants = await stratum.getDescendants(root.id);
+// [msp, client] — all tenants below root
+```
+
+### Get Children
+
+Returns only direct children (one level deep):
+
+```typescript
+const children = await stratum.getChildren(msp.id);
+// [client] — only immediate children
+```
+
+## Moving Tenants
+
+You can relocate a tenant (and all its descendants) under a new parent:
+
+```typescript
+await stratum.moveTenant(msp.id, otherRoot.id);
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/tenants/MSP_UUID/move \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"new_parent_id": "OTHER_ROOT_UUID"}'
+```
+
+### Safety Checks
+
+The move operation performs several validations:
+
+- **Cycle detection** — prevents moving a tenant under one of its own descendants
+- **Advisory locks** — acquires locks on both the old and new parent UUIDs to prevent concurrent modifications
+- **Path recalculation** — updates `ancestry_path` and `ancestry_ltree` for the moved tenant and all its descendants
+
+<Aside type="caution">
+  Moving a tenant changes its ancestry path, which affects config inheritance
+  and permission resolution. After a move, the tenant inherits from its new
+  ancestors.
+</Aside>
+
+## Batch Creation
+
+Create up to 100 tenants in a single atomic transaction:
+
+```typescript
+const result = await stratum.batchCreateTenants([
+  { name: "Client A", slug: "client_a", parent_id: msp.id },
+  { name: "Client B", slug: "client_b", parent_id: msp.id },
+  { name: "Client C", slug: "client_c", parent_id: msp.id },
+]);
+
+console.log(result.created); // array of TenantNode objects
+console.log(result.errors);  // empty if all succeeded
+```
+
+If any tenant fails validation (duplicate slug, missing parent, etc.), the entire batch rolls back.
+
+## Archiving and Purging
+
+### Soft Delete (Archive)
+
+Archiving sets `status = 'archived'` and `deleted_at` to the current timestamp:
+
+```typescript
+await stratum.deleteTenant(client.id);
+```
+
+<Aside type="note">
+  A tenant with active children cannot be archived. Archive children first.
+</Aside>
+
+### Hard Delete (GDPR Purge)
+
+For GDPR Article 17 compliance, you can permanently erase all tenant data:
+
+```typescript
+await stratum.purgeTenant(client.id);
+```
+
+This deletes config entries, permissions, API keys, webhooks, events, deliveries, audit logs, consent records, and the tenant itself. See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
+
+## Slug Rules
+
+Tenant slugs must match the pattern `^[a-z][a-z0-9_]{0,62}$`:
+
+- Start with a lowercase letter
+- Contain only lowercase letters, digits, and underscores
+- Maximum 63 characters
+
+Slugs must be unique across the entire system. They form part of the `ancestry_ltree` path and are used in PostgreSQL subtree queries.
+
+## Tree Depth Limit
+
+The maximum tree depth is 20 levels (configurable via `MAX_TREE_DEPTH` in `@stratum-hq/core`). Attempting to create a tenant that would exceed this depth returns a validation error.
+
+## Concurrency Safety
+
+Stratum uses PostgreSQL advisory locks to prevent race conditions:
+
+- Creating a child tenant acquires a lock on the parent UUID
+- Moving a tenant acquires locks on both the old and new parent UUIDs
+- These locks are transaction-scoped and released automatically on commit or rollback

@@ -1,0 +1,179 @@
+---
+title: Core Concepts
+description: Understand the data model and design principles behind Stratum.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Stratum is built around a few core ideas: tenant trees, config inheritance, permission delegation, and isolation boundaries. This page explains each one.
+
+## Tenant Trees
+
+Tenants are organized as a tree structure using PostgreSQL's `ltree` extension. Every tenant has a parent (except root tenants), forming hierarchies like:
+
+```
+AcmeSec (root MSSP)             depth: 0
+├── NorthStar MSP                depth: 1
+│   ├── Client Alpha             depth: 2
+│   └── Client Beta              depth: 2
+└── SouthShield MSP              depth: 1
+    └── Client Gamma             depth: 2
+```
+
+Each tenant stores two paths:
+
+- **`ancestry_path`** — UUID chain (`/uuid1/uuid2/uuid3`) used for ancestor lookups
+- **`ancestry_ltree`** — slug-based path (`acmesec.northstar_msp.client_alpha`) used by PostgreSQL for efficient subtree queries via the `@>` operator
+
+The maximum tree depth is 20 levels. Advisory locks on parent UUIDs prevent race conditions during concurrent modifications.
+
+### Tree Operations
+
+| Operation | Description |
+|-----------|-------------|
+| `getAncestors(id)` | Returns all tenants from root down to the parent |
+| `getDescendants(id)` | Returns the entire subtree (uses `ltree` for efficiency) |
+| `getChildren(id)` | Returns direct children only |
+| `moveTenant(id, newParentId)` | Relocates a tenant and all its descendants, with cycle detection |
+
+## Config Inheritance
+
+Config values flow **downward** through the tree, from root to leaf. Each tenant can set its own values, but inherits any key it hasn't explicitly set from its nearest ancestor that has.
+
+```
+Root:    max_users = 1000, theme = "dark" (locked)
+  MSP:   max_users = 500                  ← overrides root
+    Client: (no overrides)                ← inherits max_users=500 from MSP
+                                             inherits theme="dark" from Root
+```
+
+### Resolved Config
+
+When you call `resolveConfig(tenantId)`, Stratum walks up the ancestry path and merges config entries. For each key, the resolved entry tells you:
+
+- **`value`** — the effective value
+- **`inherited`** — whether it came from an ancestor
+- **`source_tenant_id`** — which tenant set this value
+- **`locked`** — whether it can be overridden by descendants
+
+### Locking
+
+A parent can **lock** a config key to prevent any descendant from overriding it. Attempting to set a locked key on a child tenant returns a `409 CONFIG_LOCKED` error.
+
+<Aside type="tip">
+  Use locking for security-critical settings that should be uniform across an
+  entire subtree, like encryption requirements or compliance flags.
+</Aside>
+
+### Sensitive Values
+
+Config values can be marked `sensitive: true`, which encrypts them at rest using AES-256-GCM before storage. Sensitive values are decrypted when resolved. See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
+
+## Permission Delegation
+
+Permissions use a policy-based model where each policy has a **mode** and a **revocation mode** that control how the permission flows through the tree.
+
+### Delegation Modes
+
+| Mode | Behavior |
+|------|----------|
+| `LOCKED` | Set once by the creating tenant, immutable by any descendant |
+| `INHERITED` | Flows down the tree; descendants can override the value |
+| `DELEGATED` | Flows down; descendants can override and re-delegate to their own children |
+
+### Revocation Modes
+
+| Mode | Behavior |
+|------|----------|
+| `CASCADE` | Deleting the permission removes it from the creating tenant and all descendants |
+| `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
+| `PERMANENT` | Permission cannot be deleted (returns `403 PERMISSION_REVOCATION_DENIED`) |
+
+### Resolved Permissions
+
+When you call `resolvePermissions(tenantId)`, each resolved entry includes:
+
+- **`key`** — the permission key
+- **`value`** — the effective value (typically `true`/`false`)
+- **`mode`** — the delegation mode
+- **`source_tenant_id`** — which ancestor created this policy
+- **`locked`** — `true` if mode is `LOCKED`
+- **`delegated`** — `true` if mode is `DELEGATED`
+
+## Isolation Strategies
+
+Stratum supports three isolation levels, configurable per tenant at creation time:
+
+| Strategy | Boundary | Performance | Isolation |
+|----------|----------|-------------|-----------|
+| `SHARED_RLS` | Row-Level Security policies | Best (shared pool) | Good |
+| `SCHEMA_PER_TENANT` | PostgreSQL schema per tenant | Good (shared DB) | Better |
+| `DB_PER_TENANT` | Dedicated database per tenant | Separate pool | Maximum |
+
+### Shared RLS (default)
+
+All tenants share the same tables. PostgreSQL Row-Level Security policies filter rows based on a session variable (`app.current_tenant_id`) set at the start of each transaction. The `FORCE ROW LEVEL SECURITY` flag ensures even table owners cannot bypass filtering.
+
+### Schema-per-Tenant
+
+Each tenant gets a dedicated PostgreSQL schema with its own set of tables. Queries are routed to the correct schema by setting `search_path`. Tenants share the same database connection pool.
+
+### Database-per-Tenant
+
+Each tenant gets a separate PostgreSQL database with its own connection pool. This provides the strongest isolation boundary, suitable for compliance requirements that mandate physical separation.
+
+<Aside type="note">
+  You can mix isolation strategies within the same hierarchy. A root tenant might
+  use `SHARED_RLS` while a high-security child uses `DB_PER_TENANT`.
+</Aside>
+
+## Tenant Context
+
+A **TenantContext** is the resolved runtime state for a single tenant. It bundles:
+
+```typescript
+interface TenantContext {
+  tenant_id: string;
+  ancestry_path: string;
+  depth: number;
+  resolved_config: Record<string, ResolvedConfigEntry>;
+  resolved_permissions: Record<string, ResolvedPermission>;
+  isolation_strategy: IsolationStrategy;
+}
+```
+
+In the SDK, the middleware resolves the tenant context from the incoming request (via JWT, header, or custom resolver) and attaches it to `req.tenant`. In the library, you resolve it explicitly with `stratum.resolveConfig()` and `stratum.resolvePermissions()`.
+
+## API Keys and Scopes
+
+API keys authenticate requests to the control plane. Each key can be:
+
+- **Global** (`tenant_id` is null) — access all tenants
+- **Tenant-scoped** (`tenant_id` set) — access only that tenant and its descendants
+
+Keys carry **scopes** that determine what operations they can perform:
+
+| Scope | Access |
+|-------|--------|
+| `read` | GET requests on standard routes |
+| `write` | All mutations on standard routes |
+| `admin` | Admin-only routes (key management, audit logs, GDPR operations) |
+
+Roles (RBAC) can override a key's default scopes by assigning a named role that bundles a specific set of scopes.
+
+## Audit Trail
+
+Every mutation in Stratum is recorded in the audit log with:
+
+- **Actor** — who performed the action (API key ID, JWT subject, or system)
+- **Action** — what happened (`tenant.created`, `config.updated`, etc.)
+- **Before/After state** — full snapshots for change tracking
+- **Request context** — source IP, request ID
+
+Audit logs support cursor-based pagination and filtering by tenant, action, actor, and date range.
+
+## Next Steps
+
+- [Tenant Hierarchy](/guides/tenant-hierarchy/) — advanced tree operations
+- [Config Inheritance](/guides/config-inheritance/) — locking, sensitive values, batch updates
+- [Permission Delegation](/guides/permission-delegation/) — modes, revocation, and use cases

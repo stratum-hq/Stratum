@@ -7,6 +7,7 @@ import { migrate } from "./commands/migrate.js";
 import { health } from "./commands/health.js";
 import { generateApiKey } from "./commands/generate.js";
 import { scaffold } from "./commands/scaffold.js";
+import { doctor } from "./commands/doctor.js";
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
@@ -45,6 +46,9 @@ async function main(): Promise<void> {
         break;
       case "scaffold":
         await scaffold(args, flags);
+        break;
+      case "doctor":
+        await doctor(flags);
         break;
       case "help":
       case "--help":

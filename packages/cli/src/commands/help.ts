@@ -9,6 +9,7 @@ export function printHelp(): void {
     migrate --scan                Scan database and show RLS status for all tables
     migrate --all                 Migrate all unmigrated tables interactively
     health                        Check database connection, extensions, and RLS setup
+    doctor                        Deep diagnostic: RLS, indexes, stale keys, tree depth
     generate api-key              Generate a new API key
     scaffold <template>           Generate framework integration boilerplate
 

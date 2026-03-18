@@ -1,0 +1,94 @@
+---
+title: Stratum
+description: Universal Tenant Context Engine — hierarchical multi-tenancy for any stack.
+template: splash
+hero:
+  title: Universal Tenant Context Engine
+  tagline: Hierarchical multi-tenancy for any stack. Tree-structured tenants, config inheritance, permission delegation, and three isolation strategies — all backed by PostgreSQL.
+  actions:
+    - text: Get Started
+      link: /getting-started/installation/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/stratum-hq/stratum
+      icon: external
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid stagger>
+  <Card title="Tenant Hierarchies" icon="list-format">
+    Model tenants as a tree using PostgreSQL `ltree`. Parent-child relationships with efficient subtree queries, ancestor resolution, and cycle-safe moves — up to 20 levels deep.
+  </Card>
+
+  <Card title="Config Inheritance" icon="setting">
+    Config values flow root-to-leaf. Children inherit parent values unless they override. Parents can lock keys to prevent any descendant from changing them. Sensitive values are encrypted with AES-256-GCM.
+  </Card>
+
+  <Card title="Permission Delegation" icon="approve-check">
+    Three delegation modes: **LOCKED** (immutable), **INHERITED** (overridable), and **DELEGATED** (re-delegatable). Revocation controls blast radius with CASCADE, SOFT, or PERMANENT semantics.
+  </Card>
+
+  <Card title="Three Isolation Strategies" icon="random">
+    Choose per-tenant: **Shared RLS** (row-level security), **Schema-per-Tenant** (logical separation), or **Database-per-Tenant** (maximum isolation). Mix strategies within the same hierarchy.
+  </Card>
+
+  <Card title="Two Integration Paths" icon="puzzle">
+    Embed `@stratum-hq/lib` directly for zero-HTTP-overhead performance, or run the control plane as a service and use `@stratum-hq/sdk` with Express/Fastify middleware.
+  </Card>
+
+  <Card title="Built-in Compliance" icon="document">
+    GDPR data export (Article 20), hard-purge (Article 17), consent tracking with purpose and expiration, audit logging with before/after state, and multi-region data residency.
+  </Card>
+</CardGrid>
+
+## Install
+
+```bash
+# Direct library (no HTTP overhead)
+npm install @stratum-hq/lib @stratum-hq/core pg
+
+# Or use the SDK with Express/Fastify middleware
+npm install @stratum-hq/sdk @stratum-hq/core
+```
+
+## Quick Example
+
+```typescript
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const stratum = new Stratum({ pool });
+
+// Create a root tenant
+const root = await stratum.createTenant({
+  name: "AcmeSec",
+  slug: "acmesec",
+  isolation_strategy: "SHARED_RLS",
+});
+
+// Create a child tenant
+const msp = await stratum.createTenant({
+  name: "NorthStar MSP",
+  slug: "northstar_msp",
+  parent_id: root.id,
+});
+
+// Config with inheritance
+await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false });
+const config = await stratum.resolveConfig(msp.id);
+// { max_users: { value: 1000, inherited: true, source_tenant_id: root.id } }
+```
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| [`@stratum-hq/core`](/packages/core/) | Shared types, Zod schemas, error classes, constants |
+| [`@stratum-hq/lib`](/packages/lib/) | Direct library — embed in Node.js with no HTTP |
+| [`@stratum-hq/sdk`](/packages/sdk/) | HTTP client, LRU cache, Express/Fastify middleware |
+| [`@stratum-hq/db-adapters`](/packages/db-adapters/) | PostgreSQL adapters, RLS management, Prisma integration |
+| [`@stratum-hq/cli`](/packages/cli/) | Project init, DB migration, framework scaffolding |
+| [`@stratum-hq/react`](/packages/react/) | React provider, tenant tree, config/permission editors |

@@ -1,0 +1,233 @@
+---
+title: API Keys API
+description: REST API reference for API key management, rotation, rate limiting, and RBAC.
+---
+
+API key endpoints require the `admin` scope. All responses redact the plaintext key (it is only returned at creation time).
+
+## Key Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/api-keys` | Create API key |
+| `GET` | `/api/v1/api-keys` | List API keys |
+| `DELETE` | `/api/v1/api-keys/:id` | Revoke API key |
+| `POST` | `/api/v1/api-keys/:id/rotate` | Rotate API key |
+| `GET` | `/api/v1/api-keys/dormant` | List dormant keys |
+
+## Role Endpoints (RBAC)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/roles` | Create role |
+| `GET` | `/api/v1/roles` | List roles |
+| `GET` | `/api/v1/roles/:id` | Get role |
+| `PATCH` | `/api/v1/roles/:id` | Update role |
+| `DELETE` | `/api/v1/roles/:id` | Delete role |
+| `POST` | `/api/v1/roles/assign/:keyId` | Assign role to API key |
+| `DELETE` | `/api/v1/roles/assign/:keyId` | Remove role from API key |
+
+---
+
+## Create API Key
+
+```
+POST /api/v1/api-keys
+```
+
+**Body:**
+
+```json
+{
+  "tenant_id": "uuid",
+  "name": "my-service",
+  "rate_limit_max": 100,
+  "rate_limit_window": "1 minute"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tenant_id` | UUID | Yes | Tenant to scope the key to |
+| `name` | string | No | Descriptive name |
+| `rate_limit_max` | integer | No | Max requests per window (1--100,000) |
+| `rate_limit_window` | string | No | Time window (e.g., `"30 seconds"`, `"1 minute"`, `"1 hour"`) |
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "key-uuid",
+  "tenant_id": "tenant-uuid",
+  "key_prefix": "sk_live_abc",
+  "name": "my-service",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "plaintext_key": "sk_live_abc123..."
+}
+```
+
+The `plaintext_key` is only returned in this response and cannot be retrieved again.
+
+---
+
+## List API Keys
+
+```
+GET /api/v1/api-keys?tenant_id=<uuid>
+```
+
+**Query Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `tenant_id` | UUID | Filter by tenant (optional; scoped keys auto-filter) |
+
+**Response:** `200 OK` -- array of API key records (without plaintext keys).
+
+---
+
+## Revoke API Key
+
+```
+DELETE /api/v1/api-keys/:id
+```
+
+**Response:** `204 No Content`
+
+Returns `404` if the key does not exist or is already revoked.
+
+---
+
+## Rotate API Key
+
+```
+POST /api/v1/api-keys/:id/rotate
+```
+
+Revokes the existing key and creates a new one. Optionally update the name.
+
+**Body** (optional):
+
+```json
+{
+  "name": "my-service-v2"
+}
+```
+
+**Response:** `201 Created` -- returns the new key with `plaintext_key`.
+
+---
+
+## List Dormant Keys
+
+```
+GET /api/v1/api-keys/dormant?days=90
+```
+
+Returns keys that have not been used in the specified number of days.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `days` | integer | 90 | Minimum days since last use (1--365) |
+
+**Response:** `200 OK` -- array of API key records.
+
+---
+
+## Create Role
+
+```
+POST /api/v1/roles
+```
+
+**Body:**
+
+```json
+{
+  "name": "Editor",
+  "description": "Can read and write but not manage keys",
+  "scopes": ["read", "write"],
+  "tenant_id": "uuid (optional, null for global)"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Role name (1--100 chars) |
+| `description` | string | No | Description (max 500 chars) |
+| `scopes` | string[] | Yes | Array of `"read"`, `"write"`, `"admin"` |
+| `tenant_id` | UUID | No | Scope role to a tenant (null for global) |
+
+**Response:** `201 Created` -- returns the role object.
+
+---
+
+## List Roles
+
+```
+GET /api/v1/roles?tenant_id=<uuid>
+```
+
+**Response:** `200 OK` -- array of role objects.
+
+---
+
+## Update Role
+
+```
+PATCH /api/v1/roles/:id
+```
+
+**Body** (all optional):
+
+```json
+{
+  "name": "Senior Editor",
+  "scopes": ["read", "write", "admin"]
+}
+```
+
+**Response:** `200 OK` -- returns the updated role.
+
+---
+
+## Assign Role to API Key
+
+```
+POST /api/v1/roles/assign/:keyId
+```
+
+**Body:**
+
+```json
+{
+  "role_id": "uuid"
+}
+```
+
+When a role is assigned, the role's scopes override the key's default scopes.
+
+**Response:** `200 OK` -- `{"success": true}`
+
+---
+
+## Remove Role from API Key
+
+```
+DELETE /api/v1/roles/assign/:keyId
+```
+
+Removes the role, reverting the key to its own default scopes.
+
+**Response:** `200 OK` -- `{"success": true}`
+
+---
+
+## Error Responses
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `UNAUTHORIZED` | 401 | Missing or invalid API key / JWT |
+| `FORBIDDEN` | 403 | Insufficient scope |
+| `NOT_FOUND` | 404 | Key or role not found |
+| `VALIDATION_ERROR` | 400 | Invalid request body |

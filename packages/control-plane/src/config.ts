@@ -19,4 +19,5 @@ export const config = {
     : ["http://localhost:3000", "http://localhost:3300"],
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "100"),
   rateLimitWindow: process.env.RATE_LIMIT_WINDOW || "1 minute",
+  redisUrl: process.env.REDIS_URL || undefined,
 };

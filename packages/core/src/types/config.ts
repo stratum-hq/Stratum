@@ -45,3 +45,30 @@ export interface BatchSetConfigResult {
   succeeded: number;
   failed: number;
 }
+
+/** Per-key diff entry showing the value and status for one tenant side. */
+export interface ConfigDiffEntry {
+  value: unknown;
+  status: "inherited" | "own" | "locked";
+  source: string;
+}
+
+/** A single key comparison between two tenants. */
+export interface ConfigDiffItem {
+  key: string;
+  tenant_a: ConfigDiffEntry | null;
+  tenant_b: ConfigDiffEntry | null;
+}
+
+/** Summary info for a tenant in the diff response. */
+export interface ConfigDiffTenantInfo {
+  id: string;
+  name: string;
+}
+
+/** Full config diff response. */
+export interface ConfigDiff {
+  tenant_a: ConfigDiffTenantInfo;
+  tenant_b: ConfigDiffTenantInfo;
+  diff: ConfigDiffItem[];
+}

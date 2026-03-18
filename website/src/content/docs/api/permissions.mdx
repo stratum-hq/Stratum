@@ -1,0 +1,159 @@
+---
+title: Permissions API
+description: REST API reference for permission policies with delegation and revocation modes.
+---
+
+Permission endpoints are nested under tenants. All endpoints require authentication and enforce tenant scope for scoped API keys.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/tenants/:id/permissions` | Get resolved permissions |
+| `POST` | `/api/v1/tenants/:id/permissions` | Create permission policy |
+| `PATCH` | `/api/v1/tenants/:id/permissions/:policyId` | Update permission policy |
+| `DELETE` | `/api/v1/tenants/:id/permissions/:policyId` | Delete permission policy |
+
+---
+
+## Get Resolved Permissions
+
+```
+GET /api/v1/tenants/:id/permissions
+```
+
+Returns resolved permissions with delegation mode and source tracking applied.
+
+**Response:** `200 OK`
+
+```json
+{
+  "manage_users": {
+    "key": "manage_users",
+    "value": true,
+    "mode": "LOCKED",
+    "source_tenant_id": "root-uuid",
+    "locked": true,
+    "delegated": false
+  },
+  "custom_branding": {
+    "key": "custom_branding",
+    "value": true,
+    "mode": "DELEGATED",
+    "source_tenant_id": "msp-uuid",
+    "locked": false,
+    "delegated": true
+  }
+}
+```
+
+Each resolved entry:
+
+| Field | Description |
+|-------|-------------|
+| `key` | Permission identifier |
+| `value` | Effective value (typically boolean) |
+| `mode` | `LOCKED`, `INHERITED`, or `DELEGATED` |
+| `source_tenant_id` | Which ancestor created this policy |
+| `locked` | `true` if mode is `LOCKED` |
+| `delegated` | `true` if mode is `DELEGATED` |
+
+---
+
+## Create Permission
+
+```
+POST /api/v1/tenants/:id/permissions
+```
+
+**Body:**
+
+```json
+{
+  "key": "manage_users",
+  "value": true,
+  "mode": "LOCKED",
+  "revocation_mode": "CASCADE"
+}
+```
+
+| Field | Values | Default | Description |
+|-------|--------|---------|-------------|
+| `key` | string | Required | Permission identifier |
+| `value` | any | `true` | Permission value |
+| `mode` | `LOCKED`, `INHERITED`, `DELEGATED` | `INHERITED` | How the permission flows down the tree |
+| `revocation_mode` | `CASCADE`, `SOFT`, `PERMANENT` | `CASCADE` | What happens when deleted |
+
+### Delegation Modes
+
+| Mode | Behavior |
+|------|----------|
+| `LOCKED` | Set once, immutable by any descendant |
+| `INHERITED` | Flows down, descendants can override the value |
+| `DELEGATED` | Flows down, descendants can override and re-delegate |
+
+### Revocation Modes
+
+| Mode | Behavior |
+|------|----------|
+| `CASCADE` | Deletes from this tenant and all descendants |
+| `SOFT` | Deletes only from this tenant; children keep copies |
+| `PERMANENT` | Cannot be deleted (returns 403) |
+
+**Response:** `201 Created` -- returns the permission policy.
+
+---
+
+## Update Permission
+
+```
+PATCH /api/v1/tenants/:id/permissions/:policyId
+```
+
+**Body** (all fields optional):
+
+```json
+{
+  "value": true,
+  "mode": "DELEGATED",
+  "revocation_mode": "SOFT"
+}
+```
+
+**Response:** `200 OK` -- returns the updated policy.
+
+---
+
+## Delete Permission
+
+```
+DELETE /api/v1/tenants/:id/permissions/:policyId
+```
+
+Behavior depends on the policy's revocation mode:
+
+- **CASCADE** -- deletes from this tenant and all descendants
+- **SOFT** -- deletes only from this tenant
+- **PERMANENT** -- returns `403 PERMISSION_REVOCATION_DENIED`
+
+**Response:** `204 No Content`
+
+---
+
+## Error Responses
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `PERMISSION_LOCKED` | 409 | Permission is locked by an ancestor |
+| `PERMISSION_REVOCATION_DENIED` | 403 | Permission has PERMANENT revocation mode |
+| `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
+| `NOT_FOUND` | 404 | Permission policy not found |
+
+```json
+{
+  "error": {
+    "code": "PERMISSION_REVOCATION_DENIED",
+    "message": "Permission policy has PERMANENT revocation mode and cannot be deleted"
+  }
+}
+```

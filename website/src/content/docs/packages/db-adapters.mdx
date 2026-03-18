@@ -1,0 +1,163 @@
+---
+title: "@stratum-hq/db-adapters"
+description: PostgreSQL adapters for tenant-scoped query isolation using Row-Level Security and Prisma.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/db-adapters` provides PostgreSQL adapters that automatically scope queries to the current tenant using Row-Level Security. It supports both raw `pg` and Prisma, plus helpers for enabling RLS on your tables.
+
+## Installation
+
+```bash
+npm install @stratum-hq/db-adapters @stratum-hq/core pg
+```
+
+## Raw PostgreSQL Adapter
+
+For applications using `pg` (node-postgres) directly:
+
+```typescript
+import { Pool } from "pg";
+import { RawAdapter, createTenantPool } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Option 1: Automatic context from AsyncLocalStorage
+const tenantPool = createTenantPool(pool, () => getTenantContext().tenant_id);
+const result = await tenantPool.query("SELECT * FROM orders");
+
+// Option 2: Manual adapter usage
+const adapter = new RawAdapter(pool);
+const result = await adapter.query("tenant-id", "SELECT * FROM orders");
+```
+
+### How It Works
+
+The adapter wraps every query in a transaction that:
+
+1. Calls `BEGIN`
+2. Sets `app.current_tenant_id` via parameterized `set_config()` -- fully SQL-injection-safe
+3. Executes your query (automatically filtered by RLS policies)
+4. Calls `COMMIT`
+5. Resets the tenant context and releases the connection
+
+## Prisma Adapter
+
+For applications using Prisma ORM:
+
+```typescript
+import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
+import { withTenant } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
+
+const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+const tenantPrisma = withTenant(
+  prisma,
+  () => getTenantContext().tenant_id,
+  pool,
+);
+
+// All queries automatically scoped to the current tenant
+const orders = await tenantPrisma.order.findMany();
+```
+
+## RLS Management
+
+### Enable RLS on a Table
+
+```typescript
+import { enableRLS, createPolicy } from "@stratum-hq/db-adapters";
+
+const client = await pool.connect();
+try {
+  await enableRLS(client, "orders");       // ENABLE + FORCE ROW LEVEL SECURITY
+  await createPolicy(client, "orders");     // CREATE POLICY tenant_isolation
+} finally {
+  client.release();
+}
+```
+
+### Disable RLS
+
+```typescript
+import { dropPolicy, disableRLS } from "@stratum-hq/db-adapters";
+
+await dropPolicy(client, "orders");
+await disableRLS(client, "orders");
+```
+
+### Check RLS Status
+
+```typescript
+import { isRLSEnabled } from "@stratum-hq/db-adapters";
+
+const enabled = await isRLSEnabled(client, "orders"); // true/false
+```
+
+## Migration Helpers
+
+One-step table migration that adds `tenant_id`, enables RLS, and creates the isolation policy:
+
+```typescript
+import { migrateTable } from "@stratum-hq/db-adapters";
+
+const client = await pool.connect();
+try {
+  await client.query("BEGIN");
+  await migrateTable(client, "orders");
+  await client.query("COMMIT");
+} finally {
+  client.release();
+}
+```
+
+Or step-by-step for more control:
+
+```typescript
+import {
+  addTenantColumn,
+  enableRLS,
+  createIsolationPolicy,
+} from "@stratum-hq/db-adapters";
+
+await addTenantColumn(client, "orders");      // ALTER TABLE ADD tenant_id UUID NOT NULL
+await enableRLS(client, "orders");             // ENABLE + FORCE ROW LEVEL SECURITY
+await createIsolationPolicy(client, "orders"); // CREATE POLICY tenant_isolation
+```
+
+## Session Context
+
+Low-level functions for managing the PostgreSQL session variable:
+
+```typescript
+import {
+  setTenantContext,
+  resetTenantContext,
+  getCurrentTenantId,
+} from "@stratum-hq/db-adapters";
+
+await setTenantContext(client, "tenant-uuid");
+const id = await getCurrentTenantId(client);   // "tenant-uuid"
+await resetTenantContext(client);               // RESET app.current_tenant_id
+```
+
+## Security
+
+| Property | Implementation |
+|----------|---------------|
+| Table name validation | All DDL operations validate against `/^[a-zA-Z_][a-zA-Z0-9_]*$/` |
+| Parameterized context | Tenant ID set via `set_config($1, true)` -- fully parameterized |
+| FORCE RLS | `enableRLS()` always enables FORCE, preventing bypass by table owners |
+| Connection cleanup | Always reset tenant context when releasing connections |
+
+<Aside type="caution">
+  Always reset the tenant context when returning connections to the pool. The
+  `createTenantPool` wrapper handles this automatically, but if you use the
+  low-level functions directly, call `resetTenantContext(client)` in your
+  `finally` block.
+</Aside>

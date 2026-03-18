@@ -1,0 +1,255 @@
+---
+title: Permission Delegation
+description: Control how permissions flow through the tenant tree with delegation and revocation modes.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Permissions in Stratum use a policy-based model. Each permission policy defines a key-value pair, a delegation mode that controls how it propagates down the tree, and a revocation mode that controls deletion behavior.
+
+## Creating Permissions
+
+```typescript
+await stratum.createPermission(tenantId, {
+  key: "manage_users",
+  value: true,
+  mode: "LOCKED",
+  revocation_mode: "CASCADE",
+});
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/tenants/TENANT_ID/permissions \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "key": "manage_users",
+    "value": true,
+    "mode": "LOCKED",
+    "revocation_mode": "CASCADE"
+  }'
+```
+
+## Delegation Modes
+
+The mode determines how a permission flows through the hierarchy:
+
+### LOCKED
+
+The permission is set once and cannot be changed by any descendant. Use this for security-critical permissions that must be uniform.
+
+```typescript
+// Root locks "manage_billing" to true
+await stratum.createPermission(rootId, {
+  key: "manage_billing",
+  value: true,
+  mode: "LOCKED",
+});
+
+// Child tries to override — blocked
+// The child resolves manage_billing = true, locked = true
+```
+
+### INHERITED
+
+The permission flows down the tree. Descendants can override the value but cannot change the mode or re-delegate.
+
+```typescript
+// Root sets "can_invite_users" with INHERITED mode
+await stratum.createPermission(rootId, {
+  key: "can_invite_users",
+  value: true,
+  mode: "INHERITED",
+});
+
+// MSP overrides to false for its subtree
+await stratum.createPermission(mspId, {
+  key: "can_invite_users",
+  value: false,
+  mode: "INHERITED",
+});
+```
+
+### DELEGATED
+
+The most flexible mode. The permission flows down and descendants can both override the value and re-delegate to their own children.
+
+```typescript
+// Root delegates "custom_branding" to MSPs
+await stratum.createPermission(rootId, {
+  key: "custom_branding",
+  value: true,
+  mode: "DELEGATED",
+});
+
+// MSP can re-delegate to its clients
+await stratum.createPermission(mspId, {
+  key: "custom_branding",
+  value: true,
+  mode: "DELEGATED",
+});
+```
+
+## Revocation Modes
+
+The revocation mode controls what happens when a permission is deleted:
+
+| Mode | Behavior |
+|------|----------|
+| `CASCADE` | Deleting the permission removes it from the creating tenant **and all descendants** |
+| `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
+| `PERMANENT` | The permission cannot be deleted — returns `403 PERMISSION_REVOCATION_DENIED` |
+
+### CASCADE Example
+
+```typescript
+await stratum.createPermission(rootId, {
+  key: "feature_x",
+  value: true,
+  mode: "INHERITED",
+  revocation_mode: "CASCADE",
+});
+
+// Later, revoke it — removed from root AND all descendants
+await stratum.deletePermission(rootId, policyId);
+```
+
+### SOFT Example
+
+```typescript
+await stratum.createPermission(rootId, {
+  key: "feature_y",
+  value: true,
+  mode: "DELEGATED",
+  revocation_mode: "SOFT",
+});
+
+// Children have already set their own overrides
+// Deleting from root only removes root's policy
+// Children's policies remain untouched
+await stratum.deletePermission(rootId, policyId);
+```
+
+### PERMANENT Example
+
+```typescript
+await stratum.createPermission(rootId, {
+  key: "compliance_flag",
+  value: true,
+  mode: "LOCKED",
+  revocation_mode: "PERMANENT",
+});
+
+// Cannot be deleted
+try {
+  await stratum.deletePermission(rootId, policyId);
+} catch (err) {
+  // PermissionRevocationDeniedError
+}
+```
+
+<Aside type="caution">
+  Use `PERMANENT` sparingly. Once set, the only way to remove the permission is
+  to purge the entire tenant.
+</Aside>
+
+## Resolving Permissions
+
+Resolve the effective permissions for a tenant with all delegation applied:
+
+```typescript
+const perms = await stratum.resolvePermissions(tenantId);
+```
+
+Each resolved entry:
+
+```typescript
+{
+  "manage_users": {
+    "key": "manage_users",
+    "value": true,
+    "mode": "LOCKED",
+    "source_tenant_id": "root-uuid",
+    "locked": true,
+    "delegated": false
+  },
+  "custom_branding": {
+    "key": "custom_branding",
+    "value": true,
+    "mode": "DELEGATED",
+    "source_tenant_id": "msp-uuid",
+    "locked": false,
+    "delegated": true
+  }
+}
+```
+
+## Updating Permissions
+
+Update the value, mode, or revocation mode of an existing policy:
+
+```typescript
+await stratum.updatePermission(tenantId, policyId, {
+  value: false,
+  mode: "INHERITED",
+});
+```
+
+Via the API:
+
+```bash
+curl -X PATCH http://localhost:3001/api/v1/tenants/TENANT_ID/permissions/POLICY_ID \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"value": false, "mode": "INHERITED"}'
+```
+
+## Common Patterns
+
+### Role-Based Feature Access
+
+```typescript
+// MSSP root defines what MSPs can do
+await stratum.createPermission(rootId, {
+  key: "manage_users",
+  value: true,
+  mode: "DELEGATED",
+  revocation_mode: "CASCADE",
+});
+
+await stratum.createPermission(rootId, {
+  key: "manage_billing",
+  value: true,
+  mode: "LOCKED", // MSPs can never disable billing management
+  revocation_mode: "PERMANENT",
+});
+
+await stratum.createPermission(rootId, {
+  key: "custom_branding",
+  value: false,
+  mode: "INHERITED", // MSPs can enable for their clients
+  revocation_mode: "SOFT",
+});
+```
+
+### Compliance Enforcement
+
+```typescript
+// Lock audit logging requirement
+await stratum.createPermission(rootId, {
+  key: "require_audit_logging",
+  value: true,
+  mode: "LOCKED",
+  revocation_mode: "PERMANENT",
+});
+
+// Lock data encryption requirement
+await stratum.createPermission(rootId, {
+  key: "require_encryption_at_rest",
+  value: true,
+  mode: "LOCKED",
+  revocation_mode: "PERMANENT",
+});
+```

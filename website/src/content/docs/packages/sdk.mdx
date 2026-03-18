@@ -1,0 +1,248 @@
+---
+title: "@stratum-hq/sdk"
+description: HTTP client, LRU cache, and Express/Fastify middleware for the Stratum control plane.
+---
+
+import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/sdk` provides an HTTP client for the Stratum control plane with built-in LRU caching, Express middleware, and a Fastify plugin. It resolves tenant context from incoming requests and attaches it to the request object.
+
+## Installation
+
+```bash
+npm install @stratum-hq/sdk @stratum-hq/core
+```
+
+## Quick Start
+
+```typescript
+import { stratum } from "@stratum-hq/sdk";
+
+const s = stratum({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+});
+
+// Express
+app.use(s.middleware());
+
+// Fastify
+app.register(s.plugin());
+```
+
+## StratumClient
+
+The HTTP client for the control plane API with built-in LRU caching:
+
+```typescript
+import { StratumClient } from "@stratum-hq/sdk";
+
+const client = new StratumClient({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+  cache: {
+    enabled: true,    // default: true
+    ttlMs: 60000,     // default: 60 seconds
+    maxSize: 100,     // default: 100 entries
+  },
+});
+```
+
+### Client Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `resolveTenant(id)` | `TenantContext` | Resolve full context (cached) |
+| `getTenantTree(rootId?)` | `TenantNode[]` | List tenants or subtree |
+| `createTenant(input)` | `TenantNode` | Create tenant |
+| `getTenant(id)` | `TenantNode` | Get single tenant |
+| `updateTenant(id, input)` | `TenantNode` | Update tenant |
+| `moveTenant(id, input)` | `TenantNode` | Move in hierarchy |
+| `archiveTenant(id)` | `TenantNode` | Soft delete |
+| `deleteTenant(id)` | `void` | Delete tenant |
+| `rotateApiKey(keyId, name?)` | `CreatedApiKey` | Rotate an API key |
+| `listApiKeys(tenantId?)` | `ApiKeyRecord[]` | List API keys |
+| `listDormantKeys(days?)` | `ApiKeyRecord[]` | Find unused keys |
+| `createWebhook(input)` | `Webhook` | Create webhook |
+| `listWebhooks(tenantId?)` | `Webhook[]` | List webhooks |
+| `listRegions()` | `Region[]` | List all regions |
+| `createRegion(input)` | `Region` | Create a region |
+| `invalidateCache(id)` | `void` | Invalidate single entry |
+| `clearCache()` | `void` | Clear all cached data |
+
+## Framework Integration
+
+<Tabs>
+  <TabItem label="Express">
+    ```typescript
+    import express from "express";
+    import { StratumClient, expressMiddleware } from "@stratum-hq/sdk";
+
+    const app = express();
+    const client = new StratumClient({
+      controlPlaneUrl: "http://localhost:3001",
+      apiKey: "sk_live_your_key",
+    });
+
+    app.use(expressMiddleware(client, {
+      jwtClaimPath: "tenant_id",
+      jwtSecret: process.env.JWT_SECRET,
+      headerName: "X-Tenant-ID",
+      onError: (err, req) => console.error(err),
+    }));
+
+    app.get("/data", (req, res) => {
+      const ctx = req.tenant;
+      res.json({
+        tenantId: ctx.tenant_id,
+        config: ctx.resolved_config,
+      });
+    });
+    ```
+  </TabItem>
+  <TabItem label="Fastify">
+    ```typescript
+    import Fastify from "fastify";
+    import { StratumClient, fastifyPlugin } from "@stratum-hq/sdk";
+
+    const app = Fastify();
+    const client = new StratumClient({
+      controlPlaneUrl: "http://localhost:3001",
+      apiKey: "sk_live_your_key",
+    });
+
+    app.register(fastifyPlugin, {
+      client,
+      jwtClaimPath: "tenant_id",
+      jwtSecret: process.env.JWT_SECRET,
+    });
+
+    app.get("/data", (request, reply) => {
+      const ctx = request.tenant;
+      reply.send({ tenantId: ctx.tenant_id });
+    });
+    ```
+  </TabItem>
+  <TabItem label="Factory">
+    ```typescript
+    import { stratum } from "@stratum-hq/sdk";
+
+    const s = stratum({
+      controlPlaneUrl: "http://localhost:3001",
+      apiKey: "sk_live_your_key",
+    });
+
+    // Express
+    app.use(s.middleware({ jwtClaimPath: "tenant_id" }));
+
+    // Fastify
+    app.register(s.plugin({ jwtClaimPath: "tenant_id" }));
+
+    // Direct client access
+    const ctx = await s.client.resolveTenant("tenant-uuid");
+    ```
+  </TabItem>
+</Tabs>
+
+## Middleware Options
+
+```typescript
+interface MiddlewareOptions {
+  jwtClaimPath?: string;         // JWT claim path for tenant ID
+  jwtSecret?: string;            // JWT verification secret (HS256)
+  jwtVerify?: (token: string) => Record<string, unknown> | null;
+  headerName?: string;           // Default: "X-Tenant-ID"
+  resolvers?: TenantResolver[];  // Custom resolution functions
+  onError?: (err: Error, req: unknown) => void;
+}
+```
+
+## Tenant Resolution Order
+
+The middleware resolves the tenant ID in this order:
+
+1. **JWT** -- extracts tenant ID from a Bearer token claim at `jwtClaimPath`
+2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`)
+3. **Custom resolvers** -- your async functions, tried in order
+
+If no tenant ID is found, returns `400 MISSING_TENANT`.
+
+<Aside type="note">
+  JWT resolution is only active when `jwtSecret` or `jwtVerify` is provided.
+  Without either, Bearer tokens are ignored.
+</Aside>
+
+### Custom Resolvers
+
+```typescript
+app.use(s.middleware({
+  resolvers: [
+    {
+      // Resolve from subdomain
+      resolve: async (req) => {
+        const subdomain = req.hostname.split(".")[0];
+        return subdomain !== "www" ? subdomain : null;
+      },
+    },
+    {
+      // Resolve from query parameter
+      resolve: async (req) => req.query.tenant_id ?? null,
+    },
+  ],
+}));
+```
+
+## AsyncLocalStorage Context
+
+For code that does not have access to the request object (services, repositories):
+
+```typescript
+import { getTenantContext, runWithTenantContext } from "@stratum-hq/sdk";
+
+function myService() {
+  const ctx = getTenantContext(); // throws if no context
+  console.log(ctx.tenant_id);
+}
+
+// Or run code with explicit context
+await runWithTenantContext(tenantContext, async () => {
+  const ctx = getTenantContext(); // available here
+});
+```
+
+## LRU Cache
+
+The built-in cache reduces control plane round-trips:
+
+- Default max size: 100 entries
+- Default TTL: 60 seconds
+- Auto-invalidated on mutations (create, update, delete)
+- Configurable or disableable via client options
+
+```typescript
+// Disable cache
+const client = new StratumClient({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+  cache: { enabled: false },
+});
+```
+
+## Error Handling
+
+The SDK throws typed errors from `@stratum-hq/core`:
+
+```typescript
+import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+
+try {
+  await client.resolveTenant("bad-id");
+} catch (err) {
+  if (err instanceof TenantNotFoundError) {
+    // Tenant doesn't exist
+  }
+  if (err instanceof UnauthorizedError) {
+    // Invalid API key
+  }
+}
+```

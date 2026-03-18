@@ -12,6 +12,7 @@ import * as retentionService from "./services/retention-service.js";
 import * as regionService from "./services/region-service.js";
 import * as keyRotationService from "./services/key-rotation-service.js";
 import * as roleService from "./services/role-service.js";
+import { traced } from "./telemetry.js";
 import type {
   TenantNode,
   CreateTenantInput,
@@ -21,6 +22,7 @@ import type {
   ConfigEntry,
   SetConfigInput,
   ResolvedConfig,
+  ResolvedConfigEntry,
   BatchSetConfigResult,
   PermissionPolicy,
   CreatePermissionInput,
@@ -37,6 +39,10 @@ import type {
   Region,
   CreateRegionInput,
   UpdateRegionInput,
+  TenantContext,
+  ConfigDiff,
+  ConfigDiffItem,
+  ConfigDiffEntry,
 } from "@stratum-hq/core";
 import { TenantEvent } from "@stratum-hq/core";
 
@@ -59,60 +65,82 @@ export class Stratum {
     type: TenantEvent,
     tenantId: string,
     data: Record<string, unknown>,
+    parentSpan?: import("@opentelemetry/api").Span,
   ): void {
-    eventService.emitEvent(this.pool, type, tenantId, data).catch(() => {
-      // Non-critical: event emission failures do not affect the primary operation
+    eventService.emitEvent(this.pool, type, tenantId, data).catch((err) => {
+      // Record emission failure on the parent span if available, but never throw
+      if (parentSpan) {
+        try {
+          parentSpan.addEvent("stratum.event_emission_failed", {
+            "stratum.event_type": type,
+            "stratum.error": err instanceof Error ? err.message : String(err),
+          });
+        } catch {
+          // Swallow — telemetry must never affect the primary operation
+        }
+      }
     });
   }
 
   // Tenant operations
   async createTenant(input: CreateTenantInput, audit?: AuditContext): Promise<TenantNode> {
-    const tenant = await tenantService.createTenant(this.pool, input);
-    this.emitEvent(TenantEvent.TENANT_CREATED, tenant.id, { tenant });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "tenant.created", "tenant", tenant.id, tenant.id,
-        null, tenant as unknown as Record<string, unknown>,
-      );
-    }
-    return tenant;
+    return traced("tenant.create", { slug: input.slug ?? "" }, async (span) => {
+      const tenant = await tenantService.createTenant(this.pool, input);
+      span.setAttribute("stratum.tenant_id", tenant.id);
+      this.emitEvent(TenantEvent.TENANT_CREATED, tenant.id, { tenant }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.created", "tenant", tenant.id, tenant.id,
+          null, tenant as unknown as Record<string, unknown>,
+        );
+      }
+      return tenant;
+    });
   }
   getTenant(id: string, includeArchived?: boolean): Promise<TenantNode> {
-    return tenantService.getTenant(this.pool, id, includeArchived);
+    return traced("tenant.get", { tenant_id: id }, async () => {
+      return tenantService.getTenant(this.pool, id, includeArchived);
+    });
   }
   listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
     return tenantService.listTenants(this.pool, pagination);
   }
   async updateTenant(id: string, patch: UpdateTenantInput, audit?: AuditContext): Promise<TenantNode> {
-    const tenant = await tenantService.updateTenant(this.pool, id, patch);
-    this.emitEvent(TenantEvent.TENANT_UPDATED, tenant.id, { tenant });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "tenant.updated", "tenant", id, id,
-        null, patch as unknown as Record<string, unknown>,
-      );
-    }
-    return tenant;
+    return traced("tenant.update", { tenant_id: id }, async (span) => {
+      const tenant = await tenantService.updateTenant(this.pool, id, patch);
+      this.emitEvent(TenantEvent.TENANT_UPDATED, tenant.id, { tenant }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.updated", "tenant", id, id,
+          null, patch as unknown as Record<string, unknown>,
+        );
+      }
+      return tenant;
+    });
   }
   async deleteTenant(id: string, audit?: AuditContext): Promise<void> {
-    await tenantService.deleteTenant(this.pool, id);
-    this.emitEvent(TenantEvent.TENANT_DELETED, id, { tenant_id: id });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "tenant.deleted", "tenant", id, id,
-      );
-    }
+    return traced("tenant.delete", { tenant_id: id }, async (span) => {
+      await tenantService.deleteTenant(this.pool, id);
+      this.emitEvent(TenantEvent.TENANT_DELETED, id, { tenant_id: id }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.deleted", "tenant", id, id,
+        );
+      }
+    });
   }
   async moveTenant(id: string, newParentId: string, audit?: AuditContext): Promise<TenantNode> {
-    const tenant = await tenantService.moveTenant(this.pool, id, newParentId);
-    this.emitEvent(TenantEvent.TENANT_MOVED, tenant.id, { tenant, new_parent_id: newParentId });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "tenant.moved", "tenant", id, id,
-        null, null, { new_parent_id: newParentId },
-      );
-    }
-    return tenant;
+    return traced("tenant.move", { tenant_id: id, new_parent_id: newParentId }, async (span) => {
+      const tenant = await tenantService.moveTenant(this.pool, id, newParentId);
+      this.emitEvent(TenantEvent.TENANT_MOVED, tenant.id, { tenant, new_parent_id: newParentId }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.moved", "tenant", id, id,
+          null, null, { new_parent_id: newParentId },
+        );
+      }
+      return tenant;
+    });
   }
   getAncestors(id: string): Promise<TenantNode[]> {
     return tenantService.getAncestors(this.pool, id);
@@ -124,20 +152,35 @@ export class Stratum {
     return tenantService.getChildren(this.pool, id);
   }
 
+  // Tenant impersonation context
+  async getTenantContext(tenantId: string): Promise<TenantContext> {
+    const [tenant, config, permissions, ancestors] = await Promise.all([
+      this.getTenant(tenantId),
+      this.resolveConfig(tenantId),
+      this.resolvePermissions(tenantId),
+      this.getAncestors(tenantId),
+    ]);
+    return { tenant, config, permissions, ancestors };
+  }
+
   // Config operations
   resolveConfig(tenantId: string): Promise<ResolvedConfig> {
-    return configService.resolveConfig(this.pool, tenantId);
+    return traced("config.resolve", { tenant_id: tenantId }, async () => {
+      return configService.resolveConfig(this.pool, tenantId);
+    });
   }
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
-    const entry = await configService.setConfig(this.pool, tenantId, key, input);
-    this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key, entry });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "config.updated", "config", key, tenantId,
-        null, input as unknown as Record<string, unknown>,
-      );
-    }
-    return entry;
+    return traced("config.set", { tenant_id: tenantId, config_key: key }, async (span) => {
+      const entry = await configService.setConfig(this.pool, tenantId, key, input);
+      this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key, entry }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "config.updated", "config", key, tenantId,
+          null, input as unknown as Record<string, unknown>,
+        );
+      }
+      return entry;
+    });
   }
   async deleteConfig(tenantId: string, key: string, audit?: AuditContext): Promise<void> {
     await configService.deleteConfig(this.pool, tenantId, key);
@@ -152,20 +195,70 @@ export class Stratum {
     return configService.getConfigWithInheritance(this.pool, tenantId);
   }
 
+  // Config diff
+  async diffConfig(tenantIdA: string, tenantIdB: string): Promise<ConfigDiff> {
+    const [tenantA, tenantB, configA, configB] = await Promise.all([
+      this.getTenant(tenantIdA),
+      this.getTenant(tenantIdB),
+      this.resolveConfig(tenantIdA),
+      this.resolveConfig(tenantIdB),
+    ]);
+
+    const allKeys = new Set<string>([
+      ...Object.keys(configA),
+      ...Object.keys(configB),
+    ]);
+
+    const toDiffEntry = (entry: ResolvedConfigEntry): ConfigDiffEntry => {
+      let status: "inherited" | "own" | "locked";
+      if (entry.locked) {
+        status = "locked";
+      } else if (entry.inherited) {
+        status = "inherited";
+      } else {
+        status = "own";
+      }
+      return {
+        value: entry.value,
+        status,
+        source: entry.source_tenant_id,
+      };
+    };
+
+    const diff: ConfigDiffItem[] = [];
+    for (const key of [...allKeys].sort()) {
+      diff.push({
+        key,
+        tenant_a: configA[key] ? toDiffEntry(configA[key]) : null,
+        tenant_b: configB[key] ? toDiffEntry(configB[key]) : null,
+      });
+    }
+
+    return {
+      tenant_a: { id: tenantA.id, name: tenantA.name },
+      tenant_b: { id: tenantB.id, name: tenantB.name },
+      diff,
+    };
+  }
+
   // Permission operations
   resolvePermissions(tenantId: string): Promise<Record<string, ResolvedPermission>> {
-    return permissionService.resolvePermissions(this.pool, tenantId);
+    return traced("permissions.resolve", { tenant_id: tenantId }, async () => {
+      return permissionService.resolvePermissions(this.pool, tenantId);
+    });
   }
   async createPermission(tenantId: string, input: CreatePermissionInput, audit?: AuditContext): Promise<PermissionPolicy> {
-    const policy = await permissionService.createPermission(this.pool, tenantId, input);
-    this.emitEvent(TenantEvent.PERMISSION_CREATED, tenantId, { policy });
-    if (audit) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "permission.created", "permission", policy.id, tenantId,
-        null, policy as unknown as Record<string, unknown>,
-      );
-    }
-    return policy;
+    return traced("permission.create", { tenant_id: tenantId }, async (span) => {
+      const policy = await permissionService.createPermission(this.pool, tenantId, input);
+      this.emitEvent(TenantEvent.PERMISSION_CREATED, tenantId, { policy }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "permission.created", "permission", policy.id, tenantId,
+          null, policy as unknown as Record<string, unknown>,
+        );
+      }
+      return policy;
+    });
   }
   async updatePermission(tenantId: string, policyId: string, input: UpdatePermissionInput, audit?: AuditContext): Promise<PermissionPolicy> {
     const policy = await permissionService.updatePermission(this.pool, tenantId, policyId, input);
@@ -190,13 +283,19 @@ export class Stratum {
 
   // API Key operations
   createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
-    return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+    return traced("api_key.create", { tenant_id: tenantId }, async () => {
+      return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+    });
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
-    return apiKeyService.validateApiKey(this.pool, key);
+    return traced("api_key.validate", {}, async () => {
+      return apiKeyService.validateApiKey(this.pool, key);
+    });
   }
   revokeApiKey(keyId: string): Promise<boolean> {
-    return apiKeyService.revokeApiKey(this.pool, keyId);
+    return traced("api_key.revoke", { key_id: keyId }, async () => {
+      return apiKeyService.revokeApiKey(this.pool, keyId);
+    });
   }
   rotateApiKey(keyId: string, newName?: string): Promise<apiKeyService.CreatedApiKey> {
     return apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
@@ -474,22 +573,24 @@ export class Stratum {
     entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
     audit?: AuditContext,
   ): Promise<BatchSetConfigResult> {
-    const batchResult = await configService.batchSetConfig(this.pool, tenantId, entries);
-    const succeededResults = batchResult.results.filter((r) => r.status === "ok" && r.entry);
-    for (const r of succeededResults) {
-      this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: r.key, entry: r.entry });
-    }
-    if (audit && succeededResults.length > 0) {
-      await auditService.createAuditEntry(
-        this.pool, audit, "config.batch_updated", "config", succeededResults[0].key, tenantId,
-        null, {
-          count: succeededResults.length,
-          keys: succeededResults.map((r) => r.key),
-          failed: batchResult.failed,
-        } as Record<string, unknown>,
-      );
-    }
-    return batchResult;
+    return traced("config.batch_set", { tenant_id: tenantId, entry_count: entries.length }, async (span) => {
+      const batchResult = await configService.batchSetConfig(this.pool, tenantId, entries);
+      const succeededResults = batchResult.results.filter((r) => r.status === "ok" && r.entry);
+      for (const r of succeededResults) {
+        this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: r.key, entry: r.entry }, span);
+      }
+      if (audit && succeededResults.length > 0) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "config.batch_updated", "config", succeededResults[0].key, tenantId,
+          null, {
+            count: succeededResults.length,
+            keys: succeededResults.map((r) => r.key),
+            failed: batchResult.failed,
+          } as Record<string, unknown>,
+        );
+      }
+      return batchResult;
+    });
   }
 
   // Encryption key rotation

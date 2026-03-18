@@ -1,0 +1,164 @@
+---
+title: Installation
+description: Install Stratum packages and set up the required infrastructure.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+## Prerequisites
+
+- **Node.js** >= 18
+- **PostgreSQL** 16+ (with `uuid-ossp` and `ltree` extensions)
+- **npm** >= 10
+
+## Choose Your Integration Path
+
+Stratum offers two ways to integrate. Pick the one that fits your architecture.
+
+### Direct Library (recommended for Node.js)
+
+Embed Stratum directly in your application. No HTTP server, no network overhead.
+
+```bash
+npm install @stratum-hq/lib @stratum-hq/core pg
+```
+
+Best for: Node.js apps, serverless functions, scripts, maximum performance.
+
+### HTTP API + SDK
+
+Run the Stratum control plane as a standalone service and connect from any language using the SDK.
+
+```bash
+npm install @stratum-hq/sdk @stratum-hq/core
+```
+
+Best for: polyglot stacks, service-oriented architectures, React admin UIs.
+
+## Additional Packages
+
+Install these as needed:
+
+```bash
+# Database adapters (RLS, Prisma integration)
+npm install @stratum-hq/db-adapters pg
+
+# React components (provider, tenant tree, config editor)
+npm install @stratum-hq/react react react-dom
+
+# CLI tools (project init, DB migration, scaffolding)
+npm install -g @stratum-hq/cli
+# or use without installing:
+npx @stratum-hq/cli init
+```
+
+## Database Setup
+
+### Option A: Docker (recommended)
+
+The fastest way to get PostgreSQL running with the required extensions:
+
+```bash
+docker run -d \
+  --name stratum-db \
+  -e POSTGRES_USER=stratum \
+  -e POSTGRES_PASSWORD=stratum_dev \
+  -e POSTGRES_DB=stratum \
+  -p 5432:5432 \
+  postgres:16
+```
+
+Then enable extensions:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+```
+
+### Option B: Local PostgreSQL
+
+```bash
+# macOS
+brew install postgresql@16
+brew services start postgresql@16
+createdb stratum
+
+# Ubuntu/Debian
+sudo apt install postgresql-16
+sudo -u postgres createdb stratum
+```
+
+Enable extensions in your database:
+
+```sql
+psql -d stratum -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+psql -d stratum -c 'CREATE EXTENSION IF NOT EXISTS "ltree";'
+```
+
+### Option C: Docker Compose (full stack)
+
+If you cloned the Stratum repository, use the included `docker-compose.yml`:
+
+```bash
+docker compose up db -d
+```
+
+This starts PostgreSQL 16 with all extensions pre-configured and creates the `stratum_app` role.
+
+## Environment Variables
+
+Set your database connection string:
+
+```bash
+export DATABASE_URL="postgres://stratum:stratum_dev@localhost:5432/stratum"
+```
+
+For production, you should also set:
+
+| Variable | Description |
+|----------|-------------|
+| `JWT_SECRET` | JWT signing secret (required in production) |
+| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption |
+| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
+| `ALLOWED_ORIGINS` | CORS origins (comma-separated) |
+
+See the full list in the [Quick Start](/getting-started/quick-start/) guide.
+
+## Verify Installation
+
+<Tabs>
+  <TabItem label="Direct Library">
+    ```typescript
+    import { Pool } from "pg";
+    import { Stratum } from "@stratum-hq/lib";
+
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const stratum = new Stratum({ pool });
+
+    // If this resolves without error, you're connected
+    const tenants = await stratum.listTenants({ limit: 1 });
+    console.log("Connected! Tenants:", tenants.data.length);
+    ```
+  </TabItem>
+  <TabItem label="Control Plane">
+    ```bash
+    # Start the control plane (runs migrations automatically)
+    node packages/control-plane/dist/index.js
+
+    # Check the health endpoint
+    curl http://localhost:3001/api/v1/health
+    # { "status": "ok", "db": "connected" }
+    ```
+  </TabItem>
+  <TabItem label="CLI">
+    ```bash
+    npx @stratum-hq/cli health --database-url $DATABASE_URL
+    ```
+  </TabItem>
+</Tabs>
+
+## Next Steps
+
+- Follow the [Quick Start](/getting-started/quick-start/) to create your first tenant
+- Read [Concepts](/getting-started/concepts/) to understand the data model
+- Explore [Guides](/guides/tenant-hierarchy/) for in-depth feature walkthroughs

@@ -1,0 +1,265 @@
+/* ==========================================================================
+   Stratum Docs — Custom Starlight Theme
+   Design tokens from DESIGN.md
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   CSS Custom Properties
+   -------------------------------------------------------------------------- */
+:root {
+  /* Brand */
+  --sl-color-accent-low: #f0fdfa;
+  --sl-color-accent: #0d9488;
+  --sl-color-accent-high: #042f2e;
+
+  /* Typography */
+  --sl-font: "DM Sans", system-ui, -apple-system, sans-serif;
+  --sl-font-system-mono: "JetBrains Mono", ui-monospace, "Cascadia Code",
+    "Fira Code", monospace;
+  --__sl-font-heading: "Satoshi", "DM Sans", system-ui, -apple-system,
+    sans-serif;
+
+  /* Warm slate neutrals (light mode) */
+  --sl-color-gray-1: #f8fafc;
+  --sl-color-gray-2: #f1f5f9;
+  --sl-color-gray-3: #e2e8f0;
+  --sl-color-gray-4: #94a3b8;
+  --sl-color-gray-5: #475569;
+  --sl-color-gray-6: #1e293b;
+  --sl-color-gray-7: #0f172a;
+
+  /* Text colors */
+  --sl-color-white: #f8fafc;
+  --sl-color-black: #0c1222;
+}
+
+/* Dark mode overrides */
+:root[data-theme="dark"] {
+  --sl-color-accent-low: #042f2e;
+  --sl-color-accent: #2dd4bf;
+  --sl-color-accent-high: #ccfbf1;
+}
+
+/* --------------------------------------------------------------------------
+   Headings — Satoshi
+   -------------------------------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+  font-family: var(--__sl-font-heading);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h1,
+.sl-markdown-content h1 {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+/* --------------------------------------------------------------------------
+   Code blocks — JetBrains Mono
+   -------------------------------------------------------------------------- */
+code,
+pre,
+.expressive-code {
+  font-family: var(--sl-font-system-mono);
+  font-variant-ligatures: common-ligatures;
+}
+
+pre code {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+/* --------------------------------------------------------------------------
+   Body text — DM Sans refinements
+   -------------------------------------------------------------------------- */
+body {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.sl-markdown-content {
+  line-height: 1.75;
+}
+
+.sl-markdown-content p {
+  max-width: 70ch;
+}
+
+/* --------------------------------------------------------------------------
+   Tables — data-dense style
+   -------------------------------------------------------------------------- */
+.sl-markdown-content table {
+  font-size: 0.8125rem;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.sl-markdown-content th {
+  font-family: var(--sl-font);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sl-color-gray-5);
+}
+
+.sl-markdown-content td {
+  padding: 0.5rem 0.75rem;
+}
+
+.sl-markdown-content td code {
+  font-size: 0.75rem;
+}
+
+.sl-markdown-content tr:hover {
+  background: var(--sl-color-gray-1);
+}
+
+:root[data-theme="dark"] .sl-markdown-content tr:hover {
+  background: var(--sl-color-gray-6);
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar tweaks
+   -------------------------------------------------------------------------- */
+.sidebar-content {
+  font-size: 0.875rem;
+}
+
+/* --------------------------------------------------------------------------
+   Hero / landing page
+   -------------------------------------------------------------------------- */
+.hero-section {
+  text-align: center;
+  padding: 4rem 0 3rem;
+}
+
+.hero-section h1 {
+  font-family: var(--__sl-font-heading);
+  font-weight: 900;
+  font-size: 2.5rem;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.hero-tagline {
+  font-size: 1.25rem;
+  color: var(--sl-color-gray-5);
+  max-width: 48ch;
+  margin: 0 auto 2rem;
+  line-height: 1.5;
+}
+
+.hero-install {
+  display: inline-block;
+  background: var(--sl-color-gray-7);
+  color: var(--sl-color-gray-1);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-family: var(--sl-font-system-mono);
+  font-size: 0.875rem;
+  margin-bottom: 2rem;
+}
+
+:root[data-theme="dark"] .hero-install {
+  background: var(--sl-color-gray-6);
+}
+
+/* Feature grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  padding: 1.25rem;
+  border: 1px solid var(--sl-color-gray-3);
+  border-radius: 8px;
+  background: var(--sl-color-gray-1);
+}
+
+:root[data-theme="dark"] .feature-card {
+  border-color: var(--sl-color-gray-6);
+  background: var(--sl-color-gray-7);
+}
+
+.feature-card h3 {
+  font-family: var(--__sl-font-heading);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--sl-color-gray-5);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Badge styles for hierarchy indicators */
+.badge-inherited {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #ccfbf1;
+  color: #0d9488;
+}
+
+.badge-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.badge-own {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 3px;
+}

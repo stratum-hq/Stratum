@@ -1,0 +1,191 @@
+---
+title: Isolation Strategies
+description: Choose between Shared RLS, Schema-per-Tenant, and Database-per-Tenant isolation.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Stratum supports three isolation strategies, configurable per tenant at creation time. You can mix strategies within the same hierarchy.
+
+## Strategy Comparison
+
+| Strategy | Boundary | Shared Pool | Cost | Use Case |
+|----------|----------|-------------|------|----------|
+| `SHARED_RLS` | Row-Level Security | Yes | Lowest | High tenant count, shared infrastructure |
+| `SCHEMA_PER_TENANT` | PostgreSQL schema | Yes | Medium | Mid-tier, logical separation |
+| `DB_PER_TENANT` | Dedicated database | No | Highest | Maximum isolation, compliance |
+
+## Shared RLS (Default)
+
+All tenants share the same tables. PostgreSQL Row-Level Security policies filter rows based on a session variable set per-transaction.
+
+```typescript
+const tenant = await stratum.createTenant({
+  name: "Acme Corp",
+  slug: "acme_corp",
+  isolation_strategy: "SHARED_RLS",
+});
+```
+
+### How RLS Works
+
+Every tenant-scoped table has an RLS policy that checks `current_setting('app.current_tenant_id')`:
+
+```sql
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+Before executing any query, Stratum sets the tenant context:
+
+```sql
+BEGIN;
+SELECT set_config('app.current_tenant_id', $1, true);  -- parameterized, transaction-local
+-- Your queries run here (automatically filtered by RLS)
+COMMIT;
+```
+
+The `FORCE ROW LEVEL SECURITY` flag ensures even table owners cannot bypass policies.
+
+### Setting Up RLS on Your Tables
+
+Use the `@stratum-hq/db-adapters` package or the CLI:
+
+```bash
+# CLI: scan tables and migrate
+npx @stratum-hq/cli migrate --scan     # show RLS status
+npx @stratum-hq/cli migrate orders     # add RLS to "orders" table
+```
+
+Or programmatically:
+
+```typescript
+import { migrateTable } from "@stratum-hq/db-adapters";
+
+const client = await pool.connect();
+try {
+  await client.query("BEGIN");
+  await migrateTable(client, "orders");  // adds tenant_id + RLS + policy
+  await client.query("COMMIT");
+} finally {
+  client.release();
+}
+```
+
+### Querying with RLS
+
+Use the database adapter to automatically set the tenant context:
+
+```typescript
+import { createTenantPool } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
+
+const tenantPool = createTenantPool(pool, () => getTenantContext().tenant_id);
+
+// This query is automatically filtered to the current tenant
+const orders = await tenantPool.query("SELECT * FROM orders");
+```
+
+## Schema-per-Tenant
+
+Each tenant gets a dedicated PostgreSQL schema with its own set of tables. Tenants share the database but have logically separate namespaces.
+
+```typescript
+const tenant = await stratum.createTenant({
+  name: "Premium Client",
+  slug: "premium_client",
+  isolation_strategy: "SCHEMA_PER_TENANT",
+});
+// Creates schema: tenant_premium_client
+```
+
+When the control plane creates a `SCHEMA_PER_TENANT` tenant, it automatically provisions a dedicated schema named `tenant_{slug}` with the Stratum base tables.
+
+### Advantages
+
+- Stronger logical separation than RLS
+- Schema-level `GRANT`/`REVOKE` for fine-grained access control
+- Per-schema `pg_dump` for tenant-specific backups
+- Shared connection pool (unlike DB-per-tenant)
+
+### Considerations
+
+- Schema count grows with tenant count (PostgreSQL handles thousands of schemas well)
+- DDL changes must be applied to all tenant schemas
+
+## Database-per-Tenant
+
+Each tenant gets a completely separate PostgreSQL database with its own connection pool.
+
+```typescript
+const tenant = await stratum.createTenant({
+  name: "Regulated Client",
+  slug: "regulated_client",
+  isolation_strategy: "DB_PER_TENANT",
+});
+// Creates database: stratum_regulated_client
+```
+
+### Advantages
+
+- Maximum isolation — separate process space, WAL, backups
+- Satisfies compliance requirements for physical data separation
+- Independent `pg_dump`, `pg_restore`, and point-in-time recovery
+- No shared-resource contention between tenants
+
+### Considerations
+
+- Each database requires its own connection pool
+- Higher resource usage (memory, connections)
+- Cross-tenant queries not possible without external coordination
+
+<Aside type="tip">
+  Use `DB_PER_TENANT` for tenants with strict regulatory requirements (financial
+  services, healthcare) where you need to prove physical data separation.
+</Aside>
+
+## Mixing Strategies
+
+You can mix isolation strategies within the same hierarchy:
+
+```typescript
+// Root uses shared RLS (cost-effective for management)
+const root = await stratum.createTenant({
+  name: "Platform",
+  slug: "platform",
+  isolation_strategy: "SHARED_RLS",
+});
+
+// Standard MSPs use schema isolation
+const standardMsp = await stratum.createTenant({
+  name: "Standard MSP",
+  slug: "standard_msp",
+  parent_id: root.id,
+  isolation_strategy: "SCHEMA_PER_TENANT",
+});
+
+// Regulated MSP gets its own database
+const regulatedMsp = await stratum.createTenant({
+  name: "Regulated MSP",
+  slug: "regulated_msp",
+  parent_id: root.id,
+  isolation_strategy: "DB_PER_TENANT",
+});
+```
+
+<Aside type="note">
+  The isolation strategy is set at tenant creation time and applies to that
+  tenant's data. Child tenants inherit the parent's strategy by default but can
+  specify a different one.
+</Aside>
+
+## Security Properties
+
+| Property | RLS | Schema | Database |
+|----------|-----|--------|----------|
+| Row-level filtering | Yes | Yes | N/A |
+| Schema-level isolation | No | Yes | Yes |
+| Connection-level isolation | No | No | Yes |
+| Independent backups | No | Partial | Yes |
+| Independent scaling | No | No | Yes |
+| Cross-tenant query risk | Policy-dependent | Schema-dependent | None |

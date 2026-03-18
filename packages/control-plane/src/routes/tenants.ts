@@ -128,21 +128,10 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(data);
     });
 
-    // GET /api/v1/tenants/:id/context — Resolve full tenant context
+    // GET /api/v1/tenants/:id/context — Resolve full tenant impersonation context (admin scope)
     app.get<{ Params: { id: string } }>("/:id/context", async (request, reply) => {
-      const tenant = await stratum.getTenant(request.params.id);
-      const [config, permissions] = await Promise.all([
-        stratum.resolveConfig(request.params.id),
-        stratum.resolvePermissions(request.params.id),
-      ]);
-      reply.status(200).send({
-        tenant_id: tenant.id,
-        ancestry_path: tenant.ancestry_path,
-        depth: tenant.depth,
-        isolation_strategy: tenant.isolation_strategy,
-        resolved_config: config,
-        resolved_permissions: permissions,
-      });
+      const context = await stratum.getTenantContext(request.params.id);
+      reply.status(200).send(context);
     });
   };
 }

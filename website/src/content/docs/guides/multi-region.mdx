@@ -1,0 +1,179 @@
+---
+title: Multi-Region
+description: Assign tenants to geographic regions for data residency compliance and latency optimization.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Regions represent geographic or logical deployment zones. Each region can have its own database URL, control plane URL, and lifecycle status. Tenants can be migrated between regions to satisfy compliance requirements or optimize latency.
+
+## Region Model
+
+```typescript
+interface Region {
+  id: string;
+  display_name: string;       // "EU West (Frankfurt)"
+  slug: string;               // "eu_west"
+  control_plane_url: string;  // "https://eu.stratum.example.com"
+  database_url: string;       // stored but never exposed in API responses
+  is_primary: boolean;
+  status: "active" | "draining" | "inactive";
+  metadata: Record<string, unknown>;
+}
+```
+
+## Region Lifecycle
+
+```
+active  ──>  draining  ──>  inactive
+```
+
+| Status | Description |
+|--------|-------------|
+| `active` | Accepting new tenants, serving traffic |
+| `draining` | No new tenants, existing tenants being migrated out |
+| `inactive` | Empty, can be safely deleted |
+
+## Creating Regions
+
+```typescript
+const eu = await stratum.createRegion({
+  display_name: "EU West (Frankfurt)",
+  slug: "eu_west",
+  control_plane_url: "https://eu.stratum.example.com",
+  is_primary: false,
+  metadata: { provider: "aws", az: "eu-west-1" },
+});
+
+const us = await stratum.createRegion({
+  display_name: "US East (Virginia)",
+  slug: "us_east",
+  is_primary: true,
+});
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/regions \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "display_name": "EU West (Frankfurt)",
+    "slug": "eu_west",
+    "control_plane_url": "https://eu.stratum.example.com",
+    "is_primary": false,
+    "metadata": {"provider": "aws", "az": "eu-west-1"}
+  }'
+```
+
+## Migrating Tenants
+
+Move a tenant to a different region:
+
+```typescript
+await stratum.migrateRegion("tenant-uuid", eu.id);
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/tenants/TENANT_UUID/migrate-region \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"region_id": "EU_REGION_UUID"}'
+```
+
+### Migration Validations
+
+The migration checks:
+
+- Tenant exists and is not archived
+- Target region exists
+- Target region status is `active` (not `draining` or `inactive`)
+
+## Managing Regions
+
+### List
+
+```bash
+curl http://localhost:3001/api/v1/regions \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+### Update Status
+
+Drain a region before decommissioning:
+
+```bash
+curl -X PATCH http://localhost:3001/api/v1/regions/REGION_UUID \
+  -H "X-API-Key: YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "draining"}'
+```
+
+### Delete
+
+Deletion fails if any active tenants are assigned to the region:
+
+```bash
+curl -X DELETE http://localhost:3001/api/v1/regions/REGION_UUID \
+  -H "X-API-Key: YOUR_ADMIN_KEY"
+```
+
+## Data Residency Example
+
+For GDPR data residency compliance, create regions per jurisdiction and assign tenants accordingly:
+
+```typescript
+// Create jurisdiction-specific regions
+const eu = await stratum.createRegion({
+  display_name: "EU (Frankfurt)",
+  slug: "eu_frankfurt",
+});
+
+const us = await stratum.createRegion({
+  display_name: "US East (Virginia)",
+  slug: "us_east",
+  is_primary: true,
+});
+
+// EU customer data stays in EU
+await stratum.migrateRegion("eu-tenant-uuid", eu.id);
+
+// US customer data stays in US
+await stratum.migrateRegion("us-tenant-uuid", us.id);
+```
+
+<Aside type="tip">
+  Combine multi-region with config locking to enforce data residency:
+  ```typescript
+  await stratum.setConfig(euTenantId, "data_region", {
+    value: "eu-west-1",
+    locked: true, // no descendant can change this
+  });
+  ```
+</Aside>
+
+## Region Slug Rules
+
+Region slugs follow the same rules as tenant slugs:
+
+- Lowercase letters, digits, and underscores only
+- Must start with a letter
+- Maximum 63 characters
+- Pattern: `^[a-z][a-z0-9_]{0,62}$`
+
+## Authorization
+
+| Route | Required Scope |
+|-------|---------------|
+| `GET /api/v1/regions` | `read` |
+| `POST /api/v1/regions` | `write` |
+| `PATCH /api/v1/regions/:id` | `write` |
+| `DELETE /api/v1/regions/:id` | `write` |
+| `POST /api/v1/tenants/:id/migrate-region` | `admin` |
+
+## Security
+
+The `database_url` field is stored internally but **never** exposed in API responses. This prevents accidental leakage of database credentials through the API.

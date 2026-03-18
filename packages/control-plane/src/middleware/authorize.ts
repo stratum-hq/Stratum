@@ -23,6 +23,7 @@ const ADMIN_ROUTES = [
   /^\/api\/v1\/tenants\/[^/]+\/purge$/,
   /^\/api\/v1\/tenants\/[^/]+\/export$/,
   /^\/api\/v1\/tenants\/[^/]+\/migrate-region$/,
+  /^\/api\/v1\/tenants\/[^/]+\/context$/,
 ];
 
 function getRequiredScope(method: string, url: string): ScopeRequirement {

@@ -1,0 +1,10 @@
+{
+  "packageName": "stratum",
+  "moduleName": "github.com/stratum-hq/stratum-go",
+  "packageVersion": "0.1.0",
+  "enumClassPrefix": true,
+  "structPrefix": true,
+  "generateInterfaces": true,
+  "isGoSubmodule": false,
+  "withGoMod": true
+}

@@ -65,6 +65,7 @@ export {
   type UpdateTenantInput,
   type MoveTenantInput,
   type TenantContext,
+  type TenantContextLegacy,
   type ResolvedPermission,
 } from "./types/tenant.js";
 
@@ -88,6 +89,10 @@ export {
   type ResolvedConfig,
   type BatchSetConfigKeyResult,
   type BatchSetConfigResult,
+  type ConfigDiffEntry,
+  type ConfigDiffItem,
+  type ConfigDiffTenantInfo,
+  type ConfigDiff,
 } from "./types/config.js";
 
 export {

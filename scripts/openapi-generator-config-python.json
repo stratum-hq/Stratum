@@ -1,0 +1,11 @@
+{
+  "packageName": "stratum",
+  "projectName": "stratum-python",
+  "packageVersion": "0.1.0",
+  "packageUrl": "https://github.com/stratum-hq/stratum-python",
+  "infoName": "Stratum HQ",
+  "infoUrl": "https://github.com/stratum-hq",
+  "generateSourceCodeOnly": false,
+  "library": "urllib3",
+  "recursionLimit": 2048
+}

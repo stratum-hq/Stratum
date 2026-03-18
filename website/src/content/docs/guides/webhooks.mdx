@@ -1,0 +1,206 @@
+---
+title: Webhooks
+description: Receive HTTP callbacks on tenant lifecycle events with HMAC signatures and retry logic.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Register webhooks to receive HTTP callbacks when tenants, config, or permissions change. Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
+
+## Supported Events
+
+| Event | Trigger |
+|-------|---------|
+| `tenant.created` | New tenant created |
+| `tenant.updated` | Tenant properties changed |
+| `tenant.deleted` | Tenant archived |
+| `tenant.moved` | Tenant moved in hierarchy |
+| `config.updated` | Config key set or overridden |
+| `config.deleted` | Config key removed |
+| `permission.created` | Permission policy created |
+| `permission.updated` | Permission policy updated |
+| `permission.deleted` | Permission policy deleted |
+
+## Creating Webhooks
+
+```typescript
+const webhook = await stratum.createWebhook({
+  url: "https://your-app.com/webhooks/stratum",
+  tenant_id: tenantId, // null for global webhooks
+  events: ["tenant.created", "config.updated"],
+  secret: "your-signing-secret",
+});
+```
+
+Via the API:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/webhooks \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.com/webhooks/stratum",
+    "tenant_id": "TENANT_UUID",
+    "events": ["tenant.created", "config.updated"],
+    "secret": "your-signing-secret"
+  }'
+```
+
+The `secret` is encrypted at rest using AES-256-GCM. It is used to generate HMAC-SHA256 signatures for each delivery.
+
+## Delivery Format
+
+Each webhook delivery is an HTTP POST to your URL with these headers:
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `X-Stratum-Signature` | `sha256=<hmac_hex>` |
+| `X-Stratum-Event` | Event type (e.g., `tenant.created`) |
+| `X-Stratum-Delivery` | Unique delivery ID |
+
+The body contains the event payload:
+
+```json
+{
+  "event": "tenant.created",
+  "timestamp": "2024-06-15T10:30:00.000Z",
+  "data": {
+    "id": "tenant-uuid",
+    "name": "Acme Corp",
+    "slug": "acme_corp",
+    "parent_id": null,
+    "isolation_strategy": "SHARED_RLS"
+  }
+}
+```
+
+## Verifying Signatures
+
+Verify the HMAC-SHA256 signature to ensure the delivery is authentic:
+
+```typescript
+import crypto from "crypto";
+
+function verifyWebhook(body: string, signature: string, secret: string): boolean {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(body)
+    .digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(`sha256=${expected}`),
+    Buffer.from(signature)
+  );
+}
+
+// In your webhook handler
+app.post("/webhooks/stratum", (req, res) => {
+  const signature = req.headers["x-stratum-signature"];
+  if (!verifyWebhook(JSON.stringify(req.body), signature, WEBHOOK_SECRET)) {
+    return res.status(401).send("Invalid signature");
+  }
+  // Process the event
+  res.status(200).send("OK");
+});
+```
+
+## Retry Logic
+
+Failed deliveries (non-2xx responses or network errors) are retried with exponential backoff. The retry schedule depends on your control plane configuration.
+
+## Testing Webhooks
+
+Send a test event to verify your endpoint:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/webhooks/WEBHOOK_ID/test \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+This sends a synthetic `test` event to the webhook URL and returns the response code.
+
+## Delivery History
+
+View delivery history for a specific webhook:
+
+```bash
+curl http://localhost:3001/api/v1/webhooks/WEBHOOK_ID/deliveries \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+## Dead-Letter Queue
+
+Failed deliveries that exhaust their retry attempts land in the dead-letter queue (DLQ).
+
+### View Delivery Stats
+
+```bash
+curl http://localhost:3001/api/v1/webhooks/deliveries/stats \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+Response:
+
+```json
+{
+  "total": 150,
+  "pending": 5,
+  "success": 130,
+  "failed": 15
+}
+```
+
+### List Failed Deliveries
+
+```bash
+curl "http://localhost:3001/api/v1/webhooks/deliveries/failed?limit=50" \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+### Retry Failed Deliveries
+
+Retry a single failed delivery:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/webhooks/deliveries/DELIVERY_ID/retry \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+Retry all failed deliveries:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/webhooks/deliveries/retry-all \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+## Managing Webhooks
+
+### Update
+
+```bash
+curl -X PATCH http://localhost:3001/api/v1/webhooks/WEBHOOK_ID \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"events": ["tenant.created", "tenant.updated", "config.updated"]}'
+```
+
+### Delete
+
+```bash
+curl -X DELETE http://localhost:3001/api/v1/webhooks/WEBHOOK_ID \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+## SSRF Protection
+
+Webhook URLs are validated to prevent Server-Side Request Forgery:
+
+- DNS resolution is checked to block private IP ranges
+- IPv4 and IPv6 private ranges are blocked (10.x, 172.16-31.x, 192.168.x, ::1, fc00::, etc.)
+- Cloud metadata endpoints are blocked (169.254.169.254, metadata.google.internal)
+- DNS rebinding attacks are mitigated by resolving the hostname at delivery time
+
+<Aside type="note">
+  In development mode (`NODE_ENV=development`), `localhost` and private IPs are
+  allowed for local testing.
+</Aside>
