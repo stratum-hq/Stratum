@@ -1812,9 +1812,8 @@ export function Dashboard() {
               background: "#F8FAFC",
               borderRadius: 12,
               boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-              width: "95vw",
-              height: "95vh",
-              overflow: "auto",
+              width: 680,
+              maxWidth: "90vw",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1919,20 +1918,31 @@ export function Dashboard() {
                   {/* Ancestors section */}
                   <div>
                     <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
-                      Ancestor Chain
+                      Hierarchy Path
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {((contextModal.data.ancestors as any[]) || []).map((a: any, i: number) => (
-                        <span key={a.id} style={{
-                          background: "var(--color-neutral-100, #F1F5F9)",
-                          padding: "4px 12px", borderRadius: 9999,
-                          fontSize: "0.75rem", fontFamily: "var(--font-body, sans-serif)",
-                          color: "var(--color-neutral-700, #334155)",
-                        }}>
-                          {i > 0 && <span style={{ color: "var(--color-neutral-400)", marginInlineEnd: 4 }}>{"\u2192"}</span>}
-                          {a.name}
-                        </span>
-                      ))}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      {(() => {
+                        const ancestors = (contextModal.data.ancestors as any[]) || [];
+                        const current = contextModal.data.tenant as any;
+                        const chain = [...ancestors, current];
+                        return chain.map((a: any, i: number) => (
+                          <React.Fragment key={a?.id || i}>
+                            {i > 0 && <span style={{ color: "#94A3B8", fontSize: "0.75rem" }}>{"\u2192"}</span>}
+                            <span style={{
+                              background: i === chain.length - 1 ? "#DBEAFE" : "#F1F5F9",
+                              padding: "4px 12px", borderRadius: 9999,
+                              fontSize: "0.75rem",
+                              fontWeight: i === chain.length - 1 ? 600 : 400,
+                              color: i === chain.length - 1 ? "#1E40AF" : "#334155",
+                            }}>
+                              {a?.name || "Unknown"}
+                            </span>
+                          </React.Fragment>
+                        ));
+                      })()}
+                      {((contextModal.data.ancestors as any[]) || []).length === 0 && !(contextModal.data.tenant as any)?.parent_id && (
+                        <span style={{ fontSize: "0.75rem", color: "#94A3B8", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
+                      )}
                     </div>
                   </div>
                 </>
