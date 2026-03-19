@@ -1,0 +1,170 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/global.css';
+---
+
+<Base title="Stratum — Universal Tenant Context Engine" description="Hierarchical multi-tenancy for any stack. Config inheritance, permission delegation, three isolation strategies, GDPR compliance, and more.">
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-mark">S</span>
+      Stratum
+    </a>
+    <div class="nav-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="nav-cta">Get Started</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">v3.6 — now on npm</div>
+  <h1>Multi-tenancy that <span class="accent">flows</span></h1>
+  <p>
+    Hierarchical tenant trees with config inheritance, permission delegation,
+    and three isolation strategies. Built for MSSP/MSP/client architectures.
+    Add to any Node.js stack in minutes.
+  </p>
+  <div class="hero-actions">
+    <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Quick Start</a>
+    <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
+  </div>
+  <div class="install-box">
+    <code>npm install <span class="accent">@stratum-hq/lib</span></code>
+    <button class="install-copy" onclick="navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg')">Copy</button>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="features-header">
+    <h2>Everything you need for multi-tenancy</h2>
+    <p>One library. No vendor lock-in. Works with your existing stack.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🌳</div>
+      <h3>Tenant Hierarchy</h3>
+      <p>Tree-structured tenants with PostgreSQL ltree. Advisory locks prevent race conditions. Up to 20 levels deep.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⬇️</div>
+      <h3>Config Inheritance</h3>
+      <p>Values flow root to leaf. Children inherit, override, or are blocked by locked keys. Batch updates with partial success.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔐</div>
+      <h3>Permission Delegation</h3>
+      <p>LOCKED, INHERITED, or DELEGATED modes. Cascade, soft, or permanent revocation. Full control over permission flow.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🛡️</div>
+      <h3>Three Isolation Strategies</h3>
+      <p>Shared RLS, schema-per-tenant, or database-per-tenant. Pick per tenant. Mix strategies in one deployment.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔒</div>
+      <h3>Field Encryption + GDPR</h3>
+      <p>AES-256-GCM for sensitive values. Data export (Article 20) and hard purge (Article 17). Consent tracking built in.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Audit + Observability</h3>
+      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting. Webhook events with DLQ.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Code Example -->
+<section class="code-section">
+  <div class="code-section-header">
+    <h2>Simple to integrate</h2>
+    <p>Five lines to hierarchical multi-tenancy.</p>
+  </div>
+  <div class="code-block">
+    <pre><span class="kw">import</span> { Pool } <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool: <span class="kw">new</span> <span class="fn">Pool</span>() });
+
+<span class="cm">// Create a hierarchy</span>
+<span class="kw">const</span> root = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ name: <span class="str">"AcmeSec"</span>, slug: <span class="str">"acmesec"</span> });
+<span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ name: <span class="str">"NorthStar"</span>, parent_id: root.id });
+
+<span class="cm">// Config inherits automatically</span>
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, { value: <span class="acc">1000</span>, locked: <span class="acc">false</span> });
+<span class="kw">const</span> config = <span class="kw">await</span> stratum.<span class="fn">resolveConfig</span>(msp.id);
+<span class="cm">// → max_users: 1000, inherited: true, source: root</span></pre>
+  </div>
+</section>
+
+<!-- Packages -->
+<section class="packages">
+  <div class="packages-inner">
+    <h2>8 packages. Pick what you need.</h2>
+    <p class="subtitle">All published to npm under @stratum-hq/*</p>
+    <div class="packages-grid">
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/core</div>
+        <div class="pkg-desc">Types, Zod schemas, error classes</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/lib</div>
+        <div class="pkg-desc">Direct library — tenants, config, permissions, audit, GDPR</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/control-plane</div>
+        <div class="pkg-desc">Fastify v5 REST API with auth, scopes, OTel</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/sdk</div>
+        <div class="pkg-desc">HTTP client, LRU cache, Express/Fastify middleware</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/db-adapters</div>
+        <div class="pkg-desc">PostgreSQL — raw pg, Prisma, RLS, schema isolation</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/react</div>
+        <div class="pkg-desc">Tenant tree, config editor, permission editor, design system</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/cli</div>
+        <div class="pkg-desc">Project init, migrate, scaffold, doctor</div>
+      </div>
+      <div class="pkg-card">
+        <div class="pkg-name">@stratum-hq/demo</div>
+        <div class="pkg-desc">Full MSSP dashboard with RLS isolation demo</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Ready to ship multi-tenancy?</h2>
+  <p>Stratum is open source, published on npm, and ready for production.</p>
+  <div class="cta-links">
+    <a href="https://docs.stratum-hq.org/getting-started/installation" class="btn-primary">Read the Docs</a>
+    <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">Star on GitHub</a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="https://docs.stratum-hq.org">Documentation</a>
+    <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+    <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    <a href="https://github.com/stratum-hq/stratum-python">Python SDK</a>
+    <a href="https://github.com/stratum-hq/stratum-go">Go SDK</a>
+  </div>
+  <p>MIT License &middot; Built by <a href="https://github.com/stratum-hq">Stratum HQ</a></p>
+</footer>
+
+</Base>
