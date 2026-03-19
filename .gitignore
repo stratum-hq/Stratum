@@ -26,24 +26,28 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Docusaurus
-website/build/
-website/.docusaurus/
-website/node_modules/
-
-# multitenantkuma
-multitenant-kuma
-
 # Turbo
 .turbo/
 
 # Coverage
 coverage/
 
-# OMC state
+# Website (Starlight/Astro)
+website/build/
+website/dist/
+website/.astro/
+website/node_modules/
+
+# SDK generation output (generated files go to separate repos)
+scripts/generated/
+
+# OMC / gstack state
 .omc/
 .gstack/
 
 # Internal planning (kept locally, not in repo)
 TODOS.md
 PUBLISHING.md
+
+# Backup files
+*.backup.*
