@@ -16,6 +16,7 @@ import '../styles/global.css';
       <a href="https://docs.stratum-hq.org">Docs</a>
       <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
       <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">&#9788;</button>
       <a href="https://github.com/stratum-hq/Stratum" class="nav-cta">Get Started</a>
     </div>
   </div>
@@ -168,10 +169,35 @@ import '../styles/global.css';
 </footer>
 
 <script>
+  // Copy button
   document.getElementById('copy-btn')?.addEventListener('click', () => {
     navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg');
     const btn = document.getElementById('copy-btn');
     if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  });
+
+  // Theme toggle
+  const toggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+
+  // Load saved preference (default: dark)
+  const saved = localStorage.getItem('stratum-theme');
+  if (saved === 'light') {
+    html.setAttribute('data-theme', 'light');
+    if (toggle) toggle.textContent = '\u263D';
+  }
+
+  toggle?.addEventListener('click', () => {
+    const isLight = html.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      html.removeAttribute('data-theme');
+      localStorage.setItem('stratum-theme', 'dark');
+      toggle.textContent = '\u2604';
+    } else {
+      html.setAttribute('data-theme', 'light');
+      localStorage.setItem('stratum-theme', 'light');
+      toggle.textContent = '\u263D';
+    }
   });
 </script>
 
