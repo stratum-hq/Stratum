@@ -36,7 +36,7 @@ import '../styles/global.css';
   </div>
   <div class="install-box">
     <code>npm install <span class="accent">@stratum-hq/lib</span></code>
-    <button class="install-copy" onclick="navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg')">Copy</button>
+    <button class="install-copy" id="copy-btn">Copy</button>
   </div>
 </section>
 
@@ -166,5 +166,13 @@ import '../styles/global.css';
   </div>
   <p>MIT License &middot; Built by <a href="https://github.com/stratum-hq">Stratum HQ</a></p>
 </footer>
+
+<script>
+  document.getElementById('copy-btn')?.addEventListener('click', () => {
+    navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg');
+    const btn = document.getElementById('copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  });
+</script>
 
 </Base>
