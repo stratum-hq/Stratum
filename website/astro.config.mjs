@@ -54,65 +54,22 @@ export default defineConfig({
           label: "Getting Started",
           items: [
             { label: "Introduction", link: "/" },
-            {
-              label: "Installation",
-              slug: "getting-started/installation",
-            },
-            { label: "Quick Start", slug: "getting-started/quick-start" },
-            { label: "Concepts", slug: "getting-started/concepts" },
+            { label: "Installation", link: "/getting-started/installation/" },
+            { label: "Quick Start", link: "/getting-started/quick-start/" },
+            { label: "Concepts", link: "/getting-started/concepts/" },
           ],
         },
         {
           label: "Guides",
-          items: [
-            {
-              label: "Tenant Hierarchy",
-              slug: "guides/tenant-hierarchy",
-            },
-            {
-              label: "Config Inheritance",
-              slug: "guides/config-inheritance",
-            },
-            {
-              label: "Permission Delegation",
-              slug: "guides/permission-delegation",
-            },
-            {
-              label: "Isolation Strategies",
-              slug: "guides/isolation-strategies",
-            },
-            { label: "API Keys & Auth", slug: "guides/api-keys" },
-            { label: "Webhooks", slug: "guides/webhooks" },
-            {
-              label: "GDPR Compliance",
-              slug: "guides/gdpr-compliance",
-            },
-            { label: "Multi-Region", slug: "guides/multi-region" },
-          ],
+          autogenerate: { directory: "guides" },
         },
         {
           label: "API Reference",
-          items: [
-            { label: "Tenants", slug: "api/tenants" },
-            { label: "Config", slug: "api/config" },
-            { label: "Permissions", slug: "api/permissions" },
-            { label: "API Keys", slug: "api/api-keys" },
-            { label: "Webhooks", slug: "api/webhooks" },
-          ],
+          autogenerate: { directory: "api" },
         },
         {
           label: "Packages",
-          items: [
-            { label: "@stratum-hq/core", slug: "packages/core" },
-            { label: "@stratum-hq/lib", slug: "packages/lib" },
-            { label: "@stratum-hq/sdk", slug: "packages/sdk" },
-            {
-              label: "@stratum-hq/db-adapters",
-              slug: "packages/db-adapters",
-            },
-            { label: "@stratum-hq/cli", slug: "packages/cli" },
-            { label: "@stratum-hq/react", slug: "packages/react" },
-          ],
+          autogenerate: { directory: "packages" },
         },
       ],
     }),
