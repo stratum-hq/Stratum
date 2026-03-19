@@ -52,12 +52,7 @@ export default defineConfig({
       sidebar: [
         {
           label: "Getting Started",
-          items: [
-            { label: "Introduction", link: "/" },
-            { label: "Installation", slug: "getting-started/installation" },
-            { label: "Quick Start", slug: "getting-started/quick-start" },
-            { label: "Concepts", slug: "getting-started/concepts" },
-          ],
+          autogenerate: { directory: "getting-started" },
         },
         {
           label: "Guides",
