@@ -56,7 +56,11 @@ describe("purgeExpiredData", () => {
 describe("purgeTenant", () => {
   it("deletes all tenant data in FK-safe order", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn().mockResolvedValue({ rowCount: 0, rows: [] });
+    const mockQuery = vi.fn()
+      // Query 1: child count check
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      // Queries 2-10: deletes in FK order
+      .mockResolvedValue({ rowCount: 0 });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;
@@ -65,14 +69,19 @@ describe("purgeTenant", () => {
 
     await retentionService.purgeTenant(pool, "tenant-123");
 
-    expect(mockQuery).toHaveBeenCalledTimes(8);
-    // Verify FK order: config, permissions, api_keys before webhooks/audit before tenant
-    expect(mockQuery.mock.calls[0][0]).toContain("config_entries");
-    expect(mockQuery.mock.calls[1][0]).toContain("permission_policies");
-    expect(mockQuery.mock.calls[2][0]).toContain("api_keys");
-    expect(mockQuery.mock.calls[7][0]).toContain("tenants");
+    // 1 child check + 9 deletes (config, permissions, api_keys, webhook_deliveries,
+    // webhook_events, webhooks, consent_records, audit_logs, tenants)
+    expect(mockQuery).toHaveBeenCalledTimes(10);
+    // First query is the child count check
+    expect(mockQuery.mock.calls[0][0]).toContain("COUNT");
+    // Then FK-ordered deletes
+    expect(mockQuery.mock.calls[1][0]).toContain("config_entries");
+    expect(mockQuery.mock.calls[2][0]).toContain("permission_policies");
+    expect(mockQuery.mock.calls[3][0]).toContain("api_keys");
+    // Last delete is the tenant itself
+    expect(mockQuery.mock.calls[9][0]).toContain("tenants");
     // Verify tenant_id parameter
-    expect(mockQuery.mock.calls[0][1]).toEqual(["tenant-123"]);
+    expect(mockQuery.mock.calls[1][1]).toEqual(["tenant-123"]);
   });
 });
 
@@ -88,7 +97,8 @@ describe("exportTenantData", () => {
       .mockResolvedValueOnce({ rows: [] })             // webhooks
       .mockResolvedValueOnce({ rows: [] })             // webhook_events
       .mockResolvedValueOnce({ rows: [] })             // webhook_deliveries
-      .mockResolvedValueOnce({ rows: [] });            // audit_logs
+      .mockResolvedValueOnce({ rows: [] })             // audit_logs
+      .mockResolvedValueOnce({ rows: [] });            // consent_records
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;
@@ -105,6 +115,7 @@ describe("exportTenantData", () => {
     expect(result.webhook_events).toEqual([]);
     expect(result.webhook_deliveries).toEqual([]);
     expect(result.audit_logs).toEqual([]);
+    expect(result.consent_records).toEqual([]);
   });
 
   it("returns null tenant when not found", async () => {
@@ -119,6 +130,8 @@ describe("exportTenantData", () => {
     const result = await retentionService.exportTenantData(pool, "nonexistent");
 
     expect(result.tenant).toBeNull();
-    expect(mockQuery).toHaveBeenCalledTimes(8);
+    // 9 queries: tenant, config, permissions, api_keys, webhooks,
+    // webhook_events, webhook_deliveries, audit_logs, consent_records
+    expect(mockQuery).toHaveBeenCalledTimes(9);
   });
 });
