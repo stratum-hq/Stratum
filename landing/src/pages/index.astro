@@ -87,19 +87,19 @@ import '../styles/global.css';
     <p>Five lines to hierarchical multi-tenancy.</p>
   </div>
   <div class="code-block">
-    <pre><span class="kw">import</span> { Pool } <span class="kw">from</span> <span class="str">"pg"</span>;
-<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+    <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
 
-<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool: <span class="kw">new</span> <span class="fn">Pool</span>() });
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>() &#125;);
 
 <span class="cm">// Create a hierarchy</span>
-<span class="kw">const</span> root = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ name: <span class="str">"AcmeSec"</span>, slug: <span class="str">"acmesec"</span> });
-<span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ name: <span class="str">"NorthStar"</span>, parent_id: root.id });
+<span class="kw">const</span> root = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>(&#123; name: <span class="str">"AcmeSec"</span>, slug: <span class="str">"acmesec"</span> &#125;);
+<span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>(&#123; name: <span class="str">"NorthStar"</span>, parent_id: root.id &#125;);
 
 <span class="cm">// Config inherits automatically</span>
-<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, { value: <span class="acc">1000</span>, locked: <span class="acc">false</span> });
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, &#123; value: <span class="acc">1000</span>, locked: <span class="acc">false</span> &#125;);
 <span class="kw">const</span> config = <span class="kw">await</span> stratum.<span class="fn">resolveConfig</span>(msp.id);
-<span class="cm">// → max_users: 1000, inherited: true, source: root</span></pre>
+<span class="cm">// → max_users: 1000, inherited: true, source: root</span>`} />
   </div>
 </section>
 
