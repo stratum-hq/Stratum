@@ -7,5 +7,5 @@
   "infoUrl": "https://github.com/stratum-hq",
   "generateSourceCodeOnly": false,
   "library": "urllib3",
-  "recursionLimit": 2048
+  "recursionLimit": "2048"
 }
