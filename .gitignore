@@ -38,6 +38,11 @@ website/dist/
 website/.astro/
 website/node_modules/
 
+# Landing page (Astro)
+landing/dist/
+landing/.astro/
+landing/node_modules/
+
 # SDK generation output (generated files go to separate repos)
 scripts/generated/
 
