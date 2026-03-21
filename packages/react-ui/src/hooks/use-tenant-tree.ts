@@ -12,12 +12,14 @@ export function useTenantTree(rootId?: string) {
   const [tree, setTree] = useState<TenantTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  // Persist expansion state across refreshes
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  const buildTree = useCallback((nodes: TenantNode[]): TenantTreeNode[] => {
+  const buildTree = useCallback((nodes: TenantNode[], expanded: Set<string>): TenantTreeNode[] => {
     const map = new Map<string | null, TenantTreeNode[]>();
 
     for (const node of nodes) {
-      const treeNode: TenantTreeNode = { ...node, children: [], expanded: false };
+      const treeNode: TenantTreeNode = { ...node, children: [], expanded: expanded.has(node.id) };
       const parentKey = node.parent_id;
       if (!map.has(parentKey)) map.set(parentKey, []);
       map.get(parentKey)!.push(treeNode);
@@ -47,19 +49,33 @@ export function useTenantTree(rootId?: string) {
         : `/api/v1/tenants`;
       const res = await apiCall<TenantNode[] | { data: TenantNode[] }>(path);
       const nodes = Array.isArray(res) ? res : res.data;
-      setTree(buildTree(nodes));
+      // Use current expandedIds to preserve state across refresh
+      setTree((prev) => {
+        // Collect currently expanded IDs from the existing tree
+        const currentExpanded = new Set(expandedIds);
+        return buildTree(nodes, currentExpanded);
+      });
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
-  }, [apiCall, rootId, buildTree]);
+  }, [apiCall, rootId, buildTree, expandedIds]);
 
   useEffect(() => {
     fetchTree();
   }, [fetchTree]);
 
   const toggleExpand = useCallback((nodeId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
     setTree((prev) => {
       function toggle(nodes: TenantTreeNode[]): TenantTreeNode[] {
         return nodes.map((n) => {
