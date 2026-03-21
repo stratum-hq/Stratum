@@ -10,6 +10,8 @@ export function printHelp(): void {
     migrate --all                 Migrate all unmigrated tables interactively
     health                        Check database connection, extensions, and RLS setup
     doctor                        Deep diagnostic: RLS, indexes, stale keys, tree depth
+    scan                          Scan database for tables needing tenant isolation
+    scan --generate               Output migration SQL for unmigrated tables
     generate api-key              Generate a new API key
     scaffold <template>           Generate framework integration boilerplate
 
@@ -31,6 +33,8 @@ export function printHelp(): void {
     --out <dir>                   Output directory for scaffolded files
                                   (default: current directory)
     --force                       Overwrite existing files
+    --generate, -g                Output migration SQL (scan command)
+    --exclude <tables>            Comma-separated tables to skip (scan command)
     --help, -h                    Show this help message
     --version, -v                 Show version
 
@@ -44,5 +48,8 @@ export function printHelp(): void {
     $ stratum scaffold express --out src/middleware
     $ stratum scaffold nextjs
     $ stratum scaffold react --out src/providers
+    $ stratum scan
+    $ stratum scan --generate > migration.sql
+    $ stratum scan --exclude users,sessions --generate
 `);
 }
