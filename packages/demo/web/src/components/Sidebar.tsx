@@ -1,6 +1,15 @@
 import React, { useState } from "react";
 import { useTenantTree, useTenant, useStratum } from "@stratum-hq/react";
 import type { TenantTreeNode } from "@stratum-hq/react";
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 
 // Depth-based color dots matching DESIGN.md hierarchy badge colors
 const depthDotColors: Record<number, string> = {
@@ -38,9 +47,21 @@ function TreeNode({
   const isSelected = node.id === selectedId;
   const dotColor = depthDotColors[node.depth] || "#94a3b8";
 
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: node.id,
+    data: { node },
+  });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `drop-${node.id}`,
+    data: { node },
+  });
+
   return (
     <div>
       <div
+        ref={(el) => { setDragRef(el); setDropRef(el); }}
+        {...attributes}
+        {...listeners}
         style={{
           display: "flex",
           alignItems: "center",
@@ -48,6 +69,9 @@ function TreeNode({
           padding: "6px 8px",
           paddingLeft: `${8 + node.depth * 16}px`,
           borderRadius: "var(--radius-sm, 4px)",
+          opacity: isDragging ? 0.4 : 1,
+          outline: isOver ? "2px dashed var(--color-accent, #0D9488)" : "none",
+          outlineOffset: "-2px",
           cursor: "pointer",
           background: isSelected ? "var(--color-primary, #2563EB)" : "transparent",
           color: isSelected ? "white" : "#e2e8f0",
@@ -240,6 +264,33 @@ export function Sidebar({
       refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to archive tenant. It may have children.");
+    }
+  };
+
+  const [draggedNode, setDraggedNode] = useState<TenantTreeNode | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggedNode(event.active.data.current?.node ?? null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setDraggedNode(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const draggedId = active.id as string;
+    const targetId = (over.id as string).replace(/^drop-/, "");
+    if (draggedId === targetId) return;
+
+    try {
+      await apiCall(`/api/v1/tenants/${draggedId}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_parent_id: targetId }),
+      });
+      refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to move tenant");
     }
   };
 
@@ -447,18 +498,40 @@ export function Sidebar({
             No tenants found. Create a root tenant below.
           </div>
         )}
-        {tree.map((node) => (
-          <TreeNode
-            key={node.id}
-            node={node}
-            selectedId={tenant?.id ?? null}
-            onSelect={switchTenant}
-            onToggle={toggleExpand}
-            onAddChild={handleAddChild}
-            onEdit={handleEdit}
-            onArchive={handleArchive}
-          />
-        ))}
+        <DndContext
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {tree.map((node) => (
+            <TreeNode
+              key={node.id}
+              node={node}
+              selectedId={tenant?.id ?? null}
+              onSelect={switchTenant}
+              onToggle={toggleExpand}
+              onAddChild={handleAddChild}
+              onEdit={handleEdit}
+              onArchive={handleArchive}
+            />
+          ))}
+          <DragOverlay>
+            {draggedNode ? (
+              <div style={{
+                padding: "4px 12px",
+                background: "var(--color-800, #1E293B)",
+                border: "1px solid var(--color-accent, #0D9488)",
+                borderRadius: "var(--radius-sm, 4px)",
+                color: "#e2e8f0",
+                fontSize: "0.8125rem",
+                fontFamily: "var(--font-body, 'DM Sans', system-ui, sans-serif)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+              }}>
+                {draggedNode.name}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </div>
 
       {/* Inline create form */}
