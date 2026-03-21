@@ -47,6 +47,39 @@ export function expressMiddleware(client: StratumClient, options?: MiddlewareOpt
       }
 
       req.tenant = context;
+      req.impersonating = false;
+
+      // Impersonation: check for X-Impersonate-Tenant header
+      if (options?.impersonation?.enabled) {
+        const impersonateHeader = options.impersonation.headerName || "X-Impersonate-Tenant";
+        const impersonateTenantId = req.headers?.[impersonateHeader.toLowerCase()] as string | undefined;
+
+        if (impersonateTenantId && impersonateTenantId !== tenantId) {
+          const authorized = await options.impersonation.authorize(req, tenantId, impersonateTenantId);
+          if (!authorized) {
+            res.status(403).json({
+              error: {
+                code: "IMPERSONATION_DENIED",
+                message: "Not authorized to impersonate this tenant",
+              },
+            });
+            return;
+          }
+
+          // Resolve the impersonated tenant's context
+          const impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          req.tenant = impersonatedContext;
+          req.impersonating = true;
+          req.originalTenantId = tenantId;
+
+          options.impersonation.onImpersonate?.(req, tenantId, impersonateTenantId);
+
+          runWithTenantContext(impersonatedContext, () => {
+            next();
+          });
+          return;
+        }
+      }
 
       runWithTenantContext(context, () => {
         next();
