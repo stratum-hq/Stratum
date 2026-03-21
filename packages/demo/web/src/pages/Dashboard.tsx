@@ -64,7 +64,7 @@ interface ApiKeyEntry {
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = "overview" | "config" | "permissions" | "events" | "audit" | "api-keys";
+type TabId = "overview" | "config" | "permissions" | "events" | "audit" | "api-keys" | "webhooks";
 
 interface TabDef {
   id: TabId;
@@ -79,6 +79,7 @@ const TABS: TabDef[] = [
   { id: "events", label: "Events", icon: "⚡" },
   { id: "audit", label: "Audit", icon: "📋" },
   { id: "api-keys", label: "API Keys", icon: "🗝" },
+  { id: "webhooks", label: "Webhooks", icon: "🔗" },
 ];
 
 // ── CSS-in-JS with design tokens ─────────────────────────────────────────────
@@ -1573,6 +1574,205 @@ function ApiKeySection({ onStats }: { onStats?: (stats: { total: number; active:
   );
 }
 
+// ── Section: Webhooks ────────────────────────────────────────────────────────
+
+interface WebhookEntry {
+  id: string;
+  tenant_id: string | null;
+  url: string;
+  events: string[];
+  active: boolean;
+  secret: string;
+  created_at: string;
+}
+
+function WebhookSection({ onStats }: { onStats?: (count: number) => void }) {
+  const { tenant } = useTenant();
+  const { apiCall } = useStratum();
+  const [webhooks, setWebhooks] = useState<WebhookEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
+  const [newEvents, setNewEvents] = useState("tenant.created,tenant.updated,config.updated");
+  const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+
+  const fetchWebhooks = async () => {
+    if (!tenant) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${tenant.id}`);
+      const list = Array.isArray(data) ? data : [];
+      setWebhooks(list);
+      onStats?.(list.length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load webhooks");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchWebhooks(); }, [tenant?.id]);
+
+  const handleCreate = async () => {
+    if (!tenant || !newUrl.trim()) return;
+    setMutating(true);
+    try {
+      await apiCall("/api/v1/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          url: newUrl.trim(),
+          events: newEvents.split(",").map(e => e.trim()).filter(Boolean),
+        }),
+      });
+      setNewUrl("");
+      await fetchWebhooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create webhook");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setMutating(true);
+    try {
+      await apiCall(`/api/v1/webhooks/${id}`, { method: "DELETE" });
+      await fetchWebhooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete webhook");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleTest = async (id: string) => {
+    setTestResult(null);
+    try {
+      const result = await apiCall<{ success: boolean; response_code?: number; error?: string }>(`/api/v1/webhooks/${id}/test`, { method: "POST" });
+      setTestResult({
+        id,
+        success: result.success,
+        message: result.success ? `Delivered (${result.response_code})` : (result.error || "Delivery failed"),
+      });
+    } catch (err) {
+      setTestResult({ id, success: false, message: err instanceof Error ? err.message : "Test failed" });
+    }
+  };
+
+  if (loading) return <div style={{ padding: "var(--space-xl)", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>Loading webhooks...</div>;
+  if (error) return <div style={{ padding: "var(--space-xl)", color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</div>;
+
+  return (
+    <div>
+      <div className="stratum-section-header">
+        <span className="stratum-section-title">Webhook Endpoints</span>
+        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+          {webhooks.length} webhook{webhooks.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {webhooks.length === 0 ? (
+        <div style={{ padding: "var(--space-2xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>
+          <div style={{ marginBottom: "var(--space-sm)" }}>No webhooks configured.</div>
+          <div style={{ fontSize: "0.75rem" }}>Webhooks notify external services when tenant events occur.</div>
+        </div>
+      ) : (
+        <table className="stratum-table">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Events</th>
+              <th>Status</th>
+              <th style={{ width: 140 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {webhooks.map((wh) => (
+              <tr key={wh.id}>
+                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {wh.url}
+                </td>
+                <td style={{ fontSize: "0.75rem" }}>
+                  {wh.events.map(e => (
+                    <span key={e} style={{ display: "inline-block", background: "var(--color-info-bg)", color: "var(--color-info)", padding: "1px 6px", borderRadius: "var(--radius-full)", fontSize: "0.6875rem", marginRight: "4px", marginBottom: "2px" }}>
+                      {e}
+                    </span>
+                  ))}
+                </td>
+                <td>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "1px 8px",
+                    borderRadius: "var(--radius-full)",
+                    fontSize: "0.6875rem",
+                    fontWeight: 600,
+                    background: wh.active ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                    color: wh.active ? "var(--color-success)" : "var(--color-error)",
+                  }}>
+                    {wh.active ? "Active" : "Inactive"}
+                  </span>
+                  {testResult?.id === wh.id && (
+                    <span style={{
+                      display: "inline-block",
+                      marginLeft: "var(--space-xs)",
+                      padding: "1px 8px",
+                      borderRadius: "var(--radius-full)",
+                      fontSize: "0.6875rem",
+                      background: testResult.success ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                      color: testResult.success ? "var(--color-success)" : "var(--color-error)",
+                    }}>
+                      {testResult.message}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", gap: "var(--space-xs)" }}>
+                    <button className="stratum-btn small" onClick={() => handleTest(wh.id)} disabled={mutating}>
+                      Test
+                    </button>
+                    <button className="stratum-btn small danger" onClick={() => handleDelete(wh.id)} disabled={mutating}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Create form */}
+      {tenant && (
+        <div className="stratum-form-row" style={{ marginTop: "var(--space-lg)" }}>
+          <div className="stratum-form-controls" style={{ flexWrap: "wrap" }}>
+            <input
+              className="stratum-input"
+              style={{ minWidth: 280, flex: 1 }}
+              placeholder="https://example.com/webhook"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+            />
+            <input
+              className="stratum-input"
+              style={{ minWidth: 200, flex: 1 }}
+              placeholder="Events (comma-separated)"
+              value={newEvents}
+              onChange={(e) => setNewEvents(e.target.value)}
+            />
+            <button className="stratum-btn primary" disabled={mutating || !newUrl.trim()} onClick={handleCreate}>
+              Create Webhook
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({
@@ -1690,6 +1890,7 @@ export function Dashboard() {
   const [eventCount, setEventCount] = useState(0);
   const [auditCount, setAuditCount] = useState(0);
   const [keyStats, setKeyStats] = useState({ total: 0, active: 0, revoked: 0 });
+  const [webhookCount, setWebhookCount] = useState(0);
 
   // Reset tab on tenant switch
   useEffect(() => {
@@ -1782,6 +1983,15 @@ export function Dashboard() {
             <ApiKeySection onStats={setKeyStats} />
           </div>
         );
+      case "webhooks":
+        return (
+          <div className="stratum-tab-content" key="webhooks">
+            <div className="stratum-stat-cards">
+              <StatCard label="Webhooks" value={webhookCount} />
+            </div>
+            <WebhookSection onStats={setWebhookCount} />
+          </div>
+        );
     }
   };
 
@@ -1797,6 +2007,7 @@ export function Dashboard() {
           <SecurityEventsSection onStats={setEventCount} />
           <AuditLogSection onStats={setAuditCount} />
           <ApiKeySection onStats={setKeyStats} />
+          <WebhookSection onStats={setWebhookCount} />
         </div>
       )}
 
