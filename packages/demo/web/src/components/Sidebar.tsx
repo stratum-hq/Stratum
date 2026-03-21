@@ -23,12 +23,16 @@ function TreeNode({
   onSelect,
   onToggle,
   onAddChild,
+  onEdit,
+  onArchive,
 }: {
   node: TenantTreeNode;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
   onAddChild: (parentId: string) => void;
+  onEdit: (id: string, currentName: string) => void;
+  onArchive: (id: string, name: string) => void;
 }) {
   const hasChildren = node.children.length > 0;
   const isSelected = node.id === selectedId;
@@ -112,19 +116,48 @@ function TreeNode({
             {"\u2193"}
           </span>
         )}
-        <span
-          style={{
-            fontSize: 14,
-            color: isSelected ? "#93c5fd" : "var(--color-700, #334155)",
-            cursor: "pointer",
-            padding: "0 2px",
-            flexShrink: 0,
-            lineHeight: 1,
-          }}
-          title="Add child tenant"
-          onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
-        >
-          +
+        <span style={{ display: "flex", gap: "2px", flexShrink: 0, alignItems: "center" }}>
+          <span
+            style={{
+              fontSize: 11,
+              color: isSelected ? "#93c5fd" : "var(--color-700, #334155)",
+              cursor: "pointer",
+              padding: "0 2px",
+              lineHeight: 1,
+            }}
+            title="Edit tenant name"
+            onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
+          >
+            ✎
+          </span>
+          <span
+            style={{
+              fontSize: 14,
+              color: isSelected ? "#93c5fd" : "var(--color-700, #334155)",
+              cursor: "pointer",
+              padding: "0 2px",
+              lineHeight: 1,
+            }}
+            title="Add child tenant"
+            onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
+          >
+            +
+          </span>
+          {!hasChildren && (
+            <span
+              style={{
+                fontSize: 11,
+                color: isSelected ? "#fca5a5" : "var(--color-700, #334155)",
+                cursor: "pointer",
+                padding: "0 2px",
+                lineHeight: 1,
+              }}
+              title="Archive tenant"
+              onClick={(e) => { e.stopPropagation(); onArchive(node.id, node.name); }}
+            >
+              ✕
+            </span>
+          )}
         </span>
       </div>
       {node.expanded && hasChildren && (
@@ -150,6 +183,8 @@ function TreeNode({
                 onSelect={onSelect}
                 onToggle={onToggle}
                 onAddChild={onAddChild}
+                onEdit={onEdit}
+                onArchive={onArchive}
               />
             ))}
           </div>
@@ -181,6 +216,31 @@ export function Sidebar({
     setNewName("");
     setNewSlug("");
     setError(null);
+  };
+
+  const handleEdit = async (id: string, currentName: string) => {
+    const newName = prompt("Rename tenant:", currentName);
+    if (!newName || newName === currentName) return;
+    try {
+      await apiCall(`/api/v1/tenants/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+      refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to rename tenant");
+    }
+  };
+
+  const handleArchive = async (id: string, name: string) => {
+    if (!confirm(`Archive "${name}"? This will soft-delete the tenant.`)) return;
+    try {
+      await apiCall(`/api/v1/tenants/${id}`, { method: "DELETE" });
+      refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to archive tenant. It may have children.");
+    }
   };
 
   const handleAddRoot = () => {
@@ -293,6 +353,8 @@ export function Sidebar({
         flexDirection: "column",
         overflow: "hidden",
         fontFamily: "var(--font-body, 'DM Sans', system-ui, sans-serif)",
+        position: "relative",
+        zIndex: 10,
       }}
     >
       {/* Sidebar header */}
@@ -393,6 +455,8 @@ export function Sidebar({
             onSelect={switchTenant}
             onToggle={toggleExpand}
             onAddChild={handleAddChild}
+            onEdit={handleEdit}
+            onArchive={handleArchive}
           />
         ))}
       </div>

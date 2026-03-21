@@ -64,7 +64,7 @@ interface ApiKeyEntry {
 
 // ── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = "overview" | "config" | "permissions" | "events" | "audit" | "api-keys";
+type TabId = "overview" | "config" | "permissions" | "events" | "audit" | "api-keys" | "webhooks";
 
 interface TabDef {
   id: TabId;
@@ -79,6 +79,7 @@ const TABS: TabDef[] = [
   { id: "events", label: "Events", icon: "⚡" },
   { id: "audit", label: "Audit", icon: "📋" },
   { id: "api-keys", label: "API Keys", icon: "🗝" },
+  { id: "webhooks", label: "Webhooks", icon: "🔗" },
 ];
 
 // ── CSS-in-JS with design tokens ─────────────────────────────────────────────
@@ -153,6 +154,47 @@ const cssVars = `
   --duration-short: 150ms;
   --duration-medium: 250ms;
   --duration-long: 400ms;
+
+  /* Dark mode surfaces */
+  --bg-page: var(--color-50);
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --text-primary: var(--color-900);
+  --text-secondary: var(--color-600);
+  --text-tertiary: var(--color-500);
+  --border: var(--border);
+  --border-strong: var(--color-300);
+}
+
+[data-theme="dark"] {
+  --bg-page: #0A0F1A;
+  --bg-card: var(--color-900);
+  --bg-input: var(--color-800);
+  --text-primary: #E2E8F0;
+  --text-secondary: var(--color-400);
+  --text-tertiary: var(--color-500);
+  --border: var(--color-700);
+  --border-strong: var(--color-600);
+  --color-primary: #3B82F6;
+  --color-accent: #2DD4BF;
+  --color-success: #34D399;
+  --color-success-bg: #064e3b;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #451a03;
+  --color-error: #F87171;
+  --color-error-bg: #450a0a;
+  --color-info: #3B82F6;
+  --color-info-bg: #1e3a5f;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+  --shadow-xl: 0 8px 32px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.3);
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  transition: background var(--duration-medium) var(--ease-move), color var(--duration-medium) var(--ease-move);
 }
 
 /* Dashboard responsive styles */
@@ -167,7 +209,7 @@ const cssVars = `
   gap: var(--space-sm);
   padding: var(--space-sm) 0;
   font-size: 0.8125rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   font-family: var(--font-body);
   flex-wrap: wrap;
 }
@@ -187,12 +229,12 @@ const cssVars = `
 }
 
 .stratum-breadcrumb-name {
-  color: var(--color-600);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .stratum-breadcrumb-name.active {
-  color: var(--color-900);
+  color: var(--text-primary);
   font-weight: 700;
 }
 
@@ -214,7 +256,7 @@ const cssVars = `
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   font-family: var(--font-display);
 }
 
@@ -226,15 +268,15 @@ const cssVars = `
 
 .stratum-dash-depth {
   font-size: 0.75rem;
-  color: var(--color-600);
-  background: var(--color-100);
+  color: var(--text-secondary);
+  background: var(--bg-card);
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
+  border: 1px solid var(--border);
 }
 
 .stratum-view-as-btn {
-  margin-left: auto;
   padding: var(--space-xs) var(--space-md);
   font-size: 0.75rem;
   font-weight: 600;
@@ -254,6 +296,15 @@ const cssVars = `
   color: var(--color-accent-hover);
 }
 
+[data-theme="dark"] .stratum-view-as-btn {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: rgba(13, 148, 136, 0.3);
+}
+
+[data-theme="dark"] .stratum-view-as-btn:hover {
+  background: rgba(13, 148, 136, 0.25);
+}
+
 .stratum-view-as-btn:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 3px;
@@ -263,7 +314,7 @@ const cssVars = `
 .stratum-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--color-200);
+  border-bottom: 1px solid var(--border);
   margin-bottom: var(--space-xl);
   overflow-x: auto;
   scrollbar-width: none;
@@ -277,7 +328,7 @@ const cssVars = `
   padding: var(--space-sm) var(--space-lg);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -335,8 +386,8 @@ const cssVars = `
 }
 
 .stratum-stat-card {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
   box-shadow: var(--shadow-sm);
@@ -345,7 +396,7 @@ const cssVars = `
 .stratum-stat-label {
   font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: var(--space-xs);
@@ -355,7 +406,7 @@ const cssVars = `
 .stratum-stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
 }
@@ -382,8 +433,8 @@ const cssVars = `
 
 /* Section card */
 .stratum-section {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-xl);
   overflow: hidden;
@@ -392,8 +443,8 @@ const cssVars = `
 
 .stratum-section-header {
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--color-100);
-  background: var(--color-50);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
   display: flex;
   align-items: baseline;
   gap: var(--space-md);
@@ -403,7 +454,7 @@ const cssVars = `
 .stratum-section-title {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -427,15 +478,15 @@ const cssVars = `
 }
 
 .stratum-table thead tr {
-  border-bottom: 1px solid var(--color-200);
-  background: var(--color-50);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
 }
 
 .stratum-table th {
   padding: var(--space-sm) var(--space-lg);
   text-align: left;
   font-weight: 600;
-  color: var(--color-600);
+  color: var(--text-secondary);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -443,16 +494,16 @@ const cssVars = `
 
 .stratum-table td {
   padding: var(--space-sm) var(--space-lg);
-  color: var(--color-900);
+  color: var(--text-primary);
 }
 
 .stratum-table tbody tr {
-  border-bottom: 1px solid var(--color-50);
+  border-bottom: 1px solid var(--border);
   transition: background var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-table tbody tr:hover {
-  background: var(--color-50);
+  background: var(--bg-card);
 }
 
 .stratum-mono {
@@ -474,6 +525,12 @@ const cssVars = `
 .stratum-badge.inherited {
   color: var(--color-accent);
   background: var(--color-accent-light);
+  border: 1px solid transparent;
+}
+
+[data-theme="dark"] .stratum-badge.inherited {
+  background: rgba(13, 148, 136, 0.15);
+  border-color: rgba(13, 148, 136, 0.3);
 }
 
 .stratum-badge.locked {
@@ -482,8 +539,9 @@ const cssVars = `
 }
 
 .stratum-badge.own {
-  color: var(--color-600);
-  background: var(--color-100);
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
 }
 
 .stratum-badge.success {
@@ -507,16 +565,16 @@ const cssVars = `
   font-weight: 500;
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
-  background: var(--color-50);
-  color: var(--color-600);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
   cursor: pointer;
   font-family: var(--font-body);
   transition: background var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-btn:hover {
-  background: var(--color-100);
+  background: var(--bg-input);
 }
 
 .stratum-btn:focus-visible {
@@ -559,6 +617,20 @@ const cssVars = `
   background: var(--color-error-bg);
 }
 
+.stratum-btn.small {
+  padding: 2px 6px;
+  font-size: 0.625rem;
+}
+
+.stratum-btn.danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.stratum-btn.danger:hover {
+  background: var(--color-error-bg);
+}
+
 .stratum-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -569,10 +641,10 @@ const cssVars = `
   font-size: 0.75rem;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
+  border: 1px solid var(--border);
   font-family: var(--font-mono);
-  color: var(--color-900);
-  background: white;
+  color: var(--text-primary);
+  background: var(--bg-card);
   transition: border-color var(--duration-micro) var(--ease-enter);
 }
 
@@ -586,21 +658,57 @@ const cssVars = `
   font-size: 0.75rem;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
+  border: 1px solid var(--border);
   font-family: var(--font-mono);
-  color: var(--color-900);
-  background: white;
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+/* Checkbox styling for dark mode */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 /* Form row */
 .stratum-form-row {
   padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--color-200);
+  border-top: 1px solid var(--border);
 }
 
 .stratum-form-hint {
   font-size: 0.75rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   margin-bottom: var(--space-sm);
 }
 
@@ -640,8 +748,8 @@ const cssVars = `
 }
 
 .stratum-overview-card {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-lg);
   box-shadow: var(--shadow-sm);
@@ -654,7 +762,7 @@ const cssVars = `
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
 }
 
 .stratum-overview-card-value {
@@ -666,7 +774,7 @@ const cssVars = `
 
 .stratum-overview-card-desc {
   font-size: 0.75rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
 }
 
 /* Severity colors */
@@ -698,7 +806,7 @@ const cssVars = `
   display: block;
   margin-top: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius-sm);
   word-break: break-all;
 }
@@ -882,7 +990,7 @@ function TenantContextSection() {
         <tbody>
           {rows.map(([label, value, isMono]) => (
             <tr key={label}>
-              <td style={{ color: "var(--color-500)", fontWeight: 500, width: 160, whiteSpace: "nowrap" }}>{label}</td>
+              <td style={{ color: "var(--text-tertiary)", fontWeight: 500, width: 160, whiteSpace: "nowrap" }}>{label}</td>
               <td className={isMono ? "stratum-mono" : ""} style={{ wordBreak: "break-all" }}>{value}</td>
             </tr>
           ))}
@@ -1039,7 +1147,7 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
                     {entry.locked ? (
                       <span className="stratum-badge locked">&darr; LOCKED</span>
                     ) : (
-                      <span style={{ color: "var(--color-400)", fontSize: "0.6875rem" }}>&mdash;</span>
+                      <span style={{ color: "var(--text-tertiary)", fontSize: "0.6875rem" }}>&mdash;</span>
                     )}
                   </td>
                   <td>
@@ -1055,9 +1163,9 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
                   <tr className="stratum-edit-row">
                     <td colSpan={5}>
                       <div className="stratum-form-controls">
-                        <span style={{ fontSize: "0.75rem", color: "var(--color-500)" }}>Value:</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>Value:</span>
                         <input className="stratum-input" style={{ width: 200 }} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-500)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+                        <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
                           <input type="checkbox" checked={editLocked} onChange={(e) => setEditLocked(e.target.checked)} />
                           Locked
                         </label>
@@ -1081,7 +1189,7 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
           <div className="stratum-form-controls">
             <input className="stratum-input" style={{ width: 140 }} placeholder="key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
             <input className="stratum-input" style={{ width: 200 }} placeholder="value (JSON or string)" value={addValue} onChange={(e) => setAddValue(e.target.value)} />
-            <label style={{ fontSize: "0.75rem", color: "var(--color-500)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+            <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
               <input type="checkbox" checked={addLocked} onChange={(e) => setAddLocked(e.target.checked)} />
               Locked
             </label>
@@ -1203,7 +1311,7 @@ function PermissionsSection({ onStats }: { onStats?: (stats: { total: number; lo
                 <td style={{ fontSize: "0.75rem" }}>
                   {perm.locked && <span style={{ color: "var(--color-error)", marginRight: 6 }}>locked</span>}
                   {perm.delegated && <span style={{ color: "var(--color-success)" }}>delegated</span>}
-                  {!perm.locked && !perm.delegated && <span style={{ color: "var(--color-400)" }}>&mdash;</span>}
+                  {!perm.locked && !perm.delegated && <span style={{ color: "var(--text-tertiary)" }}>&mdash;</span>}
                 </td>
                 <td>
                   {tenant && perm.source_tenant_id === tenant.id && (
@@ -1298,9 +1406,9 @@ function SecurityEventsSection({ onStats }: { onStats?: (count: number) => void 
                   </span>
                 </td>
                 <td>{e.event_type}</td>
-                <td style={{ color: "var(--color-600)" }}>{e.description}</td>
-                <td className="stratum-mono" style={{ color: "var(--color-500)" }}>{e.source_ip || "\u2014"}</td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>{new Date(e.created_at).toLocaleString()}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{e.description}</td>
+                <td className="stratum-mono" style={{ color: "var(--text-tertiary)" }}>{e.source_ip || "\u2014"}</td>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{new Date(e.created_at).toLocaleString()}</td>
               </tr>
             ))}
             {events.length === 0 && (
@@ -1376,13 +1484,13 @@ function AuditLogSection({ onStats }: { onStats?: (count: number) => void }) {
                     {e.action}
                   </span>
                 </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--color-500)" }}>
+                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
                   {e.resource_type}{e.resource_id ? ` (${e.resource_id.slice(0, 8)}...)` : ""}
                 </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--color-500)" }}>
+                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
                   {e.actor_type}: {e.actor_id.slice(0, 8)}...
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {new Date(e.created_at).toLocaleString()}
                 </td>
               </tr>
@@ -1496,10 +1604,10 @@ function ApiKeySection({ onStats }: { onStats?: (stats: { total: number; active:
                     <span className="stratum-badge success">ACTIVE</span>
                   )}
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "Never"}
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {new Date(k.created_at).toLocaleString()}
                 </td>
                 <td>
@@ -1525,6 +1633,205 @@ function ApiKeySection({ onStats }: { onStats?: (stats: { total: number; active:
           <div className="stratum-form-controls">
             <input className="stratum-input" style={{ width: 200 }} placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
             <button className="stratum-btn primary" disabled={mutating} onClick={handleCreate}>Create Key</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section: Webhooks ────────────────────────────────────────────────────────
+
+interface WebhookEntry {
+  id: string;
+  tenant_id: string | null;
+  url: string;
+  events: string[];
+  active: boolean;
+  secret: string;
+  created_at: string;
+}
+
+function WebhookSection({ onStats }: { onStats?: (count: number) => void }) {
+  const { tenant } = useTenant();
+  const { apiCall } = useStratum();
+  const [webhooks, setWebhooks] = useState<WebhookEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
+  const [newEvents, setNewEvents] = useState("tenant.created,tenant.updated,config.updated");
+  const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+
+  const fetchWebhooks = async () => {
+    if (!tenant) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${tenant.id}`);
+      const list = Array.isArray(data) ? data : [];
+      setWebhooks(list);
+      onStats?.(list.length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load webhooks");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchWebhooks(); }, [tenant?.id]);
+
+  const handleCreate = async () => {
+    if (!tenant || !newUrl.trim()) return;
+    setMutating(true);
+    try {
+      await apiCall("/api/v1/webhooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          url: newUrl.trim(),
+          events: newEvents.split(",").map(e => e.trim()).filter(Boolean),
+        }),
+      });
+      setNewUrl("");
+      await fetchWebhooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create webhook");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setMutating(true);
+    try {
+      await apiCall(`/api/v1/webhooks/${id}`, { method: "DELETE" });
+      await fetchWebhooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete webhook");
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const handleTest = async (id: string) => {
+    setTestResult(null);
+    try {
+      const result = await apiCall<{ success: boolean; response_code?: number; error?: string }>(`/api/v1/webhooks/${id}/test`, { method: "POST" });
+      setTestResult({
+        id,
+        success: result.success,
+        message: result.success ? `Delivered (${result.response_code})` : (result.error || "Delivery failed"),
+      });
+    } catch (err) {
+      setTestResult({ id, success: false, message: err instanceof Error ? err.message : "Test failed" });
+    }
+  };
+
+  if (loading) return <div style={{ padding: "var(--space-xl)", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>Loading webhooks...</div>;
+  if (error) return <div style={{ padding: "var(--space-xl)", color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</div>;
+
+  return (
+    <div>
+      <div className="stratum-section-header">
+        <span className="stratum-section-title">Webhook Endpoints</span>
+        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+          {webhooks.length} webhook{webhooks.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {webhooks.length === 0 ? (
+        <div style={{ padding: "var(--space-2xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>
+          <div style={{ marginBottom: "var(--space-sm)" }}>No webhooks configured.</div>
+          <div style={{ fontSize: "0.75rem" }}>Webhooks notify external services when tenant events occur.</div>
+        </div>
+      ) : (
+        <table className="stratum-table">
+          <thead>
+            <tr>
+              <th>URL</th>
+              <th>Events</th>
+              <th>Status</th>
+              <th style={{ width: 140 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {webhooks.map((wh) => (
+              <tr key={wh.id}>
+                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {wh.url}
+                </td>
+                <td style={{ fontSize: "0.75rem" }}>
+                  {wh.events.map(e => (
+                    <span key={e} style={{ display: "inline-block", background: "var(--color-info-bg)", color: "var(--color-info)", padding: "1px 6px", borderRadius: "var(--radius-full)", fontSize: "0.6875rem", marginRight: "4px", marginBottom: "2px" }}>
+                      {e}
+                    </span>
+                  ))}
+                </td>
+                <td>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "1px 8px",
+                    borderRadius: "var(--radius-full)",
+                    fontSize: "0.6875rem",
+                    fontWeight: 600,
+                    background: wh.active ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                    color: wh.active ? "var(--color-success)" : "var(--color-error)",
+                  }}>
+                    {wh.active ? "Active" : "Inactive"}
+                  </span>
+                  {testResult?.id === wh.id && (
+                    <span style={{
+                      display: "inline-block",
+                      marginLeft: "var(--space-xs)",
+                      padding: "1px 8px",
+                      borderRadius: "var(--radius-full)",
+                      fontSize: "0.6875rem",
+                      background: testResult.success ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                      color: testResult.success ? "var(--color-success)" : "var(--color-error)",
+                    }}>
+                      {testResult.message}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ display: "flex", gap: "var(--space-xs)" }}>
+                    <button className="stratum-btn small" onClick={() => handleTest(wh.id)} disabled={mutating}>
+                      Test
+                    </button>
+                    <button className="stratum-btn small danger" onClick={() => handleDelete(wh.id)} disabled={mutating}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Create form */}
+      {tenant && (
+        <div className="stratum-form-row" style={{ marginTop: "var(--space-lg)" }}>
+          <div className="stratum-form-controls" style={{ flexWrap: "wrap" }}>
+            <input
+              className="stratum-input"
+              style={{ minWidth: 280, flex: 1 }}
+              placeholder="https://example.com/webhook"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+            />
+            <input
+              className="stratum-input"
+              style={{ minWidth: 200, flex: 1 }}
+              placeholder="Events (comma-separated)"
+              value={newEvents}
+              onChange={(e) => setNewEvents(e.target.value)}
+            />
+            <button className="stratum-btn primary" disabled={mutating || !newUrl.trim()} onClick={handleCreate}>
+              Create Webhook
+            </button>
           </div>
         </div>
       )}
@@ -1565,7 +1872,7 @@ function OverviewTab({
       <div className="stratum-overview-grid">
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("config")}
         >
           <div className="stratum-overview-card-title">Config Inheritance</div>
@@ -1577,7 +1884,7 @@ function OverviewTab({
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("permissions")}
         >
           <div className="stratum-overview-card-title">Permissions</div>
@@ -1589,27 +1896,27 @@ function OverviewTab({
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("events")}
         >
           <div className="stratum-overview-card-title">Security Events</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-900)" }}>{eventCount}</div>
+          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{eventCount}</div>
           <div className="stratum-overview-card-desc">RLS-scoped events for this tenant</div>
         </button>
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("audit")}
         >
           <div className="stratum-overview-card-title">Audit Log</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-900)" }}>{auditCount}</div>
+          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{auditCount}</div>
           <div className="stratum-overview-card-desc">Recent mutations recorded</div>
         </button>
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("api-keys")}
         >
           <div className="stratum-overview-card-title">API Keys</div>
@@ -1630,6 +1937,18 @@ export function Dashboard() {
   const { apiCall } = useStratum();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [contextModal, setContextModal] = useState<{ open: boolean; data: Record<string, unknown> | null; loading: boolean }>({ open: false, data: null, loading: false });
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("stratum-theme");
+      return stored ? stored === "dark" : true; // dark by default
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("stratum-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   // Stats collected from child sections
   const [configStats, setConfigStats] = useState({ total: 0, inherited: 0, locked: 0 });
@@ -1637,6 +1956,7 @@ export function Dashboard() {
   const [eventCount, setEventCount] = useState(0);
   const [auditCount, setAuditCount] = useState(0);
   const [keyStats, setKeyStats] = useState({ total: 0, active: 0, revoked: 0 });
+  const [webhookCount, setWebhookCount] = useState(0);
 
   // Reset tab on tenant switch
   useEffect(() => {
@@ -1645,22 +1965,28 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--color-400)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
-        Loading tenant...
-      </div>
+      <>
+        <style>{cssVars}</style>
+        <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--text-tertiary)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
+          Loading tenant...
+        </div>
+      </>
     );
   }
 
   if (!tenant) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
-        <div style={{ fontSize: "0.9375rem", color: "var(--color-600)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
+      <>
+        <style>{cssVars}</style>
+        <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
+          <div style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
           Select a tenant from the sidebar
         </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--color-400)" }}>
+        <div style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
           Click any tenant in the hierarchy to explore its context, config inheritance, permissions, and security events.
         </div>
       </div>
+      </>
     );
   }
 
@@ -1729,6 +2055,15 @@ export function Dashboard() {
             <ApiKeySection onStats={setKeyStats} />
           </div>
         );
+      case "webhooks":
+        return (
+          <div className="stratum-tab-content" key="webhooks">
+            <div className="stratum-stat-cards">
+              <StatCard label="Webhooks" value={webhookCount} />
+            </div>
+            <WebhookSection onStats={setWebhookCount} />
+          </div>
+        );
     }
   };
 
@@ -1744,6 +2079,7 @@ export function Dashboard() {
           <SecurityEventsSection onStats={setEventCount} />
           <AuditLogSection onStats={setAuditCount} />
           <ApiKeySection onStats={setKeyStats} />
+          <WebhookSection onStats={setWebhookCount} />
         </div>
       )}
 
@@ -1770,6 +2106,23 @@ export function Dashboard() {
             title="View full resolved context: inherited config, permissions, and ancestor chain"
           >
             Resolved Context
+          </button>
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            style={{
+              marginLeft: "auto",
+              padding: "4px 10px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
+              color: "var(--text-secondary)",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              fontFamily: "var(--font-body)",
+            }}
+            title={`Switch to ${darkMode ? "light" : "dark"} mode`}
+          >
+            {darkMode ? "☀ Light" : "● Dark"}
           </button>
         </div>
 
@@ -1809,9 +2162,10 @@ export function Dashboard() {
         >
           <div
             style={{
-              background: "#F8FAFC",
+              background: "var(--bg-card)",
               borderRadius: 12,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              boxShadow: "var(--shadow-xl)",
+              color: "var(--text-primary)",
               width: 680,
               maxWidth: "90vw",
               fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
@@ -1821,14 +2175,14 @@ export function Dashboard() {
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "16px 24px",
-              borderBottom: "1px solid #E2E8F0",
-              position: "sticky", top: 0, background: "#F8FAFC", borderRadius: "12px 12px 0 0", zIndex: 1,
+              borderBottom: "1px solid var(--border)",
+              position: "sticky", top: 0, background: "var(--bg-card)", borderRadius: "12px 12px 0 0", zIndex: 1,
             }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "1rem" }}>
                   Tenant Context
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748B", fontFamily: "ui-monospace, monospace" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
                   {tenant.name} &middot; {tenant.id.slice(0, 8)}...
                 </div>
               </div>
@@ -1836,7 +2190,7 @@ export function Dashboard() {
                 onClick={() => setContextModal({ open: false, data: null, loading: false })}
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  fontSize: "1.5rem", color: "#94A3B8", lineHeight: 1,
+                  fontSize: "1.5rem", color: "var(--text-tertiary)", lineHeight: 1,
                   width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
                   borderRadius: 6,
                 }}
@@ -1847,36 +2201,36 @@ export function Dashboard() {
             </div>
             <div style={{ padding: "16px 24px" }}>
               {contextModal.loading ? (
-                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--color-neutral-400, #94A3B8)" }}>
+                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--text-tertiary)" }}>
                   Loading context...
                 </div>
               ) : contextModal.data ? (
                 <>
                   {/* Config section */}
                   <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Resolved Config
                     </div>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Key</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Status</th>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Key</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {Object.entries((contextModal.data.config as Record<string, any>) || {}).map(([key, entry]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--color-neutral-600)" }}>{JSON.stringify(entry.value)}</td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)" }}>{JSON.stringify(entry.value)}</td>
                             <td style={{ padding: "6px 12px" }}>
                               {entry.locked ? (
-                                <span style={{ background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
+                                <span style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
                               ) : entry.inherited ? (
-                                <span style={{ background: "#CCFBF1", color: "#0D9488", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
+                                <span style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
                               ) : (
-                                <span style={{ background: "#F1F5F9", color: "#475569", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
+                                <span style={{ background: "var(--bg-card)", color: "var(--text-secondary)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
                               )}
                             </td>
                           </tr>
@@ -1887,29 +2241,29 @@ export function Dashboard() {
 
                   {/* Permissions section */}
                   <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Resolved Permissions
                     </div>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Permission</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Mode</th>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Permission</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Mode</th>
                         </tr>
                       </thead>
                       <tbody>
                         {Object.entries((contextModal.data.permissions as Record<string, any>) || {}).map(([key, perm]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
                             <td style={{ padding: "6px 12px" }}>
                               {perm.value ? (
-                                <span style={{ color: "#059669", fontWeight: 600 }}>YES</span>
+                                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>YES</span>
                               ) : (
-                                <span style={{ color: "#DC2626", fontWeight: 600 }}>NO</span>
+                                <span style={{ color: "var(--color-error)", fontWeight: 600 }}>NO</span>
                               )}
                             </td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--color-neutral-500)" }}>{perm.mode}</td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{perm.mode}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1918,7 +2272,7 @@ export function Dashboard() {
 
                   {/* Ancestors section */}
                   <div>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Hierarchy Path
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1928,7 +2282,7 @@ export function Dashboard() {
                         const chain = [...ancestors, current];
                         return chain.map((a: any, i: number) => (
                           <React.Fragment key={a?.id || i}>
-                            {i > 0 && <span style={{ color: "#94A3B8", fontSize: "0.75rem" }}>{"\u2192"}</span>}
+                            {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
                             <span style={{
                               background: i === chain.length - 1 ? "#DBEAFE" : "#F1F5F9",
                               padding: "4px 12px", borderRadius: 9999,
@@ -1942,7 +2296,7 @@ export function Dashboard() {
                         ));
                       })()}
                       {((contextModal.data.ancestors as any[]) || []).length === 0 && !(contextModal.data.tenant as any)?.parent_id && (
-                        <span style={{ fontSize: "0.75rem", color: "#94A3B8", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
                       )}
                     </div>
                   </div>
