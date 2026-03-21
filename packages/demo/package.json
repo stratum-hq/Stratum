@@ -12,7 +12,7 @@
     "start:web": "vite --config web/vite.config.ts",
     "dev": "concurrently \"tsx watch api/src/index.ts\" \"vite --config web/vite.config.ts\"",
     "seed": "tsx api/src/seed.ts",
-    "test": "echo \"Demo: no tests\"",
+    "test": "vitest run",
     "lint": "tsc -p api/tsconfig.json --noEmit",
     "clean": "rm -rf api/dist web/dist"
   },
@@ -39,6 +39,10 @@
     "concurrently": "^8.2.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vite": "^5.2.0"
+    "vite": "^5.2.0",
+    "vitest": "^3.0.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "jsdom": "^25.0.0"
   }
 }
