@@ -525,7 +525,8 @@ body {
 
 .stratum-badge.own {
   color: var(--text-secondary);
-  background: var(--color-100);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
 }
 
 .stratum-badge.success {
@@ -550,7 +551,7 @@ body {
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: var(--color-50);
+  background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
   font-family: var(--font-body);
@@ -558,7 +559,7 @@ body {
 }
 
 .stratum-btn:hover {
-  background: var(--color-100);
+  background: var(--bg-input);
 }
 
 .stratum-btn:focus-visible {
@@ -601,6 +602,20 @@ body {
   background: var(--color-error-bg);
 }
 
+.stratum-btn.small {
+  padding: 2px 6px;
+  font-size: 0.625rem;
+}
+
+.stratum-btn.danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.stratum-btn.danger:hover {
+  background: var(--color-error-bg);
+}
+
 .stratum-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -632,6 +647,42 @@ body {
   font-family: var(--font-mono);
   color: var(--text-primary);
   background: var(--bg-card);
+}
+
+/* Checkbox styling for dark mode */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-input);
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 /* Form row */
