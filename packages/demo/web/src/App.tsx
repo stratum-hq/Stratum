@@ -11,7 +11,8 @@ const appStyles = `
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--color-50, #f8fafc);
+  background: var(--bg-page, var(--color-50, #f8fafc));
+  color: var(--text-primary, var(--color-900));
 }
 
 .stratum-app-header {
