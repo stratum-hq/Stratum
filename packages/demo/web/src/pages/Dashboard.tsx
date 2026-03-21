@@ -296,6 +296,15 @@ body {
   color: var(--color-accent-hover);
 }
 
+[data-theme="dark"] .stratum-view-as-btn {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: rgba(13, 148, 136, 0.3);
+}
+
+[data-theme="dark"] .stratum-view-as-btn:hover {
+  background: rgba(13, 148, 136, 0.25);
+}
+
 .stratum-view-as-btn:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 3px;
@@ -516,6 +525,12 @@ body {
 .stratum-badge.inherited {
   color: var(--color-accent);
   background: var(--color-accent-light);
+  border: 1px solid transparent;
+}
+
+[data-theme="dark"] .stratum-badge.inherited {
+  background: rgba(13, 148, 136, 0.15);
+  border-color: rgba(13, 148, 136, 0.3);
 }
 
 .stratum-badge.locked {
