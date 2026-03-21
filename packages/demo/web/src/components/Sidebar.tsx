@@ -535,7 +535,8 @@ export function Sidebar({
           <DragOverlay>
             {draggedNode ? (
               <div style={{
-                padding: "4px 12px",
+                padding: "6px 16px",
+                minWidth: 140,
                 background: "var(--color-800, #1E293B)",
                 border: "1px solid var(--color-accent, #0D9488)",
                 borderRadius: "var(--radius-sm, 4px)",
@@ -543,6 +544,7 @@ export function Sidebar({
                 fontSize: "0.8125rem",
                 fontFamily: "var(--font-body, 'DM Sans', system-ui, sans-serif)",
                 boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                whiteSpace: "nowrap",
               }}>
                 {draggedNode.name}
               </div>
