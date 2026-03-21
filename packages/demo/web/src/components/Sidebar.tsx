@@ -59,9 +59,7 @@ function TreeNode({
   return (
     <div>
       <div
-        ref={(el) => { setDragRef(el); setDropRef(el); }}
-        {...attributes}
-        {...listeners}
+        ref={setDropRef}
         style={{
           display: "flex",
           alignItems: "center",
@@ -88,6 +86,25 @@ function TreeNode({
           if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
         }}
       >
+        {/* Drag handle — only this initiates drag */}
+        <span
+          ref={setDragRef}
+          {...attributes}
+          {...listeners}
+          style={{
+            width: 12,
+            fontSize: 9,
+            color: isSelected ? "#93c5fd" : "var(--color-700, #334155)",
+            flexShrink: 0,
+            cursor: "grab",
+            lineHeight: 1,
+            touchAction: "none",
+          }}
+          title="Drag to reparent"
+          onClick={(e) => e.stopPropagation()}
+        >
+          ⠿
+        </span>
         {hasChildren ? (
           <span
             style={{
