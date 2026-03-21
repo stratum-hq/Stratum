@@ -4,7 +4,11 @@ import starlight from "@astrojs/starlight";
 export default defineConfig({
   integrations: [
     starlight({
-      title: "Stratum Docs",
+      title: "Stratum",
+      logo: {
+        src: "./src/assets/stratumlogo.png",
+        alt: "Stratum",
+      },
       description:
         "Universal Tenant Context Engine — hierarchical multi-tenancy for any stack.",
       customCss: ["./src/styles/custom.css"],
