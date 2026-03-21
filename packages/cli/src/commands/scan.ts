@@ -12,7 +12,7 @@
  */
 
 import { connectDb, scanTables, type TableInfo } from "../utils/db.js";
-import { log } from "../utils/log.js";
+import * as log from "../utils/log.js";
 
 interface ScanResult {
   needsTenantId: TableInfo[];
