@@ -434,8 +434,8 @@ body {
 
 .stratum-section-header {
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--color-100);
-  background: var(--color-50);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
   display: flex;
   align-items: baseline;
   gap: var(--space-md);
@@ -1899,22 +1899,28 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--text-tertiary)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
-        Loading tenant...
-      </div>
+      <>
+        <style>{cssVars}</style>
+        <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--text-tertiary)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
+          Loading tenant...
+        </div>
+      </>
     );
   }
 
   if (!tenant) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
-        <div style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
+      <>
+        <style>{cssVars}</style>
+        <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
+          <div style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
           Select a tenant from the sidebar
         </div>
         <div style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
           Click any tenant in the hierarchy to explore its context, config inheritance, permissions, and security events.
         </div>
       </div>
+      </>
     );
   }
 
@@ -2090,9 +2096,10 @@ export function Dashboard() {
         >
           <div
             style={{
-              background: "var(--bg-page)",
+              background: "var(--bg-card)",
               borderRadius: 12,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              boxShadow: "var(--shadow-xl)",
+              color: "var(--text-primary)",
               width: 680,
               maxWidth: "90vw",
               fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
@@ -2102,14 +2109,14 @@ export function Dashboard() {
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "16px 24px",
-              borderBottom: "1px solid #E2E8F0",
-              position: "sticky", top: 0, background: "var(--bg-page)", borderRadius: "12px 12px 0 0", zIndex: 1,
+              borderBottom: "1px solid var(--border)",
+              position: "sticky", top: 0, background: "var(--bg-card)", borderRadius: "12px 12px 0 0", zIndex: 1,
             }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "1rem" }}>
                   Tenant Context
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748B", fontFamily: "ui-monospace, monospace" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
                   {tenant.name} &middot; {tenant.id.slice(0, 8)}...
                 </div>
               </div>
@@ -2117,7 +2124,7 @@ export function Dashboard() {
                 onClick={() => setContextModal({ open: false, data: null, loading: false })}
                 style={{
                   background: "none", border: "none", cursor: "pointer",
-                  fontSize: "1.5rem", color: "#94A3B8", lineHeight: 1,
+                  fontSize: "1.5rem", color: "var(--text-tertiary)", lineHeight: 1,
                   width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
                   borderRadius: 6,
                 }}
@@ -2128,36 +2135,36 @@ export function Dashboard() {
             </div>
             <div style={{ padding: "16px 24px" }}>
               {contextModal.loading ? (
-                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--color-neutral-400, #94A3B8)" }}>
+                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--text-tertiary)" }}>
                   Loading context...
                 </div>
               ) : contextModal.data ? (
                 <>
                   {/* Config section */}
                   <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Resolved Config
                     </div>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Key</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Status</th>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Key</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {Object.entries((contextModal.data.config as Record<string, any>) || {}).map(([key, entry]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--color-neutral-600)" }}>{JSON.stringify(entry.value)}</td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)" }}>{JSON.stringify(entry.value)}</td>
                             <td style={{ padding: "6px 12px" }}>
                               {entry.locked ? (
-                                <span style={{ background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
+                                <span style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
                               ) : entry.inherited ? (
-                                <span style={{ background: "#CCFBF1", color: "#0D9488", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
+                                <span style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
                               ) : (
-                                <span style={{ background: "#F1F5F9", color: "#475569", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
+                                <span style={{ background: "var(--bg-card)", color: "var(--text-secondary)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
                               )}
                             </td>
                           </tr>
@@ -2168,29 +2175,29 @@ export function Dashboard() {
 
                   {/* Permissions section */}
                   <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Resolved Permissions
                     </div>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
                       <thead>
-                        <tr style={{ borderBottom: "1px solid var(--color-neutral-200, #E2E8F0)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Permission</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--color-neutral-500)" }}>Mode</th>
+                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Permission</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
+                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Mode</th>
                         </tr>
                       </thead>
                       <tbody>
                         {Object.entries((contextModal.data.permissions as Record<string, any>) || {}).map(([key, perm]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--color-neutral-100, #F1F5F9)" }}>
+                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
                             <td style={{ padding: "6px 12px" }}>
                               {perm.value ? (
-                                <span style={{ color: "#059669", fontWeight: 600 }}>YES</span>
+                                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>YES</span>
                               ) : (
-                                <span style={{ color: "#DC2626", fontWeight: 600 }}>NO</span>
+                                <span style={{ color: "var(--color-error)", fontWeight: 600 }}>NO</span>
                               )}
                             </td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--color-neutral-500)" }}>{perm.mode}</td>
+                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{perm.mode}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2199,7 +2206,7 @@ export function Dashboard() {
 
                   {/* Ancestors section */}
                   <div>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-neutral-500, #64748B)" }}>
+                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
                       Hierarchy Path
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -2209,7 +2216,7 @@ export function Dashboard() {
                         const chain = [...ancestors, current];
                         return chain.map((a: any, i: number) => (
                           <React.Fragment key={a?.id || i}>
-                            {i > 0 && <span style={{ color: "#94A3B8", fontSize: "0.75rem" }}>{"\u2192"}</span>}
+                            {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
                             <span style={{
                               background: i === chain.length - 1 ? "#DBEAFE" : "#F1F5F9",
                               padding: "4px 12px", borderRadius: 9999,
@@ -2223,7 +2230,7 @@ export function Dashboard() {
                         ));
                       })()}
                       {((contextModal.data.ancestors as any[]) || []).length === 0 && !(contextModal.data.tenant as any)?.parent_id && (
-                        <span style={{ fontSize: "0.75rem", color: "#94A3B8", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
                       )}
                     </div>
                   </div>
