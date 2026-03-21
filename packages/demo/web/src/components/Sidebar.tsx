@@ -353,6 +353,8 @@ export function Sidebar({
         flexDirection: "column",
         overflow: "hidden",
         fontFamily: "var(--font-body, 'DM Sans', system-ui, sans-serif)",
+        position: "relative",
+        zIndex: 10,
       }}
     >
       {/* Sidebar header */}

@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stratum Demo — MSSP Dashboard</title>
+    <script>
+      // Prevent white flash: set theme before any rendering
+      (function() {
+        var theme = localStorage.getItem('stratum-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <style>
+      /* Critical: prevent flash of white background */
+      html[data-theme="dark"] { background: #0A0F1A; }
+      html[data-theme="light"] { background: #F8FAFC; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

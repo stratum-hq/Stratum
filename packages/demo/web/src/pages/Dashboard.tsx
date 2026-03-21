@@ -209,7 +209,7 @@ body {
   gap: var(--space-sm);
   padding: var(--space-sm) 0;
   font-size: 0.8125rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   font-family: var(--font-body);
   flex-wrap: wrap;
 }
@@ -229,7 +229,7 @@ body {
 }
 
 .stratum-breadcrumb-name {
-  color: var(--color-600);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -319,7 +319,7 @@ body {
   padding: var(--space-sm) var(--space-lg);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -387,7 +387,7 @@ body {
 .stratum-stat-label {
   font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: var(--space-xs);
@@ -445,7 +445,7 @@ body {
 .stratum-section-title {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -470,14 +470,14 @@ body {
 
 .stratum-table thead tr {
   border-bottom: 1px solid var(--border);
-  background: var(--color-50);
+  background: var(--bg-card);
 }
 
 .stratum-table th {
   padding: var(--space-sm) var(--space-lg);
   text-align: left;
   font-weight: 600;
-  color: var(--color-600);
+  color: var(--text-secondary);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -485,16 +485,16 @@ body {
 
 .stratum-table td {
   padding: var(--space-sm) var(--space-lg);
-  color: var(--color-900);
+  color: var(--text-primary);
 }
 
 .stratum-table tbody tr {
-  border-bottom: 1px solid var(--color-50);
+  border-bottom: 1px solid var(--border);
   transition: background var(--duration-micro) var(--ease-enter);
 }
 
 .stratum-table tbody tr:hover {
-  background: var(--color-50);
+  background: var(--bg-card);
 }
 
 .stratum-mono {
@@ -524,7 +524,7 @@ body {
 }
 
 .stratum-badge.own {
-  color: var(--color-600);
+  color: var(--text-secondary);
   background: var(--color-100);
 }
 
@@ -551,7 +551,7 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--color-50);
-  color: var(--color-600);
+  color: var(--text-secondary);
   cursor: pointer;
   font-family: var(--font-body);
   transition: background var(--duration-micro) var(--ease-enter);
@@ -613,7 +613,7 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
-  color: var(--color-900);
+  color: var(--text-primary);
   background: var(--bg-card);
   transition: border-color var(--duration-micro) var(--ease-enter);
 }
@@ -630,7 +630,7 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
-  color: var(--color-900);
+  color: var(--text-primary);
   background: var(--bg-card);
 }
 
@@ -642,7 +642,7 @@ body {
 
 .stratum-form-hint {
   font-size: 0.75rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
   margin-bottom: var(--space-sm);
 }
 
@@ -696,7 +696,7 @@ body {
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
 }
 
 .stratum-overview-card-value {
@@ -708,7 +708,7 @@ body {
 
 .stratum-overview-card-desc {
   font-size: 0.75rem;
-  color: var(--color-500);
+  color: var(--text-tertiary);
 }
 
 /* Severity colors */
@@ -924,7 +924,7 @@ function TenantContextSection() {
         <tbody>
           {rows.map(([label, value, isMono]) => (
             <tr key={label}>
-              <td style={{ color: "var(--color-500)", fontWeight: 500, width: 160, whiteSpace: "nowrap" }}>{label}</td>
+              <td style={{ color: "var(--text-tertiary)", fontWeight: 500, width: 160, whiteSpace: "nowrap" }}>{label}</td>
               <td className={isMono ? "stratum-mono" : ""} style={{ wordBreak: "break-all" }}>{value}</td>
             </tr>
           ))}
@@ -1081,7 +1081,7 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
                     {entry.locked ? (
                       <span className="stratum-badge locked">&darr; LOCKED</span>
                     ) : (
-                      <span style={{ color: "var(--color-400)", fontSize: "0.6875rem" }}>&mdash;</span>
+                      <span style={{ color: "var(--text-tertiary)", fontSize: "0.6875rem" }}>&mdash;</span>
                     )}
                   </td>
                   <td>
@@ -1097,9 +1097,9 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
                   <tr className="stratum-edit-row">
                     <td colSpan={5}>
                       <div className="stratum-form-controls">
-                        <span style={{ fontSize: "0.75rem", color: "var(--color-500)" }}>Value:</span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>Value:</span>
                         <input className="stratum-input" style={{ width: 200 }} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-500)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+                        <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
                           <input type="checkbox" checked={editLocked} onChange={(e) => setEditLocked(e.target.checked)} />
                           Locked
                         </label>
@@ -1123,7 +1123,7 @@ function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: numb
           <div className="stratum-form-controls">
             <input className="stratum-input" style={{ width: 140 }} placeholder="key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
             <input className="stratum-input" style={{ width: 200 }} placeholder="value (JSON or string)" value={addValue} onChange={(e) => setAddValue(e.target.value)} />
-            <label style={{ fontSize: "0.75rem", color: "var(--color-500)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
+            <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
               <input type="checkbox" checked={addLocked} onChange={(e) => setAddLocked(e.target.checked)} />
               Locked
             </label>
@@ -1245,7 +1245,7 @@ function PermissionsSection({ onStats }: { onStats?: (stats: { total: number; lo
                 <td style={{ fontSize: "0.75rem" }}>
                   {perm.locked && <span style={{ color: "var(--color-error)", marginRight: 6 }}>locked</span>}
                   {perm.delegated && <span style={{ color: "var(--color-success)" }}>delegated</span>}
-                  {!perm.locked && !perm.delegated && <span style={{ color: "var(--color-400)" }}>&mdash;</span>}
+                  {!perm.locked && !perm.delegated && <span style={{ color: "var(--text-tertiary)" }}>&mdash;</span>}
                 </td>
                 <td>
                   {tenant && perm.source_tenant_id === tenant.id && (
@@ -1340,9 +1340,9 @@ function SecurityEventsSection({ onStats }: { onStats?: (count: number) => void 
                   </span>
                 </td>
                 <td>{e.event_type}</td>
-                <td style={{ color: "var(--color-600)" }}>{e.description}</td>
-                <td className="stratum-mono" style={{ color: "var(--color-500)" }}>{e.source_ip || "\u2014"}</td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>{new Date(e.created_at).toLocaleString()}</td>
+                <td style={{ color: "var(--text-secondary)" }}>{e.description}</td>
+                <td className="stratum-mono" style={{ color: "var(--text-tertiary)" }}>{e.source_ip || "\u2014"}</td>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{new Date(e.created_at).toLocaleString()}</td>
               </tr>
             ))}
             {events.length === 0 && (
@@ -1418,13 +1418,13 @@ function AuditLogSection({ onStats }: { onStats?: (count: number) => void }) {
                     {e.action}
                   </span>
                 </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--color-500)" }}>
+                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
                   {e.resource_type}{e.resource_id ? ` (${e.resource_id.slice(0, 8)}...)` : ""}
                 </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--color-500)" }}>
+                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
                   {e.actor_type}: {e.actor_id.slice(0, 8)}...
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {new Date(e.created_at).toLocaleString()}
                 </td>
               </tr>
@@ -1538,10 +1538,10 @@ function ApiKeySection({ onStats }: { onStats?: (stats: { total: number; active:
                     <span className="stratum-badge success">ACTIVE</span>
                   )}
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "Never"}
                 </td>
-                <td style={{ color: "var(--color-400)", fontSize: "0.75rem" }}>
+                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
                   {new Date(k.created_at).toLocaleString()}
                 </td>
                 <td>
@@ -1899,7 +1899,7 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--color-400)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
+      <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--text-tertiary)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
         Loading tenant...
       </div>
     );
@@ -1908,10 +1908,10 @@ export function Dashboard() {
   if (!tenant) {
     return (
       <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
-        <div style={{ fontSize: "0.9375rem", color: "var(--color-600)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
+        <div style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
           Select a tenant from the sidebar
         </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--color-400)" }}>
+        <div style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
           Click any tenant in the hierarchy to explore its context, config inheritance, permissions, and security events.
         </div>
       </div>
@@ -2090,7 +2090,7 @@ export function Dashboard() {
         >
           <div
             style={{
-              background: "#F8FAFC",
+              background: "var(--bg-page)",
               borderRadius: 12,
               boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
               width: 680,
@@ -2103,7 +2103,7 @@ export function Dashboard() {
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "16px 24px",
               borderBottom: "1px solid #E2E8F0",
-              position: "sticky", top: 0, background: "#F8FAFC", borderRadius: "12px 12px 0 0", zIndex: 1,
+              position: "sticky", top: 0, background: "var(--bg-page)", borderRadius: "12px 12px 0 0", zIndex: 1,
             }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "1rem" }}>
