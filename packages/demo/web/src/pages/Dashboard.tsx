@@ -153,6 +153,47 @@ const cssVars = `
   --duration-short: 150ms;
   --duration-medium: 250ms;
   --duration-long: 400ms;
+
+  /* Dark mode surfaces */
+  --bg-page: var(--color-50);
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --text-primary: var(--color-900);
+  --text-secondary: var(--color-600);
+  --text-tertiary: var(--color-500);
+  --border: var(--border);
+  --border-strong: var(--color-300);
+}
+
+[data-theme="dark"] {
+  --bg-page: #0A0F1A;
+  --bg-card: var(--color-900);
+  --bg-input: var(--color-800);
+  --text-primary: #E2E8F0;
+  --text-secondary: var(--color-400);
+  --text-tertiary: var(--color-500);
+  --border: var(--color-700);
+  --border-strong: var(--color-600);
+  --color-primary: #3B82F6;
+  --color-accent: #2DD4BF;
+  --color-success: #34D399;
+  --color-success-bg: #064e3b;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #451a03;
+  --color-error: #F87171;
+  --color-error-bg: #450a0a;
+  --color-info: #3B82F6;
+  --color-info-bg: #1e3a5f;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+  --shadow-xl: 0 8px 32px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.3);
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  transition: background var(--duration-medium) var(--ease-move), color var(--duration-medium) var(--ease-move);
 }
 
 /* Dashboard responsive styles */
@@ -192,7 +233,7 @@ const cssVars = `
 }
 
 .stratum-breadcrumb-name.active {
-  color: var(--color-900);
+  color: var(--text-primary);
   font-weight: 700;
 }
 
@@ -214,7 +255,7 @@ const cssVars = `
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   font-family: var(--font-display);
 }
 
@@ -226,15 +267,15 @@ const cssVars = `
 
 .stratum-dash-depth {
   font-size: 0.75rem;
-  color: var(--color-600);
-  background: var(--color-100);
+  color: var(--text-secondary);
+  background: var(--bg-card);
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
+  border: 1px solid var(--border);
 }
 
 .stratum-view-as-btn {
-  margin-left: auto;
   padding: var(--space-xs) var(--space-md);
   font-size: 0.75rem;
   font-weight: 600;
@@ -263,7 +304,7 @@ const cssVars = `
 .stratum-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--color-200);
+  border-bottom: 1px solid var(--border);
   margin-bottom: var(--space-xl);
   overflow-x: auto;
   scrollbar-width: none;
@@ -335,8 +376,8 @@ const cssVars = `
 }
 
 .stratum-stat-card {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
   box-shadow: var(--shadow-sm);
@@ -355,7 +396,7 @@ const cssVars = `
 .stratum-stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--color-900);
+  color: var(--text-primary);
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
 }
@@ -382,8 +423,8 @@ const cssVars = `
 
 /* Section card */
 .stratum-section {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-xl);
   overflow: hidden;
@@ -427,7 +468,7 @@ const cssVars = `
 }
 
 .stratum-table thead tr {
-  border-bottom: 1px solid var(--color-200);
+  border-bottom: 1px solid var(--border);
   background: var(--color-50);
 }
 
@@ -507,7 +548,7 @@ const cssVars = `
   font-weight: 500;
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
+  border: 1px solid var(--border);
   background: var(--color-50);
   color: var(--color-600);
   cursor: pointer;
@@ -569,10 +610,10 @@ const cssVars = `
   font-size: 0.75rem;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
+  border: 1px solid var(--border);
   font-family: var(--font-mono);
   color: var(--color-900);
-  background: white;
+  background: var(--bg-card);
   transition: border-color var(--duration-micro) var(--ease-enter);
 }
 
@@ -586,16 +627,16 @@ const cssVars = `
   font-size: 0.75rem;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-200);
+  border: 1px solid var(--border);
   font-family: var(--font-mono);
   color: var(--color-900);
-  background: white;
+  background: var(--bg-card);
 }
 
 /* Form row */
 .stratum-form-row {
   padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--color-200);
+  border-top: 1px solid var(--border);
 }
 
 .stratum-form-hint {
@@ -640,8 +681,8 @@ const cssVars = `
 }
 
 .stratum-overview-card {
-  background: white;
-  border: 1px solid var(--color-200);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-lg);
   box-shadow: var(--shadow-sm);
@@ -698,7 +739,7 @@ const cssVars = `
   display: block;
   margin-top: var(--space-xs);
   padding: var(--space-xs) var(--space-sm);
-  background: white;
+  background: var(--bg-card);
   border-radius: var(--radius-sm);
   word-break: break-all;
 }
@@ -1565,7 +1606,7 @@ function OverviewTab({
       <div className="stratum-overview-grid">
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("config")}
         >
           <div className="stratum-overview-card-title">Config Inheritance</div>
@@ -1577,7 +1618,7 @@ function OverviewTab({
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("permissions")}
         >
           <div className="stratum-overview-card-title">Permissions</div>
@@ -1589,27 +1630,27 @@ function OverviewTab({
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("events")}
         >
           <div className="stratum-overview-card-title">Security Events</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-900)" }}>{eventCount}</div>
+          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{eventCount}</div>
           <div className="stratum-overview-card-desc">RLS-scoped events for this tenant</div>
         </button>
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("audit")}
         >
           <div className="stratum-overview-card-title">Audit Log</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-900)" }}>{auditCount}</div>
+          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{auditCount}</div>
           <div className="stratum-overview-card-desc">Recent mutations recorded</div>
         </button>
 
         <button
           className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--color-200)" }}
+          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
           onClick={() => onSwitchTab("api-keys")}
         >
           <div className="stratum-overview-card-title">API Keys</div>
@@ -1630,6 +1671,18 @@ export function Dashboard() {
   const { apiCall } = useStratum();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [contextModal, setContextModal] = useState<{ open: boolean; data: Record<string, unknown> | null; loading: boolean }>({ open: false, data: null, loading: false });
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("stratum-theme");
+      return stored ? stored === "dark" : true; // dark by default
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("stratum-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   // Stats collected from child sections
   const [configStats, setConfigStats] = useState({ total: 0, inherited: 0, locked: 0 });
@@ -1770,6 +1823,23 @@ export function Dashboard() {
             title="View full resolved context: inherited config, permissions, and ancestor chain"
           >
             Resolved Context
+          </button>
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            style={{
+              marginLeft: "auto",
+              padding: "4px 10px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              background: "var(--bg-card)",
+              color: "var(--text-secondary)",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              fontFamily: "var(--font-body)",
+            }}
+            title={`Switch to ${darkMode ? "light" : "dark"} mode`}
+          >
+            {darkMode ? "☀ Light" : "● Dark"}
           </button>
         </div>
 
