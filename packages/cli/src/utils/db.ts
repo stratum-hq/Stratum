@@ -50,8 +50,13 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
     FROM pg_tables t
     JOIN pg_class pc ON pc.relname = t.tablename AND pc.relnamespace = 'public'::regnamespace
     WHERE t.schemaname = 'public'
-      AND t.tablename NOT IN ('tenants', 'config_entries', 'permission_policies', 'api_keys')
+      AND t.tablename NOT IN (
+        'tenants', 'config_entries', 'permission_policies', 'api_keys',
+        'audit_log', 'audit_logs', 'webhooks', 'webhook_deliveries', 'webhook_events',
+        'consent_records', 'regions', 'roles', '_migrations'
+      )
       AND t.tablename NOT LIKE 'pg_%'
+      AND t.tablename NOT LIKE '\_%'
     ORDER BY t.tablename;
   `);
 
