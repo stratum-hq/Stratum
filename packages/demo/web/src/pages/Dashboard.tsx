@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import ReactDOM from "react-dom";
-import { useTenant, useStratum, useTenantTree } from "@stratum-hq/react";
+import { useTenant, useStratum, useTenantTree, ConfigInheritanceVisualizer } from "@stratum-hq/react";
 import type { TenantTreeNode } from "@stratum-hq/react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -2013,6 +2013,19 @@ export function Dashboard() {
               <StatCard label="Local Overrides" value={configStats.total - configStats.inherited} variant="primary" />
             </div>
             <ConfigInheritanceSection onStats={setConfigStats} />
+
+            {/* Config Inheritance Visualizer — split-screen cascade preview */}
+            <div style={{ marginTop: "var(--space-xl, 24px)" }}>
+              <div className="stratum-section-header">
+                <span className="stratum-section-title">Inheritance Cascade</span>
+                <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
+                  How config flows from this tenant to its children
+                </span>
+              </div>
+              <div style={{ padding: "var(--space-lg, 16px)" }}>
+                <ConfigInheritanceVisualizer />
+              </div>
+            </div>
           </div>
         );
       case "permissions":
