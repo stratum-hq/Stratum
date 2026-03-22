@@ -24,6 +24,8 @@ export { TenantSwitcher } from "./components/TenantSwitcher.js";
 export type { TenantSwitcherProps } from "./components/TenantSwitcher.js";
 export { TenantTree } from "./components/TenantTree.js";
 export type { TenantTreeProps } from "./components/TenantTree.js";
+export { DraggableTenantTree } from "./components/DraggableTenantTree.js";
+export type { DraggableTenantTreeProps } from "./components/DraggableTenantTree.js";
 export { ConfigEditor } from "./components/ConfigEditor.js";
 export type { ConfigEditorProps } from "./components/ConfigEditor.js";
 export { PermissionEditor } from "./components/PermissionEditor.js";

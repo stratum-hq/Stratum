@@ -8,6 +8,7 @@ import { health } from "./commands/health.js";
 import { generateApiKey } from "./commands/generate.js";
 import { scaffold } from "./commands/scaffold.js";
 import { doctor } from "./commands/doctor.js";
+import { scan } from "./commands/scan.js";
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
@@ -49,6 +50,9 @@ async function main(): Promise<void> {
         break;
       case "doctor":
         await doctor(flags);
+        break;
+      case "scan":
+        await scan(args, flags);
         break;
       case "help":
       case "--help":
