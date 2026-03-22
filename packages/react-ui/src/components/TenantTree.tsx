@@ -7,6 +7,9 @@ import type { MessageKey } from "../i18n.js";
 export interface TenantTreeProps {
   rootId?: string;
   onSelect?: (tenantId: string) => void;
+  onEdit?: (tenantId: string, currentName: string) => void;
+  onArchive?: (tenantId: string, name: string) => void;
+  onAddChild?: (parentId: string) => void;
   className?: string;
 }
 
@@ -15,6 +18,9 @@ function TreeNode({
   selectedId,
   onSelect,
   onToggle,
+  onEdit,
+  onArchive,
+  onAddChild,
   depth,
   t,
 }: {
@@ -22,6 +28,9 @@ function TreeNode({
   selectedId?: string;
   onSelect?: (id: string) => void;
   onToggle: (id: string) => void;
+  onEdit?: (id: string, name: string) => void;
+  onArchive?: (id: string, name: string) => void;
+  onAddChild?: (parentId: string) => void;
   depth: number;
   t: (key: MessageKey, params?: Record<string, string>) => string;
 }) {
@@ -58,6 +67,40 @@ function TreeNode({
         <span className="stratum-tree__meta">
           {node.status === "archived" ? t("tenantTree.archived") : ""}
         </span>
+        {(onEdit || onArchive || onAddChild) && (
+          <span className="stratum-tree__actions">
+            {onEdit && (
+              <button
+                type="button"
+                className="stratum-tree__action-btn"
+                onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
+                title="Edit tenant"
+              >
+                &#9998;
+              </button>
+            )}
+            {onAddChild && (
+              <button
+                type="button"
+                className="stratum-tree__action-btn"
+                onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
+                title="Add child tenant"
+              >
+                +
+              </button>
+            )}
+            {onArchive && !hasChildren && (
+              <button
+                type="button"
+                className="stratum-tree__action-btn stratum-tree__action-btn--danger"
+                onClick={(e) => { e.stopPropagation(); onArchive(node.id, node.name); }}
+                title="Archive tenant"
+              >
+                &times;
+              </button>
+            )}
+          </span>
+        )}
       </div>
       {hasChildren && node.expanded && (
         <ul role="group">
@@ -68,6 +111,9 @@ function TreeNode({
               selectedId={selectedId}
               onSelect={onSelect}
               onToggle={onToggle}
+              onEdit={onEdit}
+              onArchive={onArchive}
+              onAddChild={onAddChild}
               depth={depth + 1}
               t={t}
             />
@@ -78,7 +124,7 @@ function TreeNode({
   );
 }
 
-export function TenantTree({ rootId, onSelect, className }: TenantTreeProps) {
+export function TenantTree({ rootId, onSelect, onEdit, onArchive, onAddChild, className }: TenantTreeProps) {
   const { tree, loading, error, toggleExpand } = useTenantTree(rootId);
   const { tenant } = useTenant();
   const { t } = useMessages();
@@ -96,6 +142,9 @@ export function TenantTree({ rootId, onSelect, className }: TenantTreeProps) {
             selectedId={tenant?.id}
             onSelect={onSelect}
             onToggle={toggleExpand}
+            onEdit={onEdit}
+            onArchive={onArchive}
+            onAddChild={onAddChild}
             depth={0}
             t={t}
           />
