@@ -29,6 +29,7 @@ export const TenantNodeSchema = z.object({
   isolation_strategy: z.nativeEnum(IsolationStrategy).default(IsolationStrategy.SHARED_RLS),
   status: z.nativeEnum(TenantStatus).default(TenantStatus.ACTIVE),
   region_id: z.string().uuid().nullable().optional(),
+  sort_order: z.number().int().min(0).default(0),
   deleted_at: z.string().datetime().nullable().default(null),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
