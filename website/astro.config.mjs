@@ -6,9 +6,10 @@ export default defineConfig({
     starlight({
       title: "Stratum",
       logo: {
-        src: "./src/assets/stratumlogo.png",
+        src: "./src/assets/stratumlogonotext.png",
         alt: "Stratum",
       },
+      favicon: "/favicon.png",
       description:
         "Universal Tenant Context Engine — hierarchical multi-tenancy for any stack.",
       customCss: ["./src/styles/custom.css"],
