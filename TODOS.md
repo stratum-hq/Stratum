@@ -56,9 +56,7 @@ Infrastructure-as-code provider for tenant hierarchy management.
 
 **Priority:** P3 | **Effort:** M (human) → S (CC) | **Depends on:** Design system, React components
 
-**Partially completed:** v0.2.0 (2026-03-21) — DraggableTenantTree component in `@stratum-hq/react` + demo sidebar drag-and-drop. Supports reparenting (moving a tenant to a new parent) but NOT sibling reordering.
-
-**Remaining:** Sibling reordering requires a `sort_order` column on the tenants table, a `reorderTenant(id, position)` method in `@stratum-hq/lib`, and a new API endpoint. Also need to update the `DraggableTenantTree` in `@stratum-hq/react` to match the working demo sidebar implementation.
+**Completed:** 2026-03-22 — DraggableTenantTree in `@stratum-hq/react` + demo sidebar drag-and-drop with drag handle. Sibling reordering API added (sort_order column + reorderTenant method). DraggableTenantTree UI needs update to call reorder API for same-parent drops.
 
 ---
 
@@ -66,9 +64,7 @@ Infrastructure-as-code provider for tenant hierarchy management.
 
 **Priority:** P3 | **Effort:** M (human) → S (CC) | **Depends on:** Drag-and-drop reparenting
 
-Add `sort_order INTEGER` column to the tenants table. Add `reorderTenant(id, position)` method to `@stratum-hq/lib` and `POST /api/v1/tenants/:id/reorder` endpoint to control plane. Update DraggableTenantTree to support both reparenting and reordering.
-
-**Why:** Currently you can drag a tenant to a new parent, but you can't reorder siblings (e.g., move Beta above Alpha within the same parent). This is a core data model limitation, not a UI issue.
+**Completed:** 2026-03-22 — Added `sort_order` column (migration 002), `reorderTenant()` in lib, `POST /api/v1/tenants/:id/reorder` endpoint. DraggableTenantTree still needs UI update to call reorder API for same-parent drops.
 
 ---
 
@@ -76,11 +72,8 @@ Add `sort_order INTEGER` column to the tenants table. Add `reorderTenant(id, pos
 
 **Priority:** P2 | **Effort:** M (human) → S (CC) | **Depends on:** Demo CRUD PR merged
 
-The demo has several UI components that should be extracted to `@stratum-hq/react`:
-
-1. **WebhookEditor** — create/delete/test webhooks (matches ConfigEditor/PermissionEditor pattern)
-2. **AuditLogViewer** — action badges, tenant-scoped filtering, pagination
-3. **Tenant CRUD on TenantTree** — edit/archive props on the existing component (currently TenantTree is read-only)
-4. **Update DraggableTenantTree** — sync with working demo sidebar implementation (drag handle, dnd-kit integration)
-
-**Why:** These are features every Stratum app needs. Having them in the demo but not in the library means every adopter rebuilds them.
+**Completed:** 2026-03-22 — Extracted:
+1. **WebhookEditor** — useWebhooks hook + WebhookEditor component
+2. **AuditLogViewer** — useAuditLogs hook + AuditLogViewer component with action badges
+3. **Tenant CRUD on TenantTree** — onEdit, onArchive, onAddChild props added to TenantTree
+4. DraggableTenantTree already exists — demo uses its own implementation with drag handle

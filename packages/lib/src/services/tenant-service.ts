@@ -485,9 +485,63 @@ export async function getDescendants(pool: pg.Pool, id: string): Promise<TenantN
 export async function getChildren(pool: pg.Pool, id: string): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
     const res = await client.query<TenantNode>(
-      `SELECT * FROM tenants WHERE parent_id = $1 AND status = 'active' ORDER BY created_at ASC`,
+      `SELECT * FROM tenants WHERE parent_id = $1 AND status = 'active' ORDER BY sort_order ASC, created_at ASC`,
       [id],
     );
     return res.rows;
+  });
+}
+
+/**
+ * Reorder a tenant among its siblings.
+ *
+ * Sets the sort_order of the target tenant and re-numbers siblings
+ * to maintain a clean sequence. Position is 0-indexed.
+ *
+ * @param pool - pg Pool
+ * @param id - Tenant ID to reorder
+ * @param position - New 0-based position among siblings
+ */
+export async function reorderTenant(pool: pg.Pool, id: string, position: number): Promise<TenantNode> {
+  return withTransaction(pool, async (client) => {
+    // Get the tenant
+    const tenantRes = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE id = $1`,
+      [id],
+    );
+    if (tenantRes.rows.length === 0) {
+      throw new TenantNotFoundError(id);
+    }
+    const tenant = tenantRes.rows[0];
+
+    // Get all siblings (same parent, active)
+    const siblingsRes = await client.query<TenantNode>(
+      tenant.parent_id
+        ? `SELECT * FROM tenants WHERE parent_id = $1 AND status = 'active' ORDER BY sort_order ASC, created_at ASC`
+        : `SELECT * FROM tenants WHERE parent_id IS NULL AND status = 'active' ORDER BY sort_order ASC, created_at ASC`,
+      tenant.parent_id ? [tenant.parent_id] : [],
+    );
+
+    const siblings = siblingsRes.rows;
+
+    // Remove the tenant from the list, then insert at new position
+    const without = siblings.filter((s) => s.id !== id);
+    const clamped = Math.max(0, Math.min(position, without.length));
+    without.splice(clamped, 0, tenant);
+
+    // Re-number all siblings with clean sort_order values
+    for (let i = 0; i < without.length; i++) {
+      await client.query(
+        `UPDATE tenants SET sort_order = $1, updated_at = now() WHERE id = $2`,
+        [i, without[i].id],
+      );
+    }
+
+    // Return the updated tenant
+    const result = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE id = $1`,
+      [id],
+    );
+    return result.rows[0];
   });
 }
