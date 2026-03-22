@@ -14,6 +14,8 @@ export function fastifyPlugin(
   const { client, ...middlewareOptions } = options;
 
   fastify.decorateRequest("tenant", null);
+  fastify.decorateRequest("impersonating", false);
+  fastify.decorateRequest("originalTenantId", null);
 
   fastify.addHook("onRequest", (request: any, reply: any, done: any) => {
     // Resolve tenant ID: JWT → header → custom resolvers
@@ -59,6 +61,36 @@ export function fastifyPlugin(
       }
 
       request.tenant = context;
+      request.impersonating = false;
+
+      // Impersonation: check for X-Impersonate-Tenant header
+      if (middlewareOptions.impersonation?.enabled) {
+        const impersonateHeader = (middlewareOptions.impersonation.headerName || "X-Impersonate-Tenant").toLowerCase();
+        const impersonateTenantId = request.headers?.[impersonateHeader] as string | undefined;
+
+        if (impersonateTenantId && impersonateTenantId !== tenantId) {
+          const authorized = await middlewareOptions.impersonation.authorize(request, tenantId, impersonateTenantId);
+          if (!authorized) {
+            reply.status(403).send({
+              error: {
+                code: "IMPERSONATION_DENIED",
+                message: "Not authorized to impersonate this tenant",
+              },
+            });
+            return;
+          }
+
+          const impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          request.tenant = impersonatedContext;
+          request.impersonating = true;
+          request.originalTenantId = tenantId;
+
+          middlewareOptions.impersonation.onImpersonate?.(request, tenantId, impersonateTenantId);
+
+          runWithTenantContext(impersonatedContext, done);
+          return;
+        }
+      }
 
       // Use run (not enterWith) to bind context only for this request's lifecycle
       runWithTenantContext(context, done);

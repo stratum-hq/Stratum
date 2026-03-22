@@ -227,4 +227,174 @@ describe("expressMiddleware", () => {
       expect(resolver2.resolve).not.toHaveBeenCalled();
     });
   });
+
+  describe("tenant impersonation", () => {
+    it("impersonates when authorized and header is present", async () => {
+      const callerCtx = makeTenantContextLegacy("caller-tenant");
+      const targetCtx = makeTenantContextLegacy("target-tenant");
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(callerCtx)
+          .mockResolvedValueOnce(targetCtx),
+      });
+      const authorize = vi.fn().mockReturnValue(true);
+      const onImpersonate = vi.fn();
+      const middleware = expressMiddleware(client, {
+        impersonation: {
+          enabled: true,
+          authorize,
+          onImpersonate,
+        },
+      });
+      const req = makeReq({
+        "x-tenant-id": "caller-tenant",
+        "x-impersonate-tenant": "target-tenant",
+      }) as any;
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(req.tenant).toEqual(targetCtx);
+      expect(req.impersonating).toBe(true);
+      expect(req.originalTenantId).toBe("caller-tenant");
+      expect(authorize).toHaveBeenCalledWith(req, "caller-tenant", "target-tenant");
+      expect(onImpersonate).toHaveBeenCalledWith(req, "caller-tenant", "target-tenant");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("returns 403 when impersonation is denied", async () => {
+      const callerCtx = makeTenantContextLegacy("caller-tenant");
+      const client = makeClient({
+        resolveTenant: vi.fn().mockResolvedValue(callerCtx),
+      });
+      const authorize = vi.fn().mockReturnValue(false);
+      const middleware = expressMiddleware(client, {
+        impersonation: {
+          enabled: true,
+          authorize,
+        },
+      });
+      const req = makeReq({
+        "x-tenant-id": "caller-tenant",
+        "x-impersonate-tenant": "target-tenant",
+      });
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            code: "IMPERSONATION_DENIED",
+          }),
+        }),
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("skips impersonation when header matches own tenant", async () => {
+      const ctx = makeTenantContextLegacy("same-tenant");
+      const client = makeClient({
+        resolveTenant: vi.fn().mockResolvedValue(ctx),
+      });
+      const authorize = vi.fn();
+      const middleware = expressMiddleware(client, {
+        impersonation: {
+          enabled: true,
+          authorize,
+        },
+      });
+      const req = makeReq({
+        "x-tenant-id": "same-tenant",
+        "x-impersonate-tenant": "same-tenant",
+      }) as any;
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      // Should NOT call authorize — same tenant, no impersonation needed
+      expect(authorize).not.toHaveBeenCalled();
+      expect(req.tenant).toEqual(ctx);
+      expect(req.impersonating).toBe(false);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("skips impersonation when not enabled", async () => {
+      const ctx = makeTenantContextLegacy("caller");
+      const client = makeClient({
+        resolveTenant: vi.fn().mockResolvedValue(ctx),
+      });
+      const middleware = expressMiddleware(client);
+      const req = makeReq({
+        "x-tenant-id": "caller",
+        "x-impersonate-tenant": "target",
+      }) as any;
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      // No impersonation config — header ignored
+      expect(req.tenant).toEqual(ctx);
+      expect(req.impersonating).toBe(false);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("supports custom impersonation header name", async () => {
+      const callerCtx = makeTenantContextLegacy("caller");
+      const targetCtx = makeTenantContextLegacy("target");
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(callerCtx)
+          .mockResolvedValueOnce(targetCtx),
+      });
+      const middleware = expressMiddleware(client, {
+        impersonation: {
+          enabled: true,
+          headerName: "X-View-As",
+          authorize: () => true,
+        },
+      });
+      const req = makeReq({
+        "x-tenant-id": "caller",
+        "x-view-as": "target",
+      }) as any;
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(req.tenant).toEqual(targetCtx);
+      expect(req.impersonating).toBe(true);
+    });
+
+    it("supports async authorize function", async () => {
+      const callerCtx = makeTenantContextLegacy("caller");
+      const targetCtx = makeTenantContextLegacy("target");
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(callerCtx)
+          .mockResolvedValueOnce(targetCtx),
+      });
+      const authorize = vi.fn().mockResolvedValue(true);
+      const middleware = expressMiddleware(client, {
+        impersonation: {
+          enabled: true,
+          authorize,
+        },
+      });
+      const req = makeReq({
+        "x-tenant-id": "caller",
+        "x-impersonate-tenant": "target",
+      }) as any;
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(req.impersonating).toBe(true);
+      expect(authorize).toHaveBeenCalled();
+    });
+  });
 });

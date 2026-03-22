@@ -16,6 +16,8 @@ export type { ConfigWithInheritance } from "./hooks/use-config.js";
 export { usePermissions } from "./hooks/use-permissions.js";
 export { useToast } from "./hooks/use-toast.js";
 export type { UseToastReturn } from "./hooks/use-toast.js";
+export { useConfigCascade } from "./hooks/use-config-cascade.js";
+export type { ConfigCascadeData, CascadeConfigEntry, CascadeChild } from "./hooks/use-config-cascade.js";
 
 // Styled Components
 export { TenantSwitcher } from "./components/TenantSwitcher.js";
@@ -26,6 +28,8 @@ export { ConfigEditor } from "./components/ConfigEditor.js";
 export type { ConfigEditorProps } from "./components/ConfigEditor.js";
 export { PermissionEditor } from "./components/PermissionEditor.js";
 export type { PermissionEditorProps } from "./components/PermissionEditor.js";
+export { ConfigInheritanceVisualizer } from "./components/ConfigInheritanceVisualizer.js";
+export type { ConfigInheritanceVisualizerProps } from "./components/ConfigInheritanceVisualizer.js";
 export { Skeleton } from "./components/Skeleton.js";
 export type { SkeletonProps } from "./components/Skeleton.js";
 export { TableSkeleton } from "./components/TableSkeleton.js";
@@ -44,3 +48,5 @@ export { HeadlessConfigEditor } from "./components/headless/ConfigEditor.js";
 export type { HeadlessConfigEditorProps, HeadlessConfigEditorAPI } from "./components/headless/ConfigEditor.js";
 export { HeadlessPermissionEditor } from "./components/headless/PermissionEditor.js";
 export type { HeadlessPermissionEditorProps, HeadlessPermissionEditorAPI } from "./components/headless/PermissionEditor.js";
+export { HeadlessConfigInheritanceVisualizer } from "./components/headless/ConfigInheritanceVisualizer.js";
+export type { HeadlessConfigInheritanceVisualizerProps, HeadlessConfigInheritanceVisualizerAPI } from "./components/headless/ConfigInheritanceVisualizer.js";
