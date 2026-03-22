@@ -91,6 +91,14 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(tenant);
     });
 
+    // POST /api/v1/tenants/:id/reorder — Reorder tenant among siblings
+    app.post<{ Params: { id: string } }>("/:id/reorder", async (request, reply) => {
+      const body = request.body as { position: number };
+      const position = typeof body?.position === "number" ? body.position : 0;
+      const tenant = await stratum.reorderTenant(request.params.id, position, buildAuditContext(request));
+      reply.status(200).send(tenant);
+    });
+
     // GET /api/v1/tenants/:id/ancestors — Get ancestors
     app.get<{ Params: { id: string } }>("/:id/ancestors", async (request, reply) => {
       const ancestors = await stratum.getAncestors(request.params.id);
