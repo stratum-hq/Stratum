@@ -114,6 +114,9 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 14px; font-weight: 700;
 }
+.nav-logo-img {
+  width: 28px; height: 28px; border-radius: 6px; object-fit: contain;
+}
 .nav-links {
   display: flex; align-items: center; gap: 24px;
   font-size: 0.875rem; font-weight: 500; color: var(--text-secondary);
