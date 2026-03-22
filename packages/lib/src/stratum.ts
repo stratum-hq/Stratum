@@ -152,6 +152,18 @@ export class Stratum {
   getChildren(id: string): Promise<TenantNode[]> {
     return tenantService.getChildren(this.pool, id);
   }
+  async reorderTenant(id: string, position: number, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.reorder", { tenant_id: id, position }, async () => {
+      const tenant = await tenantService.reorderTenant(this.pool, id, position);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.reordered", "tenant", id, id,
+          null, null, { position },
+        );
+      }
+      return tenant;
+    });
+  }
 
   // Tenant impersonation context
   async getTenantContext(tenantId: string): Promise<TenantContext> {
