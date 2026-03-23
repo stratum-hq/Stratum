@@ -67,7 +67,9 @@ stratum.moveTenant(id, newParentId, audit?): Promise<TenantNode>
 stratum.getAncestors(id): Promise<TenantNode[]>
 stratum.getDescendants(id): Promise<TenantNode[]>
 stratum.getChildren(id): Promise<TenantNode[]>
+stratum.reorderTenant(id, position, audit?): Promise<TenantNode>
 stratum.batchCreateTenants(inputs, audit?): Promise<BatchCreateResult>
+stratum.getTenantContext(tenantId): Promise<TenantContext>
 ```
 
 ### Config
@@ -77,7 +79,8 @@ stratum.resolveConfig(tenantId): Promise<ResolvedConfig>
 stratum.setConfig(tenantId, key, input, audit?): Promise<ConfigEntry>
 stratum.deleteConfig(tenantId, key, audit?): Promise<void>
 stratum.getConfigWithInheritance(tenantId): Promise<ResolvedConfig>
-stratum.batchSetConfig(tenantId, entries, audit?): Promise<ConfigEntry[]>
+stratum.batchSetConfig(tenantId, entries, audit?): Promise<BatchSetConfigResult>
+stratum.diffConfig(tenantIdA, tenantIdB): Promise<ConfigDiff>
 ```
 
 ### Permissions
@@ -92,7 +95,7 @@ stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
 ### API Keys
 
 ```typescript
-stratum.createApiKey(tenantId, options?): Promise<CreatedApiKey>
+stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?): Promise<CreatedApiKey>
 stratum.validateApiKey(key): Promise<ValidatedApiKey | null>
 stratum.revokeApiKey(keyId): Promise<boolean>
 stratum.rotateApiKey(keyId, newName?): Promise<CreatedApiKey>
@@ -165,7 +168,8 @@ stratum.resolveKeyScopes(keyId): Promise<string[]>
 stratum.getDeliveryStats(tenantId?): Promise<DeliveryStats>
 stratum.listFailedDeliveries(limit?, tenantId?): Promise<FailedDelivery[]>
 stratum.retryDelivery(deliveryId): Promise<boolean>
-stratum.retryFailedDeliveries(tenantId?): Promise<{ retried: number }>
+stratum.retryFailedDeliveries(tenantId?): Promise<number>
+stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 ```
 
 ### Encryption
