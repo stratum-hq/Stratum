@@ -29,7 +29,12 @@ export function createTenantRoutes(stratum: Stratum) {
 
     // POST /api/v1/tenants — Create tenant
     app.post("/", async (request, reply) => {
-      const input = CreateTenantInputSchema.parse(request.body);
+      const parsed = CreateTenantInputSchema.safeParse(request.body);
+      if (!parsed.success) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: parsed.error.issues } });
+        return;
+      }
+      const input = parsed.data;
 
       // Reject unsupported isolation strategies (SHARED_RLS and SCHEMA_PER_TENANT are supported)
       if (input.isolation_strategy && !isSupportedIsolationStrategy(input.isolation_strategy)) {
@@ -60,7 +65,13 @@ export function createTenantRoutes(stratum: Stratum) {
         reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Batch limited to 100 tenants" } });
         return;
       }
-      const inputs = body.tenants.map((t) => CreateTenantInputSchema.parse(t));
+      const results = body.tenants.map((t) => CreateTenantInputSchema.safeParse(t));
+      const failed = results.find((r) => !r.success);
+      if (failed && !failed.success) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: failed.error.issues } });
+        return;
+      }
+      const inputs = results.map((r) => (r as { success: true; data: any }).data);
       const result = await stratum.batchCreateTenants(inputs, buildAuditContext(request));
       reply.status(201).send(result);
     });

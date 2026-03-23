@@ -154,11 +154,11 @@ export function setupWriteApiKey(stratum: Stratum): void {
 
 /** A sample tenant object for test assertions */
 export const SAMPLE_TENANT = {
-  id: "t-uuid-1",
-  slug: "acme-corp",
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  slug: "acme_corp",
   name: "Acme Corp",
   parent_id: null,
-  ancestry_path: "/t-uuid-1",
+  ancestry_path: "/550e8400-e29b-41d4-a716-446655440000",
   depth: 0,
   metadata: {},
   isolation_strategy: "SHARED_RLS",
@@ -170,11 +170,11 @@ export const SAMPLE_TENANT = {
 
 /** A second sample tenant (child) */
 export const SAMPLE_CHILD_TENANT = {
-  id: "t-uuid-2",
-  slug: "acme-division",
+  id: "550e8400-e29b-41d4-a716-446655440001",
+  slug: "acme_division",
   name: "Acme Division",
-  parent_id: "t-uuid-1",
-  ancestry_path: "/t-uuid-1/t-uuid-2",
+  parent_id: "550e8400-e29b-41d4-a716-446655440000",
+  ancestry_path: "/550e8400-e29b-41d4-a716-446655440000/550e8400-e29b-41d4-a716-446655440001",
   depth: 1,
   metadata: {},
   isolation_strategy: "SHARED_RLS",

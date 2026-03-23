@@ -30,7 +30,7 @@ describe("API Key Routes", () => {
     it("creates a key and returns plaintext once with 201", async () => {
       const createdKey = {
         id: "key-uuid-1",
-        tenant_id: "t-uuid-1",
+        tenant_id: "550e8400-e29b-41d4-a716-446655440000",
         plaintext: "sk_test_abc123def456",
         name: "My API Key",
         created_at: new Date().toISOString(),
@@ -41,7 +41,7 @@ describe("API Key Routes", () => {
         method: "POST",
         url: "/api/v1/api-keys",
         headers: authHeaders(),
-        payload: { tenant_id: "t-uuid-1", name: "My API Key" },
+        payload: { tenant_id: "550e8400-e29b-41d4-a716-446655440000", name: "My API Key" },
       });
 
       expect(response.statusCode).toBe(201);
@@ -49,7 +49,7 @@ describe("API Key Routes", () => {
       expect(body.id).toBe("key-uuid-1");
       expect(body.plaintext).toBe("sk_test_abc123def456");
       expect(stratum.createApiKey).toHaveBeenCalledOnce();
-      expect((stratum.createApiKey as any).mock.calls[0][0]).toBe("t-uuid-1");
+      expect((stratum.createApiKey as any).mock.calls[0][0]).toBe("550e8400-e29b-41d4-a716-446655440000");
     });
 
     it("returns 400 for missing tenant_id", async () => {
@@ -79,7 +79,7 @@ describe("API Key Routes", () => {
     it("creates a key with rate limit options", async () => {
       const createdKey = {
         id: "key-uuid-2",
-        tenant_id: "t-uuid-1",
+        tenant_id: "550e8400-e29b-41d4-a716-446655440000",
         plaintext: "sk_test_rate_limited",
         name: "Rate Limited Key",
         created_at: new Date().toISOString(),
@@ -91,7 +91,7 @@ describe("API Key Routes", () => {
         url: "/api/v1/api-keys",
         headers: authHeaders(),
         payload: {
-          tenant_id: "t-uuid-1",
+          tenant_id: "550e8400-e29b-41d4-a716-446655440000",
           name: "Rate Limited Key",
           rate_limit_max: 500,
           rate_limit_window: "1 minute",
@@ -99,7 +99,7 @@ describe("API Key Routes", () => {
       });
 
       expect(response.statusCode).toBe(201);
-      expect(stratum.createApiKey).toHaveBeenCalledWith("t-uuid-1", {
+      expect(stratum.createApiKey).toHaveBeenCalledWith("550e8400-e29b-41d4-a716-446655440000", {
         name: "Rate Limited Key",
         rateLimitMax: 500,
         rateLimitWindow: "1 minute",
@@ -114,7 +114,7 @@ describe("API Key Routes", () => {
       const keys = [
         {
           id: "key-uuid-1",
-          tenant_id: "t-uuid-1",
+          tenant_id: "550e8400-e29b-41d4-a716-446655440000",
           name: "Key 1",
           created_at: new Date().toISOString(),
           last_used_at: null,
@@ -123,7 +123,7 @@ describe("API Key Routes", () => {
         },
         {
           id: "key-uuid-2",
-          tenant_id: "t-uuid-1",
+          tenant_id: "550e8400-e29b-41d4-a716-446655440000",
           name: "Key 2",
           created_at: new Date().toISOString(),
           last_used_at: new Date().toISOString(),
@@ -153,7 +153,7 @@ describe("API Key Routes", () => {
 
       const response = await app.inject({
         method: "GET",
-        url: "/api/v1/api-keys?tenant_id=t-uuid-1",
+        url: "/api/v1/api-keys?tenant_id=550e8400-e29b-41d4-a716-446655440000",
         headers: authHeaders(),
       });
 
@@ -201,7 +201,7 @@ describe("API Key Routes", () => {
     it("rotates a key and returns new plaintext with 201", async () => {
       const rotatedKey = {
         id: "key-uuid-new",
-        tenant_id: "t-uuid-1",
+        tenant_id: "550e8400-e29b-41d4-a716-446655440000",
         plaintext: "sk_test_rotated_xyz789",
         name: "Rotated Key",
         created_at: new Date().toISOString(),
@@ -224,7 +224,7 @@ describe("API Key Routes", () => {
     it("rotates a key with a new name", async () => {
       const rotatedKey = {
         id: "key-uuid-new",
-        tenant_id: "t-uuid-1",
+        tenant_id: "550e8400-e29b-41d4-a716-446655440000",
         plaintext: "sk_test_rotated_abc",
         name: "New Name",
         created_at: new Date().toISOString(),
@@ -261,7 +261,7 @@ describe("API Key Routes", () => {
         method: "POST",
         url: "/api/v1/api-keys",
         headers: authHeaders(),
-        payload: { tenant_id: "t-uuid-1" },
+        payload: { tenant_id: "550e8400-e29b-41d4-a716-446655440000" },
       });
       expect(postResponse.statusCode).toBe(403);
     });
