@@ -14,6 +14,7 @@ export function printHelp(): void {
     scan --generate               Output migration SQL for unmigrated tables
     generate api-key              Generate a new API key
     scaffold <template>           Generate framework integration boilerplate
+    playground                    Start control plane + demo app locally
 
   Scaffold Templates:
 
