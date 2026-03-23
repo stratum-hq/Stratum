@@ -10,7 +10,8 @@
     "lint": "turbo lint",
     "clean": "turbo clean",
     "dev": "turbo dev",
-    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
+    "generate:sdk": "bash scripts/generate-sdks.sh"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
