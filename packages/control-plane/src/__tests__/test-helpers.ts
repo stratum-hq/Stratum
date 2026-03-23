@@ -8,6 +8,7 @@ import { healthRoutes } from "../routes/health.js";
 import { createTenantRoutes } from "../routes/tenants.js";
 import { createConfigRoutes } from "../routes/config.js";
 import { createApiKeyRoutes } from "../routes/api-keys.js";
+import { createConfigDiffRoutes } from "../routes/config-diff.js";
 import type { Stratum } from "@stratum-hq/lib";
 
 // The JWT secret used in dev mode (from config.ts fallback)
@@ -40,6 +41,7 @@ export function createMockStratum(): Stratum {
     deleteConfig: vi.fn(),
     batchSetConfig: vi.fn(),
     getConfigWithInheritance: vi.fn(),
+    diffConfig: vi.fn(),
 
     // Permission methods
     resolvePermissions: vi.fn(),
@@ -75,6 +77,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   await app.register(createTenantRoutes(stratum), { prefix: "/api/v1/tenants" });
   await app.register(createConfigRoutes(stratum), { prefix: "/api/v1/tenants/:id/config" });
   await app.register(createApiKeyRoutes(stratum), { prefix: "/api/v1/api-keys" });
+  await app.register(createConfigDiffRoutes(stratum), { prefix: "/api/v1/config" });
 
   await app.ready();
   return app;
