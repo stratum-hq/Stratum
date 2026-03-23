@@ -53,6 +53,8 @@ scripts/generated/
 # Internal planning (kept locally, not in repo)
 TODOS.md
 PUBLISHING.md
+ORG-README.md
+DESIGN.md
 
 # Backup files
 *.backup.*
