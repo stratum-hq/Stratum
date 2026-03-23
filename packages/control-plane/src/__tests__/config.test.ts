@@ -6,6 +6,7 @@ import {
   authHeaders,
   setupAdminApiKey,
   SAMPLE_TENANT,
+  SAMPLE_CHILD_TENANT,
 } from "./test-helpers.js";
 import type { Stratum } from "@stratum-hq/lib";
 
@@ -236,6 +237,69 @@ describe("Config Routes", () => {
       expect(response.statusCode).toBe(403);
       const body = response.json();
       expect(body.error.code).toBe("CONFIG_LOCKED");
+    });
+  });
+
+  // ── GET /api/v1/config/diff ─────────────────────────────────────────
+
+  describe("GET /api/v1/config/diff", () => {
+    it("returns diff between two tenants", async () => {
+      const diffResult = {
+        tenant_a: { id: SAMPLE_TENANT.id, name: SAMPLE_TENANT.name },
+        tenant_b: { id: SAMPLE_CHILD_TENANT.id, name: SAMPLE_CHILD_TENANT.name },
+        diff: [
+          {
+            key: "feature.dark_mode",
+            tenant_a: { value: true, status: "own", source: SAMPLE_TENANT.id },
+            tenant_b: { value: true, status: "inherited", source: SAMPLE_TENANT.id },
+          },
+          {
+            key: "limits.max_users",
+            tenant_a: { value: 100, status: "locked", source: SAMPLE_TENANT.id },
+            tenant_b: null,
+          },
+        ],
+      };
+      (stratum.diffConfig as any).mockResolvedValue(diffResult);
+
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/v1/config/diff?tenant_a=${SAMPLE_TENANT.id}&tenant_b=${SAMPLE_CHILD_TENANT.id}`,
+        headers: authHeaders(),
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.tenant_a.id).toBe(SAMPLE_TENANT.id);
+      expect(body.tenant_b.id).toBe(SAMPLE_CHILD_TENANT.id);
+      expect(body.diff).toHaveLength(2);
+      expect(body.diff[0].key).toBe("feature.dark_mode");
+      expect(body.diff[0].tenant_a.status).toBe("own");
+      expect(body.diff[0].tenant_b.status).toBe("inherited");
+      expect(body.diff[1].tenant_b).toBeNull();
+      expect(stratum.diffConfig).toHaveBeenCalledWith(SAMPLE_TENANT.id, SAMPLE_CHILD_TENANT.id);
+    });
+
+    it("returns 400 when tenant_a is missing", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/v1/config/diff?tenant_b=${SAMPLE_CHILD_TENANT.id}`,
+        headers: authHeaders(),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("returns 400 when both tenants are the same", async () => {
+      const response = await app.inject({
+        method: "GET",
+        url: `/api/v1/config/diff?tenant_a=${SAMPLE_TENANT.id}&tenant_b=${SAMPLE_TENANT.id}`,
+        headers: authHeaders(),
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe("VALIDATION_ERROR");
     });
   });
 });

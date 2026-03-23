@@ -205,6 +205,19 @@ main() {
     exit 1
   fi
 
+  # Check spec freshness against control plane source
+  local CP_SRC_DIR="${SCRIPT_DIR}/../packages/control-plane/src"
+  if [[ -d "${CP_SRC_DIR}" ]]; then
+    local spec_mtime
+    local newest_source
+    spec_mtime=$(stat -c %Y "${SPEC_FILE}" 2>/dev/null || stat -f %m "${SPEC_FILE}" 2>/dev/null || echo 0)
+    newest_source=$(find "${CP_SRC_DIR}" -name '*.ts' -newer "${SPEC_FILE}" 2>/dev/null | head -1)
+    if [[ -n "${newest_source}" ]]; then
+      warn "OpenAPI spec may be stale — control plane source has been modified since spec was generated."
+      warn "Run with --live to regenerate from the running control plane, or update the spec manually."
+    fi
+  fi
+
   log "Using spec: ${SPEC_FILE}"
 
   case "${target}" in
