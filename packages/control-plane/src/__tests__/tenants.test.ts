@@ -29,7 +29,7 @@ describe("Tenant Routes", () => {
 
   describe("POST /api/v1/tenants", () => {
     it("creates a tenant and returns 201", async () => {
-      const input = { slug: "acme-corp", name: "Acme Corp" };
+      const input = { slug: "acme_corp", name: "Acme Corp" };
       (stratum.createTenant as any).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
@@ -42,9 +42,9 @@ describe("Tenant Routes", () => {
       expect(response.statusCode).toBe(201);
       const body = response.json();
       expect(body.id).toBe(SAMPLE_TENANT.id);
-      expect(body.slug).toBe("acme-corp");
+      expect(body.slug).toBe("acme_corp");
       expect(stratum.createTenant).toHaveBeenCalledOnce();
-      expect((stratum.createTenant as any).mock.calls[0][0]).toMatchObject({ slug: "acme-corp" });
+      expect((stratum.createTenant as any).mock.calls[0][0]).toMatchObject({ slug: "acme_corp" });
     });
 
     it("returns 400 for invalid input (missing slug)", async () => {
@@ -78,8 +78,8 @@ describe("Tenant Routes", () => {
         headers: authHeaders(),
         payload: {
           tenants: [
-            { slug: "acme-corp", name: "Acme Corp" },
-            { slug: "acme-division", name: "Acme Division", parent_id: "t-uuid-1" },
+            { slug: "acme_corp", name: "Acme Corp" },
+            { slug: "acme_division", name: "Acme Division", parent_id: SAMPLE_TENANT.id },
           ],
         },
       });
@@ -129,7 +129,7 @@ describe("Tenant Routes", () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.id).toBe(SAMPLE_TENANT.id);
-      expect(body.slug).toBe("acme-corp");
+      expect(body.slug).toBe("acme_corp");
     });
 
     it("returns 404 when tenant does not exist", async () => {
@@ -248,7 +248,7 @@ describe("Tenant Routes", () => {
         method: "POST",
         url: "/api/v1/tenants",
         headers: authHeaders(),
-        payload: { slug: "test-tenant", name: "Test" },
+        payload: { slug: "test_tenant", name: "Test" },
       });
 
       expect(response.statusCode).toBe(403);
