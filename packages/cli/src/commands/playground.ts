@@ -24,8 +24,6 @@
  */
 
 import { spawn, type ChildProcess } from "child_process";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
 import { connectDb, getConnectionString } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
@@ -37,11 +35,8 @@ export async function playground(
 ): Promise<void> {
   log.heading("Stratum Playground");
 
-  // Resolve package paths relative to CLI package
-  const cliDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-  const packagesDir = dirname(cliDir);
-  const controlPlaneDir = resolve(packagesDir, "control-plane");
-  const demoDir = resolve(packagesDir, "demo");
+  // Use npm workspaces from the monorepo root (process.cwd())
+  const rootDir = process.cwd();
 
   const cpPort = typeof flags["cp-port"] === "string"
     ? parseInt(flags["cp-port"], 10)
@@ -106,8 +101,8 @@ export async function playground(
     DATABASE_URL: connectionString,
   };
 
-  const controlPlane = spawn("npm", ["run", "dev"], {
-    cwd: controlPlaneDir,
+  const controlPlane = spawn("npm", ["run", "dev", "--workspace=packages/control-plane"], {
+    cwd: rootDir,
     env: cpEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -147,8 +142,8 @@ export async function playground(
     DATABASE_URL: connectionString,
   };
 
-  const demo = spawn("npm", ["run", "dev"], {
-    cwd: demoDir,
+  const demo = spawn("npm", ["run", "dev", "--workspace=packages/demo"], {
+    cwd: rootDir,
     env: demoEnv,
     stdio: ["ignore", "pipe", "pipe"],
   });
