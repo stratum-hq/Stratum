@@ -1,6 +1,8 @@
 # Stratum — TODOS
 
-## Phase 2: Stratum Cloud (Hosted Control Plane)
+## Next Up
+
+### Stratum Cloud (Hosted Control Plane)
 
 **Priority:** P1 | **Effort:** XL (human) → L (CC) | **Depends on:** npm publishing
 
@@ -12,68 +14,72 @@ Deploy the control plane as a managed service with sign-up, API key provisioning
 
 ---
 
-## Additional Language SDKs (Ruby, Java, .NET)
+### Python/Go SDK Publishing
 
-**Priority:** P2 | **Effort:** S per language (CC) | **Depends on:** Python + Go SDKs
+**Priority:** P2 | **Effort:** S (CC) | **Depends on:** `npm run generate:sdk` working
 
-Extend OpenAPI SDK generation to Ruby, Java, and .NET after Python + Go prove the pattern.
+OpenAPI generator configs already exist at `scripts/openapi-generator-config-{python,go}.json`. Need a CI pipeline that regenerates SDKs on API changes, runs basic compilation checks, and publishes to PyPI/pkg.go.dev.
 
-**Why:** Maximizes addressable market — every major backend language covered.
+**Why:** Keeps SDKs in sync with API automatically. Enables adoption by Python/Go developers.
 
-**Where to start:** Validate Python + Go SDK quality with real users. If generation pipeline is solid, adding languages is mechanical (~15 min CC time per language).
+**Where to start:** `npm run generate:sdk` produces the clients locally. Next step is GitHub Actions workflow to automate generation + publish on release.
 
 ---
 
-## Billing Integration (Stripe Connect)
+### Documentation Site Audit
+
+**Priority:** P2 | **Effort:** S (CC) | **Depends on:** nothing
+
+Audit all public methods exported from `packages/lib/src/stratum.ts` against the documentation site (`website/`). Verify each documented function's signature matches the actual code. Fix mismatches.
+
+**Why:** Stale docs mislead adopters. The API has evolved and docs may have drifted.
+
+**Where to start:** Compare each method in `stratum.ts` against its corresponding docs page. Update docs to match code.
+
+---
+
+### OpenTelemetry Test Coverage
+
+**Priority:** P3 | **Effort:** S (CC) | **Depends on:** mock OTEL collector or InMemorySpanExporter
+
+Write tests for the OpenTelemetry integration in `packages/lib/src/telemetry.ts`. Currently the only feature with zero test coverage.
+
+**Why:** If telemetry breaks silently, tracing data stops flowing and no one notices.
+
+**Where to start:** Use `@opentelemetry/sdk-trace-base` InMemorySpanExporter for in-process testing. Verify spans are created for key operations.
+
+---
+
+## Aspirational
+
+_Not yet validated — may change based on user feedback._
+
+### Additional Language SDKs (Ruby, Java, .NET)
+
+**Priority:** P2 | **Effort:** S per language (CC) | **Depends on:** Python + Go SDKs validated
+
+Extend OpenAPI SDK generation to Ruby, Java, and .NET after Python + Go prove the pattern. Adding languages is mechanical (~15 min CC time per language) once the generation pipeline is solid.
+
+---
+
+### Billing Integration (Stripe Connect)
 
 **Priority:** P3 | **Effort:** L (human) → M (CC) | **Depends on:** Stratum Cloud
 
-Map tenant hierarchies to Stripe Connect sub-merchant model for usage billing.
-
-**Why:** Natural fit — tenant trees map to Stripe Connect's account hierarchy. Enables Stratum Cloud revenue model.
+Map tenant hierarchies to Stripe Connect sub-merchant model for usage billing. Natural fit — tenant trees map to Stripe Connect's account hierarchy.
 
 ---
 
-## Terraform/Pulumi Provider
+### Terraform/Pulumi Provider
 
 **Priority:** P3 | **Effort:** L (human) → M (CC) | **Depends on:** Stable API (post-npm publish)
 
-Infrastructure-as-code provider for tenant hierarchy management.
-
-**Why:** Enterprise customers manage infrastructure declaratively. A Terraform provider makes Stratum fit into existing IaC workflows.
+Infrastructure-as-code provider for tenant hierarchy management. Enterprise customers manage infrastructure declaratively.
 
 ---
 
-## Migration Scanner
+### Vertical Integrations (MSP/MSSP Platforms)
 
-**Priority:** P2 | **Effort:** M (human) → S (CC) | **Depends on:** CLI (`stratum doctor`)
+**Priority:** P3 | **Effort:** M (CC) | **Depends on:** OSS adoption validated
 
-**Completed:** v0.2.0 (2026-03-21) — `stratum scan` command added with `--generate` flag.
-
----
-
-## Drag-and-Drop Tenant Reparenting
-
-**Priority:** P3 | **Effort:** M (human) → S (CC) | **Depends on:** Design system, React components
-
-**Completed:** 2026-03-22 — DraggableTenantTree in `@stratum-hq/react` + demo sidebar drag-and-drop with drag handle. Sibling reordering API added (sort_order column + reorderTenant method). DraggableTenantTree UI needs update to call reorder API for same-parent drops.
-
----
-
-## Sibling Tenant Reordering
-
-**Priority:** P3 | **Effort:** M (human) → S (CC) | **Depends on:** Drag-and-drop reparenting
-
-**Completed:** 2026-03-22 — Added `sort_order` column (migration 002), `reorderTenant()` in lib, `POST /api/v1/tenants/:id/reorder` endpoint. DraggableTenantTree still needs UI update to call reorder API for same-parent drops.
-
----
-
-## Extract Demo Features to @stratum-hq/react
-
-**Priority:** P2 | **Effort:** M (human) → S (CC) | **Depends on:** Demo CRUD PR merged
-
-**Completed:** 2026-03-22 — Extracted:
-1. **WebhookEditor** — useWebhooks hook + WebhookEditor component
-2. **AuditLogViewer** — useAuditLogs hook + AuditLogViewer component with action badges
-3. **Tenant CRUD on TenantTree** — onEdit, onArchive, onAddChild props added to TenantTree
-4. DraggableTenantTree already exists — demo uses its own implementation with drag handle
+Integrations with ConnectWise, Datto, HaloPSA APIs. Become the multi-tenancy layer for the managed services vertical.
