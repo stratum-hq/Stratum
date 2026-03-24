@@ -43,6 +43,10 @@ import type {
   ConfigDiff,
   ConfigDiffItem,
   ConfigDiffEntry,
+  DriftStatus,
+  DriftDetail,
+  DriftResult,
+  BatchDriftResult,
 } from "@stratum-hq/core";
 import { TenantEvent } from "@stratum-hq/core";
 
@@ -252,6 +256,100 @@ export class Stratum {
       tenant_b: { id: tenantB.id, name: tenantB.name },
       diff,
     };
+  }
+
+  // Config drift
+  async computeDrift(parentId: string, childId: string): Promise<DriftResult> {
+    return traced("config.compute_drift", { parent_id: parentId, child_id: childId }, async () => {
+      const diff = await this.diffConfig(parentId, childId);
+
+      const details: DriftDetail[] = [];
+      let overrides = 0;
+      let missing = 0;
+      let conflicts = 0;
+
+      for (const item of diff.diff) {
+        const parentEntry = item.tenant_a;
+        const childEntry = item.tenant_b;
+        const locked = parentEntry?.status === "locked";
+
+        let status: DriftStatus;
+
+        if (parentEntry === null && childEntry !== null) {
+          // Key exists only on child — treat as override
+          status = "override";
+          overrides++;
+        } else if (parentEntry !== null && childEntry === null) {
+          // Key exists on parent but not on child
+          status = "missing";
+          missing++;
+        } else if (parentEntry !== null && childEntry !== null) {
+          const sameValue = JSON.stringify(parentEntry.value) === JSON.stringify(childEntry.value);
+          const childIsInherited = childEntry.status === "inherited";
+
+          if (sameValue || childIsInherited) {
+            // Child inherits or has the same value
+            status = "ok";
+          } else if (locked) {
+            // Child has overridden a locked parent value
+            status = "conflict";
+            conflicts++;
+          } else {
+            // Child has its own value that differs from parent
+            status = "override";
+            overrides++;
+          }
+        } else {
+          status = "ok";
+        }
+
+        details.push({
+          key: item.key,
+          status,
+          parentValue: parentEntry?.value,
+          childValue: childEntry?.value,
+          locked,
+        });
+      }
+
+      // Determine worst status: conflict > missing > override > ok
+      const statusRank: Record<DriftStatus, number> = { ok: 0, override: 1, missing: 2, conflict: 3 };
+      let worstStatus: DriftStatus = "ok";
+      for (const detail of details) {
+        if (statusRank[detail.status] > statusRank[worstStatus]) {
+          worstStatus = detail.status;
+        }
+      }
+
+      return {
+        tenant_id: diff.tenant_b.id,
+        tenant_name: diff.tenant_b.name,
+        status: worstStatus,
+        overrides,
+        missing,
+        conflicts,
+        details,
+      };
+    });
+  }
+
+  async batchComputeDrift(parentId: string, childIds: string[]): Promise<BatchDriftResult> {
+    return traced("config.batch_compute_drift", { parent_id: parentId, child_count: childIds.length }, async () => {
+      const parent = await this.getTenant(parentId);
+      const results = await Promise.all(childIds.map((childId) => this.computeDrift(parentId, childId)));
+
+      const summary: Record<DriftStatus, number> = { ok: 0, override: 0, missing: 0, conflict: 0 };
+      for (const result of results) {
+        summary[result.status]++;
+      }
+
+      return {
+        parent_id: parent.id,
+        parent_name: parent.name,
+        results,
+        summary,
+      };
+    });
   }
 
   // Permission operations
