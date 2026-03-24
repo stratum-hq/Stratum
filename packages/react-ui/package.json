@@ -20,6 +20,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "postbuild": "cp -r src/styles dist/styles",
     "test": "vitest run --passWithNoTests",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist",
