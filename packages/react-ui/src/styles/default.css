@@ -455,13 +455,18 @@
 }
 
 .stratum-tree__badge {
+  margin-left: var(--space-xs);
   font-size: 10px;
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-full);
   background: var(--color-info-bg);
   color: var(--color-info);
+  border: 1px solid currentColor;
   font-family: var(--font-body);
   font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .stratum-tree__meta {
