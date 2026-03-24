@@ -72,3 +72,35 @@ export interface ConfigDiff {
   tenant_b: ConfigDiffTenantInfo;
   diff: ConfigDiffItem[];
 }
+
+export type DriftStatus = "ok" | "override" | "missing" | "conflict";
+
+export interface DriftDetail {
+  key: string;
+  status: DriftStatus;
+  parentValue?: unknown;
+  childValue?: unknown;
+  locked: boolean;
+}
+
+export interface DriftResult {
+  tenant_id: string;
+  tenant_name: string;
+  status: DriftStatus; // worst status across all keys
+  overrides: number;
+  missing: number;
+  conflicts: number;
+  details: DriftDetail[];
+}
+
+export interface BatchDriftResult {
+  parent_id: string;
+  parent_name: string;
+  results: DriftResult[];
+  summary: {
+    ok: number;
+    override: number;
+    missing: number;
+    conflict: number;
+  };
+}

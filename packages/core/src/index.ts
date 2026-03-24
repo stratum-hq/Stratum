@@ -93,6 +93,10 @@ export {
   type ConfigDiffItem,
   type ConfigDiffTenantInfo,
   type ConfigDiff,
+  type DriftStatus,
+  type DriftDetail,
+  type DriftResult,
+  type BatchDriftResult,
 } from "./types/config.js";
 
 export {
