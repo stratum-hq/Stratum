@@ -18,7 +18,7 @@ export function TenantThemeProvider({
   children,
   className,
 }: TenantThemeProviderProps) {
-  const scopeId = useId().replace(/:/g, "");
+  const scopeId = useId().replace(/:/g, "").toLowerCase();
   const dataAttr = `data-stratum-theme-${scopeId}`;
 
   const cssVars: React.CSSProperties & Record<string, string> = {};
