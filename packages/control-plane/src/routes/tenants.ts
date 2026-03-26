@@ -24,6 +24,17 @@ export function createTenantRoutes(stratum: Stratum) {
     app.get("/", async (request, reply) => {
       const query = PaginationSchema.parse(request.query);
       const result = await stratum.listTenants(query);
+
+      // Scoped API keys may only see their own tenant and its descendants
+      const scopedTenantId = request.apiKey?.tenant_id;
+      if (scopedTenantId) {
+        result.data = result.data.filter(
+          (t) =>
+            t.id === scopedTenantId ||
+            t.ancestry_path.split("/").filter(Boolean).includes(scopedTenantId),
+        );
+      }
+
       reply.status(200).send(result);
     });
 
