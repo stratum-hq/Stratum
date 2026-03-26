@@ -114,13 +114,16 @@ export async function setConfig(
     }
 
     const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
-    // Check ancestor locks (ancestry_path excludes self)
+    // Check ancestor locks (ancestry_path excludes self).
+    // Only enforce locks from non-archived ancestors — consistent with resolveConfig.
     if (ancestorIds.length > 0) {
       const lockedRes = await client.query<ConfigEntry>(
-        `SELECT * FROM config_entries
-         WHERE tenant_id = ANY($1)
-           AND key = $2
-           AND locked = true`,
+        `SELECT ce.* FROM config_entries ce
+         JOIN tenants t ON t.id = ce.tenant_id
+         WHERE ce.tenant_id = ANY($1)
+           AND ce.key = $2
+           AND ce.locked = true
+           AND t.status != 'archived'`,
         [ancestorIds, key],
       );
       if (lockedRes.rows.length > 0) {
