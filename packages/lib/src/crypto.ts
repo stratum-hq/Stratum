@@ -64,9 +64,23 @@ export function encrypt(plaintext: string): string {
   return encryptWithKey(plaintext, getEncryptionKey());
 }
 
-/** Decrypts a versioned encrypted value. Supports v1 format and legacy (no version prefix). */
+/** Decrypts a versioned encrypted value. Supports v1 format and legacy (no version prefix).
+ * Falls back to STRATUM_ENCRYPTION_KEY_PREVIOUS if primary key decryption fails,
+ * enabling dual-key reads during rolling deployments. */
 export function decrypt(encrypted: string): string {
-  return decryptWithKey(encrypted, getEncryptionKey());
+  try {
+    return decryptWithKey(encrypted, getEncryptionKey());
+  } catch (err) {
+    const previousKey = process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
+    if (previousKey) {
+      try {
+        return decryptWithKey(encrypted, hkdfDeriveKey(previousKey));
+      } catch {
+        // Both keys failed — throw the original error
+      }
+    }
+    throw err;
+  }
 }
 
 /** Re-encrypts a value with a new key. Used for key rotation. Safe under concurrency — does not mutate process.env. */
