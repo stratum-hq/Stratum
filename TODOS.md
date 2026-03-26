@@ -27,11 +27,11 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 
 ## P2 — Medium Priority
 
-- [ ] **Add Redis service to docker-compose.yml** — Rate limiting validation requires Redis but docker-compose has no Redis service. (human: 30 min / CC: 5 min)
-- [ ] **Config inheritance: archived parent lock disagreement** — resolveConfig filters out archived tenants but setConfig still respects their locks. The two code paths disagree. (human: 2 hours / CC: 15 min)
-- [ ] **No circular parent detection** — moveTenant doesn't check for cycles. Corrupted ancestry paths produce wrong config silently. (human: 2 hours / CC: 15 min)
+- [x] ~~Add Redis service to docker-compose.yml~~ — already existed in docker-compose.yml
+- [x] ~~Config inheritance: archived parent lock disagreement~~ → PR #42
+- [x] ~~No circular parent detection~~ → PR #42
+- [x] ~~No structured logging in lib package~~ → PR #43
 - [ ] **Webhook routes inconsistent access control** — Global webhooks visible to every scoped key. Webhook routes lack tenant-scope guard at plugin level. (human: 2 hours / CC: 15 min)
-- [ ] **No structured logging in lib package** — Services throw errors but don't log context (tenant, operation, arguments). Debugging is guesswork. (human: 4 hours / CC: 30 min)
 - [ ] **Connection pool has no queue depth limit** — 1000 concurrent requests queue for 5 seconds each with no circuit breaker. (human: 2 hours / CC: 15 min)
 - [ ] **Pool eviction race condition** — void this.evictLRU() fire-and-forgets pool drain. (human: 1 hour / CC: 10 min)
 - [ ] **Add changesets for monorepo version management** — No automated changelog or semantic versioning. (human: 2 hours / CC: 15 min)
