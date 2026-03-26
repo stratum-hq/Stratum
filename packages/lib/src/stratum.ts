@@ -13,6 +13,7 @@ import * as regionService from "./services/region-service.js";
 import * as keyRotationService from "./services/key-rotation-service.js";
 import * as roleService from "./services/role-service.js";
 import { traced } from "./telemetry.js";
+import { defaultLogger, type StratumLogger } from "./logger.js";
 import type {
   TenantNode,
   CreateTenantInput,
@@ -53,15 +54,18 @@ import { TenantEvent } from "@stratum-hq/core";
 export interface StratumOptions {
   pool: pg.Pool;
   keyPrefix?: string;
+  logger?: StratumLogger;
 }
 
 export class Stratum {
   private readonly pool: pg.Pool;
   private readonly keyPrefix: string;
+  private readonly logger: StratumLogger;
 
   constructor(options: StratumOptions) {
     this.pool = options.pool;
     this.keyPrefix = options.keyPrefix ?? "sk_live_";
+    this.logger = options.logger ?? defaultLogger;
   }
 
   // Internal event emission — fire-and-forget, errors are non-fatal
@@ -92,6 +96,7 @@ export class Stratum {
     return traced("tenant.create", { slug: input.slug ?? "" }, async (span) => {
       const tenant = await tenantService.createTenant(this.pool, input);
       span.setAttribute("stratum.tenant_id", tenant.id);
+      this.logger.info("tenant created", { tenant_id: tenant.id, name: tenant.name, slug: tenant.slug });
       this.emitEvent(TenantEvent.TENANT_CREATED, tenant.id, { tenant }, span);
       if (audit) {
         await auditService.createAuditEntry(
@@ -189,6 +194,7 @@ export class Stratum {
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
     return traced("config.set", { tenant_id: tenantId, config_key: key }, async (span) => {
       const entry = await configService.setConfig(this.pool, tenantId, key, input);
+      this.logger.info("config set", { tenant_id: tenantId, key });
       this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key, entry }, span);
       if (audit) {
         await auditService.createAuditEntry(
@@ -561,6 +567,7 @@ export class Stratum {
     return retentionService.purgeExpiredData(this.pool, retentionDays);
   }
   async purgeTenant(tenantId: string, audit?: AuditContext): Promise<void> {
+    this.logger.warn("purging tenant data", { tenant_id: tenantId });
     await retentionService.purgeTenant(this.pool, tenantId);
     // Write audit entry AFTER purge with null tenant_id so it survives the purge
     if (audit) {
@@ -711,6 +718,7 @@ export class Stratum {
     audit?: AuditContext,
   ): Promise<keyRotationService.KeyRotationResult> {
     const result = await keyRotationService.rotateEncryptionKey(this.pool, oldKeyMaterial, newKeyMaterial);
+    this.logger.warn("encryption key rotated", { config_entries_rotated: result.config_entries_rotated, webhooks_rotated: result.webhooks_rotated });
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "encryption.key_rotated", "system", "encryption_key", null,
