@@ -63,8 +63,22 @@ export function createAuthMiddleware(stratum: Stratum) {
       const token = authHeader.slice(7);
       try {
         const payload = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
+
+        // JWT must contain a tenant_id claim — JWTs without one are not allowed
+        // global access (only API keys may have null tenant_id).
+        if (!payload.tenant_id || typeof payload.tenant_id !== "string") {
+          throw new UnauthorizedError("JWT must contain a valid tenant_id claim");
+        }
+
+        // Verify the claimed tenant actually exists in the database.
+        try {
+          await stratum.getTenant(payload.tenant_id);
+        } catch {
+          throw new UnauthorizedError("JWT tenant_id does not correspond to a known tenant");
+        }
+
         // Store a synthetic api key record from JWT claims
-        // Extract scopes from JWT claims; default to full access for backward compat
+        // Extract scopes from JWT claims; default to read-only for safety
         const jwtScopes = Array.isArray(payload.scopes)
           ? (payload.scopes as unknown[]).filter(
               (s): s is string => typeof s === "string" && ["read", "write", "admin"].includes(s),
@@ -72,7 +86,7 @@ export function createAuthMiddleware(stratum: Stratum) {
           : ["read"];
         request.apiKey = {
           id: payload.sub ?? "",
-          tenant_id: payload.tenant_id ?? null,
+          tenant_id: payload.tenant_id,
           key_hash: "",
           name: payload.name ?? "jwt",
           created_at: new Date(),
@@ -82,7 +96,8 @@ export function createAuthMiddleware(stratum: Stratum) {
         };
         request.authMethod = "jwt";
         return;
-      } catch {
+      } catch (err) {
+        if (err instanceof UnauthorizedError) throw err;
         throw new UnauthorizedError("Invalid or expired token");
       }
     }
