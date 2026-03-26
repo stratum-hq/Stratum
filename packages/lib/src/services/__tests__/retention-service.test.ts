@@ -69,17 +69,20 @@ describe("purgeTenant", () => {
 
     await retentionService.purgeTenant(pool, "tenant-123");
 
-    // 1 child check + 9 deletes (config, permissions, api_keys, webhook_deliveries,
+    // 1 child check + 11 deletes (config, permissions by tenant_id,
+    // permissions by source_tenant_id, api_keys, roles, webhook_deliveries,
     // webhook_events, webhooks, consent_records, audit_logs, tenants)
-    expect(mockQuery).toHaveBeenCalledTimes(10);
+    expect(mockQuery).toHaveBeenCalledTimes(12);
     // First query is the child count check
     expect(mockQuery.mock.calls[0][0]).toContain("COUNT");
     // Then FK-ordered deletes
     expect(mockQuery.mock.calls[1][0]).toContain("config_entries");
     expect(mockQuery.mock.calls[2][0]).toContain("permission_policies");
-    expect(mockQuery.mock.calls[3][0]).toContain("api_keys");
+    expect(mockQuery.mock.calls[3][0]).toContain("permission_policies");
+    expect(mockQuery.mock.calls[4][0]).toContain("api_keys");
+    expect(mockQuery.mock.calls[5][0]).toContain("roles");
     // Last delete is the tenant itself
-    expect(mockQuery.mock.calls[9][0]).toContain("tenants");
+    expect(mockQuery.mock.calls[11][0]).toContain("tenants");
     // Verify tenant_id parameter
     expect(mockQuery.mock.calls[1][1]).toEqual(["tenant-123"]);
   });
