@@ -3,86 +3,106 @@
 /* ============================================================
    Font Imports
    ============================================================ */
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700;1,75..100,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
-   Design Tokens — Light Mode (Default)
+   Design Tokens — Dark Mode (Primary / Default)
    ============================================================ */
 :root {
-  /* --- Brand Colors --- */
-  --color-primary: #2563EB;
-  --color-primary-hover: #1D4ED8;
-  --color-accent: #0D9488;
-  --color-accent-hover: #0F766E;
-  --color-accent-light: #CCFBF1;
-  --color-accent-muted: #F0FDFA;
-
-  /* --- Neutrals (Warm Slate) --- */
-  --color-neutral-950: #0C1222;
-  --color-neutral-900: #0F172A;
-  --color-neutral-800: #1E293B;
-  --color-neutral-700: #334155;
-  --color-neutral-600: #475569;
-  --color-neutral-500: #64748B;
-  --color-neutral-400: #94A3B8;
-  --color-neutral-300: #CBD5E1;
-  --color-neutral-200: #E2E8F0;
-  --color-neutral-100: #F1F5F9;
-  --color-neutral-50: #F8FAFC;
-
-  /* --- Semantic Colors --- */
-  --color-success: #059669;
-  --color-success-bg: #D1FAE5;
-  --color-warning: #D97706;
-  --color-warning-bg: #FEF3C7;
-  --color-error: #DC2626;
-  --color-error-bg: #FEE2E2;
-  --color-info: #2563EB;
-  --color-info-bg: #DBEAFE;
-
-  /* --- Surfaces --- */
-  --color-bg-page: var(--color-neutral-50);
-  --color-bg-surface: #FFFFFF;
-  --color-bg-elevated: #FFFFFF;
-  --color-bg-hover: var(--color-neutral-100);
-  --color-bg-active: var(--color-info-bg);
-  --color-bg-sidebar: var(--color-neutral-900);
-  --color-bg-sidebar-hover: var(--color-neutral-800);
+  /* --- Surfaces — deep earth, not pure black --- */
+  --surface-0: #0F0E0C;
+  --surface-1: #1A1815;
+  --surface-2: #252220;
+  --surface-3: #302D2A;
 
   /* --- Text --- */
-  --color-text-primary: var(--color-neutral-900);
-  --color-text-secondary: var(--color-neutral-600);
-  --color-text-tertiary: var(--color-neutral-500);
-  --color-text-disabled: var(--color-neutral-400);
-  --color-text-on-primary: #FFFFFF;
-  --color-text-active: #1D4ED8;
+  --text-primary: #E8E2D9;
+  --text-secondary: #A39E95;
+  --text-tertiary: #6B6560;
+
+  /* --- Accent — terracotta (used sparingly) --- */
+  --accent: #C05746;
+  --accent-hover: #D4654E;
+  --accent-muted: #C0574620;
+
+  /* --- Warm neutrals — sandstone --- */
+  --sandstone: #C4A882;
+  --sandstone-muted: #C4A88240;
+
+  /* --- Semantic --- */
+  --success: #5B8C5A;
+  --success-bg: #1A2E19;
+  --warning: #C4A244;
+  --warning-bg: #2E2610;
+  --error: #C05746;
+  --error-bg: #2E1410;
+  --info: #7A8B9A;
+  --info-bg: #1A2430;
 
   /* --- Borders --- */
-  --color-border-default: var(--color-neutral-200);
-  --color-border-strong: var(--color-neutral-300);
-  --color-border-input: var(--color-neutral-300);
+  --border: #2A2725;
+  --border-hover: #3D3935;
 
-  /* --- Badge: Inherited --- */
-  --color-badge-inherited-bg: var(--color-accent-light);
-  --color-badge-inherited-text: var(--color-accent);
+  /* --- Code --- */
+  --code-bg: #161412;
+  --code-text: #C4A882;
 
-  /* --- Badge: Locked --- */
-  --color-badge-locked-bg: var(--color-warning-bg);
-  --color-badge-locked-text: #92400E;
+  /* --- Legacy aliases (component compatibility) --- */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-muted);
+  --color-accent-muted: var(--accent-muted);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --color-bg-page: var(--surface-0);
+  --color-bg-surface: var(--surface-1);
+  --color-bg-elevated: var(--surface-2);
+  --color-bg-hover: var(--surface-2);
+  --color-bg-active: var(--surface-3);
+  --color-bg-sidebar: var(--surface-0);
+  --color-bg-sidebar-hover: var(--surface-1);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-tertiary);
+  --color-text-on-primary: #E8E2D9;
+  --color-text-active: var(--accent-hover);
+
+  --color-border-default: var(--border);
+  --color-border-strong: var(--border-hover);
+  --color-border-input: var(--border-hover);
+
+  /* --- Badge: Inherited — sandstone --- */
+  --color-badge-inherited-bg: var(--sandstone-muted);
+  --color-badge-inherited-text: var(--sandstone);
+
+  /* --- Badge: Locked — warning amber --- */
+  --color-badge-locked-bg: var(--warning-bg);
+  --color-badge-locked-text: var(--warning);
 
   /* --- Badge: Own --- */
-  --color-badge-own-bg: var(--color-neutral-100);
-  --color-badge-own-text: var(--color-neutral-600);
+  --color-badge-own-bg: var(--surface-2);
+  --color-badge-own-text: var(--text-secondary);
 
   /* --- Badge: Delegated --- */
-  --color-badge-delegated-bg: var(--color-success-bg);
-  --color-badge-delegated-text: #065F46;
+  --color-badge-delegated-bg: var(--success-bg);
+  --color-badge-delegated-text: var(--success);
 
   /* --- Typography --- */
-  --font-display: 'Satoshi', system-ui, -apple-system, sans-serif;
-  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-code: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  --font-display: "Instrument Sans", system-ui, sans-serif;
+  --font-body: "Instrument Sans", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 
   --font-size-xs: 0.6875rem;   /* 11px */
   --font-size-sm: 0.75rem;     /* 12px */
@@ -94,177 +114,235 @@
   --font-size-3xl: 2rem;       /* 32px */
   --font-size-4xl: 2.5rem;     /* 40px */
 
-  /* --- Spacing --- */
-  --space-2xs: 2px;
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-  --space-2xl: 32px;
-  --space-3xl: 48px;
-  --space-4xl: 64px;
+  /* --- Spacing — 8px base scale --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
 
-  /* --- Border Radius --- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  /* Legacy spacing aliases */
+  --space-2xs: 2px;
+  --space-xs: var(--space-1);
+  --space-sm: var(--space-2);
+  --space-md: var(--space-3);
+  --space-lg: var(--space-4);
+  --space-xl: var(--space-6);
+  --space-2xl: var(--space-8);
+  --space-3xl: var(--space-12);
+  --space-4xl: var(--space-16);
+
+  /* --- Border Radius — hierarchy, not uniform --- */
+  --radius-sm: 4px;    /* buttons, inputs, tags */
+  --radius-md: 8px;    /* cards, containers */
+  --radius-lg: 12px;   /* modals, large surfaces */
   --radius-full: 9999px;
 
-  /* --- Shadows --- */
-  --shadow-sm: 0 1px 2px rgba(12, 18, 34, 0.05);
-  --shadow-md: 0 2px 8px rgba(12, 18, 34, 0.08), 0 1px 2px rgba(12, 18, 34, 0.04);
-  --shadow-lg: 0 4px 16px rgba(12, 18, 34, 0.10), 0 2px 4px rgba(12, 18, 34, 0.06);
-  --shadow-xl: 0 8px 32px rgba(12, 18, 34, 0.12), 0 4px 8px rgba(12, 18, 34, 0.06);
+  /* --- Shadows — warm-toned --- */
+  --shadow-sm: 0 1px 2px rgba(15, 14, 12, 0.4);
+  --shadow-md: 0 2px 8px rgba(15, 14, 12, 0.5), 0 1px 2px rgba(15, 14, 12, 0.3);
+  --shadow-lg: 0 4px 16px rgba(15, 14, 12, 0.6), 0 2px 4px rgba(15, 14, 12, 0.3);
+  --shadow-xl: 0 8px 32px rgba(15, 14, 12, 0.7), 0 4px 8px rgba(15, 14, 12, 0.4);
 
   /* --- Motion --- */
-  --duration-micro: 75ms;
-  --duration-short: 150ms;
-  --duration-medium: 250ms;
-  --duration-long: 400ms;
-  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-  --ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* Legacy motion aliases */
+  --duration-micro: var(--duration-fast);
+  --duration-short: var(--duration-fast);
+  --duration-medium: var(--duration-normal);
+  --duration-long: var(--duration-slow);
+  --ease-enter: var(--ease-out);
+  --ease-exit: var(--ease-in);
+  --ease-move: var(--ease-in-out);
 }
 
 /* ============================================================
-   Dark Mode Tokens — Manual Toggle
+   Light Mode — for docs only
    ============================================================ */
-[data-theme="dark"] {
-  --color-primary: #3B82F6;
-  --color-primary-hover: #60A5FA;
-  --color-accent: #2DD4BF;
-  --color-accent-hover: #5EEAD4;
-  --color-accent-light: #134E4A;
-  --color-accent-muted: #0D3D38;
+[data-theme="light"] {
+  --surface-0: #FAF8F5;
+  --surface-1: #F0EDE8;
+  --surface-2: #E5E0DA;
+  --surface-3: #D6D0C8;
 
-  --color-neutral-950: #0A0F1A;
-  --color-neutral-900: #0C1222;
-  --color-neutral-800: #1E293B;
-  --color-neutral-700: #334155;
-  --color-neutral-600: #94A3B8;
-  --color-neutral-500: #94A3B8;
-  --color-neutral-400: #64748B;
-  --color-neutral-300: #475569;
-  --color-neutral-200: #334155;
-  --color-neutral-100: #1E293B;
-  --color-neutral-50: #0F172A;
+  --text-primary: #1A1815;
+  --text-secondary: #5C5650;
+  --text-tertiary: #8A847D;
 
-  --color-success: #34D399;
-  --color-success-bg: #064E3B;
-  --color-warning: #FBBF24;
-  --color-warning-bg: #78350F;
-  --color-error: #F87171;
-  --color-error-bg: #7F1D1D;
-  --color-info: #3B82F6;
-  --color-info-bg: #1E3A5F;
+  --accent: #A84535;
+  --accent-hover: #C05746;
+  --accent-muted: #A8453520;
 
-  --color-bg-page: #0A0F1A;
-  --color-bg-surface: var(--color-neutral-900);
-  --color-bg-elevated: var(--color-neutral-800);
-  --color-bg-hover: var(--color-neutral-800);
-  --color-bg-active: var(--color-info-bg);
-  --color-bg-sidebar: #0A0F1A;
-  --color-bg-sidebar-hover: var(--color-neutral-900);
+  --sandstone: #8B6F4E;
+  --sandstone-muted: #8B6F4E20;
 
-  --color-text-primary: #F1F5F9;
-  --color-text-secondary: #94A3B8;
-  --color-text-tertiary: #64748B;
-  --color-text-disabled: #475569;
-  --color-text-on-primary: #FFFFFF;
-  --color-text-active: #60A5FA;
+  --success: #3D6B3C;
+  --success-bg: #D8EDCC;
+  --warning: #8B6E10;
+  --warning-bg: #F5E8C0;
+  --error: #A84535;
+  --error-bg: #F5D5CC;
+  --info: #4A5D6E;
+  --info-bg: #D8E4EC;
 
-  --color-border-default: var(--color-neutral-700);
-  --color-border-strong: var(--color-neutral-600);
-  --color-border-input: var(--color-neutral-700);
+  --border: #D6D0C8;
+  --border-hover: #C4BDB4;
 
-  --color-badge-inherited-bg: var(--color-accent-light);
-  --color-badge-inherited-text: var(--color-accent);
+  --code-bg: #F0EDE8;
+  --code-text: #8B6F4E;
 
-  --color-badge-locked-bg: var(--color-warning-bg);
-  --color-badge-locked-text: var(--color-warning);
+  /* --- Legacy aliases (light) --- */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-muted);
+  --color-accent-muted: var(--accent-muted);
 
-  --color-badge-own-bg: var(--color-neutral-800);
-  --color-badge-own-text: var(--color-neutral-600);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
 
-  --color-badge-delegated-bg: var(--color-success-bg);
-  --color-badge-delegated-text: var(--color-success);
+  --color-bg-page: var(--surface-0);
+  --color-bg-surface: var(--surface-1);
+  --color-bg-elevated: var(--surface-2);
+  --color-bg-hover: var(--surface-2);
+  --color-bg-active: var(--surface-3);
+  --color-bg-sidebar: var(--surface-0);
+  --color-bg-sidebar-hover: var(--surface-1);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-tertiary);
+  --color-text-on-primary: #FAF8F5;
+  --color-text-active: var(--accent);
+
+  --color-border-default: var(--border);
+  --color-border-strong: var(--border-hover);
+  --color-border-input: var(--border-hover);
+
+  --color-badge-inherited-bg: var(--sandstone-muted);
+  --color-badge-inherited-text: var(--sandstone);
+
+  --color-badge-locked-bg: var(--warning-bg);
+  --color-badge-locked-text: var(--warning);
+
+  --color-badge-own-bg: var(--surface-2);
+  --color-badge-own-text: var(--text-secondary);
+
+  --color-badge-delegated-bg: var(--success-bg);
+  --color-badge-delegated-text: var(--success);
+
+  --shadow-sm: 0 1px 2px rgba(26, 24, 21, 0.06);
+  --shadow-md: 0 2px 8px rgba(26, 24, 21, 0.09), 0 1px 2px rgba(26, 24, 21, 0.05);
+  --shadow-lg: 0 4px 16px rgba(26, 24, 21, 0.12), 0 2px 4px rgba(26, 24, 21, 0.06);
+  --shadow-xl: 0 8px 32px rgba(26, 24, 21, 0.14), 0 4px 8px rgba(26, 24, 21, 0.07);
 }
 
 /* ============================================================
-   Dark Mode Tokens — Auto-detect (when no data-theme is set)
+   Dark Mode — Auto-detect (when no data-theme is set, prefer dark)
    ============================================================ */
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --color-primary: #3B82F6;
-    --color-primary-hover: #60A5FA;
-    --color-accent: #2DD4BF;
-    --color-accent-hover: #5EEAD4;
-    --color-accent-light: #134E4A;
-    --color-accent-muted: #0D3D38;
+    --surface-0: #FAF8F5;
+    --surface-1: #F0EDE8;
+    --surface-2: #E5E0DA;
+    --surface-3: #D6D0C8;
 
-    --color-neutral-950: #0A0F1A;
-    --color-neutral-900: #0C1222;
-    --color-neutral-800: #1E293B;
-    --color-neutral-700: #334155;
-    --color-neutral-600: #94A3B8;
-    --color-neutral-500: #94A3B8;
-    --color-neutral-400: #64748B;
-    --color-neutral-300: #475569;
-    --color-neutral-200: #334155;
-    --color-neutral-100: #1E293B;
-    --color-neutral-50: #0F172A;
+    --text-primary: #1A1815;
+    --text-secondary: #5C5650;
+    --text-tertiary: #8A847D;
 
-    --color-success: #34D399;
-    --color-success-bg: #064E3B;
-    --color-warning: #FBBF24;
-    --color-warning-bg: #78350F;
-    --color-error: #F87171;
-    --color-error-bg: #7F1D1D;
-    --color-info: #3B82F6;
-    --color-info-bg: #1E3A5F;
+    --accent: #A84535;
+    --accent-hover: #C05746;
+    --accent-muted: #A8453520;
 
-    --color-bg-page: #0A0F1A;
-    --color-bg-surface: var(--color-neutral-900);
-    --color-bg-elevated: var(--color-neutral-800);
-    --color-bg-hover: var(--color-neutral-800);
-    --color-bg-active: var(--color-info-bg);
-    --color-bg-sidebar: #0A0F1A;
-    --color-bg-sidebar-hover: var(--color-neutral-900);
+    --sandstone: #8B6F4E;
+    --sandstone-muted: #8B6F4E20;
 
-    --color-text-primary: #F1F5F9;
-    --color-text-secondary: #94A3B8;
-    --color-text-tertiary: #64748B;
-    --color-text-disabled: #475569;
-    --color-text-on-primary: #FFFFFF;
-    --color-text-active: #60A5FA;
+    --success: #3D6B3C;
+    --success-bg: #D8EDCC;
+    --warning: #8B6E10;
+    --warning-bg: #F5E8C0;
+    --error: #A84535;
+    --error-bg: #F5D5CC;
+    --info: #4A5D6E;
+    --info-bg: #D8E4EC;
 
-    --color-border-default: var(--color-neutral-700);
-    --color-border-strong: var(--color-neutral-600);
-    --color-border-input: var(--color-neutral-700);
+    --border: #D6D0C8;
+    --border-hover: #C4BDB4;
 
-    --color-badge-inherited-bg: var(--color-accent-light);
-    --color-badge-inherited-text: var(--color-accent);
+    --code-bg: #F0EDE8;
+    --code-text: #8B6F4E;
 
-    --color-badge-locked-bg: var(--color-warning-bg);
-    --color-badge-locked-text: var(--color-warning);
+    --color-primary: var(--accent);
+    --color-primary-hover: var(--accent-hover);
+    --color-accent: var(--accent);
+    --color-accent-hover: var(--accent-hover);
+    --color-accent-light: var(--accent-muted);
+    --color-accent-muted: var(--accent-muted);
 
-    --color-badge-own-bg: var(--color-neutral-800);
-    --color-badge-own-text: var(--color-neutral-600);
+    --color-success: var(--success);
+    --color-success-bg: var(--success-bg);
+    --color-warning: var(--warning);
+    --color-warning-bg: var(--warning-bg);
+    --color-error: var(--error);
+    --color-error-bg: var(--error-bg);
+    --color-info: var(--info);
+    --color-info-bg: var(--info-bg);
 
-    --color-badge-delegated-bg: var(--color-success-bg);
-    --color-badge-delegated-text: var(--color-success);
+    --color-bg-page: var(--surface-0);
+    --color-bg-surface: var(--surface-1);
+    --color-bg-elevated: var(--surface-2);
+    --color-bg-hover: var(--surface-2);
+    --color-bg-active: var(--surface-3);
+    --color-bg-sidebar: var(--surface-0);
+    --color-bg-sidebar-hover: var(--surface-1);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
-    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.25);
+    --color-text-primary: var(--text-primary);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-tertiary: var(--text-tertiary);
+    --color-text-disabled: var(--text-tertiary);
+    --color-text-on-primary: #FAF8F5;
+    --color-text-active: var(--accent);
+
+    --color-border-default: var(--border);
+    --color-border-strong: var(--border-hover);
+    --color-border-input: var(--border-hover);
+
+    --color-badge-inherited-bg: var(--sandstone-muted);
+    --color-badge-inherited-text: var(--sandstone);
+
+    --color-badge-locked-bg: var(--warning-bg);
+    --color-badge-locked-text: var(--warning);
+
+    --color-badge-own-bg: var(--surface-2);
+    --color-badge-own-text: var(--text-secondary);
+
+    --color-badge-delegated-bg: var(--success-bg);
+    --color-badge-delegated-text: var(--success);
+
+    --shadow-sm: 0 1px 2px rgba(26, 24, 21, 0.06);
+    --shadow-md: 0 2px 8px rgba(26, 24, 21, 0.09), 0 1px 2px rgba(26, 24, 21, 0.05);
+    --shadow-lg: 0 4px 16px rgba(26, 24, 21, 0.12), 0 2px 4px rgba(26, 24, 21, 0.06);
+    --shadow-xl: 0 8px 32px rgba(26, 24, 21, 0.14), 0 4px 8px rgba(26, 24, 21, 0.07);
   }
 }
 
@@ -281,7 +359,7 @@
 .stratum-permission-editor button:focus-visible,
 .stratum-permission-editor input:focus-visible,
 .stratum-permission-editor select:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -311,7 +389,7 @@
 .stratum-tenant-switcher__trigger {
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--color-border-input);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
   cursor: pointer;
@@ -319,8 +397,8 @@
   font-size: var(--font-size-md);
   min-width: 200px;
   text-align: start;
-  transition: border-color var(--duration-micro) var(--ease-enter),
-              box-shadow var(--duration-micro) var(--ease-enter);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
 }
 
 .stratum-tenant-switcher__trigger:hover {
@@ -371,7 +449,7 @@
   font-family: var(--font-body);
   font-size: var(--font-size-md);
   color: var(--color-text-primary);
-  transition: background-color var(--duration-micro) var(--ease-enter);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-tenant-switcher__item:hover {
@@ -416,7 +494,7 @@
   cursor: default;
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
-  transition: background-color var(--duration-micro) var(--ease-enter);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-tree__node:hover {
@@ -435,7 +513,7 @@
   font-size: 10px;
   width: var(--space-lg);
   color: var(--color-text-tertiary);
-  transition: color var(--duration-micro) var(--ease-enter);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-tree__toggle:hover {
@@ -459,8 +537,8 @@
   font-size: 10px;
   padding: var(--space-2xs) var(--space-sm);
   border-radius: var(--radius-full);
-  background: var(--color-info-bg);
-  color: var(--color-info);
+  background: var(--info-bg);
+  color: var(--info);
   border: 1px solid currentColor;
   font-family: var(--font-body);
   font-weight: 500;
@@ -505,6 +583,10 @@
 .stratum-config-editor__table code {
   font-family: var(--font-code);
   font-size: var(--font-size-sm);
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
 }
 
 .stratum-config-editor__row--locked {
@@ -532,7 +614,7 @@
   color: var(--color-text-primary);
   font-family: var(--font-body);
   font-size: var(--font-size-md);
-  transition: border-color var(--duration-micro) var(--ease-enter);
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-config-editor__add input:hover {
@@ -574,6 +656,10 @@
 .stratum-permission-editor__table code {
   font-family: var(--font-code);
   font-size: var(--font-size-sm);
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
 }
 
 .stratum-permission-editor__source {
@@ -598,7 +684,7 @@
   color: var(--color-text-primary);
   font-family: var(--font-body);
   font-size: var(--font-size-md);
-  transition: border-color var(--duration-micro) var(--ease-enter);
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-permission-editor__add input:hover,
@@ -616,7 +702,7 @@
 .stratum-badge {
   display: inline-block;
   padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-family: var(--font-body);
   font-size: var(--font-size-xs);
   font-weight: 500;
@@ -655,8 +741,8 @@
   cursor: pointer;
   font-family: var(--font-body);
   font-size: var(--font-size-base);
-  transition: background-color var(--duration-micro) var(--ease-enter),
-              border-color var(--duration-micro) var(--ease-enter);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-config-editor button:hover,
@@ -675,7 +761,7 @@
    Skeleton Loaders
    ============================================================ */
 .stratum-skeleton {
-  background: var(--color-neutral-200);
+  background: var(--surface-2);
   border-radius: var(--radius-sm);
   animation: stratum-shimmer 1.5s ease-in-out infinite;
 }
@@ -685,9 +771,9 @@
 }
 
 @keyframes stratum-shimmer {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
 }
 
 /* Table Skeleton — matches ConfigEditor/PermissionEditor table styling */
@@ -730,30 +816,30 @@
   padding: var(--space-md) var(--space-lg);
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
-  border-inline-start: 4px solid var(--color-neutral-400);
+  border-inline-start: 3px solid var(--text-tertiary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   font-family: var(--font-body);
   font-size: var(--font-size-md);
   color: var(--color-text-primary);
   pointer-events: auto;
-  animation: stratum-toast-enter var(--duration-medium) var(--ease-enter);
+  animation: stratum-toast-enter var(--duration-normal) var(--ease-out);
 }
 
 .stratum-toast--success {
-  border-inline-start-color: var(--color-success);
+  border-inline-start-color: var(--success);
 }
 
 .stratum-toast--error {
-  border-inline-start-color: var(--color-error);
+  border-inline-start-color: var(--error);
 }
 
 .stratum-toast--warning {
-  border-inline-start-color: var(--color-warning);
+  border-inline-start-color: var(--warning);
 }
 
 .stratum-toast--info {
-  border-inline-start-color: var(--color-info);
+  border-inline-start-color: var(--info);
 }
 
 .stratum-toast__message {
@@ -771,8 +857,8 @@
   padding: var(--space-xs);
   line-height: 1;
   border-radius: var(--radius-sm);
-  transition: color var(--duration-micro) var(--ease-enter),
-              background-color var(--duration-micro) var(--ease-enter);
+  transition: color var(--duration-fast) var(--ease-out),
+              background-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-toast__dismiss:hover {
@@ -781,7 +867,7 @@
 }
 
 .stratum-toast__dismiss:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -824,6 +910,7 @@
   font-weight: 700;
   color: var(--color-text-primary);
   line-height: 1.3;
+  text-wrap: balance;
 }
 
 .stratum-empty-state__description {
@@ -831,7 +918,7 @@
   font-size: var(--font-size-md);
   color: var(--color-text-secondary);
   max-width: 420px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .stratum-empty-state__actions {
@@ -844,41 +931,41 @@
 
 .stratum-empty-state__action {
   padding: var(--space-sm) var(--space-lg);
-  background: var(--color-primary);
+  background: var(--accent);
   color: var(--color-text-on-primary);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-family: var(--font-body);
   font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
-  transition: background-color var(--duration-short) var(--ease-enter);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-empty-state__action:hover {
-  background: var(--color-primary-hover);
+  background: var(--accent-hover);
 }
 
 .stratum-empty-state__action:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
 .stratum-empty-state__docs {
   font-size: var(--font-size-md);
-  color: var(--color-primary);
+  color: var(--sandstone);
   text-decoration: none;
   font-family: var(--font-body);
-  transition: color var(--duration-micro) var(--ease-enter);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-empty-state__docs:hover {
-  color: var(--color-primary-hover);
+  color: var(--text-primary);
   text-decoration: underline;
 }
 
 .stratum-empty-state__docs:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   border-radius: var(--radius-sm);
 }
@@ -900,8 +987,8 @@
 
 .stratum-tenant-health-card--clickable {
   cursor: pointer;
-  transition: box-shadow var(--duration-short) var(--ease-enter),
-              border-color var(--duration-short) var(--ease-enter);
+  transition: box-shadow var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out);
 }
 
 .stratum-tenant-health-card--clickable:hover {
@@ -910,7 +997,7 @@
 }
 
 .stratum-tenant-health-card--clickable:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -923,16 +1010,16 @@
 }
 
 .stratum-tenant-health-card__dot--ok {
-  background: var(--color-success);
+  background: var(--success);
 }
 
 .stratum-tenant-health-card__dot--override {
-  background: var(--color-warning);
+  background: var(--warning);
 }
 
 .stratum-tenant-health-card__dot--missing,
 .stratum-tenant-health-card__dot--conflict {
-  background: var(--color-error);
+  background: var(--error);
 }
 
 .stratum-tenant-health-card__body {
@@ -959,7 +1046,7 @@
 .stratum-tenant-health-card__industry {
   display: inline-block;
   padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   background: var(--color-badge-own-bg);
   color: var(--color-badge-own-text);
   font-size: var(--font-size-xs);
@@ -996,7 +1083,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-family: var(--font-body);
   font-weight: 500;
   white-space: nowrap;
@@ -1020,32 +1107,32 @@
 }
 
 .stratum-config-drift-indicator__dot--ok {
-  background: var(--color-success);
+  background: var(--success);
 }
 
 .stratum-config-drift-indicator__dot--override {
-  background: var(--color-warning);
+  background: var(--warning);
 }
 
 .stratum-config-drift-indicator__dot--missing,
 .stratum-config-drift-indicator__dot--conflict {
-  background: var(--color-error);
+  background: var(--error);
 }
 
 .stratum-config-drift-indicator--ok {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .stratum-config-drift-indicator--override {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 
 .stratum-config-drift-indicator--missing,
 .stratum-config-drift-indicator--conflict {
-  background: var(--color-error-bg);
-  color: var(--color-error);
+  background: var(--error-bg);
+  color: var(--error);
 }
 
 /* ============================================================
