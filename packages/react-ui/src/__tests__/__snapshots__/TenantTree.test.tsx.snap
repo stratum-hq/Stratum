@@ -1,0 +1,47 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TenantTree > renders without crashing and matches snapshot 1`] = `
+<div>
+  <div
+    class="stratum-tree "
+  >
+    <ul
+      class="stratum-tree__root"
+      role="tree"
+    >
+      <li
+        aria-expanded="false"
+        role="treeitem"
+      >
+        <div
+          class="stratum-tree__node stratum-tree__node--selected"
+          style="padding-inline-start: calc(0 * var(--space-xl) + var(--space-sm));"
+        >
+          <button
+            aria-label="Expand"
+            class="stratum-tree__toggle"
+            type="button"
+          >
+            ▶
+          </button>
+          <span
+            class="stratum-tree__label"
+            role="button"
+            tabindex="0"
+          >
+            Root Tenant
+          </span>
+          <span
+            class="stratum-tree__badge"
+          >
+            RLS
+          </span>
+          <span
+            class="stratum-tree__meta"
+          />
+        </div>
+      </li>
+    </ul>
+  </div>
+</div>
+`;
