@@ -222,6 +222,7 @@ export async function deliverWebhook(
         "X-Stratum-Timestamp": timestamp,
       },
       body: payload,
+      redirect: "error",
       signal: AbortSignal.timeout(10_000),
     });
 
