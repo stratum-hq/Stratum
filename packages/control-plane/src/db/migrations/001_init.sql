@@ -10,7 +10,7 @@ DO $$ BEGIN
 END $$;
 
 -- Tenant nodes table
-CREATE TABLE tenants (
+CREATE TABLE IF NOT EXISTS tenants (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   parent_id UUID REFERENCES tenants(id) ON DELETE RESTRICT,
   ancestry_path TEXT NOT NULL,
@@ -39,6 +39,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
 CREATE TRIGGER update_tenants_updated_at
   BEFORE UPDATE ON tenants
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -57,19 +58,20 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS maintain_tenant_ancestry_ltree ON tenants;
 CREATE TRIGGER maintain_tenant_ancestry_ltree
   BEFORE INSERT OR UPDATE OF parent_id, slug ON tenants
   FOR EACH ROW EXECUTE FUNCTION maintain_ancestry_ltree();
 
 -- Indexes for tree queries
-CREATE INDEX idx_tenant_parent ON tenants(parent_id);
-CREATE INDEX idx_tenant_ancestry ON tenants USING GIST (ancestry_ltree);
-CREATE INDEX idx_tenant_depth ON tenants(depth);
-CREATE INDEX idx_tenant_slug ON tenants(slug);
-CREATE INDEX idx_tenant_status ON tenants(status) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_tenant_parent ON tenants(parent_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_ancestry ON tenants USING GIST (ancestry_ltree);
+CREATE INDEX IF NOT EXISTS idx_tenant_depth ON tenants(depth);
+CREATE INDEX IF NOT EXISTS idx_tenant_slug ON tenants(slug);
+CREATE INDEX IF NOT EXISTS idx_tenant_status ON tenants(status) WHERE status = 'active';
 
 -- Permission policies table
-CREATE TABLE permission_policies (
+CREATE TABLE IF NOT EXISTS permission_policies (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   key TEXT NOT NULL,
@@ -84,14 +86,15 @@ CREATE TABLE permission_policies (
   UNIQUE(tenant_id, key)
 );
 
-CREATE INDEX idx_permission_source ON permission_policies(source_tenant_id);
+CREATE INDEX IF NOT EXISTS idx_permission_source ON permission_policies(source_tenant_id);
 
+DROP TRIGGER IF EXISTS update_permission_policies_updated_at ON permission_policies;
 CREATE TRIGGER update_permission_policies_updated_at
   BEFORE UPDATE ON permission_policies
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Config entries table
-CREATE TABLE config_entries (
+CREATE TABLE IF NOT EXISTS config_entries (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
@@ -104,6 +107,7 @@ CREATE TABLE config_entries (
   UNIQUE(tenant_id, key)
 );
 
+DROP TRIGGER IF EXISTS update_config_entries_updated_at ON config_entries;
 CREATE TRIGGER update_config_entries_updated_at
   BEFORE UPDATE ON config_entries
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -113,7 +117,7 @@ CREATE TRIGGER update_config_entries_updated_at
 -- like PERMANENT revocation mode. If soft-delete is used (v1 default), CASCADE never fires.
 
 -- API keys table (for control plane auth)
-CREATE TABLE api_keys (
+CREATE TABLE IF NOT EXISTS api_keys (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
   key_hash TEXT NOT NULL,
@@ -124,4 +128,4 @@ CREATE TABLE api_keys (
   revoked_at TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX idx_api_keys_key_hash ON api_keys (key_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys (key_hash);
