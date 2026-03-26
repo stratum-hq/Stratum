@@ -273,12 +273,12 @@ export async function moveTenant(
     }
     const newParent = newParentRes.rows[0];
 
-    // Cycle detection: newParent must not be a descendant of tenant
+    // Cycle detection: newParent must not be a descendant of tenant.
+    // Check if the moving tenant's ID appears in the new parent's ancestry_path
+    // (which would mean the new parent is a descendant of the moving tenant).
     if (
       newParent.id === tenant.id ||
-      isDescendantOf(newParent.ancestry_path, tenant.ancestry_path) ||
-      (newParent.ancestry_path !== "/" &&
-        newParent.ancestry_path.includes(tenant.id))
+      parseAncestryPath(newParent.ancestry_path).includes(tenant.id)
     ) {
       throw new TenantCycleDetectedError(id, newParentId);
     }
