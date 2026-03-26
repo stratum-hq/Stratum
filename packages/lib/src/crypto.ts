@@ -5,10 +5,13 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURRENT_KEY_VERSION = "v1";
 
+const HKDF_SALT: Buffer = process.env.STRATUM_HKDF_SALT
+  ? Buffer.from(process.env.STRATUM_HKDF_SALT, "hex")
+  : Buffer.alloc(32, 0);
+
 function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
-  const salt = Buffer.alloc(32, 0);
   return Buffer.from(
-    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), salt, info, 32),
+    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), HKDF_SALT, info, 32),
   );
 }
 
