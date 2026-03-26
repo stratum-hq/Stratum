@@ -23,6 +23,28 @@ async function api(path: string, body?: unknown, method?: string): Promise<Recor
 async function seed() {
   console.log("Seeding Stratum demo data...\n");
 
+  // WARNING: Demo-only key — never use in production
+  // Insert the demo bootstrap API key so subsequent API calls can authenticate.
+  // This was previously seeded via migration 011 which ran in production deployments.
+  const bootstrapPool = new Pool({
+    connectionString:
+      process.env.DATABASE_URL ||
+      "postgresql://stratum:stratum@localhost:5432/stratum",
+  });
+  await bootstrapPool.query(`
+    INSERT INTO api_keys (id, tenant_id, key_hash, key_prefix, name, scopes)
+    VALUES (
+      'a0000000-0000-0000-0000-000000000001',
+      NULL,
+      '4ce0f9725485398b04b656849919e252167d33adb12b8f0addd7d8b1a7f43e48',
+      'sk_live_demo_',
+      'Demo Bootstrap Key',
+      '{read,write,admin}'
+    )
+    ON CONFLICT DO NOTHING
+  `);
+  await bootstrapPool.end();
+
   // 1. Create tenant hierarchy
   console.log("Creating tenant hierarchy...");
   const acmesec = await api("/tenants", {
