@@ -1,0 +1,17 @@
+{
+  "name": "@stratum-hq/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "echo 'Integration tests require DATABASE_URL. Use: npm run test:integration'",
+    "test:integration": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@stratum-hq/core": "*",
+    "@stratum-hq/lib": "*",
+    "@stratum-hq/db-adapters": "*",
+    "pg": "^8.11.0",
+    "vitest": "^1.6.0",
+    "typescript": "^5.9.3"
+  }
+}
