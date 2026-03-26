@@ -1,0 +1,154 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PermissionEditor > renders without crashing and matches snapshot 1`] = `
+<div>
+  <div
+    class="stratum-permission-editor "
+  >
+    <table
+      class="stratum-permission-editor__table"
+    >
+      <thead>
+        <tr>
+          <th>
+            Key
+          </th>
+          <th>
+            Value
+          </th>
+          <th>
+            Mode
+          </th>
+          <th>
+            Source
+          </th>
+          <th>
+            Status
+          </th>
+          <th>
+            Actions
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            can_export
+          </td>
+          <td>
+            <code>
+              true
+            </code>
+          </td>
+          <td>
+            <span
+              class="stratum-badge stratum-badge--inherited"
+            >
+              INHERITED
+            </span>
+          </td>
+          <td
+            class="stratum-permission-editor__source"
+          >
+            tenant-p
+            ...
+          </td>
+          <td />
+          <td>
+            <button
+              type="button"
+            >
+              Remove
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            can_delete
+          </td>
+          <td>
+            <code>
+              false
+            </code>
+          </td>
+          <td>
+            <span
+              class="stratum-badge stratum-badge--locked"
+            >
+              LOCKED
+            </span>
+          </td>
+          <td
+            class="stratum-permission-editor__source"
+          >
+            tenant-1
+            ...
+          </td>
+          <td>
+            <span
+              class="stratum-badge stratum-badge--locked"
+            >
+              Locked
+            </span>
+          </td>
+          <td />
+        </tr>
+      </tbody>
+    </table>
+    <div
+      class="stratum-permission-editor__add"
+    >
+      <input
+        aria-label="New permission key"
+        placeholder="Permission key"
+        type="text"
+        value=""
+      />
+      <select
+        aria-label="Mode"
+      >
+        <option
+          value="LOCKED"
+        >
+          LOCKED
+        </option>
+        <option
+          value="INHERITED"
+        >
+          INHERITED
+        </option>
+        <option
+          value="DELEGATED"
+        >
+          DELEGATED
+        </option>
+      </select>
+      <select
+        aria-label="Revocation mode"
+      >
+        <option
+          value="CASCADE"
+        >
+          CASCADE
+        </option>
+        <option
+          value="SOFT"
+        >
+          SOFT
+        </option>
+        <option
+          value="PERMANENT"
+        >
+          PERMANENT
+        </option>
+      </select>
+      <button
+        disabled=""
+        type="button"
+      >
+        Add
+      </button>
+    </div>
+  </div>
+</div>
+`;
