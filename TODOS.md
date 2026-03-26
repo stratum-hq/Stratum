@@ -38,9 +38,9 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 
 ## P3 — Nice to Have
 
-- [ ] **SSRF TOCTOU gap in webhook delivery** — DNS resolution check and fetch() resolve independently. DNS rebinding possible. (human: 4 hours / CC: 30 min)
-- [ ] **Key rotation: single-transaction locking** — Large deployments will have extended write locks during rotation. Need batched rotation. (human: 4 hours / CC: 30 min)
-- [ ] **Key rotation: no dual-key read support** — Rolling deployments can't read data during rotation window. (human: 1 day / CC: 1 hour)
-- [ ] **HKDF salt is all-zeros** — Weakens key derivation for cross-deployment scenarios. Add per-deployment salt. (human: 2 hours / CC: 15 min)
+- [x] ~~SSRF TOCTOU gap in webhook delivery~~ → PR #48 (redirect blocking + timeout)
+- [x] ~~Key rotation: single-transaction locking~~ → PR #49 (batched with SKIP LOCKED)
+- [x] ~~Key rotation: no dual-key read support~~ → PR #49 (STRATUM_ENCRYPTION_KEY_PREVIOUS fallback)
+- [x] ~~HKDF salt is all-zeros~~ → PR #48 (configurable via STRATUM_HKDF_SALT)
 - [x] ~~React UI: 0 unit tests~~ → PR #47 (19 snapshot + behavior tests for top 5 components)
-- [ ] **CLI: verify scaffold/scan/playground commands work** — May be stubs. (human: 2 hours / CC: 15 min)
+- [x] ~~CLI: verify scaffold/scan/playground commands work~~ → PR #50 (all functional, version string fixed)
