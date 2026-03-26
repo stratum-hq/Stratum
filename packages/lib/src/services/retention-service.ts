@@ -71,7 +71,9 @@ export async function purgeTenant(
     // Delete in FK-safe order (children before parents)
     await client.query(`DELETE FROM config_entries WHERE tenant_id = $1`, [tenantId]);
     await client.query(`DELETE FROM permission_policies WHERE tenant_id = $1`, [tenantId]);
+    await client.query(`DELETE FROM permission_policies WHERE source_tenant_id = $1`, [tenantId]);
     await client.query(`DELETE FROM api_keys WHERE tenant_id = $1`, [tenantId]);
+    await client.query(`DELETE FROM roles WHERE tenant_id = $1`, [tenantId]);
 
     // Webhook deliveries → webhook events → webhooks
     await client.query(
@@ -88,7 +90,7 @@ export async function purgeTenant(
     await client.query(`DELETE FROM consent_records WHERE tenant_id = $1`, [tenantId]);
 
     // Audit logs
-    await client.query(`DELETE FROM audit_logs WHERE tenant_id = $1`, [tenantId]);
+    await client.query(`DELETE FROM audit_logs WHERE tenant_id = $1 OR (resource_type = 'tenant' AND resource_id = $1)`, [tenantId]);
 
     // Finally, the tenant itself
     await client.query(`DELETE FROM tenants WHERE id = $1`, [tenantId]);
