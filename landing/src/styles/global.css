@@ -264,6 +264,31 @@ a {
     padding-top: 96px;
   }
 }
+@media (max-width: 480px) {
+  .hero {
+    padding-top: 80px;
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .hero h1 {
+    font-size: 2rem;
+  }
+  .hero-subtext {
+    font-size: 0.9375rem;
+  }
+  .hero-actions {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+  .install-box {
+    max-width: 100%;
+  }
+}
 .hero-content {
   max-width: 560px;
 }
@@ -345,7 +370,15 @@ a {
   font-size: 0.8125rem;
   line-height: 1.8;
   color: var(--text-tertiary);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+@media (max-width: 480px) {
+  .hero-diagram {
+    padding: var(--space-4);
+    font-size: 0.6875rem;
+    line-height: 1.6;
+  }
 }
 .hero-diagram .diagram-label {
   font-size: 0.6875rem;
@@ -481,6 +514,10 @@ a {
 }
 @media (max-width: 768px) {
   .feature-diagram-block { grid-template-columns: 1fr; gap: var(--space-6); }
+}
+@media (max-width: 480px) {
+  .isolation-label { min-width: 60px; font-size: 0.6875rem; }
+  .isolation-bar { font-size: 0.625rem; height: 24px; }
 }
 .isolation-diagram {
   display: flex;
@@ -722,13 +759,38 @@ a {
   color: var(--sandstone);
 }
 @media (max-width: 600px) {
-  .pkg-name { width: auto; display: block; }
+  .pkg-name { width: auto; display: block; font-size: 0.75rem; }
   .pkg-actions { display: none; }
   .packages-table, .packages-table tbody, .packages-table tr, .packages-table td {
     display: block;
   }
   .packages-table tr { padding: var(--space-4) 0; }
-  .pkg-desc { padding-top: var(--space-1); }
+  .pkg-desc { padding-top: var(--space-1); font-size: 0.8125rem; }
+}
+
+/* Global mobile padding */
+@media (max-width: 480px) {
+  .features,
+  .packages {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .code-section {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .cta {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .feature-block,
+  .feature-block-large {
+    padding: var(--space-6);
+  }
+  .code-block pre {
+    padding: var(--space-4);
+    font-size: 0.75rem;
+  }
 }
 
 /* ===== CTA ===== */
