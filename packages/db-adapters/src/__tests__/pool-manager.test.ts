@@ -48,64 +48,64 @@ describe("DatabasePoolManager", () => {
   });
 
   describe("slug validation", () => {
-    it("rejects slugs starting with a number", () => {
+    it("rejects slugs starting with a number", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("123acme")).toThrow("Invalid tenant slug");
+      await expect(mgr.getPool("123acme")).rejects.toThrow("Invalid tenant slug");
     });
 
-    it("rejects slugs with uppercase letters", () => {
+    it("rejects slugs with uppercase letters", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("Acme")).toThrow("Invalid tenant slug");
+      await expect(mgr.getPool("Acme")).rejects.toThrow("Invalid tenant slug");
     });
 
-    it("rejects slugs with hyphens", () => {
+    it("rejects slugs with hyphens", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("acme-corp")).toThrow("Invalid tenant slug");
+      await expect(mgr.getPool("acme-corp")).rejects.toThrow("Invalid tenant slug");
     });
 
-    it("rejects slugs with special characters", () => {
+    it("rejects slugs with special characters", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("acme; DROP TABLE")).toThrow("Invalid tenant slug");
+      await expect(mgr.getPool("acme; DROP TABLE")).rejects.toThrow("Invalid tenant slug");
     });
 
-    it("rejects empty slugs", () => {
+    it("rejects empty slugs", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("")).toThrow("Invalid tenant slug");
+      await expect(mgr.getPool("")).rejects.toThrow("Invalid tenant slug");
     });
 
-    it("accepts valid lowercase slugs with underscores", () => {
+    it("accepts valid lowercase slugs with underscores", async () => {
       const mgr = makeManager();
-      expect(() => mgr.getPool("acme_corp")).not.toThrow();
+      await expect(mgr.getPool("acme_corp")).resolves.toBeDefined();
     });
   });
 
   describe("getPool", () => {
-    it("creates a new pool for an unseen tenant slug", () => {
+    it("creates a new pool for an unseen tenant slug", async () => {
       const mgr = makeManager();
-      const pool = mgr.getPool("acme");
+      const pool = await mgr.getPool("acme");
       expect(pool).toBeDefined();
       expect(mgr.getStats().poolCount).toBe(1);
     });
 
-    it("returns the same pool instance on subsequent calls", () => {
+    it("returns the same pool instance on subsequent calls", async () => {
       const mgr = makeManager();
-      const pool1 = mgr.getPool("acme");
-      const pool2 = mgr.getPool("acme");
+      const pool1 = await mgr.getPool("acme");
+      const pool2 = await mgr.getPool("acme");
       expect(pool1).toBe(pool2);
       expect(mgr.getStats().poolCount).toBe(1);
     });
 
-    it("creates separate pools for different slugs", () => {
+    it("creates separate pools for different slugs", async () => {
       const mgr = makeManager();
-      const pool1 = mgr.getPool("acme");
-      const pool2 = mgr.getPool("globex");
+      const pool1 = await mgr.getPool("acme");
+      const pool2 = await mgr.getPool("globex");
       expect(pool1).not.toBe(pool2);
       expect(mgr.getStats().poolCount).toBe(2);
     });
 
-    it("connects to the correct database name", () => {
+    it("connects to the correct database name", async () => {
       const mgr = makeManager();
-      const pool = mgr.getPool("acme") as unknown as { database: string };
+      const pool = (await mgr.getPool("acme")) as unknown as { database: string };
       expect(pool.database).toBe("stratum_tenant_acme");
     });
   });
@@ -114,17 +114,14 @@ describe("DatabasePoolManager", () => {
     it("evicts the least recently used pool when maxPools is exceeded", async () => {
       const mgr = makeManager(2);
 
-      mgr.getPool("tenant_a");
+      await mgr.getPool("tenant_a");
       // Small delay to ensure different timestamps
       await new Promise((r) => setTimeout(r, 2));
-      mgr.getPool("tenant_b");
+      await mgr.getPool("tenant_b");
 
       // tenant_a is now the LRU entry; adding tenant_c should evict it.
       await new Promise((r) => setTimeout(r, 2));
-      mgr.getPool("tenant_c");
-
-      // Allow the async eviction microtask to complete.
-      await new Promise((r) => setTimeout(r, 10));
+      await mgr.getPool("tenant_c");
 
       expect(mockPoolEnd).toHaveBeenCalledTimes(1);
       // poolCount should be back to maxPools (2) after eviction.
@@ -134,18 +131,17 @@ describe("DatabasePoolManager", () => {
     it("updates lastUsed when an existing pool is accessed", async () => {
       const mgr = makeManager(2);
 
-      mgr.getPool("tenant_a");
+      await mgr.getPool("tenant_a");
       await new Promise((r) => setTimeout(r, 2));
-      mgr.getPool("tenant_b");
+      await mgr.getPool("tenant_b");
       await new Promise((r) => setTimeout(r, 2));
 
       // Re-access tenant_a to make it the most recently used.
-      mgr.getPool("tenant_a");
+      await mgr.getPool("tenant_a");
       await new Promise((r) => setTimeout(r, 2));
 
       // Now tenant_b is the LRU; adding tenant_c should evict tenant_b.
-      mgr.getPool("tenant_c");
-      await new Promise((r) => setTimeout(r, 10));
+      await mgr.getPool("tenant_c");
 
       expect(mockPoolEnd).toHaveBeenCalledTimes(1);
       // tenant_a and tenant_c should remain.
@@ -156,7 +152,7 @@ describe("DatabasePoolManager", () => {
   describe("closePool", () => {
     it("closes and removes the specified pool", async () => {
       const mgr = makeManager();
-      mgr.getPool("acme");
+      await mgr.getPool("acme");
       expect(mgr.getStats().poolCount).toBe(1);
 
       await mgr.closePool("acme");
@@ -174,9 +170,9 @@ describe("DatabasePoolManager", () => {
   describe("closeAll", () => {
     it("closes all pools", async () => {
       const mgr = makeManager(10);
-      mgr.getPool("a");
-      mgr.getPool("b");
-      mgr.getPool("c");
+      await mgr.getPool("a");
+      await mgr.getPool("b");
+      await mgr.getPool("c");
       expect(mgr.getStats().poolCount).toBe(3);
 
       await mgr.closeAll();
@@ -197,10 +193,10 @@ describe("DatabasePoolManager", () => {
       expect(mgr.getStats()).toEqual({ poolCount: 0, activeConnections: 0 });
     });
 
-    it("reflects current pool count", () => {
+    it("reflects current pool count", async () => {
       const mgr = makeManager(10);
-      mgr.getPool("x");
-      mgr.getPool("y");
+      await mgr.getPool("x");
+      await mgr.getPool("y");
       expect(mgr.getStats().poolCount).toBe(2);
     });
   });
