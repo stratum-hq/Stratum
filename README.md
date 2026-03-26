@@ -5,7 +5,7 @@
 <h1 align="center">Stratum</h1>
 
 <p align="center">
-  <strong>Universal Tenant Context Engine</strong> — hierarchical multi-tenancy for any stack.
+  <strong>Drop-in multi-tenancy for Node.js</strong> — tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.
 </p>
 
 <p align="center">
@@ -18,7 +18,17 @@
 
 ---
 
-Stratum gives you hierarchical multi-tenancy with config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance, and multi-region support. Built for MSSP/MSP/client architectures and any product that needs nested tenant boundaries.
+Stratum gives you hierarchical multi-tenancy with config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance, and multi-region support. Built for B2B SaaS, MSSP/MSP architectures, and any product that needs nested tenant boundaries.
+
+## Why not just `tenant_id`?
+
+Every SaaS team starts with `tenant_id` on every table. It works — until it doesn't:
+
+- **Month 6**: Enterprise customer needs custom config → hand-rolled config tables with no inheritance
+- **Month 12**: Compliance audit → scramble to add audit logging, data export, purge capabilities
+- **Month 18**: Large customer demands data isolation → painful migration from shared tables to schema-per-tenant
+
+Stratum gives you all of this from day one. Start with flat tenancy, grow into hierarchy, config inheritance, permissions, and isolation strategies as your product matures.
 
 ## Install
 
@@ -83,7 +93,7 @@ const config = await stratum.resolveConfig(msp.id);
 - **Config diff** — compare resolved config between any two tenants
 - **Tenant impersonation** — resolve full context for admin tooling
 - **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **290+ tests** — unit, integration, and mock-based across all packages
+- **250+ unit tests + 20 integration tests** — validated against real PostgreSQL 16
 
 ## Running the Demo
 
@@ -112,8 +122,19 @@ Covers: getting started, guides (hierarchy, config, permissions, isolation, API 
 ```bash
 npm install              # Install dependencies
 npm run build            # Build all packages
-npm test                 # Run 290+ tests
+npm test                 # Run unit tests
 npx @stratum-hq/cli doctor  # Check your DB setup
+```
+
+### Integration Tests
+
+Integration tests run against real PostgreSQL:
+
+```bash
+docker compose --profile test up -d test-db
+cd packages/integration-tests
+DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test \
+  npx vitest run
 ```
 
 ### Environment Variables
