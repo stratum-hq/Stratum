@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/control-plane",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stratum control plane REST API server",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

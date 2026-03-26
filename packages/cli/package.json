@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stratum CLI — project scaffolding, database migration, and developer tools",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

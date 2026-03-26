@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Stratum Node.js SDK for multi-tenant context propagation",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

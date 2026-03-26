@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.2.0 (2026-03-26)
+## 0.2.1 (2026-03-26)
+
+Republish with all security fixes, integration tests, design overhaul, structured logging,
+and bug fixes. The 0.2.0 release on npm was published from pre-fix sandbox code on Mar 22.
+**If you are on 0.2.0, upgrade immediately** — it contains critical security issues.
+
+Note: `@stratum-hq/react` is at 0.2.2 (0.2.1 was previously occupied on npm).
+
+## 0.2.0 (2026-03-22) — DEPRECATED
 
 ### Security Fixes
 - **fix(control-plane):** Verify JWT tenant_id claims against database — prevents tenant impersonation
