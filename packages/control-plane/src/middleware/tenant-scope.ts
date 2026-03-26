@@ -19,7 +19,15 @@ export function createTenantScopeGuard(
     _reply: FastifyReply,
   ): Promise<void> {
     const apiKey = request.apiKey;
-    if (!apiKey || apiKey.tenant_id === null) return;
+    if (!apiKey) return;
+
+    // Only API keys may have global (null tenant_id) access.
+    // JWT auth should never reach here with null tenant_id after the auth middleware
+    // fix, but guard defensively anyway.
+    if (apiKey.tenant_id === null) {
+      if (request.authMethod === "api_key") return;
+      throw new ForbiddenError("JWT authentication requires a tenant scope");
+    }
 
     const targetTenantId = extractTenantId(request);
     if (!targetTenantId) return;
