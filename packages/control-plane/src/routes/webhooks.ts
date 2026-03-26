@@ -2,29 +2,61 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
+import { createTenantScopeGuard, fromBodyTenantId } from "../middleware/tenant-scope.js";
 
 /**
  * Post-fetch tenant access check for webhook routes.
  * Used after loading a webhook by ID to verify the caller's key
  * has access to the webhook's tenant.
- * Global keys (tenant_id = null) have unrestricted access.
+ *
+ * - Global keys (tenant_id = null) have unrestricted access.
+ * - Global webhooks (tenant_id = null) are only accessible to global-scope keys.
+ * - Scoped keys may access webhooks belonging to their tenant or any descendant.
  */
-function assertTenantAccess(request: FastifyRequest, webhookTenantId: string | null): void {
+async function assertTenantAccess(
+  request: FastifyRequest,
+  webhookTenantId: string | null,
+  stratum: Stratum,
+): Promise<void> {
   const apiKey = request.apiKey;
-  if (!apiKey || apiKey.tenant_id === null) return;
-  if (webhookTenantId !== null && apiKey.tenant_id !== webhookTenantId) {
+  if (!apiKey) return;
+
+  // Global key: unrestricted access
+  if (apiKey.tenant_id === null) return;
+
+  // Scoped key cannot access global webhooks
+  if (webhookTenantId === null) {
     throw new ForbiddenError("API key does not have access to this webhook's tenant");
   }
+
+  // Fast path: exact match
+  if (apiKey.tenant_id === webhookTenantId) return;
+
+  // Hierarchy check: webhook's tenant must be a descendant of the key's tenant
+  try {
+    const target = await stratum.getTenant(webhookTenantId);
+    const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
+    if (ancestorIds.includes(apiKey.tenant_id)) return;
+  } catch {
+    // Tenant not found — fail closed for scoped keys
+    throw new ForbiddenError("API key does not have access to this webhook's tenant");
+  }
+
+  throw new ForbiddenError("API key does not have access to this webhook's tenant");
 }
 
 export function createWebhookRoutes(stratum: Stratum) {
   return async function webhookRoutes(app: FastifyInstance): Promise<void> {
+    // Tenant-scoped keys can only access webhooks for their own tenant subtree.
+    // This guard covers the POST / (create) route where tenant_id is in the body.
+    app.addHook("preHandler", createTenantScopeGuard(stratum, fromBodyTenantId));
+
     // POST /api/v1/webhooks — Create webhook
     app.post("/", async (request, reply) => {
       const input = CreateWebhookInputSchema.parse(request.body);
-      // Tenant-scoped keys can only create webhooks for their own tenant
-      if (request.apiKey?.tenant_id !== null && input.tenant_id !== null) {
-        assertTenantAccess(request, input.tenant_id);
+      // Scoped keys cannot create global webhooks
+      if (request.apiKey?.tenant_id !== null && input.tenant_id === null) {
+        throw new ForbiddenError("API key does not have access to create global webhooks");
       }
       const webhook = await stratum.createWebhook(input, buildAuditContext(request));
       reply.status(201).send(webhook);
@@ -32,23 +64,41 @@ export function createWebhookRoutes(stratum: Stratum) {
 
     // GET /api/v1/webhooks — List webhooks (optional ?tenant_id=)
     app.get<{ Querystring: { tenant_id?: string } }>("/", async (request, reply) => {
-      // Tenant-scoped keys can only list their own tenant's webhooks
-      const tenantId = request.apiKey?.tenant_id ?? request.query.tenant_id;
-      const webhooks = await stratum.listWebhooks(tenantId);
-      reply.status(200).send(webhooks);
+      const scopedTenantId = request.apiKey?.tenant_id;
+
+      if (scopedTenantId) {
+        // Scoped keys: list webhooks for their tenant and all descendants
+        const descendants = await stratum.getDescendants(scopedTenantId);
+        const allowedIds = new Set([scopedTenantId, ...descendants.map((d) => d.id)]);
+        const queryTenantId = request.query.tenant_id;
+
+        // If caller filtered by a specific tenant, ensure it's in the allowed set
+        const fetchTenantId = queryTenantId ?? scopedTenantId;
+        if (!allowedIds.has(fetchTenantId)) {
+          throw new ForbiddenError("API key does not have access to this tenant's webhooks");
+        }
+
+        const webhooks = await stratum.listWebhooks(fetchTenantId);
+        // Exclude global webhooks from scoped key responses
+        reply.status(200).send(webhooks.filter((w) => w.tenant_id !== null));
+      } else {
+        // Global key: return all (or filtered by query param)
+        const webhooks = await stratum.listWebhooks(request.query.tenant_id);
+        reply.status(200).send(webhooks);
+      }
     });
 
     // GET /api/v1/webhooks/:id — Get webhook
     app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const webhook = await stratum.getWebhook(request.params.id);
-      assertTenantAccess(request, webhook.tenant_id);
+      await assertTenantAccess(request, webhook.tenant_id, stratum);
       reply.status(200).send(webhook);
     });
 
     // PATCH /api/v1/webhooks/:id — Update webhook
     app.patch<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const existing = await stratum.getWebhook(request.params.id);
-      assertTenantAccess(request, existing.tenant_id);
+      await assertTenantAccess(request, existing.tenant_id, stratum);
       const input = UpdateWebhookInputSchema.parse(request.body);
       const webhook = await stratum.updateWebhook(request.params.id, input, buildAuditContext(request));
       reply.status(200).send(webhook);
@@ -57,7 +107,7 @@ export function createWebhookRoutes(stratum: Stratum) {
     // DELETE /api/v1/webhooks/:id — Delete webhook
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const existing = await stratum.getWebhook(request.params.id);
-      assertTenantAccess(request, existing.tenant_id);
+      await assertTenantAccess(request, existing.tenant_id, stratum);
       await stratum.deleteWebhook(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
@@ -65,7 +115,7 @@ export function createWebhookRoutes(stratum: Stratum) {
     // GET /api/v1/webhooks/:id/deliveries — List deliveries for a webhook
     app.get<{ Params: { id: string } }>("/:id/deliveries", async (request, reply) => {
       const webhook = await stratum.getWebhook(request.params.id);
-      assertTenantAccess(request, webhook.tenant_id);
+      await assertTenantAccess(request, webhook.tenant_id, stratum);
       const deliveries = await stratum.listWebhookDeliveries(request.params.id);
       reply.status(200).send(deliveries);
     });
@@ -73,7 +123,7 @@ export function createWebhookRoutes(stratum: Stratum) {
     // POST /api/v1/webhooks/:id/test — Send test event
     app.post<{ Params: { id: string } }>("/:id/test", async (request, reply) => {
       const webhook = await stratum.getWebhook(request.params.id);
-      assertTenantAccess(request, webhook.tenant_id);
+      await assertTenantAccess(request, webhook.tenant_id, stratum);
       const result = await stratum.testWebhook(request.params.id);
       reply.status(200).send(result);
     });
