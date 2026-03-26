@@ -31,9 +31,9 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 - [x] ~~Config inheritance: archived parent lock disagreement~~ → PR #42
 - [x] ~~No circular parent detection~~ → PR #42
 - [x] ~~No structured logging in lib package~~ → PR #43
-- [ ] **Webhook routes inconsistent access control** — Global webhooks visible to every scoped key. Webhook routes lack tenant-scope guard at plugin level. (human: 2 hours / CC: 15 min)
-- [ ] **Connection pool has no queue depth limit** — 1000 concurrent requests queue for 5 seconds each with no circuit breaker. (human: 2 hours / CC: 15 min)
-- [ ] **Pool eviction race condition** — void this.evictLRU() fire-and-forgets pool drain. (human: 1 hour / CC: 10 min)
+- [x] ~~Webhook routes inconsistent access control~~ → PR #45
+- [x] ~~Connection pool has no queue depth limit~~ → PR #46
+- [x] ~~Pool eviction race condition~~ → PR #46
 - [ ] **Add changesets for monorepo version management** — No automated changelog or semantic versioning. (human: 2 hours / CC: 15 min)
 
 ## P3 — Nice to Have
@@ -42,5 +42,5 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 - [ ] **Key rotation: single-transaction locking** — Large deployments will have extended write locks during rotation. Need batched rotation. (human: 4 hours / CC: 30 min)
 - [ ] **Key rotation: no dual-key read support** — Rolling deployments can't read data during rotation window. (human: 1 day / CC: 1 hour)
 - [ ] **HKDF salt is all-zeros** — Weakens key derivation for cross-deployment scenarios. Add per-deployment salt. (human: 2 hours / CC: 15 min)
-- [ ] **React UI: 0 unit tests** — 33 TSX files with no tests. Add snapshot tests for top 5 components. (human: 1 day / CC: 15 min)
+- [x] ~~React UI: 0 unit tests~~ → PR #47 (19 snapshot + behavior tests for top 5 components)
 - [ ] **CLI: verify scaffold/scan/playground commands work** — May be stubs. (human: 2 hours / CC: 15 min)
