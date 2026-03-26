@@ -19,7 +19,7 @@ export class DatabaseRawAdapter {
     text: string,
     values?: unknown[],
   ): Promise<pg.QueryResult<T>> {
-    const pool = this.poolManager.getPool(tenantSlug);
+    const pool = await this.poolManager.getPool(tenantSlug);
     const client = await pool.connect();
     try {
       return await client.query<T>(text, values);
@@ -36,7 +36,7 @@ export class DatabaseRawAdapter {
     tenantSlug: string,
     queryFn: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    const pool = this.poolManager.getPool(tenantSlug);
+    const pool = await this.poolManager.getPool(tenantSlug);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
