@@ -175,7 +175,7 @@ export async function getWebhooksForEvent(
 ): Promise<Webhook[]> {
   return withClient(pool, async (client) => {
     const res = await client.query<Webhook>(
-      `SELECT ${WEBHOOK_PUBLIC_COLS}, secret_encrypted FROM webhooks
+      `SELECT ${WEBHOOK_PUBLIC_COLS}, secret_hash FROM webhooks
        WHERE active = true
          AND $1 = ANY(events)
          AND (tenant_id IS NULL OR tenant_id = $2)`,
