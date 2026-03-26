@@ -25,7 +25,7 @@ function getEncryptionKey(): Buffer {
 }
 
 function deriveKey(keyMaterial: string): Buffer {
-  return hkdfDeriveKey(keyMaterial, "stratum-rotation-key");
+  return hkdfDeriveKey(keyMaterial, "stratum-aes-key");
 }
 
 function encryptWithKey(plaintext: string, key: Buffer): string {
