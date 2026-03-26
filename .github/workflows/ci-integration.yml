@@ -1,0 +1,38 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: stratum_test
+          POSTGRES_PASSWORD: stratum_test
+          POSTGRES_DB: stratum_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U stratum_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://stratum_test:stratum_test@localhost:5433/stratum_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run integration tests
+        run: cd packages/integration-tests && npx vitest run --config vitest.config.ts
