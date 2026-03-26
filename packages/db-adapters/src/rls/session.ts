@@ -4,11 +4,26 @@ export async function setTenantContext(
   client: pg.PoolClient,
   tenantId: string,
 ): Promise<void> {
-  await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+  await client.query("SELECT set_config('app.current_tenant_id', $1, false)", [tenantId]);
 }
 
 export async function resetTenantContext(client: pg.PoolClient): Promise<void> {
-  await client.query("RESET app.current_tenant_id");
+  await client.query("SELECT set_config('app.current_tenant_id', '', false)");
+}
+
+export async function withTenantContext<T>(
+  pool: pg.Pool,
+  tenantId: string,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await setTenantContext(client, tenantId);
+    return await fn(client);
+  } finally {
+    await resetTenantContext(client);
+    client.release();
+  }
 }
 
 export async function getCurrentTenantId(
