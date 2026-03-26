@@ -51,7 +51,7 @@ export class DatabasePoolManager {
    * When a regionId is provided, the pool is keyed as `regionId:slug` to support
    * multi-region deployments where the same slug may exist in different regions.
    */
-  getPool(tenantSlug: string, regionId?: string): pg.Pool {
+  async getPool(tenantSlug: string, regionId?: string): Promise<pg.Pool> {
     this.validateSlug(tenantSlug);
     const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
     const existing = this.pools.get(poolKey);
@@ -62,7 +62,7 @@ export class DatabasePoolManager {
 
     // Evict before adding so we never exceed maxPools.
     if (this.pools.size >= this.maxPools) {
-      void this.evictLRU();
+      await this.evictLRU();
     }
 
     const dbName = `stratum_tenant_${tenantSlug}`;
@@ -76,11 +76,24 @@ export class DatabasePoolManager {
     return pool;
   }
 
-  /** Closes and removes the pool for the given tenant slug. No-op if not found. */
-  async closePool(tenantSlug: string): Promise<void> {
-    const entry = this.pools.get(tenantSlug);
+  /** Closes and removes the pool for the given tenant slug. No-op if not found.
+   * Accepts either a bare slug or a region-prefixed key (`regionId:slug`). */
+  async closePool(tenantSlug: string, regionId?: string): Promise<void> {
+    const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
+    // Also check for any region-prefixed key that ends with this slug when
+    // no regionId is provided, so callers don't have to know the prefix.
+    let resolvedKey = poolKey;
+    if (!this.pools.has(poolKey) && !regionId) {
+      for (const key of this.pools.keys()) {
+        if (key === tenantSlug || key.endsWith(`:${tenantSlug}`)) {
+          resolvedKey = key;
+          break;
+        }
+      }
+    }
+    const entry = this.pools.get(resolvedKey);
     if (!entry) return;
-    this.pools.delete(tenantSlug);
+    this.pools.delete(resolvedKey);
     await entry.pool.end();
   }
 
