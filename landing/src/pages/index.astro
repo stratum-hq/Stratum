@@ -15,81 +15,202 @@ import '../styles/global.css';
     <div class="nav-links">
       <a href="https://docs.stratum-hq.org">Docs</a>
       <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">&#9788;</button>
-      <a href="https://github.com/stratum-hq/Stratum" class="nav-cta">Get Started</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
     </div>
   </div>
 </nav>
 
 <!-- Hero -->
 <section class="hero">
-  <div class="hero-badge">Open Source — MIT License</div>
-  <h1>Multi-tenancy that <span class="accent">flows</span></h1>
-  <p>
-    Hierarchical tenant trees with config inheritance, permission delegation,
-    and three isolation strategies. Built for MSSP/MSP/client architectures.
-    Add to any Node.js stack in minutes.
-  </p>
-  <div class="hero-actions">
-    <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Quick Start</a>
-    <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
-    <a href="https://docs.stratum-hq.org" class="btn-secondary">Read the Docs</a>
+  <div class="hero-content">
+    <h1>Multi-tenancy that <span class="accent">flows</span></h1>
+    <p class="hero-subtext">
+      Hierarchical tenant trees with config inheritance, permission delegation,
+      and three isolation strategies. Built for MSSP, MSP, and SaaS platform architectures.
+    </p>
+    <div class="hero-actions">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+    <div class="install-box">
+      <code>npm install <span class="pkg">@stratum-hq/lib</span></code>
+      <button class="install-copy" id="copy-btn" aria-label="Copy install command">copy</button>
+    </div>
   </div>
-  <div class="install-box">
-    <code>npm install <span class="accent">@stratum-hq/lib</span></code>
-    <button class="install-copy" id="copy-btn">Copy</button>
+
+  <!-- ASCII-style tenant tree diagram -->
+  <div class="hero-diagram" aria-hidden="true">
+    <div class="diagram-label">tenant hierarchy</div>
+<pre>
+<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">← root tenant</span>
+<span class="tree-dim">├──</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">← reseller</span>
+<span class="tree-dim">│   ├──</span> <span class="tree-leaf">client-alpha</span>
+<span class="tree-dim">│   │   ├──</span> <span class="tree-leaf">team-eng</span>
+<span class="tree-dim">│   │   └──</span> <span class="tree-leaf">team-ops</span>
+<span class="tree-dim">│   └──</span> <span class="tree-leaf">client-beta</span>
+<span class="tree-dim">└──</span> <span class="tree-mid">Apex Partners</span>
+<span class="tree-dim">    ├──</span> <span class="tree-leaf">client-gamma</span>
+<span class="tree-dim">    └──</span> <span class="tree-leaf">client-delta</span>
+</pre>
+    <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.375rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
+        <span style="color: var(--sandstone); font-family: var(--font-mono);">max_users: 1000</span>
+        <span style="color: var(--text-tertiary);">inherited root &#8594; all children</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
+        <span style="color: var(--accent); font-family: var(--font-mono);">data_region: locked</span>
+        <span style="color: var(--text-tertiary);">children cannot override</span>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- Features -->
 <section class="features">
-  <div class="features-header">
-    <h2>Everything you need for multi-tenancy</h2>
-    <p>One library. No vendor lock-in. Works with your existing stack.</p>
+  <div class="features-heading">
+    <h2>Built for hierarchical tenant architectures</h2>
+    <p>Every feature maps to a real problem in multi-tenant SaaS — not a marketing checklist.</p>
   </div>
-  <div class="features-grid">
-    <div class="feature-card">
-      <div class="feature-icon">🌳</div>
+
+  <!-- Row 1: feature block + code snippet -->
+  <div class="features-row-primary">
+    <div class="feature-block">
+      <div class="feature-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="3" r="2"/>
+          <circle cx="5" cy="12" r="2"/>
+          <circle cx="19" cy="12" r="2"/>
+          <circle cx="5" cy="21" r="2"/>
+          <circle cx="19" cy="21" r="2"/>
+          <line x1="12" y1="5" x2="5" y2="10"/>
+          <line x1="12" y1="5" x2="19" y2="10"/>
+          <line x1="5" y1="14" x2="5" y2="19"/>
+          <line x1="19" y1="14" x2="19" y2="19"/>
+        </svg>
+      </div>
       <h3>Tenant Hierarchy</h3>
-      <p>Tree-structured tenants with PostgreSQL ltree. Advisory locks prevent race conditions. Up to 20 levels deep.</p>
+      <p>Tree-structured tenants backed by PostgreSQL ltree. Advisory locks prevent race conditions during concurrent writes. Supports up to 20 levels deep with O(1) ancestor lookups.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">⬇️</div>
+    <div class="feature-block" style="background: var(--surface-0);">
+      <div class="feature-icon">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="21" x2="4" y2="14"/>
+          <line x1="4" y1="10" x2="4" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12" y2="3"/>
+          <line x1="20" y1="21" x2="20" y2="16"/>
+          <line x1="20" y1="12" x2="20" y2="3"/>
+          <line x1="1" y1="14" x2="7" y2="14"/>
+          <line x1="9" y1="8" x2="15" y2="8"/>
+          <line x1="17" y1="16" x2="23" y2="16"/>
+        </svg>
+      </div>
       <h3>Config Inheritance</h3>
-      <p>Values flow root to leaf. Children inherit, override, or are blocked by locked keys. Batch updates with partial success.</p>
+      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by locked keys. Batch updates with partial success — one bad key doesn't abort the whole transaction.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">🔐</div>
+  </div>
+
+  <!-- Row 2: isolation diagram -->
+  <div class="features-row-diagram">
+    <div class="feature-diagram-block">
+      <div>
+        <div class="feature-icon" style="width: 36px; height: 36px;">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+        </div>
+        <h3>Three Isolation Strategies</h3>
+        <p>Shared tables with RLS, schema-per-tenant, or database-per-tenant. Choose per tenant. Mix strategies in a single deployment as your compliance requirements evolve.</p>
+      </div>
+      <div class="isolation-diagram" aria-label="Isolation strategy comparison">
+        <div style="font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;">isolation model</div>
+        <div class="isolation-row">
+          <span class="isolation-label">shared RLS</span>
+          <span class="isolation-bar shared">row_security = on · lowest cost</span>
+        </div>
+        <div class="isolation-row">
+          <span class="isolation-label">schema</span>
+          <span class="isolation-bar schema">search_path = tenant_slug</span>
+        </div>
+        <div class="isolation-row">
+          <span class="isolation-label">database</span>
+          <span class="isolation-bar db">separate PG instance</span>
+        </div>
+        <div style="margin-top: 1rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.6;">
+          <span style="color: var(--text-secondary);">stratum.setIsolation(tenantId, "schema")</span><br/>
+          <span>// switch strategies without data migration</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: 3 compact items -->
+  <div class="features-row-compact">
+    <div class="feature-compact">
+      <div class="feature-compact-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9 12 11 14 15 10"/>
+        </svg>
+      </div>
       <h3>Permission Delegation</h3>
-      <p>LOCKED, INHERITED, or DELEGATED modes. Cascade, soft, or permanent revocation. Full control over permission flow.</p>
+      <p>LOCKED, INHERITED, or DELEGATED modes. Cascade, soft, or permanent revocation. Fine-grained control at every node of the tree.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">🛡️</div>
-      <h3>Three Isolation Strategies</h3>
-      <p>Shared RLS, schema-per-tenant, or database-per-tenant. Pick per tenant. Mix strategies in one deployment.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🔒</div>
+    <div class="feature-compact">
+      <div class="feature-compact-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
       <h3>Field Encryption + GDPR</h3>
-      <p>AES-256-GCM for sensitive values. Data export (Article 20) and hard purge (Article 17). Consent tracking built in.</p>
+      <p>AES-256-GCM for sensitive values at rest. Data export (Article 20) and hard purge (Article 17). Consent tracking with audit trail.</p>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">📊</div>
+    <div class="feature-compact">
+      <div class="feature-compact-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
       <h3>Audit + Observability</h3>
-      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting. Webhook events with DLQ.</p>
+      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting and webhook delivery with dead-letter queue.</p>
     </div>
   </div>
 </section>
 
 <!-- Code Example -->
 <section class="code-section">
-  <div class="code-section-header">
-    <h2>Simple to integrate</h2>
-    <p>Five lines to hierarchical multi-tenancy.</p>
-  </div>
-  <div class="code-block">
-    <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
+  <div class="code-section-inner">
+    <div class="code-section-text">
+      <h2>Five lines to a working hierarchy</h2>
+      <p>
+        Connect a Postgres pool, create tenants with parent references,
+        and config resolves automatically up the tree. No migrations to
+        hand-write, no join tables to manage.
+      </p>
+    </div>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-filename">setup.ts</span>
+      </div>
+      <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
 <span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
 
 <span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>() &#125;);
@@ -99,93 +220,112 @@ import '../styles/global.css';
 <span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>(&#123; name: <span class="str">"NorthStar"</span>, parent_id: root.id &#125;);
 
 <span class="cm">// Config inherits automatically</span>
-<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, &#123; value: <span class="acc">1000</span>, locked: <span class="acc">false</span> &#125;);
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">1000</span>, locked: <span class="num">false</span> &#125;);
 <span class="kw">const</span> config = <span class="kw">await</span> stratum.<span class="fn">resolveConfig</span>(msp.id);
-<span class="cm">// → max_users: 1000, inherited: true, source: root</span>`} />
+<span class="cm">// &#8594; max_users: 1000, inherited: true, source: "acmesec"</span>`} />
+    </div>
   </div>
 </section>
 
 <!-- Packages -->
 <section class="packages">
   <div class="packages-inner">
-    <h2>8 packages. Pick what you need.</h2>
-    <p class="subtitle">All published to npm under @stratum-hq/*</p>
-    <div class="packages-grid">
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/core</div>
-        <div class="pkg-desc">Types, Zod schemas, error classes</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/lib</div>
-        <div class="pkg-desc">Direct library — tenants, config, permissions, audit, GDPR</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/control-plane</div>
-        <div class="pkg-desc">Fastify v5 REST API with auth, scopes, OTel</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/sdk</div>
-        <div class="pkg-desc">HTTP client, LRU cache, Express/Fastify middleware, tenant impersonation</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/db-adapters</div>
-        <div class="pkg-desc">PostgreSQL — raw pg, Prisma, RLS, schema isolation</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/react</div>
-        <div class="pkg-desc">Tenant tree, config editor, inheritance visualizer, permission editor</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/cli</div>
-        <div class="pkg-desc">Project init, migrate, scaffold, doctor</div>
-      </div>
-      <div class="pkg-card">
-        <div class="pkg-name">@stratum-hq/demo</div>
-        <div class="pkg-desc">Full MSSP dashboard — dark mode, CRUD, webhooks, RLS isolation</div>
-      </div>
+    <div class="packages-heading">
+      <h2>8 packages. Pick what you need.</h2>
+      <p>All published to npm under <code style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--sandstone);">@stratum-hq/*</code></p>
     </div>
+    <table class="packages-table" aria-label="Stratum packages">
+      <tbody>
+        <tr>
+          <td class="pkg-name">@stratum-hq/core</td>
+          <td class="pkg-desc">Types, Zod schemas, error classes <span class="pkg-tag">required</span></td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/core" class="pkg-link" aria-label="@stratum-hq/core on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/lib</td>
+          <td class="pkg-desc">Direct library — tenants, config, permissions, audit, GDPR <span class="pkg-tag">start here</span></td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/lib" class="pkg-link" aria-label="@stratum-hq/lib on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/control-plane</td>
+          <td class="pkg-desc">Fastify v5 REST API with auth, scopes, OpenTelemetry</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/control-plane" class="pkg-link" aria-label="@stratum-hq/control-plane on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/sdk</td>
+          <td class="pkg-desc">HTTP client, LRU cache, Express/Fastify middleware, tenant impersonation</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/sdk" class="pkg-link" aria-label="@stratum-hq/sdk on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/db-adapters</td>
+          <td class="pkg-desc">PostgreSQL — raw pg, Prisma, RLS, schema isolation</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/db-adapters" class="pkg-link" aria-label="@stratum-hq/db-adapters on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/react</td>
+          <td class="pkg-desc">Tenant tree, config editor, inheritance visualizer, permission editor</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/react" class="pkg-link" aria-label="@stratum-hq/react on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/cli</td>
+          <td class="pkg-desc">Project init, migrate, scaffold, doctor</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/cli" class="pkg-link" aria-label="@stratum-hq/cli on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/demo</td>
+          <td class="pkg-desc">Full MSSP dashboard — dark mode, CRUD, webhooks, RLS isolation</td>
+          <td class="pkg-actions"><a href="https://github.com/stratum-hq/Stratum" class="pkg-link" aria-label="@stratum-hq/demo on GitHub">gh &rarr;</a></td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="cta">
-  <h2>Ready to ship multi-tenancy?</h2>
-  <p>Stratum is open source, published on npm, and ready for production.</p>
-  <div class="cta-links">
-    <a href="https://docs.stratum-hq.org/getting-started/installation" class="btn-primary">Read the Docs</a>
-    <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">Star on GitHub</a>
+  <div class="cta-inner">
+    <h2>Start <span class="accent">building.</span></h2>
+    <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
   </div>
 </section>
 
 <!-- Footer -->
 <footer class="footer">
-  <div class="footer-links">
-    <a href="https://docs.stratum-hq.org">Documentation</a>
-    <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-    <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
-    <a href="https://github.com/stratum-hq/stratum-python">Python SDK</a>
-    <a href="https://github.com/stratum-hq/stratum-go">Go SDK</a>
+  <div class="footer-inner">
+    <p class="footer-meta">
+      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    </div>
   </div>
-  <p>MIT License &middot; Built by <a href="https://github.com/stratum-hq">Stratum HQ</a></p>
 </footer>
 
 <script>
-  // Copy button
+  // Copy install command
   document.getElementById('copy-btn')?.addEventListener('click', () => {
     navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg');
-    const btn = document.getElementById('copy-btn');
-    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+    const btn = document.getElementById('copy-btn') as HTMLButtonElement;
+    if (btn) {
+      btn.textContent = 'copied';
+      setTimeout(() => { btn.textContent = 'copy'; }, 2000);
+    }
   });
 
   // Theme toggle
   const toggle = document.getElementById('theme-toggle');
   const html = document.documentElement;
 
+  const sunIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+  const moonIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+
   // Load saved preference (default: dark)
   const saved = localStorage.getItem('stratum-theme');
   if (saved === 'light') {
     html.setAttribute('data-theme', 'light');
-    if (toggle) toggle.textContent = '\u263D';
+    if (toggle) toggle.innerHTML = moonIcon;
   }
 
   toggle?.addEventListener('click', () => {
@@ -193,11 +333,11 @@ import '../styles/global.css';
     if (isLight) {
       html.removeAttribute('data-theme');
       localStorage.setItem('stratum-theme', 'dark');
-      toggle.textContent = '\u2604';
+      if (toggle) toggle.innerHTML = sunIcon;
     } else {
       html.setAttribute('data-theme', 'light');
       localStorage.setItem('stratum-theme', 'light');
-      toggle.textContent = '\u263D';
+      if (toggle) toggle.innerHTML = moonIcon;
     }
   });
 </script>
