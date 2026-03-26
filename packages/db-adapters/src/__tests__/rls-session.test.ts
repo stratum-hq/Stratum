@@ -36,7 +36,7 @@ describe("RLS Session", () => {
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(call[0]).toBe(
-        "SELECT set_config('app.current_tenant_id', $1, true)",
+        "SELECT set_config('app.current_tenant_id', $1, false)",
       );
       expect(call[1]).toEqual(["tenant-abc-123"]);
     });
@@ -49,12 +49,13 @@ describe("RLS Session", () => {
       expect(params).toEqual(["f47ac10b-58cc-4372-a567-0e02b2c3d479"]);
     });
 
-    it("uses transaction-local scope (third arg true)", async () => {
+    it("uses session-level scope (third arg false)", async () => {
       await setTenantContext(client, "any-tenant");
 
       const sql = (client.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      // The third argument to set_config is `true`, meaning transaction-local
-      expect(sql).toContain("true");
+      // The third argument to set_config is `false`, meaning session-level
+      // (not transaction-local) so context persists even without a transaction
+      expect(sql).toContain("false");
     });
   });
 
@@ -63,19 +64,11 @@ describe("RLS Session", () => {
   // -----------------------------------------------------------------------
 
   describe("resetTenantContext", () => {
-    it("resets the session variable", async () => {
+    it("resets the session variable via set_config with empty string", async () => {
       await resetTenantContext(client);
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(call[0]).toBe("RESET app.current_tenant_id");
-    });
-
-    it("does not pass any parameters", async () => {
-      await resetTenantContext(client);
-
-      const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      // Only the SQL string, no params array
-      expect(call).toHaveLength(1);
+      expect(call[0]).toBe("SELECT set_config('app.current_tenant_id', '', false)");
     });
   });
 

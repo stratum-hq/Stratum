@@ -266,6 +266,8 @@ describe("Auth Middleware", () => {
     });
 
     it("JWT with read-only scopes cannot POST", async () => {
+      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+
       const response = await app.inject({
         method: "POST",
         url: "/api/v1/tenants",
@@ -277,6 +279,7 @@ describe("Auth Middleware", () => {
     });
 
     it("JWT with admin scopes can access admin-only endpoints", async () => {
+      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
       (stratum.listApiKeys as any).mockResolvedValue([]);
 
       const response = await app.inject({

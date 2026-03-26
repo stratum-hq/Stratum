@@ -101,6 +101,7 @@ export function jwtHeaders(
   const token = jwt.sign(
     {
       sub: "test-user-id",
+      tenant_id: SAMPLE_TENANT.id,
       scopes: ["read", "write", "admin"],
       ...payload,
     },
