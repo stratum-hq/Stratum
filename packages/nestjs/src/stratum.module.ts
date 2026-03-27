@@ -7,6 +7,21 @@ import { StratumGuard } from "./stratum.guard.js";
 export interface StratumModuleOptions {
   controlPlaneUrl: string;
   apiKey: string;
+  /** JWT claim path for tenant resolution (e.g. "tenant_id" or "stratum.tenant_id"). Requires jwtSecret or jwtVerify. */
+  jwtClaimPath?: string;
+  /** HMAC secret used to verify JWT signatures before extracting tenant claims. */
+  jwtSecret?: string;
+  /** Custom JWT verify function — takes priority over jwtSecret. */
+  jwtVerify?: (token: string) => Record<string, unknown> | null;
+  /** Custom tenant resolvers evaluated after header and JWT resolution. */
+  resolvers?: import("@stratum-hq/sdk").TenantResolver[];
+  /** Enable tenant impersonation via X-Impersonate-Tenant header. */
+  impersonation?: {
+    enabled: boolean;
+    headerName?: string;
+    authorize: (req: unknown, callerTenantId: string, targetTenantId: string) => boolean | Promise<boolean>;
+    onImpersonate?: (req: unknown, callerTenantId: string, targetTenantId: string) => void;
+  };
 }
 
 export interface StratumModuleAsyncOptions extends Pick<ModuleMetadata, "imports"> {
@@ -46,6 +61,12 @@ export class StratumModule {
    * Useful when options come from ConfigService or other async providers.
    */
   static forRootAsync(asyncOptions: StratumModuleAsyncOptions): DynamicModule {
+    const optionsProvider: FactoryProvider = {
+      provide: STRATUM_OPTIONS,
+      useFactory: asyncOptions.useFactory,
+      inject: asyncOptions.inject ?? [],
+    };
+
     const clientProvider: FactoryProvider = {
       provide: STRATUM_CLIENT,
       useFactory: async (...args: unknown[]) => {
@@ -61,7 +82,7 @@ export class StratumModule {
     return {
       module: StratumModule,
       imports: asyncOptions.imports ?? [],
-      providers: [clientProvider, StratumGuard],
+      providers: [optionsProvider, clientProvider, StratumGuard],
       exports: [STRATUM_CLIENT, StratumGuard],
     };
   }
