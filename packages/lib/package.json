@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/migrations dist/migrations",
     "test": "vitest run",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
