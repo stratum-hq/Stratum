@@ -18,6 +18,10 @@ const { title, description } = Astro.props;
   <meta property="og:url" content="https://stratum-hq.org" />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="canonical" href={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="Stratum HQ" />
+  <link rel="alternate" hreflang="en" href="https://stratum-hq.org/" />
+  <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",

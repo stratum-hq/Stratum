@@ -301,6 +301,10 @@ a {
   margin-bottom: var(--space-6);
   text-wrap: balance;
 }
+.accent {
+  color: var(--accent);
+}
+
 .hero h1 .accent {
   color: var(--accent);
 }
