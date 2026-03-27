@@ -313,3 +313,9 @@ nav a[aria-current="page"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Logo sizing — match landing page 28px treatment */
+.site-title img {
+  height: 28px !important;
+  width: auto !important;
+}
