@@ -7,7 +7,7 @@ export function getConnectionString(flags: Record<string, string | boolean>): st
   const env = process.env.DATABASE_URL;
   if (env) return env;
 
-  return "postgres://stratum:stratum_dev@localhost:5432/stratum";
+  return "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
 }
 
 export async function connectDb(flags: Record<string, string | boolean>): Promise<pg.Pool> {
