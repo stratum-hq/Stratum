@@ -1,0 +1,338 @@
+---
+import Base from '../../layouts/Base.astro';
+import '../../styles/global.css';
+---
+
+<Base title="Why We Built Stratum — Multi-Tenancy for Node.js | Stratum Blog" description="Every B2B SaaS team reinvents multi-tenancy from scratch. We built Stratum so they never have to again. Open-source, MIT licensed.">
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
+      Stratum
+    </a>
+    <div class="nav-links">
+      <a href="/what-is-stratum">What is Stratum?</a>
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Article -->
+<article class="post">
+  <header class="post-header">
+    <p class="post-eyebrow">Blog</p>
+    <h1>Why We Built Stratum</h1>
+    <p class="post-intro">Multi-tenancy in Node.js is broken. We fixed it.</p>
+  </header>
+
+  <div class="post-body">
+
+    <h2>The pain every SaaS team knows</h2>
+    <p>
+      It always starts the same way. You're building a B2B product. Day one, you add
+      <code>tenant_id</code> to your users table. Then your accounts table. Then orders,
+      invoices, settings &mdash; every table you create. You write <code>WHERE tenant_id = $1</code>
+      a hundred times. It works. Ship it.
+    </p>
+    <p>
+      Month six: your first enterprise customer needs custom branding and a feature flag only
+      they get. You hand-roll a config table. One column per setting. No inheritance, no hierarchy,
+      just a key-value bag you query inline. Each new customer becomes a special case tracked in
+      a spreadsheet someone keeps in their personal Google Drive.
+    </p>
+    <p>
+      Month twelve: your security team comes back from a compliance audit. They need tenant-scoped
+      audit logs, a GDPR data export endpoint, and a purge API &mdash; retroactively, across four
+      services. You estimate three weeks. It takes eight.
+    </p>
+    <p>
+      Month eighteen: a large financial services customer demands their data in an isolated schema.
+      No shared tables. You've built your entire data layer on shared RLS (sort of) and now you're
+      looking at a full migration. Three engineers, eleven weeks, one near-outage.
+    </p>
+    <p>
+      By then you've built a worse version of multi-tenancy infrastructure, from scratch, while
+      shipping a product on top of it. We've seen this story play out at security platforms,
+      HR tools, dev tooling companies, and e-commerce SaaS. The details vary. The pain is identical.
+    </p>
+
+    <h2>The Node.js gap</h2>
+    <p>
+      If you're a .NET team, you reach for <a href="https://abp.io" class="post-link">ABP.IO</a>.
+      It's a full application framework with multi-tenancy as a first-class citizen &mdash; tenant
+      resolution, per-tenant databases, config overrides, the works. It's opinionated and
+      comprehensive.
+    </p>
+    <p>
+      Ruby on Rails teams have <a href="https://github.com/influitive/apartment" class="post-link">Apartment</a>
+      (and more recently <a href="https://github.com/ErvalhouS/activerecord-multi-tenant" class="post-link">activerecord-multi-tenant</a>).
+      Mature, battle-tested, community-maintained.
+    </p>
+    <p>
+      Node.js? You get a handful of npm packages with 20 GitHub stars, a few Medium posts from
+      2019, and a lot of "just add <code>tenant_id</code>" advice in Stack Overflow answers.
+      The ecosystem has no dominant multi-tenancy library. Every team rolls their own and
+      rediscovers the same edge cases.
+    </p>
+    <p>
+      That gap is where Stratum lives.
+    </p>
+
+    <h2>What Stratum does differently</h2>
+    <p>
+      Stratum is not just <code>tenant_id</code> with a nicer API. It's infrastructure
+      for the full multi-tenancy lifecycle.
+    </p>
+    <p>
+      <strong>Tree-structured tenants.</strong> Real-world B2B isn't flat. You have organizations,
+      teams within organizations, resellers who manage multiple clients. Stratum models tenants
+      as a tree &mdash; up to 20 levels deep. A root org, resellers below it, clients below them.
+      You define the shape; Stratum enforces the rules.
+    </p>
+    <p>
+      <strong>Config that flows down the tree.</strong> Set <code>max_users = 100</code> on a
+      reseller tenant and every client under them inherits it automatically. Override it for
+      one client. Lock a key so no child can change it. This is config inheritance done right,
+      not a key-value bag you query by hand.
+    </p>
+    <p>
+      <strong>Three isolation strategies, per tenant.</strong> Shared tables with Row-Level
+      Security. Separate schema per tenant. Dedicated database per tenant. You pick the right
+      tradeoff for each customer tier. Start everyone on shared, move high-value customers to
+      schema isolation, give your largest enterprise their own database &mdash; without
+      rebuilding your data layer.
+    </p>
+    <p>
+      <strong>GDPR built in.</strong> Data export and purge are not an afterthought. They're
+      part of the core API. When the compliance audit comes &mdash; and it will &mdash; you
+      call one method, not write a migration at 11pm.
+    </p>
+    <p>
+      <strong>Start flat, grow into hierarchy.</strong> You don't have to adopt tree tenants
+      on day one. Start with flat organizations. Add hierarchy when your business needs it.
+      Stratum doesn't force an architecture on you; it grows with you.
+    </p>
+
+    <h2>The developer experience</h2>
+    <p>
+      The full setup is five lines. You wire in your existing Postgres pool, let Stratum
+      run its migrations, and you're ready to create tenants and assign config.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-filename">quickstart.ts</span>
+      </div>
+      <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="cm">// autoMigrate: true runs schema migrations on initialize()</span>
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>(), autoMigrate: <span class="num">true</span> &#125;);
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();
+
+<span class="cm">// Create a tenant</span>
+<span class="kw">const</span> org = <span class="kw">await</span> stratum.<span class="fn">createOrganization</span>(&#123; name: <span class="str">"Acme Corp"</span>, slug: <span class="str">"acme"</span> &#125;);
+
+<span class="cm">// Set config — children inherit automatically</span>
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(org.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">100</span> &#125;);`} />
+    </div>
+
+    <p>
+      No boilerplate migration files to manage. No config inheritance logic to write.
+      No RLS policies to maintain by hand. Stratum handles the infrastructure so your
+      team can focus on your actual product.
+    </p>
+
+    <h2>What's next</h2>
+    <p>
+      We're actively working on DX improvements: better TypeScript types, first-class
+      framework adapters for Express, Fastify, and NestJS, and a CLI for tenant management
+      that works without writing code.
+    </p>
+    <p>
+      We're also building a community. If you've felt this pain &mdash; if you've spent
+      weeks re-implementing tenant isolation for the third time &mdash; we want to hear
+      from you. Open an issue, start a discussion, or just star the repo so we know
+      you're out there.
+    </p>
+    <p>
+      Stratum is open source, MIT licensed, and free forever. The infrastructure problem
+      of multi-tenancy in Node.js is solvable. We're solving it in the open.
+    </p>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="post-cta">
+    <div class="post-cta-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="post-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Read the docs</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</article>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p class="footer-meta">
+      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .post {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 2) var(--space-6) var(--space-8);
+  }
+
+  .post-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .post-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+  }
+
+  .post-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-intro {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .post-body h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .post-body code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .post-link {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .post-link:hover {
+    color: var(--text-primary);
+  }
+
+  .post-cta {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .post-cta-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .post-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .post {
+      padding: var(--space-8) var(--space-4);
+    }
+  }
+</style>
+
+<!-- Theme toggle -->
+<script>
+  const toggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+
+  function setTheme(theme: string) {
+    html.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  const saved = localStorage.getItem('theme');
+  if (saved) setTheme(saved);
+
+  toggle?.addEventListener('click', () => {
+    const current = html.getAttribute('data-theme');
+    setTheme(current === 'light' ? 'dark' : 'light');
+  });
+</script>
+
+</Base>
