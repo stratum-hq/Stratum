@@ -1,0 +1,634 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/global.css';
+---
+
+<Base title="Stratum vs Alternatives — Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, and ABP.IO. See why Stratum is the multi-tenancy library Node.js has been missing.">
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
+      Stratum
+    </a>
+    <div class="nav-links">
+      <a href="/what-is-stratum">What is Stratum?</a>
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Page header -->
+<main class="cmp-main">
+
+  <header class="cmp-header">
+    <h1>Stratum vs the <span class="accent">Alternatives</span></h1>
+    <p class="cmp-subtitle">
+      There are four ways to handle multi-tenancy in a Node.js application today.
+      Here's an honest look at each one.
+    </p>
+  </header>
+
+  <!-- Comparison 1: Rolling Your Own -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs rolling your own (<code>tenant_id</code>)</h2>
+      <p class="cmp-section-intro">
+        The default choice. Add a column, filter every query, ship it. Works fine early on.
+        The problem is what happens next.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        On day one, rolling your own looks correct. A <code>tenant_id</code> column is simple,
+        understood by every developer on your team, and requires no dependencies. You're not
+        over-engineering. Good instinct.
+      </p>
+      <p>
+        The issue isn't day one. It's month 18.
+      </p>
+      <p>
+        By month 18, your hand-rolled solution has accumulated: a config table with no inheritance
+        model, audit logging added retroactively and missing half the mutation points, no isolation
+        options beyond the shared schema you started with, and GDPR compliance that lives in a
+        Notion doc but not in code. When an enterprise customer demands a separate database for their
+        data, you're looking at a full-quarter migration.
+      </p>
+      <p>
+        Stratum gives you month-18 features on day one. Not because you need them all immediately —
+        but because the architecture is already in place when you do.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs rolling your own">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Rolling your own</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">Setup time</td>
+            <td class="cmp-neutral">1–2 days</td>
+            <td class="cmp-good">5 minutes</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant hierarchy</td>
+            <td class="cmp-bad">Build it yourself (weeks)</td>
+            <td class="cmp-good">Built-in (ltree, 20 levels)</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-bad">Build it yourself</td>
+            <td class="cmp-good">Built-in, root-to-leaf</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Isolation strategies</td>
+            <td class="cmp-neutral">Manual RLS only</td>
+            <td class="cmp-good">RLS, schema, database — per tenant</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Audit logging</td>
+            <td class="cmp-bad">Bolt on later</td>
+            <td class="cmp-good">Every mutation, actor-attributed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">GDPR (Art. 17 + 20)</td>
+            <td class="cmp-bad">Build it yourself</td>
+            <td class="cmp-good">Export + purge, built-in</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Field encryption</td>
+            <td class="cmp-bad">Build it yourself</td>
+            <td class="cmp-good">AES-256-GCM, transparent</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Month-18 cost</td>
+            <td class="cmp-bad">3+ months engineering</td>
+            <td class="cmp-good">Already done</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Comparison 2: WorkOS / Frontegg -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs WorkOS / Frontegg</h2>
+      <p class="cmp-section-intro">
+        WorkOS and Frontegg are excellent products. They solve a real problem. Just not the
+        same problem Stratum solves.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        WorkOS and Frontegg operate at the <strong>identity and authentication layer</strong>.
+        They handle SSO, SCIM provisioning, audit logs for auth events, and organization
+        management in the context of who can log in. They do this extremely well.
+      </p>
+      <p>
+        Stratum operates at the <strong>data tenancy layer</strong>. It handles how your
+        database stores, isolates, and manages data across tenants. These are different problems
+        at different levels of your stack, and the right answer for most teams is both.
+      </p>
+      <p>
+        Use WorkOS or Frontegg to manage authentication and user provisioning.
+        Use Stratum to manage data isolation, config inheritance, and compliance operations
+        on the PostgreSQL side. They complement each other — they don't compete.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs WorkOS / Frontegg">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>WorkOS / Frontegg</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">SSO / SAML / SCIM</td>
+            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-bad">Not in scope</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Auth event audit log</td>
+            <td class="cmp-good">Yes</td>
+            <td class="cmp-bad">Not in scope</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data isolation strategies</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">RLS, schema, database</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant hierarchy / tree</td>
+            <td class="cmp-neutral">Flat organizations only</td>
+            <td class="cmp-good">20-level tree, ltree-backed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Root-to-leaf, lockable keys</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">GDPR data operations</td>
+            <td class="cmp-neutral">Partial (auth data only)</td>
+            <td class="cmp-good">Full export + hard purge</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data mutation audit log</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Every mutation, actor-attributed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Pricing model</td>
+            <td class="cmp-neutral">Proprietary SaaS</td>
+            <td class="cmp-good">Open source, MIT</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cmp-callout">
+      <p>
+        <strong>The right stack:</strong> WorkOS or Frontegg for authentication and user
+        management. Stratum for data tenancy and compliance. Both in the same application,
+        each doing what it's built for.
+      </p>
+    </div>
+  </section>
+
+  <!-- Comparison 3: ABP.IO -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs ABP Framework</h2>
+      <p class="cmp-section-intro">
+        ABP is the gold standard for multi-tenancy in the .NET ecosystem. Stratum is the
+        equivalent for Node.js — the library that should have existed years ago.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        ABP Framework (formerly ABP.IO) is a mature, opinionated application framework for
+        .NET that includes multi-tenancy as a first-class concern. Teams building C# applications
+        have had this foundation for years. It's well-documented, battle-tested, and handles
+        the full lifecycle: tenant resolution, data isolation, config, and more.
+      </p>
+      <p>
+        Node.js and TypeScript developers have had no equivalent. When we looked at what ABP
+        provides and compared it to the npm ecosystem, the gap was stark. We built Stratum to
+        close it.
+      </p>
+      <p>
+        Stratum is not a port of ABP — the Node.js and TypeScript ecosystem has different
+        conventions and constraints. But the motivation is the same: give developers in this
+        ecosystem a stable, production-ready multi-tenancy foundation so they stop reinventing it.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs ABP Framework">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>ABP Framework (.NET)</th>
+            <th>Stratum (Node.js)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">Runtime</td>
+            <td class="cmp-neutral">.NET / C#</td>
+            <td class="cmp-good">Node.js / TypeScript</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant resolution</td>
+            <td class="cmp-good">Yes (header, subdomain, JWT)</td>
+            <td class="cmp-good">Yes (SDK middleware)</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data isolation</td>
+            <td class="cmp-good">Schema + database strategies</td>
+            <td class="cmp-good">RLS, schema, database</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant hierarchy</td>
+            <td class="cmp-neutral">Parent-child (2 levels typical)</td>
+            <td class="cmp-good">Arbitrary depth, ltree-backed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-good">Settings system</td>
+            <td class="cmp-good">Root-to-leaf, lockable keys</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">GDPR tooling</td>
+            <td class="cmp-neutral">Partial via modules</td>
+            <td class="cmp-good">Export + purge, built-in</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Open source</td>
+            <td class="cmp-neutral">Partial (community edition)</td>
+            <td class="cmp-good">Fully open source, MIT</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">npm / TypeScript native</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Yes — built for the ecosystem</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Summary -->
+  <section class="cmp-summary">
+    <h2>The short version</h2>
+    <div class="cmp-summary-grid">
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs tenant_id</div>
+        <p>The DIY approach works until it doesn't. Stratum gives you the infrastructure you'll need at month 18, from day one.</p>
+      </div>
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs WorkOS / Frontegg</div>
+        <p>Different layer of the stack. Use them for auth. Use Stratum for data. They complement each other.</p>
+      </div>
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs ABP Framework</div>
+        <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent — until now.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cmp-cta">
+    <h2>Start with Stratum today</h2>
+    <div class="cmp-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="cmp-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p class="footer-meta">
+      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .cmp-main {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 3) var(--space-6) var(--space-16);
+  }
+
+  /* Header */
+  .cmp-header {
+    margin-bottom: var(--space-12);
+    text-align: center;
+  }
+
+  .cmp-header h1 {
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .cmp-subtitle {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  /* Sections */
+  .cmp-section {
+    margin-bottom: var(--space-16);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-8);
+  }
+
+  .cmp-section-header {
+    margin-bottom: var(--space-6);
+  }
+
+  .cmp-section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+    line-height: 1.3;
+  }
+
+  .cmp-section-header code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .cmp-section-intro {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+
+  /* Narrative prose */
+  .cmp-narrative {
+    margin-bottom: var(--space-6);
+  }
+
+  .cmp-narrative p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .cmp-narrative p:last-child {
+    margin-bottom: 0;
+  }
+
+  .cmp-narrative strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .cmp-narrative code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* Tables */
+  .cmp-table-wrapper {
+    overflow-x: auto;
+    margin: var(--space-4) 0;
+  }
+
+  .cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .cmp-table thead tr {
+    border-bottom: 2px solid var(--border);
+  }
+
+  .cmp-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .cmp-table th:first-child {
+    min-width: 180px;
+  }
+
+  .cmp-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    line-height: 1.5;
+  }
+
+  .cmp-feat {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .cmp-good {
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  .cmp-bad {
+    color: var(--text-tertiary);
+  }
+
+  .cmp-neutral {
+    color: var(--warning);
+  }
+
+  /* Callout */
+  .cmp-callout {
+    margin-top: var(--space-6);
+    padding: var(--space-4) var(--space-6);
+    background: var(--surface-1);
+    border-left: 3px solid var(--sandstone);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
+  .cmp-callout p {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+  }
+
+  .cmp-callout strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Summary */
+  .cmp-summary {
+    margin-bottom: var(--space-12);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-8);
+  }
+
+  .cmp-summary h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-6);
+  }
+
+  .cmp-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+  }
+
+  @media (max-width: 640px) {
+    .cmp-summary-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .cmp-summary-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+  }
+
+  .cmp-summary-label {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .cmp-summary-card p {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+  }
+
+  /* CTA */
+  .cmp-cta {
+    padding: var(--space-8);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+  }
+
+  .cmp-cta h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-6);
+  }
+
+  .cmp-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+    margin-bottom: var(--space-6);
+  }
+
+  .cmp-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+
+<script>
+  const toggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+
+  const sunIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+  const moonIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+
+  const saved = localStorage.getItem('stratum-theme');
+  if (saved === 'light') {
+    html.setAttribute('data-theme', 'light');
+    if (toggle) toggle.innerHTML = moonIcon;
+  }
+
+  toggle?.addEventListener('click', () => {
+    const isLight = html.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      html.removeAttribute('data-theme');
+      localStorage.setItem('stratum-theme', 'dark');
+      if (toggle) toggle.innerHTML = sunIcon;
+    } else {
+      html.setAttribute('data-theme', 'light');
+      localStorage.setItem('stratum-theme', 'light');
+      if (toggle) toggle.innerHTML = moonIcon;
+    }
+  });
+</script>
+
+</Base>
