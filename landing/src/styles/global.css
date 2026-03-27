@@ -121,6 +121,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Push footer to bottom on short pages */
+.footer {
+  margin-top: auto;
 }
 
 a {
@@ -301,6 +309,11 @@ a {
   margin-bottom: var(--space-6);
   text-wrap: balance;
 }
+/* Global accent class — works on all pages, overrides Astro scoped styles */
+.accent {
+  color: var(--accent) !important;
+}
+
 .hero h1 .accent {
   color: var(--accent);
 }
