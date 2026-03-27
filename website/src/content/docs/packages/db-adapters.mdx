@@ -1,11 +1,11 @@
 ---
 title: "@stratum-hq/db-adapters"
-description: PostgreSQL adapters for tenant-scoped query isolation using Row-Level Security and Prisma.
+description: PostgreSQL adapters for tenant-scoped query isolation using Row-Level Security — supports raw pg, Prisma, and Sequelize.
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
-`@stratum-hq/db-adapters` provides PostgreSQL adapters that automatically scope queries to the current tenant using Row-Level Security. It supports both raw `pg` and Prisma, plus helpers for enabling RLS on your tables.
+`@stratum-hq/db-adapters` provides PostgreSQL adapters that automatically scope queries to the current tenant using Row-Level Security. It supports raw `pg`, Prisma, and Sequelize, plus helpers for enabling RLS on your tables.
 
 ## Installation
 
@@ -145,6 +145,50 @@ await setTenantContext(client, "tenant-uuid");
 const id = await getCurrentTenantId(client);   // "tenant-uuid"
 await resetTenantContext(client);               // RESET app.current_tenant_id
 ```
+
+## Sequelize Adapter
+
+For applications using Sequelize ORM:
+
+```typescript
+import { Pool } from "pg";
+import { SequelizeAdapter, withTenantScope } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Option 1: Convenience function — wraps every query in a tenant-scoped transaction
+const tenantSequelize = withTenantScope(
+  sequelize,
+  () => getTenantContext().tenant_id,
+  pool,
+);
+
+const orders = await tenantSequelize.query("SELECT * FROM orders");
+
+// Option 2: Manual adapter usage
+const adapter = new SequelizeAdapter(pool);
+const result = await adapter.executeWithTenantContext("tenant-id", async (client) => {
+  return client.query("SELECT * FROM orders");
+});
+```
+
+### How It Works
+
+The Sequelize adapter wraps every `query()` call in a Sequelize transaction that:
+
+1. Calls `sequelize.transaction()`
+2. Sets `app.current_tenant_id` via parameterized `set_config()` inside the transaction
+3. Executes your query on the same connection (guaranteed by the transaction)
+4. Commits the transaction
+
+This ensures the `set_config` and your query always execute on the same database connection — preventing tenant context leaks in connection-pooled environments.
+
+<Aside type="note">
+  The Sequelize adapter uses a `SequelizeLike` structural interface — it does not
+  import from `sequelize` directly. Install `sequelize` as a peer dependency in
+  your project.
+</Aside>
 
 ## Security
 

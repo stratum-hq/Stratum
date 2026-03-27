@@ -35,13 +35,25 @@ npm install @stratum-hq/sdk @stratum-hq/core
 
 Best for: polyglot stacks, service-oriented architectures, React admin UIs.
 
+### Scaffold a New Project
+
+The fastest way to start — generates a complete project with Docker, migrations, and framework-specific starter code:
+
+```bash
+npx @stratum-hq/create my-app
+# Supports --template express | fastify | nextjs
+```
+
 ## Additional Packages
 
 Install these as needed:
 
 ```bash
-# Database adapters (RLS, Prisma integration)
+# Database adapters (RLS, Prisma, Sequelize integration)
 npm install @stratum-hq/db-adapters pg
+
+# NestJS integration (guard, @Tenant() decorator, DI module)
+npm install @stratum-hq/nestjs
 
 # React components (provider, tenant tree, config editor)
 npm install @stratum-hq/react react react-dom
