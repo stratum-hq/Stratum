@@ -1,0 +1,46 @@
+{
+  "name": "@stratum-hq/nestjs",
+  "version": "0.2.2",
+  "description": "Stratum NestJS integration — StratumGuard, @Tenant() decorator, and StratumModule",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@nestjs/common": ">=10.0.0",
+    "@nestjs/core": ">=10.0.0",
+    "@stratum-hq/core": ">=0.2.0",
+    "@stratum-hq/sdk": ">=0.2.0",
+    "reflect-metadata": ">=0.1.13"
+  },
+  "devDependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/testing": "^10.0.0",
+    "@stratum-hq/core": "*",
+    "@stratum-hq/sdk": "*",
+    "reflect-metadata": "^0.1.13",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
