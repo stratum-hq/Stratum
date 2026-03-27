@@ -11,9 +11,13 @@
     "clean": "turbo clean",
     "dev": "turbo dev",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
-    "generate:sdk": "bash scripts/generate-sdks.sh"
+    "generate:sdk": "bash scripts/generate-sdks.sh",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "@types/node": "^20.11.0",
     "esbuild": "^0.21.5",
     "prettier": "^3.2.0",

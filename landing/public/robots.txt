@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://stratum-hq.org/sitemap-index.xml
