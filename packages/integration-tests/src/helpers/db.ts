@@ -92,21 +92,19 @@ export async function runMigrations(): Promise<void> {
 /**
  * Clean all test data (truncate all application tables).
  * Preserves schema and _migrations table.
+ *
+ * Uses a single TRUNCATE statement to avoid deadlocks when multiple
+ * test suites run concurrently (individual TRUNCATEs in a loop can
+ * deadlock on cross-table CASCADE locks).
  */
 export async function cleanTestData(): Promise<void> {
   const p = getPool();
-  await p.query(`
-    DO $$
-    DECLARE
-      tbl TEXT;
-    BEGIN
-      FOR tbl IN
-        SELECT tablename FROM pg_tables
-        WHERE schemaname = 'public'
-        AND tablename != '_migrations'
-      LOOP
-        EXECUTE format('TRUNCATE TABLE %I CASCADE', tbl);
-      END LOOP;
-    END $$;
+  const { rows } = await p.query<{ tablename: string }>(`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'public'
+    AND tablename != '_migrations'
   `);
+  if (rows.length === 0) return;
+  const tableList = rows.map((r) => `"${r.tablename}"`).join(", ");
+  await p.query(`TRUNCATE TABLE ${tableList} CASCADE`);
 }
