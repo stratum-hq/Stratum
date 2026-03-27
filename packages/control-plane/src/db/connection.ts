@@ -13,7 +13,7 @@ export function getPool(): pg.Pool {
     pool = new Pool({
       connectionString:
         process.env.DATABASE_URL ||
-        "postgres://stratum:stratum_dev@localhost:5432/stratum",
+        "postgres://stratum_app:stratum_dev@localhost:5432/stratum",
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
