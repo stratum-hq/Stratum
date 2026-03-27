@@ -50,22 +50,88 @@ import type {
   BatchDriftResult,
 } from "@stratum-hq/core";
 import { TenantEvent } from "@stratum-hq/core";
+import { migrate } from "./migrate.js";
 
 export interface StratumOptions {
   pool: pg.Pool;
   keyPrefix?: string;
   logger?: StratumLogger;
+  /** Run migrations automatically on initialize(). Defaults to false. */
+  autoMigrate?: boolean;
+  /** When true, migrations hard-fail if the PG role has BYPASSRLS. Use in production. */
+  enforceRls?: boolean;
 }
 
 export class Stratum {
   private readonly pool: pg.Pool;
   private readonly keyPrefix: string;
   private readonly logger: StratumLogger;
+  private readonly autoMigrate: boolean;
+  private readonly enforceRls: boolean;
+  private initPromise: Promise<void> | null = null;
 
   constructor(options: StratumOptions) {
     this.pool = options.pool;
     this.keyPrefix = options.keyPrefix ?? "sk_live_";
     this.logger = options.logger ?? defaultLogger;
+    this.autoMigrate = options.autoMigrate ?? false;
+    this.enforceRls = options.enforceRls ?? false;
+  }
+
+  /**
+   * Initialize Stratum — runs migrations if autoMigrate is enabled.
+   * Call this once before using any other methods. Safe to call multiple
+   * times concurrently — subsequent calls return the same promise.
+   */
+  async initialize(): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = this._doInitialize();
+    }
+    return this.initPromise;
+  }
+
+  private async _doInitialize(): Promise<void> {
+    if (this.autoMigrate) {
+      if (process.env.NODE_ENV === "production" && !this.enforceRls) {
+        this.logger.warn(
+          "autoMigrate is enabled in production without enforceRls. " +
+          "Set enforceRls: true for production deployments.",
+        );
+      }
+      this.logger.info("running auto-migration");
+      await migrate({ pool: this.pool, enforceRls: this.enforceRls });
+      this.logger.info("auto-migration complete");
+    }
+  }
+
+  // --- Flat-tenancy convenience API ---
+
+  /** Create a root-level organization (flat-tenancy alias for createTenant). */
+  async createOrganization(
+    input: Omit<CreateTenantInput, "parent_id">,
+    audit?: AuditContext,
+  ): Promise<TenantNode> {
+    return this.createTenant({ ...input, parent_id: null }, audit);
+  }
+
+  /**
+   * List root-level organizations only (flat-tenancy alias).
+   * Note: filters client-side after fetching. Adequate for the gateway
+   * audience with few tenants. For large datasets, query with WHERE parent_id IS NULL directly.
+   */
+  async listOrganizations(
+    pagination: PaginationInput,
+  ): Promise<PaginatedResult<TenantNode>> {
+    const result = await this.listTenants(pagination);
+    return {
+      ...result,
+      data: result.data.filter((t) => t.parent_id === null),
+    };
+  }
+
+  /** Get an organization by ID (flat-tenancy alias for getTenant). */
+  getOrganization(id: string): Promise<TenantNode> {
+    return this.getTenant(id);
   }
 
   // Internal event emission — fire-and-forget, errors are non-fatal

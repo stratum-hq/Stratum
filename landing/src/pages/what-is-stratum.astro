@@ -1,0 +1,603 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/global.css';
+---
+
+<Base title="What is Stratum? — Multi-Tenancy Library for Node.js" description="Stratum is an open-source multi-tenancy library for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR compliance. Learn why we built it and how it works.">
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
+      Stratum
+    </a>
+    <div class="nav-links">
+      <a href="/what-is-stratum" aria-current="page">What is Stratum?</a>
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="wis-hero">
+  <h1>What is <span class="accent">Stratum?</span></h1>
+  <p class="wis-elevator">
+    Stratum is an open-source multi-tenancy library for Node.js and TypeScript.
+    It gives your application hierarchical tenants, config inheritance, permission delegation,
+    three database isolation strategies, and GDPR compliance &mdash; so you never have to build
+    multi-tenancy from scratch again.
+  </p>
+  <div class="wis-install">
+    <code>npm install @stratum-hq/lib pg</code>
+  </div>
+</section>
+
+<!-- The Problem -->
+<section class="wis-section">
+  <h2>The problem Stratum solves</h2>
+  <p class="wis-intro">
+    Every B2B SaaS team starts the same way: add a <code>tenant_id</code> column to every table.
+    It works &mdash; until your product grows.
+  </p>
+
+  <div class="wis-timeline">
+    <div class="wis-timeline-item">
+      <div class="wis-timeline-marker"></div>
+      <div class="wis-timeline-content">
+        <h3>Day 1</h3>
+        <p><code>tenant_id</code> on every table, manual WHERE clauses. Simple. Works fine.</p>
+      </div>
+    </div>
+    <div class="wis-timeline-item">
+      <div class="wis-timeline-marker wis-warning"></div>
+      <div class="wis-timeline-content">
+        <h3>Month 6</h3>
+        <p>Enterprise customer needs custom configuration. You hand-roll config tables with no inheritance. Each customer is a special case.</p>
+      </div>
+    </div>
+    <div class="wis-timeline-item">
+      <div class="wis-timeline-marker wis-warning"></div>
+      <div class="wis-timeline-content">
+        <h3>Month 12</h3>
+        <p>Compliance audit. You scramble to add audit logging, data export, and purge capabilities. Retroactively.</p>
+      </div>
+    </div>
+    <div class="wis-timeline-item">
+      <div class="wis-timeline-marker wis-danger"></div>
+      <div class="wis-timeline-content">
+        <h3>Month 18</h3>
+        <p>Large customer demands data isolation. Painful migration from shared tables to schema-per-tenant. Three months of engineering work.</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="wis-punchline">
+    By month 18, your team has built a worse version of Stratum and spent 3+ months doing it.
+    Stratum gives you all of this from day one.
+  </p>
+</section>
+
+<!-- How It Works -->
+<section class="wis-section wis-how">
+  <h2>How Stratum works</h2>
+
+  <div class="wis-feature-grid">
+    <!-- Tenant Hierarchy -->
+    <div class="wis-feature-card">
+      <h3>Tenant hierarchy</h3>
+      <p>
+        Tenants form a tree. A root organization can have resellers, who have clients,
+        who have teams. Config and permissions flow down the tree automatically.
+      </p>
+      <div class="wis-diagram">
+<pre>
+<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">&larr; root</span>
+<span class="tree-dim">&boxvr;&boxh;&boxh;</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">&larr; reseller</span>
+<span class="tree-dim">&boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-alpha</span>
+<span class="tree-dim">&boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-beta</span>
+<span class="tree-dim">&boxur;&boxh;&boxh;</span> <span class="tree-mid">Apex Partners</span>
+<span class="tree-dim">    &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-gamma</span></pre>
+      </div>
+    </div>
+
+    <!-- Config Inheritance -->
+    <div class="wis-feature-card">
+      <h3>Config inheritance</h3>
+      <p>
+        Set a value on the root tenant and every child inherits it automatically.
+        Lock a key so children can't override it. Override it at any level when needed.
+      </p>
+      <div class="wis-diagram">
+<pre>
+root: <span class="tree-root">max_users = 1000</span>        <span class="tree-meta">&larr; set once</span>
+  &boxvr;&boxh; child-a: <span class="tree-mid">inherits 1000</span>    <span class="tree-meta">&larr; automatic</span>
+  &boxur;&boxh; child-b: <span class="tree-leaf">max_users = 500</span>  <span class="tree-meta">&larr; override</span>
+
+root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta">&larr; children cannot change</span></pre>
+      </div>
+    </div>
+
+    <!-- Isolation Strategies -->
+    <div class="wis-feature-card wis-feature-wide">
+      <h3>Three isolation strategies</h3>
+      <p>
+        Choose per tenant. Mix strategies in a single deployment.
+        Upgrade a tenant's isolation level without migrating data.
+      </p>
+      <div class="wis-isolation-grid">
+        <div class="wis-isolation-item">
+          <div class="wis-isolation-label">Shared RLS</div>
+          <div class="wis-isolation-desc">Same tables, PostgreSQL Row-Level Security. Lowest cost, highest density.</div>
+        </div>
+        <div class="wis-isolation-item">
+          <div class="wis-isolation-label">Schema</div>
+          <div class="wis-isolation-desc">Separate schema per tenant. Stronger isolation, still one database.</div>
+        </div>
+        <div class="wis-isolation-item">
+          <div class="wis-isolation-label">Database</div>
+          <div class="wis-isolation-desc">Dedicated PostgreSQL instance. Maximum isolation for compliance.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Why We Built It -->
+<section class="wis-section">
+  <h2>Why we built Stratum</h2>
+  <p>
+    We've seen multi-tenancy pain firsthand &mdash; at security platforms (MSSP/MSP) where
+    nested tenant hierarchies are the norm, and at B2B SaaS companies where enterprise
+    customers demand isolation, custom config, and compliance.
+  </p>
+  <p>
+    Every team we worked with had the same story: they started with <code>tenant_id</code>,
+    then built config tables, then added audit logs, then scrambled for isolation &mdash;
+    each time reinventing what should be infrastructure.
+  </p>
+  <p>
+    The Node.js and TypeScript ecosystem has no dominant multi-tenancy library.
+    The .NET world has <a href="https://abp.io" class="wis-link">ABP.IO</a>.
+    Ruby has <a href="https://github.com/influitive/apartment" class="wis-link">Apartment</a>.
+    Node.js developers roll their own every time. Stratum changes that.
+  </p>
+</section>
+
+<!-- Comparison -->
+<section class="wis-section">
+  <h2>Stratum vs alternatives</h2>
+  <div class="wis-table-wrapper">
+    <table class="wis-comparison-table" aria-label="Comparison of multi-tenancy approaches">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Stratum</th>
+          <th>tenant_id column</th>
+          <th>WorkOS / Frontegg</th>
+          <th>Custom built</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="wis-feature-label">Tenant hierarchy</td>
+          <td class="wis-yes">Yes (20 levels)</td>
+          <td class="wis-no">No</td>
+          <td class="wis-no">No</td>
+          <td class="wis-partial">Build it yourself</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">Config inheritance</td>
+          <td class="wis-yes">Built-in</td>
+          <td class="wis-no">No</td>
+          <td class="wis-no">No</td>
+          <td class="wis-partial">Build it yourself</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">Isolation strategies</td>
+          <td class="wis-yes">3 (RLS, schema, DB)</td>
+          <td class="wis-partial">Manual RLS</td>
+          <td class="wis-no">No</td>
+          <td class="wis-partial">Build it yourself</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">GDPR compliance</td>
+          <td class="wis-yes">Export + purge</td>
+          <td class="wis-no">No</td>
+          <td class="wis-partial">Partial</td>
+          <td class="wis-partial">Build it yourself</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">Audit logging</td>
+          <td class="wis-yes">Built-in</td>
+          <td class="wis-no">No</td>
+          <td class="wis-partial">Auth events only</td>
+          <td class="wis-partial">Build it yourself</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">Time to implement</td>
+          <td class="wis-yes">60 seconds</td>
+          <td class="wis-partial">1 day</td>
+          <td class="wis-partial">1 week</td>
+          <td class="wis-no">3+ months</td>
+        </tr>
+        <tr>
+          <td class="wis-feature-label">Open source</td>
+          <td class="wis-yes">MIT</td>
+          <td class="wis-yes">N/A</td>
+          <td class="wis-no">Proprietary</td>
+          <td class="wis-yes">Yours</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Getting Started -->
+<section class="wis-section wis-getting-started">
+  <h2>Get started in 5 lines</h2>
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="code-block-dot"></span>
+      <span class="code-block-dot"></span>
+      <span class="code-block-dot"></span>
+      <span class="code-block-filename">quickstart.ts</span>
+    </div>
+    <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>(), autoMigrate: <span class="num">true</span> &#125;);
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();
+
+<span class="cm">// Create a tenant and set config</span>
+<span class="kw">const</span> org = <span class="kw">await</span> stratum.<span class="fn">createOrganization</span>(&#123; name: <span class="str">"Acme Corp"</span>, slug: <span class="str">"acme"</span> &#125;);
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(org.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">100</span> &#125;);
+<span class="cm">// That's it. Multi-tenancy with config inheritance, ready to go.</span>`} />
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="cta-inner fade-in">
+    <h2>Ready to stop reinventing <span class="accent">multi-tenancy?</span></h2>
+    <div class="hero-actions" style="justify-content: center;">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p class="footer-meta">
+      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  /* What-is-Stratum page styles */
+  .wis-hero {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 3) var(--space-6) var(--space-8);
+    text-align: center;
+  }
+
+  .wis-hero h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: var(--space-6);
+    color: var(--text-primary);
+  }
+
+  .wis-elevator {
+    font-size: 1.125rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-6);
+  }
+
+  .wis-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .wis-section {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .wis-section h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: var(--space-6);
+    color: var(--text-primary);
+  }
+
+  .wis-section p {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .wis-section code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .wis-intro {
+    font-size: 1.125rem;
+  }
+
+  .wis-punchline {
+    font-size: 1.125rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-top: var(--space-6);
+  }
+
+  /* Timeline */
+  .wis-timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: var(--space-6) 0;
+  }
+
+  .wis-timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border);
+  }
+
+  .wis-timeline-item {
+    position: relative;
+    margin-bottom: var(--space-6);
+  }
+
+  .wis-timeline-marker {
+    position: absolute;
+    left: -2rem;
+    top: 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 2px solid var(--sandstone);
+  }
+
+  .wis-timeline-marker.wis-warning {
+    border-color: var(--warning);
+  }
+
+  .wis-timeline-marker.wis-danger {
+    border-color: var(--error);
+    background: var(--accent-muted);
+  }
+
+  .wis-timeline-content h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+  }
+
+  .wis-timeline-content p {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* Feature grid */
+  .wis-feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+
+  @media (max-width: 640px) {
+    .wis-feature-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .wis-feature-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: var(--space-6);
+  }
+
+  .wis-feature-card h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+  }
+
+  .wis-feature-card p {
+    font-size: 0.875rem;
+    margin-bottom: var(--space-4);
+  }
+
+  .wis-feature-wide {
+    grid-column: 1 / -1;
+  }
+
+  .wis-diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: var(--space-4);
+    overflow-x: auto;
+  }
+
+  .wis-diagram pre {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    margin: 0;
+    color: var(--text-secondary);
+  }
+
+  /* Isolation grid */
+  .wis-isolation-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+
+  @media (max-width: 640px) {
+    .wis-isolation-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .wis-isolation-item {
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: var(--space-4);
+  }
+
+  .wis-isolation-label {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--sandstone);
+    margin-bottom: var(--space-2);
+  }
+
+  .wis-isolation-desc {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+  }
+
+  /* Comparison table */
+  .wis-table-wrapper {
+    overflow-x: auto;
+    margin: var(--space-4) 0;
+  }
+
+  .wis-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .wis-comparison-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .wis-comparison-table th:first-child {
+    min-width: 140px;
+  }
+
+  .wis-comparison-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+
+  .wis-feature-label {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .wis-yes {
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  .wis-no {
+    color: var(--text-tertiary);
+  }
+
+  .wis-partial {
+    color: var(--warning);
+  }
+
+  .wis-link {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .wis-link:hover {
+    color: var(--text-primary);
+  }
+
+  /* Getting Started */
+  .wis-getting-started {
+    max-width: 700px;
+  }
+
+  .wis-getting-started h2 {
+    text-align: center;
+  }
+</style>
+
+<!-- Theme toggle (same as homepage) -->
+<script>
+  const toggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+
+  function setTheme(theme: string) {
+    html.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  const saved = localStorage.getItem('theme');
+  if (saved) setTheme(saved);
+
+  toggle?.addEventListener('click', () => {
+    const current = html.getAttribute('data-theme');
+    setTheme(current === 'light' ? 'dark' : 'light');
+  });
+</script>
+
+</Base>

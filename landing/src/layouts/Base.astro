@@ -17,6 +17,20 @@ const { title, description } = Astro.props;
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://stratum-hq.org" />
   <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Stratum",
+    "description": "Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Node.js",
+    "license": "https://opensource.org/licenses/MIT",
+    "url": "https://stratum-hq.org",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

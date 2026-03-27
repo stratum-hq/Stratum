@@ -51,7 +51,7 @@ export async function runMigrations(): Promise<void> {
   // Find migration files
   const migrationsDir = path.resolve(
     __dirname,
-    "../../../../packages/control-plane/src/db/migrations",
+    "../../../../packages/lib/src/migrations",
   );
 
   const files = fs

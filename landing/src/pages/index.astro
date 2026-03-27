@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import '../styles/global.css';
 ---
 
-<Base title="Stratum — Universal Tenant Context Engine" description="Hierarchical multi-tenancy for any stack. Config inheritance, permission delegation, three isolation strategies, GDPR compliance, and more.">
+<Base title="Stratum — Multi-Tenancy for Node.js | Tenant Hierarchy, Config Inheritance, Isolation" description="Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies (RLS, schema, database), GDPR compliance. Open source, MIT licensed.">
 
 <!-- Nav -->
 <nav class="nav">
@@ -13,6 +13,7 @@ import '../styles/global.css';
       Stratum
     </a>
     <div class="nav-links">
+      <a href="/what-is-stratum">What is Stratum?</a>
       <a href="https://docs.stratum-hq.org">Docs</a>
       <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
       <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
@@ -35,17 +36,16 @@ import '../styles/global.css';
 <!-- Hero -->
 <section class="hero">
   <div class="hero-content">
-    <h1>Multi-tenancy that <span class="accent">flows</span></h1>
+    <h1>Drop-in multi-tenancy for <span class="accent">Node.js</span></h1>
     <p class="hero-subtext">
-      Hierarchical tenant trees with config inheritance, permission delegation,
-      and three isolation strategies. Built for MSSP, MSP, and SaaS platform architectures.
+      Tenant hierarchy with config inheritance, permission delegation, and three isolation strategies. Start with flat tenancy, grow into hierarchy as your product matures.
     </p>
     <div class="hero-actions">
       <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
       <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
     </div>
     <div class="install-box">
-      <code>npm install <span class="pkg">@stratum-hq/lib</span></code>
+      <code>npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
       <button class="install-copy" id="copy-btn" aria-label="Copy install command">copy</button>
     </div>
   </div>
@@ -238,7 +238,7 @@ import '../styles/global.css';
       <tbody>
         <tr>
           <td class="pkg-name">@stratum-hq/core</td>
-          <td class="pkg-desc">Types, Zod schemas, error classes <span class="pkg-tag">required</span></td>
+          <td class="pkg-desc">Types, Zod schemas, error classes <span class="pkg-tag">peer dep</span></td>
           <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/core" class="pkg-link" aria-label="@stratum-hq/core on npm">npm &rarr;</a></td>
         </tr>
         <tr>

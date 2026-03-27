@@ -1,11 +1,25 @@
--- Extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "ltree";
+-- Extensions (require superuser or CREATE privilege; gracefully warn if unavailable)
+DO $$ BEGIN
+  CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'Cannot create uuid-ossp extension — insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";';
+END $$;
 
--- Fail hard if application role has BYPASSRLS privilege
+DO $$ BEGIN
+  CREATE EXTENSION IF NOT EXISTS "ltree";
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE WARNING 'Cannot create ltree extension — insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "ltree";';
+END $$;
+
+-- Warn if application role has BYPASSRLS privilege.
+-- In production, set stratum.enforce_rls = 'on' to make this a hard error.
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND rolbypassrls) THEN
-    RAISE EXCEPTION 'SECURITY: Application role "%" must not have BYPASSRLS privilege. Create a dedicated role without BYPASSRLS.', current_user;
+    IF current_setting('stratum.enforce_rls', true) = 'on' THEN
+      RAISE EXCEPTION 'SECURITY: Application role "%" has BYPASSRLS privilege. Create a dedicated role without BYPASSRLS, or set stratum.enforce_rls=off for development.', current_user;
+    ELSE
+      RAISE WARNING 'Role "%" has BYPASSRLS privilege. This is fine for development, but production should use a role without BYPASSRLS. Set stratum.enforce_rls=on to enforce.', current_user;
+    END IF;
   END IF;
 END $$;
 
