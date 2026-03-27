@@ -1,17 +1,19 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
-import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
+import { CreateAbacPolicyInputSchema, AbacEvaluationRequestSchema } from "@stratum-hq/core";
+import { createTenantScopeGuard, fromParamTenantId } from "../middleware/tenant-scope.js";
 
 export function createAbacRoutes(stratum: Stratum) {
   return async function abacRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access ABAC policies for their own tenant subtree
-    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
+    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamTenantId));
 
     // POST /api/v1/tenants/:tenantId/abac-policies — Create ABAC policy
     app.post<{ Params: { tenantId: string } }>("/", async (request, reply) => {
+      const input = CreateAbacPolicyInputSchema.parse(request.body);
       const policy = await stratum.createAbacPolicy(
         request.params.tenantId,
-        request.body as Parameters<typeof stratum.createAbacPolicy>[1],
+        input,
       );
       reply.status(201).send(policy);
     });
@@ -24,9 +26,10 @@ export function createAbacRoutes(stratum: Stratum) {
 
     // POST /api/v1/tenants/:tenantId/abac/evaluate — Evaluate an ABAC request
     app.post<{ Params: { tenantId: string } }>("/evaluate", async (request, reply) => {
+      const evalRequest = AbacEvaluationRequestSchema.parse(request.body);
       const result = await stratum.evaluateAbac(
         request.params.tenantId,
-        request.body as Parameters<typeof stratum.evaluateAbac>[1],
+        evalRequest,
       );
       reply.status(200).send(result);
     });
