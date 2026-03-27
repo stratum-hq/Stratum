@@ -1,0 +1,23 @@
+{
+  "name": "@stratum-hq/stratum",
+  "version": "0.0.1",
+  "description": "Drop-in hierarchical multi-tenancy for Node.js — tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.",
+  "keywords": [
+    "multi-tenancy",
+    "saas",
+    "tenant",
+    "node",
+    "typescript",
+    "postgresql"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stratum-hq/Stratum.git",
+    "directory": "packages/stratum"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
