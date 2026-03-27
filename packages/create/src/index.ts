@@ -415,6 +415,24 @@ export function createProject(
   }
 }
 
+// ─── Input validation ─────────────────────────────────────────────────────────
+
+const VALID_PROJECT_NAME = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
+export function validateProjectName(projectName: string): string | null {
+  if (!projectName) {
+    return "Project name must not be empty.";
+  }
+  if (!VALID_PROJECT_NAME.test(projectName)) {
+    return `"${projectName}" is not a valid project name. Use only letters, numbers, dots, hyphens, and underscores. Must start with a letter or number.`;
+  }
+  const targetDir = path.resolve(process.cwd(), projectName);
+  if (path.dirname(targetDir) !== process.cwd()) {
+    return "Project name must not contain path separators.";
+  }
+  return null;
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export function main(argv: string[]): void {
@@ -422,6 +440,12 @@ export function main(argv: string[]): void {
 
   if (!projectName) {
     printUsage();
+    process.exit(1);
+  }
+
+  const validationError = validateProjectName(projectName);
+  if (validationError) {
+    console.error(`Error: ${validationError}`);
     process.exit(1);
   }
 

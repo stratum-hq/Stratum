@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { parseArgs, createProject } from "../index.js";
+import { parseArgs, createProject, validateProjectName } from "../index.js";
 
 // ─── parseArgs tests ──────────────────────────────────────────────────────────
 
@@ -160,6 +160,42 @@ describe("createProject", () => {
   it("default template is express", () => {
     const result = parseArgs(["my-app"]);
     expect(result.template).toBe("express");
+  });
+});
+
+// ─── Project name validation ──────────────────────────────────────────────────
+
+describe("validateProjectName", () => {
+  it("accepts a valid name", () => {
+    expect(validateProjectName("valid-name")).toBeNull();
+  });
+
+  it("accepts names with dots and underscores", () => {
+    expect(validateProjectName("my.app_1")).toBeNull();
+  });
+
+  it("rejects empty string", () => {
+    expect(validateProjectName("")).not.toBeNull();
+  });
+
+  it("rejects name with spaces", () => {
+    expect(validateProjectName("name with spaces")).not.toBeNull();
+  });
+
+  it("rejects path traversal with ../", () => {
+    expect(validateProjectName("../escape")).not.toBeNull();
+  });
+
+  it("rejects absolute path", () => {
+    expect(validateProjectName("/absolute/path")).not.toBeNull();
+  });
+
+  it("rejects name starting with a dot", () => {
+    expect(validateProjectName(".hidden")).not.toBeNull();
+  });
+
+  it("rejects name with path separator embedded", () => {
+    expect(validateProjectName("foo/bar")).not.toBeNull();
   });
 });
 
