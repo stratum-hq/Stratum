@@ -12,6 +12,7 @@ import * as retentionService from "./services/retention-service.js";
 import * as regionService from "./services/region-service.js";
 import * as keyRotationService from "./services/key-rotation-service.js";
 import * as roleService from "./services/role-service.js";
+import * as abacService from "./services/abac-service.js";
 import { traced } from "./telemetry.js";
 import { defaultLogger, type StratumLogger } from "./logger.js";
 import type {
@@ -48,6 +49,11 @@ import type {
   DriftDetail,
   DriftResult,
   BatchDriftResult,
+  AbacPolicy,
+  CreateAbacPolicyInput,
+  AbacEvaluationRequest,
+  AbacEvaluationResult,
+  ResolvedAbacPolicy,
 } from "@stratum-hq/core";
 import { TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
@@ -736,6 +742,23 @@ export class Stratum {
   }
   resolveKeyScopes(keyId: string): Promise<string[]> {
     return roleService.resolveKeyScopes(this.pool, keyId);
+  }
+
+  // ABAC operations
+  createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput): Promise<AbacPolicy> {
+    return abacService.createAbacPolicy(this.pool, tenantId, input);
+  }
+  getAbacPolicies(tenantId: string): Promise<AbacPolicy[]> {
+    return abacService.getAbacPolicies(this.pool, tenantId);
+  }
+  resolveAbacPolicies(tenantId: string): Promise<ResolvedAbacPolicy[]> {
+    return abacService.resolveAbacPolicies(this.pool, tenantId);
+  }
+  evaluateAbac(tenantId: string, request: AbacEvaluationRequest): Promise<AbacEvaluationResult> {
+    return abacService.evaluateAbac(this.pool, tenantId, request);
+  }
+  deleteAbacPolicy(tenantId: string, policyId: string): Promise<void> {
+    return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
   }
 
   // Batch operations
