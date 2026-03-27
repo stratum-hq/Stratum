@@ -319,3 +319,25 @@ nav a[aria-current="page"] {
   height: 28px !important;
   width: auto !important;
 }
+
+/* --------------------------------------------------------------------------
+   Card icon colors — override Starlight defaults to match design system
+   -------------------------------------------------------------------------- */
+.card .icon {
+  color: var(--sl-color-accent) !important;
+}
+.card .icon svg {
+  fill: var(--sl-color-accent) !important;
+  color: var(--sl-color-accent) !important;
+}
+starlight-card .icon,
+.sl-card .icon,
+.card svg {
+  color: var(--sl-color-accent) !important;
+}
+
+/* Hero action buttons */
+[data-theme="light"] .hero .action.primary {
+  background: #C05746;
+  border-color: #C05746;
+}
