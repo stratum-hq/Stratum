@@ -34,13 +34,13 @@ Stratum gives you all of this from day one. Start with flat tenancy, grow into h
 
 ```bash
 # Direct library (no HTTP overhead)
-npm install @stratum-hq/lib @stratum-hq/core pg
+npm install @stratum-hq/lib pg
 
 # HTTP SDK with Express/Fastify middleware
-npm install @stratum-hq/sdk @stratum-hq/core
+npm install @stratum-hq/sdk
 
 # React admin components
-npm install @stratum-hq/react @stratum-hq/core
+npm install @stratum-hq/react
 
 # CLI tools
 npm install -g @stratum-hq/cli
