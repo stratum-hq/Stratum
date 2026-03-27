@@ -1,4 +1,6 @@
 export enum ErrorCode {
+  ABAC_POLICY_NOT_FOUND = "ABAC_POLICY_NOT_FOUND",
+  INVALID_ABAC_OPERATOR = "INVALID_ABAC_OPERATOR",
   TENANT_NOT_FOUND = "TENANT_NOT_FOUND",
   TENANT_ALREADY_EXISTS = "TENANT_ALREADY_EXISTS",
   TENANT_HAS_CHILDREN = "TENANT_HAS_CHILDREN",
@@ -225,5 +227,27 @@ export class WebhookDeliveryError extends StratumError {
       500,
     );
     this.name = "WebhookDeliveryError";
+  }
+}
+
+export class AbacPolicyNotFoundError extends StratumError {
+  constructor(policyId: string) {
+    super(
+      ErrorCode.ABAC_POLICY_NOT_FOUND,
+      `ABAC policy not found: ${policyId}`,
+      404,
+    );
+    this.name = "AbacPolicyNotFoundError";
+  }
+}
+
+export class InvalidAbacOperatorError extends StratumError {
+  constructor(operator: string) {
+    super(
+      ErrorCode.INVALID_ABAC_OPERATOR,
+      `Invalid ABAC operator: '${operator}'`,
+      400,
+    );
+    this.name = "InvalidAbacOperatorError";
   }
 }
