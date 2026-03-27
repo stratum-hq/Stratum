@@ -90,21 +90,39 @@ export async function runMigrations(): Promise<void> {
 }
 
 /**
- * Clean all test data (truncate all application tables).
+ * Clean all test data (delete from all application tables).
  * Preserves schema and _migrations table.
  *
- * Uses a single TRUNCATE statement to avoid deadlocks when multiple
- * test suites run concurrently (individual TRUNCATEs in a loop can
- * deadlock on cross-table CASCADE locks).
+ * Uses DELETE instead of TRUNCATE to avoid deadlocks. TRUNCATE takes
+ * AccessExclusiveLock on every referenced table (including via CASCADE),
+ * which deadlocks when concurrent test suites hold read locks. DELETE
+ * takes row-level locks only, eliminating the deadlock window.
+ *
+ * Tables are deleted in reverse-dependency order (children before parents)
+ * to respect foreign key constraints without needing CASCADE.
  */
 export async function cleanTestData(): Promise<void> {
   const p = getPool();
-  const { rows } = await p.query<{ tablename: string }>(`
-    SELECT tablename FROM pg_tables
-    WHERE schemaname = 'public'
-    AND tablename != '_migrations'
-  `);
-  if (rows.length === 0) return;
-  const tableList = rows.map((r) => `"${r.tablename}"`).join(", ");
-  await p.query(`TRUNCATE TABLE ${tableList} CASCADE`);
+  // Delete in reverse-dependency order: leaf tables first, then parents.
+  // This avoids FK violations without CASCADE (which would require TRUNCATE).
+  const tables = [
+    "dlq_events",
+    "webhook_deliveries",
+    "webhooks",
+    "abac_policies",
+    "permission_policies",
+    "config_entries",
+    "consent_records",
+    "audit_logs",
+    "api_key_roles",
+    "api_keys",
+    "roles",
+    "regions",
+    "tenants",
+  ];
+  for (const table of tables) {
+    await p.query(`DELETE FROM "${table}" WHERE 1=1`).catch(() => {
+      // Table may not exist yet (e.g., abac_policies before migration 017)
+    });
+  }
 }
