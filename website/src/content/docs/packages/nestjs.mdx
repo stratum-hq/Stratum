@@ -1,0 +1,180 @@
+---
+title: "@stratum-hq/nestjs"
+description: NestJS integration with tenant guard, @Tenant() decorator, and dependency injection module.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/nestjs` provides first-class NestJS integration for Stratum. It includes a guard that resolves tenants from incoming requests, a parameter decorator for extracting tenant context, and a module for dependency injection.
+
+## Installation
+
+```bash
+npm install @stratum-hq/nestjs @stratum-hq/sdk @stratum-hq/core
+```
+
+Peer dependencies: `@nestjs/common >= 10`, `@nestjs/core >= 10`, `reflect-metadata`.
+
+## Quick Start
+
+```typescript
+import { Module } from "@nestjs/common";
+import { StratumModule } from "@stratum-hq/nestjs";
+
+@Module({
+  imports: [
+    StratumModule.forRoot({
+      controlPlaneUrl: "http://localhost:3001",
+      apiKey: "sk_live_your_key",
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Then use the guard and decorator in your controllers:
+
+```typescript
+import { Controller, Get, UseGuards } from "@nestjs/common";
+import { StratumGuard, Tenant } from "@stratum-hq/nestjs";
+
+@Controller("data")
+@UseGuards(StratumGuard)
+export class DataController {
+  @Get()
+  getData(@Tenant() tenant: any) {
+    return {
+      tenantId: tenant.tenant_id,
+      config: tenant.resolved_config,
+    };
+  }
+}
+```
+
+## StratumModule
+
+### forRoot (synchronous)
+
+```typescript
+StratumModule.forRoot({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+  jwtSecret: process.env.JWT_SECRET,      // Optional: enables JWT verification
+  jwtClaimPath: "tenant_id",              // Optional: JWT claim path
+})
+```
+
+### forRootAsync (asynchronous)
+
+For configuration that depends on other providers (e.g., ConfigService):
+
+```typescript
+StratumModule.forRootAsync({
+  useFactory: (config: ConfigService) => ({
+    controlPlaneUrl: config.get("STRATUM_URL"),
+    apiKey: config.get("STRATUM_API_KEY"),
+    jwtSecret: config.get("JWT_SECRET"),
+  }),
+  inject: [ConfigService],
+})
+```
+
+The module is `@Global()` -- you only need to import it once in your root module.
+
+## StratumGuard
+
+The guard resolves tenant context from incoming requests using the same resolution chain as the Express/Fastify middleware:
+
+1. **Header** -- reads `X-Tenant-ID` header
+2. **JWT** -- extracts tenant ID from a verified Bearer token claim (requires `jwtSecret`)
+3. **Custom resolvers** -- your async functions, tried in order
+
+If no tenant is found, the guard throws `UnauthorizedException` (HTTP 401).
+
+```typescript
+@UseGuards(StratumGuard)
+@Controller("api")
+export class ApiController {
+  // All routes require a valid tenant
+}
+```
+
+### What the guard sets on the request
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `req.tenant` | `TenantContext` | Full resolved context (config, permissions) |
+| `req.impersonating` | `boolean` | Whether this is an impersonated request |
+| `req.originalTenantId` | `string?` | Original tenant ID if impersonating |
+
+## @Tenant() Decorator
+
+Parameter decorator that extracts `req.tenant` from the request:
+
+```typescript
+@Get("profile")
+getProfile(@Tenant() tenant: any) {
+  return {
+    id: tenant.tenant_id,
+    maxUsers: tenant.resolved_config["max_users"]?.value,
+  };
+}
+```
+
+## Impersonation
+
+If impersonation is configured in the module options, the guard checks for the `X-Impersonate-Tenant` header and resolves the impersonated tenant's context:
+
+```typescript
+StratumModule.forRoot({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+  impersonation: {
+    enabled: true,
+    authorize: async (req, fromTenantId, toTenantId) => {
+      // Return true if the caller is allowed to impersonate
+      return isAdmin(req);
+    },
+  },
+})
+```
+
+## Custom Resolvers
+
+Add custom tenant resolution logic (e.g., subdomain-based):
+
+```typescript
+StratumModule.forRoot({
+  controlPlaneUrl: "http://localhost:3001",
+  apiKey: "sk_live_your_key",
+  resolvers: [
+    {
+      resolve: async (req) => {
+        const subdomain = req.hostname?.split(".")[0];
+        return subdomain !== "www" ? subdomain : null;
+      },
+    },
+  ],
+})
+```
+
+## AsyncLocalStorage
+
+The guard binds tenant context to AsyncLocalStorage, so downstream services can access it without the request object:
+
+```typescript
+import { getTenantContext } from "@stratum-hq/sdk";
+
+@Injectable()
+export class OrderService {
+  async getOrders() {
+    const ctx = getTenantContext(); // works without req
+    // Use ctx.tenant_id, ctx.resolved_config, etc.
+  }
+}
+```
+
+<Aside type="note">
+  `@stratum-hq/nestjs` depends on `@stratum-hq/sdk` for `StratumClient` and
+  AsyncLocalStorage context. Both are peer dependencies.
+</Aside>

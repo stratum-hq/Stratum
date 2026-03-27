@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide covers everything you need 
 
 ## Setting Up the Dev Environment
 
-**Prerequisites:** Node.js 20+, PostgreSQL 15+, Docker (optional but recommended)
+**Prerequisites:** Node.js 20+, PostgreSQL 16+, Docker (optional but recommended)
 
 ```bash
 # Clone and install dependencies
@@ -53,19 +53,22 @@ PRs should be focused — one feature or fix per PR. Keep commits clean and desc
 
 ## Monorepo Structure
 
-This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 9 packages:
+This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 12 packages:
 
 | Package | Description |
 |---|---|
-| `packages/core` | Core engine — session management, auth, key derivation |
-| `packages/sdk` | JavaScript/TypeScript SDK for client applications |
-| `packages/react-ui` | React components for embedding Stratum UI |
-| `packages/cli` | Command-line interface (`stratum` command) |
-| `packages/control-plane` | REST API server and admin control plane |
-| `packages/db-adapters` | Database adapters (PostgreSQL and others) |
-| `packages/lib` | Shared utilities and internal helpers |
-| `packages/demo` | Demo application and usage examples |
-| `packages/integration-tests` | End-to-end and integration test suite |
+| `packages/core` | Shared types, Zod schemas, error classes |
+| `packages/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
+| `packages/control-plane` | Fastify v5 REST API with auth, scopes, rate limiting |
+| `packages/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
+| `packages/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, RLS, schema/DB isolation |
+| `packages/nestjs` | NestJS integration — guard, `@Tenant()` decorator, DI module |
+| `packages/react-ui` | React components — tenant tree, config editor, permission editor |
+| `packages/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
+| `packages/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
+| `packages/stratum` | npm name reservation (placeholder) |
+| `packages/demo` | Demo application (MSSP hierarchy) |
+| `packages/integration-tests` | Integration tests against real PostgreSQL 16 |
 
 ## Questions?
 

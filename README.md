@@ -69,11 +69,17 @@ const config = await stratum.resolveConfig(customer.id);
 ## Install
 
 ```bash
-# Direct library (no HTTP overhead)
+# Scaffold a new project (recommended)
+npx @stratum-hq/create my-app
+
+# Or add to an existing project
 npm install @stratum-hq/lib pg
 
 # HTTP SDK with Express/Fastify middleware
 npm install @stratum-hq/sdk
+
+# NestJS integration (guard, decorator, module)
+npm install @stratum-hq/nestjs
 
 # React admin components
 npm install @stratum-hq/react
@@ -87,18 +93,21 @@ npm install -g @stratum-hq/cli
 | Package | What it does |
 |---------|-------------|
 | `@stratum-hq/core` | Shared types, Zod schemas, error classes |
-| `@stratum-hq/lib` | Direct library — tenants, config, permissions, audit, GDPR |
+| `@stratum-hq/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
 | `@stratum-hq/control-plane` | Fastify v5 REST API with auth, scopes, OTel, Redis rate limiting |
 | `@stratum-hq/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, RLS, schema/DB isolation |
+| `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, RLS, schema/DB isolation |
 | `@stratum-hq/react` | React components — tenant tree, config editor, permission editor |
 | `@stratum-hq/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
+| `@stratum-hq/nestjs` | NestJS integration — guard, `@Tenant()` decorator, module with DI |
+| `@stratum-hq/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
 
 ## Key Features
 
 - **Tenant hierarchy** — tree structure with ltree, advisory locks, max depth 20
 - **Config inheritance** — values flow root→leaf, parents can lock keys
 - **Permission delegation** — LOCKED / INHERITED / DELEGATED modes with cascade revocation
+- **ABAC** — attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
 - **Three isolation strategies** — shared RLS, schema-per-tenant, database-per-tenant
 - **Field-level encryption** — AES-256-GCM with key rotation
 - **Audit logging** — every mutation with actor identity and before/after state
@@ -111,7 +120,7 @@ npm install -g @stratum-hq/cli
 - **Config diff** — compare resolved config between any two tenants
 - **Tenant impersonation** — resolve full context for admin tooling
 - **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **250+ unit tests + 20 integration tests** — validated against real PostgreSQL 16
+- **310+ unit tests + 20 integration tests** — validated against real PostgreSQL 16
 
 ## Running the Demo
 
@@ -173,10 +182,13 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
 @stratum-hq/lib (direct)  ←→  @stratum-hq/control-plane (HTTP)
          │                              │
          ├── @stratum-hq/db-adapters    ├── @stratum-hq/sdk
-         │   (pg, Prisma, RLS)          │   (client, middleware)
+         │   (pg, Prisma, Sequelize)    │   (client, middleware)
          │                              │
-         └── PostgreSQL 16              ├── @stratum-hq/react
-             (ltree, RLS, AES)          │   (UI components)
+         └── PostgreSQL 16              ├── @stratum-hq/nestjs
+             (ltree, RLS, AES)          │   (guard, decorator, DI)
+                                        │
+                                        ├── @stratum-hq/react
+                                        │   (UI components)
                                         │
                                         └── @stratum-hq/cli
                                             (init, doctor, migrate)

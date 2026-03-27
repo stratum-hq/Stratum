@@ -92,6 +92,18 @@ stratum.updatePermission(tenantId, policyId, input, audit?): Promise<PermissionP
 stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
 ```
 
+### ABAC (Attribute-Based Access Control)
+
+```typescript
+stratum.createAbacPolicy(tenantId, input): Promise<AbacPolicy>
+stratum.getAbacPolicies(tenantId): Promise<AbacPolicy[]>
+stratum.resolveAbacPolicies(tenantId): Promise<ResolvedAbacPolicy[]>
+stratum.evaluateAbac(tenantId, request): Promise<AbacEvaluationResult>
+stratum.deleteAbacPolicy(tenantId, policyId): Promise<void>
+```
+
+ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERITED/DELEGATED modes as permissions. See the [ABAC guide](/guides/abac/) for details.
+
 ### API Keys
 
 ```typescript

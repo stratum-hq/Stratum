@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.3 (2026-03-27)
+
+### Added
+- **ABAC policy engine** — attribute-based access control with 9 operators (eq, neq, in, not_in, contains, gt, gte, lt, lte). Policies inherit through the tenant hierarchy with LOCKED/INHERITED/DELEGATED modes. Deny-overrides-allow evaluation with priority sorting. New migration 017, control-plane routes, and Stratum class methods.
+- **NestJS integration** — `@stratum-hq/nestjs` package with `StratumGuard` (CanActivate), `@Tenant()` parameter decorator, and `StratumModule.forRoot()`/`forRootAsync()` for dependency injection. Supports JWT verification, custom resolvers, and tenant impersonation.
+- **Sequelize adapter** — `@stratum-hq/db-adapters` now supports Sequelize alongside raw pg and Prisma. Transaction-wrapping pattern ensures tenant context isolation. `SequelizeLike` structural interface avoids hard dependency.
+- **Project scaffolding** — `npx @stratum-hq/create my-app` generates a new project with package.json, docker-compose.yml, .env, and framework-specific starter code (Express, Fastify, or Next.js).
+- **npm name reservation** — `@stratum-hq/stratum` package reserved on npm as a placeholder for a future meta-package.
+- **30-second quickstart** — README hero rewritten with flat-tenancy 5-line code block emphasizing `autoMigrate`. Progressive disclosure: flat first, hierarchy second.
+
+### Fixed
+- **Integration test deadlock** — `cleanTestData()` now uses a single TRUNCATE statement instead of a per-table loop, eliminating deadlocks from concurrent CASCADE locks.
+
 ## 0.2.2 (2026-03-27)
 
 ### Added

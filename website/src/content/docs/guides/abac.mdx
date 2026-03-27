@@ -1,0 +1,163 @@
+---
+title: ABAC (Attribute-Based Access Control)
+description: Fine-grained access control with condition-based policies that inherit through the tenant hierarchy.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+ABAC extends Stratum's permission system with attribute-based conditions. While [permission delegation](/guides/permission-delegation/) controls what tenants *can do* (feature flags, capability toggles), ABAC controls *who can do what to which resources* based on attributes of the user, the action, and the resource.
+
+## When to Use ABAC
+
+| Use case | Permission delegation | ABAC |
+|----------|----------------------|------|
+| "Enterprise plan gets SIEM feature" | `features.siem = true` | -- |
+| "Only admins can delete users over 90 days old" | -- | condition on role + age |
+| "Engineering dept can read classified docs" | -- | condition on department + classification |
+| "Lock max_users at 1000 for all children" | `max_users = 1000, LOCKED` | -- |
+
+Use permissions for on/off feature flags. Use ABAC for conditional, attribute-based rules.
+
+## Creating Policies
+
+```typescript
+await stratum.createAbacPolicy(tenantId, {
+  name: "admin-delete-old-users",
+  resource_type: "user",
+  action: "delete",
+  effect: "allow",
+  conditions: [
+    { attribute: "role", operator: "eq", value: "admin" },
+    { attribute: "account_age_days", operator: "gt", value: 90 },
+  ],
+  mode: "INHERITED",   // children inherit this policy
+  priority: 10,
+});
+```
+
+### Condition Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `eq` | Equals | `role eq "admin"` |
+| `neq` | Not equals | `status neq "suspended"` |
+| `in` | Value in array | `dept in ["eng", "product"]` |
+| `not_in` | Value not in array | `tier not_in ["free"]` |
+| `contains` | Array contains value | `tags contains "urgent"` |
+| `gt` | Greater than (numeric) | `level gt 5` |
+| `gte` | Greater than or equal | `clearance gte 3` |
+| `lt` | Less than (numeric) | `risk lt 3` |
+| `lte` | Less than or equal | `age_days lte 30` |
+
+All conditions in a policy are AND'd -- every condition must match for the policy to apply.
+
+## Evaluating Access
+
+```typescript
+const result = await stratum.evaluateAbac(tenantId, {
+  subject: { role: "admin", department: "engineering" },
+  action: "delete",
+  resource: { type: "user", account_age_days: 120 },
+});
+
+console.log(result.allowed);        // true
+console.log(result.reason);         // "explicit_allow"
+console.log(result.matched_policy); // the policy that matched
+```
+
+### Evaluation Rules
+
+1. **Deny overrides allow** -- if any deny policy matches, the request is denied regardless of allow policies
+2. **Priority** -- higher priority policies are evaluated first
+3. **Default deny** -- if no policy matches, the request is denied
+4. **Wildcard** -- use `*` for `resource_type` or `action` to match any value
+
+## Hierarchical Inheritance
+
+ABAC policies inherit through the tenant tree using the same modes as permissions:
+
+```
+Root (MSSP)
+  └── MSP A
+       └── Customer X
+```
+
+### LOCKED
+
+A LOCKED policy on the root cannot be overridden by children:
+
+```typescript
+// Root locks down: nobody can delete archived users
+await stratum.createAbacPolicy(rootId, {
+  name: "no-delete-archived",
+  resource_type: "user",
+  action: "delete",
+  effect: "deny",
+  conditions: [{ attribute: "status", operator: "eq", value: "archived" }],
+  mode: "LOCKED",
+  priority: 100,
+});
+
+// MSP A tries to override — this throws AbacPolicyLockedError
+await stratum.createAbacPolicy(mspAId, {
+  name: "no-delete-archived",
+  resource_type: "user",
+  action: "delete",
+  effect: "allow",
+  conditions: [],
+});
+```
+
+### INHERITED
+
+Children inherit the policy but can override it with their own:
+
+```typescript
+await stratum.createAbacPolicy(rootId, {
+  name: "default-read-access",
+  resource_type: "document",
+  action: "read",
+  effect: "allow",
+  conditions: [{ attribute: "classification", operator: "lte", value: 3 }],
+  mode: "INHERITED",
+});
+
+// Customer X can tighten the rule for their own users
+await stratum.createAbacPolicy(customerXId, {
+  name: "default-read-access",
+  resource_type: "document",
+  action: "read",
+  effect: "allow",
+  conditions: [{ attribute: "classification", operator: "lte", value: 1 }],
+});
+```
+
+### DELEGATED
+
+Children can create their own policies for the same resource/action:
+
+```typescript
+await stratum.createAbacPolicy(rootId, {
+  name: "base-write-policy",
+  resource_type: "document",
+  action: "write",
+  effect: "allow",
+  conditions: [{ attribute: "role", operator: "in", value: ["admin", "editor"] }],
+  mode: "DELEGATED",
+});
+```
+
+## REST API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/tenants/:id/abac-policies` | Create a policy |
+| `GET` | `/api/v1/tenants/:id/abac-policies` | List policies for a tenant |
+| `POST` | `/api/v1/tenants/:id/abac-policies/evaluate` | Evaluate an ABAC request |
+| `DELETE` | `/api/v1/tenants/:id/abac-policies/:policyId` | Delete a policy |
+
+<Aside type="tip">
+  Use `resolveAbacPolicies()` to see all effective policies for a tenant
+  (including inherited ones from ancestors). Use `getAbacPolicies()` to see
+  only the policies owned by that specific tenant.
+</Aside>

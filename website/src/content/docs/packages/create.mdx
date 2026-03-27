@@ -1,0 +1,85 @@
+---
+title: "@stratum-hq/create"
+description: Scaffold a new Stratum project with one command.
+---
+
+`@stratum-hq/create` generates a complete project directory with everything you need to start building with Stratum -- package.json, Docker Compose, environment files, and framework-specific starter code.
+
+## Usage
+
+```bash
+npx @stratum-hq/create my-app
+```
+
+This creates a `my-app/` directory with:
+
+- `package.json` with `@stratum-hq/lib`, `pg`, and your chosen framework
+- `docker-compose.yml` with PostgreSQL 16 and pre-loaded extensions (ltree, uuid-ossp)
+- `.env.example` with `DATABASE_URL` and other defaults
+- A starter server file with Stratum middleware
+- `README.md` with getting-started instructions
+
+## Options
+
+```bash
+npx @stratum-hq/create my-app [options]
+
+Options:
+  --template <name>   Framework template: express (default), fastify, or nextjs
+  --skip-install      Skip npm install after scaffolding
+  --force             Overwrite existing directory
+```
+
+## Templates
+
+### Express (default)
+
+```bash
+npx @stratum-hq/create my-app --template express
+```
+
+Generates an Express server with Stratum middleware, tenant-aware routes, and TypeScript configuration.
+
+### Fastify
+
+```bash
+npx @stratum-hq/create my-app --template fastify
+```
+
+Generates a Fastify server with Stratum plugin registration.
+
+### Next.js
+
+```bash
+npx @stratum-hq/create my-app --template nextjs
+```
+
+Generates a Next.js project with edge middleware for tenant resolution and server-side helpers.
+
+## After Scaffolding
+
+```bash
+cd my-app
+
+# Start the database
+docker compose up -d
+
+# Run the app
+npm run dev
+```
+
+The generated project uses `autoMigrate: true`, so Stratum creates its tables automatically on first run -- no separate migration step needed.
+
+## What Gets Generated
+
+```
+my-app/
+  package.json          # Dependencies + scripts
+  docker-compose.yml    # PostgreSQL 16 with extensions
+  docker/
+    init.sql            # CREATE EXTENSION uuid-ossp, ltree
+  .env.example          # DATABASE_URL, JWT_SECRET
+  src/
+    server.ts           # Framework-specific starter with Stratum
+  README.md             # Getting started instructions
+```
