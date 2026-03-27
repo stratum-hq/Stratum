@@ -8,6 +8,7 @@ export default defineConfig({
       logo: {
         src: "./src/assets/stratumlogonotext.png",
         alt: "Stratum",
+        replacesTitle: true,
       },
       favicon: "/favicon.png",
       description:
@@ -34,6 +35,16 @@ export default defineConfig({
         },
       ],
       sidebar: [
+        {
+          label: "← stratum-hq.org",
+          link: "https://stratum-hq.org",
+          attrs: { target: "_blank", rel: "noopener" },
+        },
+        {
+          label: "Blog",
+          link: "https://stratum-hq.org/blog",
+          attrs: { target: "_blank", rel: "noopener" },
+        },
         {
           label: "Getting Started",
           autogenerate: { directory: "getting-started" },

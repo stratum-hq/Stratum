@@ -296,6 +296,28 @@ nav a[aria-current="page"] {
 }
 
 /* --------------------------------------------------------------------------
+   Logo — constrain to match landing page 28px treatment
+   -------------------------------------------------------------------------- */
+.site-title img,
+.sl-logo img,
+header .logo img {
+  height: 28px;
+  width: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar external links — landing page + blog
+   -------------------------------------------------------------------------- */
+.sidebar-content a[href^="https://stratum-hq.org"] {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.sidebar-content a[href^="https://stratum-hq.org"]:hover {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
    Accessibility
    -------------------------------------------------------------------------- */
 :focus-visible {
