@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
-import { CreateAbacPolicyInputSchema, AbacEvaluationRequestSchema } from "@stratum-hq/core";
+import { CreateAbacPolicyInputSchema, AbacEvaluationRequestSchema, type CreateAbacPolicyInput, type AbacEvaluationRequest } from "@stratum-hq/core";
 import { createTenantScopeGuard, fromParamTenantId } from "../middleware/tenant-scope.js";
 
 export function createAbacRoutes(stratum: Stratum) {
@@ -10,7 +10,7 @@ export function createAbacRoutes(stratum: Stratum) {
 
     // POST /api/v1/tenants/:tenantId/abac-policies — Create ABAC policy
     app.post<{ Params: { tenantId: string } }>("/", async (request, reply) => {
-      const input = CreateAbacPolicyInputSchema.parse(request.body);
+      const input = CreateAbacPolicyInputSchema.parse(request.body) as CreateAbacPolicyInput;
       const policy = await stratum.createAbacPolicy(
         request.params.tenantId,
         input,
@@ -26,7 +26,7 @@ export function createAbacRoutes(stratum: Stratum) {
 
     // POST /api/v1/tenants/:tenantId/abac/evaluate — Evaluate an ABAC request
     app.post<{ Params: { tenantId: string } }>("/evaluate", async (request, reply) => {
-      const evalRequest = AbacEvaluationRequestSchema.parse(request.body);
+      const evalRequest = AbacEvaluationRequestSchema.parse(request.body) as AbacEvaluationRequest;
       const result = await stratum.evaluateAbac(
         request.params.tenantId,
         evalRequest,
