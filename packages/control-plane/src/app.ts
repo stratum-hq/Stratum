@@ -23,6 +23,7 @@ import { createMaintenanceRoutes } from "./routes/maintenance.js";
 import { createRegionRoutes } from "./routes/regions.js";
 import { createRoleRoutes } from "./routes/roles.js";
 import { createConfigDiffRoutes } from "./routes/config-diff.js";
+import { createAbacRoutes } from "./routes/abac.js";
 import { registerTelemetryHooks } from "./middleware/telemetry.js";
 import { config } from "./config.js";
 import { getPool } from "./db/connection.js";
@@ -112,6 +113,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(createRoleRoutes(stratum), { prefix: "/api/v1/roles" });
   await app.register(createMaintenanceRoutes(stratum), { prefix: "/api/v1/maintenance" });
   await app.register(createConfigDiffRoutes(stratum), { prefix: "/api/v1/config" });
+  await app.register(createAbacRoutes(stratum), { prefix: "/api/v1/tenants/:tenantId/abac-policies" });
 
   return app;
 }

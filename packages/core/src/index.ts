@@ -126,6 +126,19 @@ export {
   type PaginatedResult,
 } from "./utils/validation.js";
 
+// ABAC types
+export {
+  CreateAbacPolicyInputSchema,
+  AbacEvaluationRequestSchema,
+  type AbacOperator,
+  type AbacCondition,
+  type AbacPolicy,
+  type CreateAbacPolicyInput,
+  type AbacEvaluationRequest,
+  type AbacEvaluationResult,
+  type ResolvedAbacPolicy,
+} from "./types/abac.js";
+
 // Errors
 export {
   ErrorCode,
@@ -148,6 +161,9 @@ export {
   ForbiddenError,
   WebhookNotFoundError,
   WebhookDeliveryError,
+  AbacPolicyNotFoundError,
+  InvalidAbacOperatorError,
+  AbacPolicyLockedError,
 } from "./utils/errors.js";
 
 // Constants
