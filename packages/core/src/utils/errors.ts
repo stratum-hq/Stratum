@@ -1,5 +1,6 @@
 export enum ErrorCode {
   ABAC_POLICY_NOT_FOUND = "ABAC_POLICY_NOT_FOUND",
+  ABAC_POLICY_LOCKED = "ABAC_POLICY_LOCKED",
   INVALID_ABAC_OPERATOR = "INVALID_ABAC_OPERATOR",
   TENANT_NOT_FOUND = "TENANT_NOT_FOUND",
   TENANT_ALREADY_EXISTS = "TENANT_ALREADY_EXISTS",
@@ -249,5 +250,16 @@ export class InvalidAbacOperatorError extends StratumError {
       400,
     );
     this.name = "InvalidAbacOperatorError";
+  }
+}
+
+export class AbacPolicyLockedError extends StratumError {
+  constructor(policyName: string, lockerTenantId: string) {
+    super(
+      ErrorCode.ABAC_POLICY_LOCKED,
+      `ABAC policy '${policyName}' is LOCKED by tenant ${lockerTenantId} and cannot be overridden`,
+      403,
+    );
+    this.name = "AbacPolicyLockedError";
   }
 }

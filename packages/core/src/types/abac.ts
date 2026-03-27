@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type AbacOperator =
   | "eq"
   | "neq"
@@ -8,6 +10,26 @@ export type AbacOperator =
   | "gte"
   | "lt"
   | "lte";
+
+export const CreateAbacPolicyInputSchema = z.object({
+  name: z.string().min(1),
+  resource_type: z.string().min(1),
+  action: z.string().min(1),
+  effect: z.enum(["allow", "deny"]),
+  conditions: z.array(z.object({
+    attribute: z.string().min(1),
+    operator: z.enum(["eq", "neq", "in", "not_in", "contains", "gt", "gte", "lt", "lte"]),
+    value: z.unknown(),
+  })),
+  priority: z.number().int().optional(),
+  mode: z.enum(["LOCKED", "INHERITED", "DELEGATED"]).optional(),
+});
+
+export const AbacEvaluationRequestSchema = z.object({
+  subject: z.record(z.unknown()),
+  action: z.string().min(1),
+  resource: z.record(z.unknown()),
+});
 
 export interface AbacCondition {
   attribute: string;

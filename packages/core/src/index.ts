@@ -128,6 +128,8 @@ export {
 
 // ABAC types
 export {
+  CreateAbacPolicyInputSchema,
+  AbacEvaluationRequestSchema,
   type AbacOperator,
   type AbacCondition,
   type AbacPolicy,
@@ -161,6 +163,7 @@ export {
   WebhookDeliveryError,
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
+  AbacPolicyLockedError,
 } from "./utils/errors.js";
 
 // Constants

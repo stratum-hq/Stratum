@@ -8,6 +8,7 @@ import {
   type AbacEvaluationResult,
   type ResolvedAbacPolicy,
   AbacPolicyNotFoundError,
+  AbacPolicyLockedError,
   InvalidAbacOperatorError,
   TenantNotFoundError,
   parseAncestryPath,
@@ -286,9 +287,7 @@ export async function createAbacPolicy(
       );
       if (lockedRes.rows.length > 0) {
         const locker = lockedRes.rows[0];
-        throw new Error(
-          `ABAC policy '${input.name}' is LOCKED by tenant ${locker.source_tenant_id} and cannot be overridden`,
-        );
+        throw new AbacPolicyLockedError(input.name, locker.source_tenant_id);
       }
     }
 

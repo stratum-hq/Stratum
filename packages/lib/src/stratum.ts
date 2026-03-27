@@ -746,19 +746,29 @@ export class Stratum {
 
   // ABAC operations
   createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput): Promise<AbacPolicy> {
-    return abacService.createAbacPolicy(this.pool, tenantId, input);
+    return traced("abac.create_policy", { tenant_id: tenantId }, async () => {
+      return abacService.createAbacPolicy(this.pool, tenantId, input);
+    });
   }
   getAbacPolicies(tenantId: string): Promise<AbacPolicy[]> {
-    return abacService.getAbacPolicies(this.pool, tenantId);
+    return traced("abac.get_policies", { tenant_id: tenantId }, async () => {
+      return abacService.getAbacPolicies(this.pool, tenantId);
+    });
   }
   resolveAbacPolicies(tenantId: string): Promise<ResolvedAbacPolicy[]> {
-    return abacService.resolveAbacPolicies(this.pool, tenantId);
+    return traced("abac.resolve_policies", { tenant_id: tenantId }, async () => {
+      return abacService.resolveAbacPolicies(this.pool, tenantId);
+    });
   }
   evaluateAbac(tenantId: string, request: AbacEvaluationRequest): Promise<AbacEvaluationResult> {
-    return abacService.evaluateAbac(this.pool, tenantId, request);
+    return traced("abac.evaluate", { tenant_id: tenantId, action: request.action }, async () => {
+      return abacService.evaluateAbac(this.pool, tenantId, request);
+    });
   }
   deleteAbacPolicy(tenantId: string, policyId: string): Promise<void> {
-    return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+    return traced("abac.delete_policy", { tenant_id: tenantId, policy_id: policyId }, async () => {
+      return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+    });
   }
 
   // Batch operations
