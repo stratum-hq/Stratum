@@ -30,6 +30,42 @@ Every SaaS team starts with `tenant_id` on every table. It works — until it do
 
 Stratum gives you all of this from day one. Start with flat tenancy, grow into hierarchy, config inheritance, permissions, and isolation strategies as your product matures.
 
+## 30-Second Quickstart
+
+```bash
+npm install @stratum-hq/lib pg
+```
+
+```typescript
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+await stratum.initialize();
+
+const org = await stratum.createOrganization({ name: "Acme Corp", slug: "acme" });
+await stratum.setConfig(org.id, "seat_limit", { value: 25 });
+
+const config = await stratum.resolveConfig(org.id);
+console.log(config.seat_limit.value); // 25
+```
+
+That's it. `autoMigrate: true` creates all tables on first run — no CLI, no migrations, no Docker required (just a PostgreSQL connection string).
+
+### Growing into hierarchy
+
+When you're ready for parent/child tenants, config inheritance, and permission delegation:
+
+```typescript
+const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar" });
+const customer = await stratum.createTenant({ name: "Acme Corp", slug: "acme", parent_id: msp.id });
+
+// Config flows root → leaf — children inherit automatically
+await stratum.setConfig(msp.id, "max_seats", { value: 500, locked: true });
+const config = await stratum.resolveConfig(customer.id);
+// → { max_seats: { value: 500, inherited: true, locked: true } }
+```
+
 ## Install
 
 ```bash
@@ -44,24 +80,6 @@ npm install @stratum-hq/react
 
 # CLI tools
 npm install -g @stratum-hq/cli
-```
-
-## Quick Example
-
-```typescript
-import { Pool } from "pg";
-import { Stratum } from "@stratum-hq/lib";
-
-const stratum = new Stratum({ pool: new Pool() });
-
-// Create a tenant hierarchy
-const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
-const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar", parent_id: root.id });
-
-// Config flows root → leaf with inheritance
-await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false });
-const config = await stratum.resolveConfig(msp.id);
-// → { max_users: { value: 1000, inherited: true, source_tenant_id: root.id } }
 ```
 
 ## Packages
