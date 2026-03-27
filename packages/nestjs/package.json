@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/nestjs",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Stratum NestJS integration — StratumGuard, @Tenant() decorator, and StratumModule",
   "type": "module",
   "main": "./dist/index.js",
