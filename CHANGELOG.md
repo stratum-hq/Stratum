@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.2 (2026-03-27)
+
+### Added
+- **autoMigrate** — `new Stratum({ pool, autoMigrate: true })` runs migrations on `initialize()`. Promise-based mutex prevents concurrent races. Advisory lock (`pg_advisory_xact_lock`) prevents TOCTOU.
+- **enforceRls** — production mode hard-fails on BYPASSRLS; dev mode warns only.
+- **Flat-tenancy API** — `createOrganization()`, `listOrganizations()`, `getOrganization()` convenience methods that hide hierarchy for simple SaaS use cases.
+- **Examples directory** — quickstart, flat-tenancy, with-express, with-hono, with-nextjs. Each framework example is standalone with own package.json.
+- **Landing pages** — "What is Stratum?" explainer, "Why We Built Stratum" blog post, comparison page (vs tenant_id, WorkOS, ABP.IO).
+- **SEO** — keyword-optimized title/H1, canonical URLs, JSON-LD structured data, sitemap, robots.txt.
+- **Docker quickstart** — `docker/init-extensions.sql` pre-loads ltree + uuid-ossp in test-db.
+- **Repo polish** — CONTRIBUTING.md, SECURITY.md, GitHub issue templates.
+- **Changesets** — `@changesets/cli` configured for monorepo version management.
+
+### Changed
+- **Migrations moved to lib** — 16 SQL files + runner moved from control-plane to `@stratum-hq/lib`. Lib is now self-contained. Control-plane imports from lib.
+- **BYPASSRLS check** — changed from unconditional hard-fail to conditional (warn in dev, fail in prod with `enforceRls`). `CREATE EXTENSION` wrapped in privilege check with graceful warning.
+- **Default DATABASE_URL** — fallback changed from `stratum` (superuser) to `stratum_app` (NOBYPASSRLS).
+- **README install** — simplified to `npm install @stratum-hq/lib pg` (core is a transitive dep).
+- **Docs getting-started** — rewritten with progressive disclosure (flat first, hierarchy second).
+
 ## 0.2.1 (2026-03-26)
 
 Republish with all security fixes, integration tests, design overhaul, structured logging,
