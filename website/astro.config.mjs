@@ -11,7 +11,7 @@ export default defineConfig({
       },
       favicon: "/favicon.png",
       description:
-        "Universal Tenant Context Engine — hierarchical multi-tenancy for any stack.",
+        "Drop-in multi-tenancy for Node.js and TypeScript.",
       customCss: ["./src/styles/custom.css"],
       social: {
         github: "https://github.com/stratum-hq/stratum",

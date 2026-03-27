@@ -1,10 +1,10 @@
 ---
 title: Stratum
-description: Universal Tenant Context Engine — hierarchical multi-tenancy for any stack.
+description: Drop-in multi-tenancy for Node.js and TypeScript.
 template: splash
 hero:
-  title: Universal Tenant Context Engine
-  tagline: Hierarchical multi-tenancy for any stack. Tree-structured tenants, config inheritance, permission delegation, and three isolation strategies — all backed by PostgreSQL.
+  title: Drop-in Multi-Tenancy for Node.js
+  tagline: Tenant hierarchy with config inheritance, permission delegation, and three isolation strategies. Start with flat tenancy, grow into hierarchy as your product matures.
   actions:
     - text: Get Started
       link: /getting-started/installation/
@@ -47,10 +47,10 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
 
 ```bash
 # Direct library (no HTTP overhead)
-npm install @stratum-hq/lib @stratum-hq/core pg
+npm install @stratum-hq/lib pg
 
 # Or use the SDK with Express/Fastify middleware
-npm install @stratum-hq/sdk @stratum-hq/core
+npm install @stratum-hq/sdk
 ```
 
 ## Quick Example
