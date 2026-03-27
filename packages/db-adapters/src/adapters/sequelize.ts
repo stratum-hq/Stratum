@@ -9,43 +9,44 @@ interface SequelizeLike {
   addHook(hookName: string, fn: (...args: unknown[]) => void | Promise<void>): void;
 }
 
-const TENANT_HOOKS = [
-  "beforeFind",
-  "beforeCreate",
-  "beforeUpdate",
-  "beforeDestroy",
-  "beforeBulkCreate",
-  "beforeBulkUpdate",
-  "beforeBulkDestroy",
-] as const;
-
 export class SequelizeAdapter extends BaseAdapter {
   constructor(pool: pg.Pool) {
     super(pool);
   }
 
   /**
-   * Add tenant-scoping hooks to a Sequelize instance.
-   * Before each query lifecycle event, sets app.current_tenant_id via
-   * set_config so PostgreSQL RLS policies can filter by tenant.
+   * Returns a proxy-like object wrapping the given Sequelize instance so that
+   * every call to `query()` runs inside a transaction where `set_config` is
+   * called first.  This guarantees that the tenant context and the actual query
+   * execute on the same connection, preventing RLS context leaks across
+   * connection-pool hops.
+   *
    * contextFn should return the current tenant ID (e.g. from AsyncLocalStorage).
+   * When contextFn returns an empty string the original query is forwarded
+   * without wrapping.
    */
   withTenantScope(sequelize: SequelizeLike, contextFn: () => string): SequelizeLike {
-    const setTenantContext = async () => {
+    const original = sequelize;
+
+    const wrappedQuery = async (sql: string, options?: Record<string, unknown>) => {
       const tenantId = contextFn();
-      if (tenantId) {
-        await sequelize.query(
-          `SELECT set_config('app.current_tenant_id', $1, true)`,
-          { bind: [tenantId] },
-        );
+      if (!tenantId) {
+        return original.query(sql, options);
       }
+      return original.transaction(async (t: unknown) => {
+        await original.query(
+          `SELECT set_config('app.current_tenant_id', $1, true)`,
+          { bind: [tenantId], transaction: t } as Record<string, unknown>,
+        );
+        return original.query(sql, { ...options, transaction: t } as Record<string, unknown>);
+      });
     };
 
-    for (const hook of TENANT_HOOKS) {
-      sequelize.addHook(hook, setTenantContext);
-    }
-
-    return sequelize;
+    return {
+      query: wrappedQuery,
+      transaction: original.transaction.bind(original),
+      addHook: original.addHook.bind(original),
+    };
   }
 }
 

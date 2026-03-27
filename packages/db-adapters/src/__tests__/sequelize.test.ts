@@ -17,44 +17,28 @@ vi.mock("pg", () => {
 // ---------------------------------------------------------------------------
 
 type SequelizeMock = {
-  hooks: Map<string, ((...args: unknown[]) => void | Promise<void>)[]>;
-  queries: string[];
+  queries: { sql: string; options?: Record<string, unknown> }[];
   query: (sql: string, options?: Record<string, unknown>) => Promise<unknown>;
   transaction: <T>(fn: (t: unknown) => Promise<T>) => Promise<T>;
   addHook: (name: string, fn: (...args: unknown[]) => void | Promise<void>) => void;
 };
 
 function createMockSequelize(): SequelizeMock {
-  const hooks = new Map<string, ((...args: unknown[]) => void | Promise<void>)[]>();
-  const queries: string[] = [];
+  const queries: { sql: string; options?: Record<string, unknown> }[] = [];
   return {
-    hooks,
     queries,
-    query: async (sql: string) => {
-      queries.push(sql);
+    query: async (sql: string, options?: Record<string, unknown>) => {
+      queries.push({ sql, options });
       return [[], 0];
     },
     transaction: async <T>(fn: (t: unknown) => Promise<T>) => fn({}),
-    addHook: (name: string, fn: (...args: unknown[]) => void | Promise<void>) => {
-      if (!hooks.has(name)) hooks.set(name, []);
-      hooks.get(name)!.push(fn);
-    },
+    addHook: vi.fn(),
   };
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-
-const EXPECTED_HOOKS = [
-  "beforeFind",
-  "beforeCreate",
-  "beforeUpdate",
-  "beforeDestroy",
-  "beforeBulkCreate",
-  "beforeBulkUpdate",
-  "beforeBulkDestroy",
-];
 
 describe("SequelizeAdapter", () => {
   let pool: MockPool;
@@ -71,155 +55,154 @@ describe("SequelizeAdapter", () => {
   });
 
   describe("withTenantScope (method)", () => {
-    it("returns the same sequelize instance", () => {
+    it("returns a new wrapped object, not the original instance", () => {
       const mock = createMockSequelize();
       const result = adapter.withTenantScope(mock, () => "tenant-1");
-      expect(result).toBe(mock);
+      expect(result).not.toBe(mock);
     });
 
-    it("registers hooks for all expected lifecycle events", () => {
+    it("returned object exposes query, transaction, and addHook", () => {
       const mock = createMockSequelize();
-      adapter.withTenantScope(mock, () => "tenant-1");
-
-      for (const hookName of EXPECTED_HOOKS) {
-        expect(mock.hooks.has(hookName)).toBe(true);
-        expect(mock.hooks.get(hookName)!.length).toBe(1);
-      }
+      const result = adapter.withTenantScope(mock, () => "tenant-1");
+      expect(typeof result.query).toBe("function");
+      expect(typeof result.transaction).toBe("function");
+      expect(typeof result.addHook).toBe("function");
     });
 
-    it("registers exactly the expected hooks — no extras", () => {
+    it("wrapped query calls transaction() and sets set_config inside it", async () => {
       const mock = createMockSequelize();
-      adapter.withTenantScope(mock, () => "tenant-1");
-      expect([...mock.hooks.keys()].sort()).toEqual([...EXPECTED_HOOKS].sort());
+      const transactionSpy = vi.spyOn(mock, "transaction");
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-abc");
+
+      await wrapped.query("SELECT 1");
+
+      expect(transactionSpy).toHaveBeenCalledTimes(1);
+      expect(mock.queries).toHaveLength(2);
+      expect(mock.queries[0].sql).toContain("set_config");
+      expect(mock.queries[0].sql).toContain("app.current_tenant_id");
+      expect(mock.queries[1].sql).toBe("SELECT 1");
     });
 
-    it("hook calls set_config with tenant ID from contextFn", async () => {
+    it("set_config receives tenant ID as bind parameter", async () => {
       const mock = createMockSequelize();
-      adapter.withTenantScope(mock, () => "tenant-abc");
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-xyz");
 
-      // Trigger the beforeFind hook
-      const [hookFn] = mock.hooks.get("beforeFind")!;
-      await hookFn();
+      await wrapped.query("SELECT 1");
 
-      expect(mock.queries).toHaveLength(1);
-      expect(mock.queries[0]).toContain("set_config");
-      expect(mock.queries[0]).toContain("app.current_tenant_id");
+      expect(mock.queries[0].options).toMatchObject({ bind: ["tenant-xyz"] });
     });
 
-    it("hook passes tenant ID as bind parameter", async () => {
-      const querySpy = vi.fn().mockResolvedValue([[], 0]);
+    it("passes transaction handle to both set_config and the actual query", async () => {
+      const fakeT = { id: "fake-transaction" };
       const mock = createMockSequelize();
-      mock.query = querySpy;
+      mock.transaction = async <T>(fn: (t: unknown) => Promise<T>) => fn(fakeT);
 
-      adapter.withTenantScope(mock, () => "tenant-xyz");
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+      await wrapped.query("SELECT 1");
 
-      const [hookFn] = mock.hooks.get("beforeCreate")!;
-      await hookFn();
-
-      expect(querySpy).toHaveBeenCalledWith(
-        `SELECT set_config('app.current_tenant_id', $1, true)`,
-        { bind: ["tenant-xyz"] },
-      );
+      expect(mock.queries[0].options).toMatchObject({ transaction: fakeT });
+      expect(mock.queries[1].options).toMatchObject({ transaction: fakeT });
     });
 
-    it("hook reads tenant ID lazily from contextFn each time", async () => {
+    it("merges caller-supplied options with transaction handle", async () => {
+      const mock = createMockSequelize();
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+
+      await wrapped.query("SELECT 1", { type: "SELECT" });
+
+      // The actual query (index 1) should carry both caller options and transaction
+      expect(mock.queries[1].options).toMatchObject({ type: "SELECT" });
+      expect(mock.queries[1].options).toHaveProperty("transaction");
+    });
+
+    it("reads tenant ID lazily from contextFn on each query call", async () => {
       let currentTenant = "tenant-1";
       const mock = createMockSequelize();
-      const querySpy = vi.fn().mockResolvedValue([[], 0]);
-      mock.query = querySpy;
+      const wrapped = adapter.withTenantScope(mock, () => currentTenant);
 
-      adapter.withTenantScope(mock, () => currentTenant);
-
-      const [hookFn] = mock.hooks.get("beforeUpdate")!;
-
-      await hookFn();
-      expect(querySpy).toHaveBeenLastCalledWith(
-        expect.any(String),
-        { bind: ["tenant-1"] },
-      );
+      await wrapped.query("SELECT 1");
+      expect(mock.queries[0].options).toMatchObject({ bind: ["tenant-1"] });
 
       currentTenant = "tenant-2";
-      await hookFn();
-      expect(querySpy).toHaveBeenLastCalledWith(
-        expect.any(String),
-        { bind: ["tenant-2"] },
-      );
+      mock.queries.length = 0;
+      await wrapped.query("SELECT 2");
+      expect(mock.queries[0].options).toMatchObject({ bind: ["tenant-2"] });
     });
 
-    it("hook does NOT call set_config when contextFn returns empty string", async () => {
+    it("skips transaction wrapper when contextFn returns empty string", async () => {
       const mock = createMockSequelize();
-      adapter.withTenantScope(mock, () => "");
+      const transactionSpy = vi.spyOn(mock, "transaction");
+      const wrapped = adapter.withTenantScope(mock, () => "");
 
-      const [hookFn] = mock.hooks.get("beforeFind")!;
-      await hookFn();
+      await wrapped.query("SELECT 1");
 
-      expect(mock.queries).toHaveLength(0);
+      expect(transactionSpy).not.toHaveBeenCalled();
+      expect(mock.queries).toHaveLength(1);
+      expect(mock.queries[0].sql).toBe("SELECT 1");
     });
 
-    it("all registered hooks share the same behavior", async () => {
+    it("propagates errors thrown by set_config", async () => {
       const mock = createMockSequelize();
-      const querySpy = vi.fn().mockResolvedValue([[], 0]);
-      mock.query = querySpy;
+      mock.transaction = async <T>(fn: (t: unknown) => Promise<T>) => fn({});
+      mock.query = vi.fn().mockRejectedValueOnce(new Error("set_config failed"));
 
-      adapter.withTenantScope(mock, () => "shared-tenant");
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
 
-      for (const hookName of EXPECTED_HOOKS) {
-        querySpy.mockClear();
-        const [hookFn] = mock.hooks.get(hookName)!;
-        await hookFn();
-        expect(querySpy).toHaveBeenCalledTimes(1);
-        expect(querySpy).toHaveBeenCalledWith(
-          `SELECT set_config('app.current_tenant_id', $1, true)`,
-          { bind: ["shared-tenant"] },
-        );
-      }
+      await expect(wrapped.query("SELECT 1")).rejects.toThrow("set_config failed");
+    });
+
+    it("delegates transaction() to the original instance", async () => {
+      const mock = createMockSequelize();
+      const transactionSpy = vi.spyOn(mock, "transaction");
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+
+      const fn = async (_t: unknown) => "result";
+      await wrapped.transaction(fn);
+
+      expect(transactionSpy).toHaveBeenCalledWith(fn);
+    });
+
+    it("delegates addHook() to the original instance", () => {
+      const mock = createMockSequelize();
+      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+      const hookFn = vi.fn();
+
+      wrapped.addHook("beforeFind", hookFn);
+
+      expect(mock.addHook).toHaveBeenCalledWith("beforeFind", hookFn);
     });
   });
 });
 
 describe("withTenantScope (convenience function)", () => {
-  it("returns the same sequelize instance", () => {
+  it("returns a new wrapped object, not the original instance", () => {
     const mock = createMockSequelize();
     const pool = new MockPool();
     const result = withTenantScope(mock, () => "tenant-1", pool as any);
-    expect(result).toBe(mock);
+    expect(result).not.toBe(mock);
   });
 
-  it("registers all expected hooks", () => {
+  it("wrapped query calls transaction() with set_config", async () => {
     const mock = createMockSequelize();
+    const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
-    withTenantScope(mock, () => "tenant-1", pool as any);
+    const wrapped = withTenantScope(mock, () => "fn-tenant", pool as any);
 
-    for (const hookName of EXPECTED_HOOKS) {
-      expect(mock.hooks.has(hookName)).toBe(true);
-    }
+    await wrapped.query("SELECT 1");
+
+    expect(transactionSpy).toHaveBeenCalledTimes(1);
+    expect(mock.queries[0].options).toMatchObject({ bind: ["fn-tenant"] });
   });
 
-  it("hooks call set_config with correct tenant ID", async () => {
+  it("skips transaction when contextFn returns empty string", async () => {
     const mock = createMockSequelize();
-    const querySpy = vi.fn().mockResolvedValue([[], 0]);
-    mock.query = querySpy;
-
+    const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
-    withTenantScope(mock, () => "fn-tenant", pool as any);
+    const wrapped = withTenantScope(mock, () => "", pool as any);
 
-    const [hookFn] = mock.hooks.get("beforeDestroy")!;
-    await hookFn();
+    await wrapped.query("SELECT 1");
 
-    expect(querySpy).toHaveBeenCalledWith(
-      `SELECT set_config('app.current_tenant_id', $1, true)`,
-      { bind: ["fn-tenant"] },
-    );
-  });
-
-  it("does not call set_config when contextFn returns empty string", async () => {
-    const mock = createMockSequelize();
-    const pool = new MockPool();
-    withTenantScope(mock, () => "", pool as any);
-
-    const [hookFn] = mock.hooks.get("beforeBulkCreate")!;
-    await hookFn();
-
-    expect(mock.queries).toHaveLength(0);
+    expect(transactionSpy).not.toHaveBeenCalled();
+    expect(mock.queries).toHaveLength(1);
   });
 });
