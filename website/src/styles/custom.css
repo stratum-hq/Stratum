@@ -314,26 +314,23 @@ nav a[aria-current="page"] {
   }
 }
 
-/* Logo sizing — match landing page 28px treatment */
+/* Logo sizing — match landing page nav treatment */
 .site-title img {
-  height: 28px !important;
+  height: 24px !important;
   width: auto !important;
 }
 
 /* --------------------------------------------------------------------------
-   Card icon colors — override Starlight defaults to match design system
+   Card icon colors — override Starlight pastel backgrounds with dark surface
    -------------------------------------------------------------------------- */
 .card .icon {
-  color: var(--sl-color-accent) !important;
+  color: #C05746 !important;
+  background: #2A1F1C !important;
 }
-.card .icon svg {
-  fill: var(--sl-color-accent) !important;
-  color: var(--sl-color-accent) !important;
-}
-starlight-card .icon,
-.sl-card .icon,
+.card .icon svg,
 .card svg {
-  color: var(--sl-color-accent) !important;
+  fill: #C05746 !important;
+  color: #C05746 !important;
 }
 
 /* Hero action buttons */
@@ -341,3 +338,5 @@ starlight-card .icon,
   background: #C05746;
   border-color: #C05746;
 }
+
+/* Hero title — color "Node.js" in terracotta via JS injected span */
