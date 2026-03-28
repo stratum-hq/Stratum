@@ -2,6 +2,20 @@
   "name": "@stratum-hq/db-adapters",
   "version": "0.2.3",
   "description": "Stratum PostgreSQL adapters for tenant-scoped query isolation",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "tenant-isolation",
+    "postgresql",
+    "postgres",
+    "row-level-security",
+    "rls",
+    "schema-isolation",
+    "database",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
