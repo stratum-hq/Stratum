@@ -2,6 +2,19 @@
   "name": "@stratum-hq/create",
   "version": "0.2.2",
   "description": "Create a new Stratum multi-tenancy project",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "create",
+    "scaffolding",
+    "starter",
+    "boilerplate",
+    "node",
+    "typescript",
+    "stratum"
+  ],
   "bin": { "create-stratum": "./dist/index.js" },
   "type": "module",
   "scripts": {

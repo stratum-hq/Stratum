@@ -15,8 +15,11 @@ const { title, description } = Astro.props;
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://stratum-hq.org" />
+  <meta property="og:url" content={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
+  <meta property="og:site_name" content="Stratum" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="Stratum HQ" />
   <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
@@ -24,14 +27,30 @@ const { title, description } = Astro.props;
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Stratum",
-    "description": "Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies.",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "Node.js",
-    "license": "https://opensource.org/licenses/MIT",
-    "url": "https://stratum-hq.org",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Stratum",
+        "description": "Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR tooling, and ABAC policy engine.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Node.js",
+        "programmingLanguage": ["TypeScript", "JavaScript"],
+        "license": "https://opensource.org/licenses/MIT",
+        "url": "https://stratum-hq.org",
+        "codeRepository": "https://github.com/stratum-hq/Stratum",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      },
+      {
+        "@type": "Organization",
+        "name": "Stratum HQ",
+        "url": "https://stratum-hq.org",
+        "logo": "https://stratum-hq.org/favicon.png",
+        "sameAs": [
+          "https://github.com/stratum-hq",
+          "https://www.npmjs.com/org/stratum-hq"
+        ]
+      }
+    ]
   }
   </script>
   <link rel="icon" type="image/png" href="/favicon.png" />

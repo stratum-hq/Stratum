@@ -3,6 +3,19 @@
   "version": "0.2.2",
   "type": "module",
   "description": "Stratum React UI components for multi-tenant administration",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "react",
+    "ui",
+    "components",
+    "admin",
+    "dashboard",
+    "tenant-management",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

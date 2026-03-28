@@ -2,6 +2,19 @@
   "name": "@stratum-hq/cli",
   "version": "0.2.3",
   "description": "Stratum CLI — project scaffolding, database migration, and developer tools",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "cli",
+    "scaffolding",
+    "migration",
+    "postgresql",
+    "node",
+    "typescript",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {

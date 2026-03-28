@@ -2,6 +2,19 @@
   "name": "@stratum-hq/sdk",
   "version": "0.2.3",
   "description": "Stratum Node.js SDK for multi-tenant context propagation",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "context-propagation",
+    "middleware",
+    "node",
+    "typescript",
+    "express",
+    "fastify",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
