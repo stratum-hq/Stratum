@@ -48,7 +48,7 @@ import '../../styles/global.css';
     <p>
       It always starts the same way. You're building a B2B product. Day one, you add
       <code>tenant_id</code> to your users table. Then your accounts table. Then orders,
-      invoices, settings &mdash; every table you create. You write <code>WHERE tenant_id = $1</code>
+      invoices, settings, every table you create. You write <code>WHERE tenant_id = $1</code>
       a hundred times. It works. Ship it.
     </p>
     <p>
@@ -59,7 +59,7 @@ import '../../styles/global.css';
     </p>
     <p>
       Month twelve: your security team comes back from a compliance audit. They need tenant-scoped
-      audit logs, a GDPR data export endpoint, and a purge API &mdash; retroactively, across four
+      audit logs, a GDPR data export endpoint, and a purge API, retroactively, across four
       services. You estimate three weeks. It takes eight.
     </p>
     <p>
@@ -76,7 +76,7 @@ import '../../styles/global.css';
     <h2>The Node.js gap</h2>
     <p>
       If you're a .NET team, you reach for <a href="https://abp.io" class="post-link">ABP.IO</a>.
-      It's a full application framework with multi-tenancy as a first-class citizen &mdash; tenant
+      It's a full application framework with multi-tenancy as a first-class citizen: tenant
       resolution, per-tenant databases, config overrides, the works. It's opinionated and
       comprehensive.
     </p>
@@ -103,7 +103,7 @@ import '../../styles/global.css';
     <p>
       <strong>Tree-structured tenants.</strong> Real-world B2B isn't flat. You have organizations,
       teams within organizations, resellers who manage multiple clients. Stratum models tenants
-      as a tree &mdash; up to 20 levels deep. A root org, resellers below it, clients below them.
+      as a tree, up to 20 levels deep. A root org, resellers below it, clients below them.
       You define the shape; Stratum enforces the rules.
     </p>
     <p>
@@ -116,12 +116,12 @@ import '../../styles/global.css';
       <strong>Three isolation strategies, per tenant.</strong> Shared tables with Row-Level
       Security. Separate schema per tenant. Dedicated database per tenant. You pick the right
       tradeoff for each customer tier. Start everyone on shared, move high-value customers to
-      schema isolation, give your largest enterprise their own database &mdash; without
+      schema isolation, give your largest enterprise their own database, without
       rebuilding your data layer.
     </p>
     <p>
       <strong>GDPR built in.</strong> Data export and purge are not an afterthought. They're
-      part of the core API. When the compliance audit comes &mdash; and it will &mdash; you
+      part of the core API. When the compliance audit comes (and it will), you
       call one method, not write a migration at 11pm.
     </p>
     <p>
@@ -170,8 +170,8 @@ import '../../styles/global.css';
       that works without writing code.
     </p>
     <p>
-      We're also building a community. If you've felt this pain &mdash; if you've spent
-      weeks re-implementing tenant isolation for the third time &mdash; we want to hear
+      We're also building a community. If you've felt this pain, if you've spent
+      weeks re-implementing tenant isolation for the third time, we want to hear
       from you. Open an issue, start a discussion, or just star the repo so we know
       you're out there.
     </p>
