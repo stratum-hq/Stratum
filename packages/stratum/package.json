@@ -4,11 +4,22 @@
   "description": "Drop-in hierarchical multi-tenancy for Node.js — tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.",
   "keywords": [
     "multi-tenancy",
+    "multi-tenant",
     "saas",
+    "b2b",
     "tenant",
+    "tenant-isolation",
+    "tenant-management",
     "node",
     "typescript",
-    "postgresql"
+    "postgresql",
+    "row-level-security",
+    "rls",
+    "schema-isolation",
+    "config-inheritance",
+    "gdpr",
+    "abac",
+    "access-control"
   ],
   "license": "MIT",
   "repository": {
