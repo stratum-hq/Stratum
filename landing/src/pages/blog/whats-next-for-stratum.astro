@@ -1,0 +1,340 @@
+---
+import Base from '../../layouts/Base.astro';
+import '../../styles/global.css';
+---
+
+<Base title="What's Next for Stratum — Listening, Hardening, Shipping | Stratum Blog" description="Stratum v0.2.3 is out. Here's where we're headed: community feedback, security hardening, and a developer-first roadmap.">
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
+      Stratum
+    </a>
+    <div class="nav-links">
+      <a href="/what-is-stratum">What is Stratum?</a>
+      <a href="/blog">Blog</a>
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Article -->
+<article class="post">
+  <header class="post-header">
+    <p class="post-eyebrow">Blog</p>
+    <h1>What's Next for <span class="accent">Stratum</span></h1>
+    <p class="post-intro">We shipped the foundation. Now we're listening.</p>
+  </header>
+
+  <div class="post-body">
+
+    <h2>v0.2.3 is out. Now what?</h2>
+    <p>
+      Stratum v0.2.3 landed with tree-structured tenants, config inheritance, three isolation
+      strategies, GDPR tooling, a hierarchical ABAC policy engine, and a NestJS integration
+      package. That's a lot of surface area for a young library. We're proud of what's there,
+      but we're also clear-eyed about what comes next.
+    </p>
+    <p>
+      The honest answer: we're waiting. Not passively, but deliberately. The most important
+      thing we can do right now is hear from developers who actually try Stratum in their
+      own codebases, with their own schemas, against their own edge cases.
+    </p>
+
+    <h2>We need your issues and feature requests</h2>
+    <p>
+      If you're evaluating Stratum for a project, we want to know what you run into. Does
+      the config inheritance model fit your use case? Is the tenant tree depth sufficient?
+      Did schema isolation behave the way you expected? What's missing from the API that
+      would make adoption easier?
+    </p>
+    <p>
+      These aren't rhetorical questions. We built Stratum based on patterns we've seen
+      across dozens of B2B SaaS codebases, but no library survives first contact with the
+      real world unchanged. The gap between what we designed and what you need is where the
+      best improvements will come from.
+    </p>
+    <p>
+      Open an issue on <a href="https://github.com/stratum-hq/Stratum/issues" class="post-link">GitHub</a>.
+      Tell us what broke. Tell us what's awkward. Tell us what you wished existed. Every
+      issue filed makes Stratum better for the next team that picks it up.
+    </p>
+
+    <h2>Security-first, not security-later</h2>
+    <p>
+      Multi-tenancy libraries sit at the foundation of your data layer. A bug in tenant
+      isolation isn't a UI glitch. It's a data breach. We take that responsibility seriously.
+    </p>
+    <p>
+      Stratum's Row-Level Security policies are generated, not hand-written. Schema isolation
+      creates real PostgreSQL schemas with enforced boundaries. The ABAC policy engine
+      evaluates attribute-based rules at the library level before queries reach the database.
+      These aren't shortcuts. They're deliberate design choices that put correctness ahead of
+      convenience.
+    </p>
+    <p>
+      Going forward, security hardening is the top priority. We're investing in:
+    </p>
+    <ul class="post-list">
+      <li>Comprehensive test coverage for isolation boundary edge cases</li>
+      <li>Fuzz testing tenant resolution and config inheritance paths</li>
+      <li>Third-party security review before we call anything 1.0</li>
+      <li>Clear documentation of the threat model and what Stratum does (and does not) protect against</li>
+    </ul>
+    <p>
+      If you find a security issue, please report it responsibly. We'll treat every report
+      with urgency.
+    </p>
+
+    <h2>Developer experience is the product</h2>
+    <p>
+      A library that's correct but painful to use doesn't get adopted. We're committed to
+      making Stratum something you actually enjoy wiring into your stack.
+    </p>
+    <p>
+      That means better TypeScript types so your editor catches mistakes before your tests do.
+      It means clear, honest error messages that point you toward the fix, not just the failure.
+      It means documentation that respects your time: quick starts that actually work in under
+      five minutes, API references that don't hide the important parts behind three clicks.
+    </p>
+    <p>
+      We're also working on framework adapters. The NestJS package shipped in v0.2.3. Express
+      and Fastify adapters are in progress. The goal is the same everywhere: wire in your pool,
+      call <code>initialize()</code>, and get back to building your product.
+    </p>
+
+    <h2>What we're not doing</h2>
+    <p>
+      We're not rushing to 1.0 to put a number on the README. We're not adding features
+      nobody asked for. We're not building a SaaS dashboard or a hosted offering before the
+      core library is rock-solid.
+    </p>
+    <p>
+      The roadmap is simple: listen to developers, harden what exists, and ship what's
+      actually needed. No vanity features. No premature abstractions. Just a multi-tenancy
+      library that works and keeps working.
+    </p>
+
+    <h2>Get involved</h2>
+    <p>
+      Stratum is MIT licensed and built in the open. The best way to shape its future is to
+      use it and tell us what happens.
+    </p>
+    <ul class="post-list">
+      <li>
+        <a href="https://github.com/stratum-hq/Stratum/issues" class="post-link">Open an issue</a>
+        with bugs, feature requests, or questions
+      </li>
+      <li>
+        <a href="https://github.com/stratum-hq/Stratum/discussions" class="post-link">Start a discussion</a>
+        if you want to talk through a use case before filing
+      </li>
+      <li>
+        Star the <a href="https://github.com/stratum-hq/Stratum" class="post-link">repo</a>
+        so we know you're watching
+      </li>
+    </ul>
+    <p>
+      We built Stratum because the Node.js ecosystem needed it. Where it goes from here
+      depends on the developers who use it.
+    </p>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="post-cta">
+    <div class="post-cta-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="post-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Read the docs</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</article>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p class="footer-meta">
+      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
+    </p>
+    <div class="footer-links">
+      <a href="https://docs.stratum-hq.org">Docs</a>
+      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .post {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
+  }
+
+  .post-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .post-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+  }
+
+  .post-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-intro {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .post-body h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .post-body code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .post-link {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .post-link:hover {
+    color: var(--text-primary);
+  }
+
+  .post-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4) 0;
+  }
+
+  .post-list li {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    padding-left: var(--space-4);
+    position: relative;
+    margin-bottom: var(--space-2);
+  }
+
+  .post-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 5px;
+    height: 5px;
+    background: var(--sandstone);
+    border-radius: 50%;
+  }
+
+  .post-cta {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .post-cta-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .post-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .post {
+      padding: var(--space-8) var(--space-4);
+    }
+  }
+</style>
+
+<!-- Theme toggle -->
+<script>
+  const toggle = document.getElementById('theme-toggle');
+  const html = document.documentElement;
+
+  function setTheme(theme: string) {
+    html.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  const saved = localStorage.getItem('theme');
+  if (saved) setTheme(saved);
+
+  toggle?.addEventListener('click', () => {
+    const current = html.getAttribute('data-theme');
+    setTheme(current === 'light' ? 'dark' : 'light');
+  });
+</script>
+
+</Base>
