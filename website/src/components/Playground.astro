@@ -16,7 +16,7 @@
       <div class="output-header">
         <span class="output-label">Output</span>
         <div class="playground-actions">
-          <button id="run-btn" class="run-btn" aria-label="Run code">Run</button>
+          <button id="run-btn" class="run-btn" aria-label="Run code" disabled>Run</button>
           <button id="reset-btn" class="reset-btn" aria-label="Reset to scenario default">Reset</button>
         </div>
       </div>
@@ -980,8 +980,6 @@ function createEditor(parent, initialCode) {
 
   // Run button
   if (runBtn) {
-    runBtn.disabled = true; // disabled until DB ready (re-enabled after init above)
-
     runBtn.addEventListener('click', async () => {
       const code = getEditorCode();
       if (!code.trim()) return;
