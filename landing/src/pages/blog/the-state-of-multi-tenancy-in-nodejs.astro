@@ -1,0 +1,566 @@
+---
+import Base from '../../layouts/Base.astro';
+import '../../styles/global.css';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<Base title="The State of Multi-Tenancy in Node.js: 204 Packages, Zero Standards | Stratum Blog" description="We surveyed 204 npm packages, 6 GitHub repositories, and dozens of community threads. Here is what the Node.js multi-tenancy ecosystem actually looks like.">
+
+<Nav />
+
+<!-- Article -->
+<article class="post">
+  <header class="post-header">
+    <p class="post-eyebrow">Blog</p>
+    <h1>The State of Multi-Tenancy in <span class="accent">Node.js</span>: 204 Packages, Zero Standards</h1>
+    <p class="post-intro">We surveyed the ecosystem. Here is what we found.</p>
+    <time class="post-date" datetime="2026-03-29">March 29, 2026</time>
+  </header>
+
+  <div class="post-body">
+
+    <h2>The search that started this</h2>
+    <p>
+      Search "multi tenant nodejs" on Google or npm and you get hundreds of results. Stack Overflow
+      answers. Medium posts from 2019. GitHub repos with bold README promises and zero recent
+      commits. It looks like a solved problem. It is not.
+    </p>
+    <p>
+      npm lists 204 packages tagged "multitenant." We went through them. <strong>65% have not been
+      published in over 24 months.</strong> The most downloaded "pure" multi-tenancy package,
+      <a href="https://www.npmjs.com/package/mongo-tenant" class="post-link">mongo-tenant</a>,
+      has not been updated in 68 months.
+    </p>
+    <p>
+      The Node.js multi-tenancy ecosystem is not a solved problem. It is a graveyard of one-off
+      solutions, built to ship a specific product, then left to rot when the team moved on or the
+      underlying ORM released a breaking version. There is no dominant library. There is no standard
+      approach. There is barely a shared vocabulary.
+    </p>
+    <p>
+      This post is the survey we wish existed before we started building
+      <a href="https://github.com/stratum-hq/Stratum" class="post-link">Stratum</a>.
+    </p>
+
+    <h2>What we found on GitHub</h2>
+    <p>
+      We analyzed six representative repositories that come up when you search for Node.js
+      multi-tenancy solutions. Here is what we found.
+    </p>
+
+    <div class="table-wrapper">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Repository</th>
+            <th>Stars</th>
+            <th>CI/CD</th>
+            <th>Tests</th>
+            <th>License</th>
+            <th>Last commit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/deye9/node-multi-tenant" class="post-link">deye9/node-multi-tenant</a></td>
+            <td>147</td>
+            <td>No</td>
+            <td>Partial</td>
+            <td>MIT</td>
+            <td>2019</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/AgusRdz/multitenant_demo" class="post-link">AgusRdz/multitenant_demo</a></td>
+            <td>89</td>
+            <td>No</td>
+            <td>No</td>
+            <td>None</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/lanemc/multi-tenant-saas-toolkit" class="post-link">lanemc/multi-tenant-saas-toolkit</a></td>
+            <td>62</td>
+            <td>Yes</td>
+            <td>Yes</td>
+            <td>MIT</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/morka17/multi-tenant-user-role-base-app" class="post-link">morka17/multi-tenant-user-role-base-app</a></td>
+            <td>34</td>
+            <td>No</td>
+            <td>No</td>
+            <td>None</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/AnishLushte07/multi-tenant-application" class="post-link">AnishLushte07/multi-tenant-application</a></td>
+            <td>28</td>
+            <td>No</td>
+            <td>Partial</td>
+            <td>None</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/daniccan/multi-tenant-node-app" class="post-link">daniccan/multi-tenant-node-app</a></td>
+            <td>11</td>
+            <td>No</td>
+            <td>Yes</td>
+            <td>None</td>
+            <td>2021</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      A few patterns jump out immediately.
+    </p>
+    <p>
+      <strong>Only one of six repositories has CI/CD.</strong> Two have real test suites. Four have
+      no license at all, which means they are legally unusable in commercial products regardless
+      of how good the code is.
+    </p>
+    <p>
+      <strong>Stars correlate inversely with code quality.</strong> The most-starred repos use
+      plain JavaScript, Sequelize v5, and no CI. The most feature-complete repo in our survey
+      has 11 stars.
+    </p>
+    <p>
+      <strong>Every separate-database implementation uses unbounded in-memory connection caching.</strong>
+      No pool limits. No eviction strategy. These are demos, not production libraries, but they are
+      what developers find when they search for examples.
+    </p>
+
+    <h2>What the community is saying</h2>
+    <p>
+      Blog posts and Reddit threads paint a consistent picture. Six pain points come up repeatedly,
+      across years of discussion.
+    </p>
+    <p>
+      <strong>Horizontal scaling breaks in-process connection caches.</strong> The moment you run
+      two instances of your app, your per-process tenant connection map is stale on one of them.
+      Most demos never acknowledge this. Some blog posts mention it in passing. Nobody shows the
+      fix.
+    </p>
+    <p>
+      <strong>Nobody addresses migrations across N tenant databases.</strong> If you have 200
+      tenants on separate databases and you need to run a migration, you now have a distributed
+      systems problem. The resources that recommend separate-database isolation treat provisioning
+      and migrations as two separate concerns and stop at provisioning.
+    </p>
+    <p>
+      <strong>Separate-database recommendations never include cost analysis.</strong> Running a
+      dedicated RDS instance per tenant is expensive. At 10 tenants it is fine. At 500 it is
+      not. None of the blog posts recommending this architecture mention what happens at scale.
+    </p>
+    <p>
+      <strong>Only one source in our entire survey explicitly tests cross-tenant isolation.</strong>
+      This is the most critical correctness property of any multi-tenant system. One test. In six
+      repositories, 204 npm packages, and dozens of community posts.
+    </p>
+    <p>
+      <strong>Async context propagation is the most common source of bugs.</strong> Passing
+      tenant ID through every call chain, correctly, without losing it in async callbacks or
+      worker threads, is harder than it sounds. AsyncLocalStorage helps, but almost nothing in
+      the ecosystem shows how to wire it correctly.
+    </p>
+    <p>
+      <strong>There is no dominant multi-tenancy library for Node.js.</strong> This is not a
+      fringe observation. It is the explicit conclusion of multiple independent blog posts published
+      across three years. The ecosystem keeps rediscovering this fact.
+    </p>
+    <p>
+      One area where community consensus has shifted by 2026: <strong>shared schema with
+      PostgreSQL Row-Level Security is now the recommended starting point</strong> for most
+      applications. Production benchmarks consistently show tenant resolution under 1ms and
+      RLS overhead under 5%. The instinct to reach for separate databases on day one is fading
+      as the operational cost becomes better understood.
+    </p>
+
+    <h2>The ORM graveyard</h2>
+    <p>
+      Every major ORM ecosystem in Node.js independently built its own multi-tenancy solution.
+      Every one of them is now abandoned or nearly so.
+    </p>
+
+    <div class="table-wrapper">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>ORM</th>
+            <th>Packages found</th>
+            <th>Abandoned</th>
+            <th>Abandonment rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Mongoose</td>
+            <td>3</td>
+            <td>3</td>
+            <td>100%</td>
+          </tr>
+          <tr>
+            <td>Prisma</td>
+            <td>3</td>
+            <td>3</td>
+            <td>100%</td>
+          </tr>
+          <tr>
+            <td>Sequelize</td>
+            <td>3</td>
+            <td>3</td>
+            <td>100%</td>
+          </tr>
+          <tr>
+            <td>Knex</td>
+            <td>4</td>
+            <td>3</td>
+            <td>75%</td>
+          </tr>
+          <tr>
+            <td>TypeORM</td>
+            <td>3</td>
+            <td>1</td>
+            <td>33%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The pattern is consistent: someone builds a multi-tenancy plugin for their ORM, uses it
+      in their own product, then abandons the plugin when they outgrow it or the ORM releases a
+      breaking version. The plugin was always a side effect of shipping their real product, not
+      the product itself. When their priorities shifted, maintenance stopped.
+    </p>
+    <p>
+      This is not a criticism of the authors. It is a structural problem. Multi-tenancy plugins
+      built inside ORM-specific abstractions are fragile by design. Every major ORM version bump
+      is a potential breaking change for the plugin. Maintaining a cross-cutting infrastructure
+      concern as a one-person side project is not sustainable.
+    </p>
+
+    <h2>Why this keeps happening</h2>
+    <p>
+      Multi-tenancy is deceptively simple at first. Add <code>tenant_id</code>. Filter every
+      query. Done. It works on day one. Ship it.
+    </p>
+    <p>
+      The real complexity does not arrive until later. Month six brings the first enterprise
+      customer who needs custom config: feature flags, branding overrides, seat limits that
+      differ from everyone else's. You hand-roll a config table. No inheritance. No hierarchy.
+      One row per setting, queried inline.
+    </p>
+    <p>
+      Month twelve brings the compliance audit. Tenant-scoped audit logs. A GDPR export
+      endpoint. A purge API. You estimated three weeks. It took eight. The work was always
+      necessary; it just was not visible on day one.
+    </p>
+    <p>
+      Month eighteen brings the large financial services customer who requires isolated
+      storage. Your entire data layer was built on shared tables. You are looking at a full
+      migration.
+    </p>
+    <p>
+      Most developers build what they need <em>today</em> and move on. The generalized solution
+      never gets written because the generalized requirements never exist at the same time as
+      the motivation to abstract. The result is hundreds of "works for my use case" libraries
+      that do not generalize, each one encoding the specific constraints of one team's product
+      at one point in time.
+    </p>
+
+    <h2>What a complete solution actually needs</h2>
+    <p>
+      After going through this ecosystem, the requirements that are consistently missing are
+      not subtle. They are predictable. Every mature B2B product eventually needs all of these.
+    </p>
+    <p>
+      <strong>Hierarchical tenants, not just flat organizations.</strong> Real B2B structures
+      have resellers, sub-accounts, teams within organizations. Flat tenant lists do not model
+      this. You end up building a tree structure anyway; you should start with one.
+    </p>
+    <p>
+      <strong>Config that inherits down the tree.</strong> Set a limit at the reseller level.
+      Have it propagate to all clients. Allow overrides. Allow locks that prevent overrides.
+      A key-value bag with no inheritance is not config management; it is a spreadsheet
+      with a database behind it.
+    </p>
+    <p>
+      <strong>Multiple isolation strategies, not just one.</strong> Shared schema with RLS for
+      most tenants. Dedicated schema for your mid-market tier. Dedicated database for your
+      enterprise tier. The right architecture depends on the customer, and that answer changes
+      as you grow. Committing to one isolation model on day one means a migration later.
+    </p>
+    <p>
+      <strong>GDPR compliance as a first-class API.</strong> Data export and purge are not
+      optional for any product with European users. They need to be a method call, not a
+      migration written at 11pm before a deadline.
+    </p>
+    <p>
+      <strong>Audit logging built in.</strong> Who changed what, when, on behalf of which tenant.
+      Compliance audits ask for this. Enterprise customers expect it. It should not require
+      building a separate system.
+    </p>
+    <p>
+      <strong>Webhooks for event-driven architectures.</strong> Tenant provisioning, config
+      changes, data events. Modern stacks are not monoliths; other services need to react to
+      tenant lifecycle events.
+    </p>
+    <p>
+      <strong>Framework integrations beyond Express.</strong> Fastify, NestJS, and Hono are
+      all in active production use. A library that only works with Express is already
+      incomplete for a large portion of the Node.js ecosystem.
+    </p>
+    <p>
+      <strong>Real tests, especially cross-tenant isolation tests.</strong> If your library does
+      not test that tenant A cannot read tenant B's data, you do not know if your library
+      is correct. This is the most important test category in the entire domain, and it is
+      almost entirely absent from the ecosystem.
+    </p>
+    <p>
+      This is what Stratum provides. It is open source, MIT licensed, TypeScript throughout,
+      and ships with 330+ tests including explicit cross-tenant isolation coverage. It is not
+      a demo or a blog post companion repo. It is a library built to stay maintained.
+    </p>
+
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-filename">stratum-quickstart.ts</span>
+      </div>
+      <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>(), autoMigrate: <span class="num">true</span> &#125;);
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();
+
+<span class="cm">// Tree-structured tenants: reseller owns multiple clients</span>
+<span class="kw">const</span> reseller = <span class="kw">await</span> stratum.<span class="fn">createOrganization</span>(&#123; name: <span class="str">"Acme Reseller"</span>, slug: <span class="str">"acme"</span> &#125;);
+<span class="kw">const</span> client = <span class="kw">await</span> stratum.<span class="fn">createOrganization</span>(&#123; name: <span class="str">"Client Co"</span>, slug: <span class="str">"client-co"</span>, parentId: reseller.id &#125;);
+
+<span class="cm">// Config set on reseller flows down to client automatically</span>
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(reseller.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">100</span> &#125;);
+<span class="kw">const</span> cfg = <span class="kw">await</span> stratum.<span class="fn">getConfig</span>(client.id, <span class="str">"max_users"</span>); <span class="cm">// 100, inherited</span>
+
+<span class="cm">// GDPR: export all data for a tenant, then purge it</span>
+<span class="kw">const</span> export_ = <span class="kw">await</span> stratum.<span class="fn">exportTenantData</span>(client.id);
+<span class="kw">await</span> stratum.<span class="fn">purgeTenant</span>(client.id);`} />
+    </div>
+
+    <h2>Where we go from here</h2>
+    <p>
+      The Node.js ecosystem does not need another one-off solution. It needs a standard. A
+      library maintained as infrastructure, not as a side effect of someone's SaaS product.
+    </p>
+    <p>
+      Stratum is that attempt. It is MIT licensed, written in TypeScript, and designed to
+      outlive any single team's product needs. The 330+ test suite is not a number to brag
+      about; it is a commitment that the library behaves correctly and that regressions are
+      caught before they ship.
+    </p>
+    <p>
+      If you have been building multi-tenancy from scratch, try the
+      <a href="/playground" class="post-link">browser playground</a> to see what Stratum
+      can do without installing anything. The
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="post-link">docs</a>
+      cover the full API. The
+      <a href="https://github.com/stratum-hq/Stratum" class="post-link">repository</a>
+      is open for issues and contributions.
+    </p>
+    <p>
+      If you have built something in this space and want to contribute, open an issue. The
+      ecosystem fragmentation documented here is a solvable problem. A shared standard beats
+      204 abandoned packages.
+    </p>
+
+  </div>
+
+  <!-- CTA -->
+  <div class="post-cta">
+    <div class="post-cta-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="post-cta-links">
+      <a href="/playground" class="btn-primary">Try the playground</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</article>
+
+<Footer />
+
+<style>
+  .post {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
+  }
+
+  .post-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .post-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+  }
+
+  .post-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-intro {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0 0 var(--space-3);
+  }
+
+  .post-date {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+  }
+
+  .post-body h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .post-body em {
+    font-style: italic;
+  }
+
+  .post-body code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .post-link {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .post-link:hover {
+    color: var(--text-primary);
+  }
+
+  /* Tables */
+  .table-wrapper {
+    overflow-x: auto;
+    margin: var(--space-6) 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .comparison-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .comparison-table td {
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .comparison-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .comparison-table tbody tr:hover td {
+    background: var(--code-bg);
+  }
+
+  /* Code blocks */
+  .post-cta {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .post-cta-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .post-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .post {
+      padding: var(--space-8) var(--space-4);
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: var(--space-2) var(--space-3);
+    }
+  }
+</style>
+
+
+</Base>
