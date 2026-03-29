@@ -15,6 +15,16 @@ import Footer from '../../components/Footer.astro';
     <p class="blog-eyebrow">Blog</p>
     <h1>Updates &amp; Insights</h1>
     <p class="blog-subtitle">Thoughts on multi-tenancy, Node.js, and building Stratum in the open.</p>
+    <div class="blog-feeds">
+      <a href="/rss.xml" class="blog-feed-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        RSS
+      </a>
+      <a href="/atom.xml" class="blog-feed-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+        Atom
+      </a>
+    </div>
   </header>
 
   <ul class="post-list">
@@ -73,6 +83,32 @@ import Footer from '../../components/Footer.astro';
     line-height: 1.6;
     color: var(--text-secondary);
     margin: 0;
+  }
+
+  .blog-feeds {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .blog-feed-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .blog-feed-link:hover {
+    color: var(--sandstone);
+  }
+
+  .blog-feed-link:focus-visible {
+    outline: 2px solid var(--sandstone);
+    outline-offset: 2px;
   }
 
   .post-list {
