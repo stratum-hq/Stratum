@@ -1,38 +1,13 @@
 ---
 import Base from '../../layouts/Base.astro';
 import '../../styles/global.css';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
 ---
 
 <Base title="Blog — Stratum" description="Updates, guides, and insights about multi-tenancy in Node.js from the Stratum team.">
 
-<!-- Nav -->
-<nav class="nav">
-  <div class="nav-inner">
-    <a href="/" class="nav-logo">
-      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
-      Stratum
-    </a>
-    <div class="nav-links">
-      <a href="/what-is-stratum">What is Stratum?</a>
-      <a href="/blog" aria-current="page">Blog</a>
-      <a href="https://docs.stratum-hq.org">Docs</a>
-      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-      </button>
-    </div>
-  </div>
-</nav>
+<Nav />
 
 <!-- Blog index -->
 <main class="blog-index">
@@ -40,6 +15,16 @@ import '../../styles/global.css';
     <p class="blog-eyebrow">Blog</p>
     <h1>Updates &amp; Insights</h1>
     <p class="blog-subtitle">Thoughts on multi-tenancy, Node.js, and building Stratum in the open.</p>
+    <div class="blog-feeds">
+      <a href="/rss.xml" class="blog-feed-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        RSS
+      </a>
+      <a href="/atom.xml" class="blog-feed-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/></svg>
+        Atom
+      </a>
+    </div>
   </header>
 
   <ul class="post-list">
@@ -62,19 +47,7 @@ import '../../styles/global.css';
   </ul>
 </main>
 
-<!-- Footer -->
-<footer class="footer">
-  <div class="footer-inner">
-    <p class="footer-meta">
-      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
-    </p>
-    <div class="footer-links">
-      <a href="https://docs.stratum-hq.org">Docs</a>
-      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
-    </div>
-  </div>
-</footer>
+<Footer />
 
 <style>
   .blog-index {
@@ -110,6 +83,32 @@ import '../../styles/global.css';
     line-height: 1.6;
     color: var(--text-secondary);
     margin: 0;
+  }
+
+  .blog-feeds {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .blog-feed-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .blog-feed-link:hover {
+    color: var(--sandstone);
+  }
+
+  .blog-feed-link:focus-visible {
+    outline: 2px solid var(--sandstone);
+    outline-offset: 2px;
   }
 
   .post-list {
@@ -174,23 +173,5 @@ import '../../styles/global.css';
   }
 </style>
 
-<!-- Theme toggle -->
-<script>
-  const toggle = document.getElementById('theme-toggle');
-  const html = document.documentElement;
-
-  function setTheme(theme: string) {
-    html.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }
-
-  const saved = localStorage.getItem('theme');
-  if (saved) setTheme(saved);
-
-  toggle?.addEventListener('click', () => {
-    const current = html.getAttribute('data-theme');
-    setTheme(current === 'light' ? 'dark' : 'light');
-  });
-</script>
 
 </Base>

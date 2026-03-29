@@ -23,6 +23,7 @@ const { title, description } = Astro.props;
   <meta name="robots" content="index, follow" />
   <meta name="author" content="Stratum HQ" />
   <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
+  <link rel="alternate" type="application/atom+xml" title="Stratum Blog (Atom)" href="/atom.xml" />
   <link rel="canonical" href={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
   <script type="application/ld+json">
   {

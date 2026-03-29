@@ -1,38 +1,13 @@
 ---
 import Base from '../layouts/Base.astro';
 import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
 ---
 
 <Base title="Stratum vs Alternatives — Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, and ABP.IO. See why Stratum is the multi-tenancy library Node.js has been missing.">
 
-<!-- Nav -->
-<nav class="nav">
-  <div class="nav-inner">
-    <a href="/" class="nav-logo">
-      <img src="/favicon.png" alt="Stratum" class="nav-logo-img" width="28" height="28" />
-      Stratum
-    </a>
-    <div class="nav-links">
-      <a href="/what-is-stratum">What is Stratum?</a>
-      <a href="/blog">Blog</a>
-      <a href="https://docs.stratum-hq.org">Docs</a>
-      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-      </button>
-    </div>
-  </div>
-</nav>
+<Nav />
 
 <!-- Page header -->
 <main class="cmp-main">
@@ -340,19 +315,7 @@ import '../styles/global.css';
 
 </main>
 
-<!-- Footer -->
-<footer class="footer">
-  <div class="footer-inner">
-    <p class="footer-meta">
-      MIT License &middot; &copy; <a href="https://github.com/stratum-hq">Stratum HQ</a>
-    </p>
-    <div class="footer-links">
-      <a href="https://docs.stratum-hq.org">Docs</a>
-      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <a href="https://www.npmjs.com/org/stratum-hq">npm</a>
-    </div>
-  </div>
-</footer>
+<Footer />
 
 <style>
   .cmp-main {
@@ -605,31 +568,5 @@ import '../styles/global.css';
   }
 </style>
 
-<script>
-  const toggle = document.getElementById('theme-toggle');
-  const html = document.documentElement;
-
-  const sunIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
-  const moonIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
-
-  const saved = localStorage.getItem('stratum-theme');
-  if (saved === 'light') {
-    html.setAttribute('data-theme', 'light');
-    if (toggle) toggle.innerHTML = moonIcon;
-  }
-
-  toggle?.addEventListener('click', () => {
-    const isLight = html.getAttribute('data-theme') === 'light';
-    if (isLight) {
-      html.removeAttribute('data-theme');
-      localStorage.setItem('stratum-theme', 'dark');
-      if (toggle) toggle.innerHTML = sunIcon;
-    } else {
-      html.setAttribute('data-theme', 'light');
-      localStorage.setItem('stratum-theme', 'light');
-      if (toggle) toggle.innerHTML = moonIcon;
-    }
-  });
-</script>
 
 </Base>
