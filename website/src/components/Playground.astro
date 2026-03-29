@@ -763,7 +763,7 @@ function createStratumHelpers(db) {
           const isOwn = ancestor.rows[0].id === tenantId;
           if (config[entry.key] && config[entry.key].locked && !isOwn) continue;
           config[entry.key] = {
-            value: JSON.parse(entry.value),
+            value: entry.value,
             inherited: !isOwn,
             locked: entry.locked,
             source: ancestor.rows[0].slug,
