@@ -36,6 +36,7 @@ export default defineConfig({
       sidebar: [
         { label: '← stratum-hq.org', link: 'https://stratum-hq.org', attrs: { target: '_blank' } },
         { label: 'Blog', link: 'https://stratum-hq.org/blog', attrs: { target: '_blank' } },
+        { label: 'Playground', link: '/playground/', attrs: { style: 'color: #C05746; font-weight: 600' } },
         {
           label: "Getting Started",
           autogenerate: { directory: "getting-started" },
