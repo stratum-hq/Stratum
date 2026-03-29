@@ -1,0 +1,1042 @@
+---
+// Playground.astro — browser-based Stratum playground
+// Uses PGlite (WASM Postgres) + CodeMirror, no server required
+---
+
+<div class="playground" id="playground-root">
+  <div class="playground-tabs" role="tablist" aria-label="Scenario tabs">
+    <button class="tab active" data-tab="flat" role="tab" aria-selected="true" aria-controls="editor">Flat Tenancy</button>
+    <button class="tab" data-tab="hierarchy" role="tab" aria-selected="false" aria-controls="editor">Hierarchy</button>
+    <button class="tab" data-tab="config" role="tab" aria-selected="false" aria-controls="editor">Config Inheritance</button>
+    <button class="tab" data-tab="gdpr" role="tab" aria-selected="false" aria-controls="editor">GDPR Compliance</button>
+  </div>
+  <div class="playground-panes">
+    <div class="playground-editor" id="editor" role="region" aria-label="Code editor"></div>
+    <div class="playground-output">
+      <div class="output-header">
+        <span class="output-label">Output</span>
+        <div class="playground-actions">
+          <button id="run-btn" class="run-btn" aria-label="Run code" disabled>Run</button>
+          <button id="reset-btn" class="reset-btn" aria-label="Reset to scenario default">Reset</button>
+        </div>
+      </div>
+      <pre id="output" class="output-pre" aria-live="polite" aria-label="Output"></pre>
+    </div>
+  </div>
+  <div class="playground-status" id="status" aria-live="polite">Initializing Postgres...</div>
+</div>
+
+<style>
+  .playground {
+    width: 100%;
+    background: var(--surface-1, #1A1815);
+    border: 1px solid var(--border, #2A2725);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 160px);
+    min-height: 400px;
+    max-height: 700px;
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+  }
+
+  .playground-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: var(--surface-0, #0F0E0C);
+    border-bottom: 1px solid var(--border, #2A2725);
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+
+  .playground-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    all: unset;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 10px 18px !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    color: var(--text-secondary, #A39E95);
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+    transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tab:hover {
+    color: var(--text-primary, #E8E2D9);
+  }
+
+  .tab.active {
+    color: var(--accent, #C05746);
+    border-bottom: 2px solid var(--accent, #C05746) !important;
+    font-weight: 600;
+  }
+
+  .tab:focus-visible {
+    outline: 2px solid var(--accent, #C05746);
+    outline-offset: -2px;
+    border-radius: var(--radius-sm, 4px);
+  }
+
+  .playground-panes {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .playground-editor {
+    width: 55%;
+    border-right: 1px solid var(--border, #2A2725);
+    overflow: hidden;
+    background: var(--code-bg, #161412);
+  }
+
+  /* CodeMirror overrides */
+  .playground-editor .cm-editor {
+    height: 100%;
+    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
+    font-size: 0.875rem;
+  }
+
+  .playground-editor .cm-scroller {
+    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
+  }
+
+  .playground-output {
+    width: 45%;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-0, #0F0E0C);
+    overflow: hidden;
+  }
+
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border, #2A2725);
+    background: var(--surface-1, #1A1815);
+    flex-shrink: 0;
+  }
+
+  .output-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary, #A39E95);
+  }
+
+  .playground-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* Shared button base -- nuke Starlight defaults */
+  .run-btn,
+  .reset-btn {
+    all: unset;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 6px 16px !important;
+    min-height: 32px !important;
+    min-width: 72px !important;
+    border-radius: 4px !important;
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    text-align: center;
+    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+  }
+
+  .run-btn {
+    background: var(--accent, #C05746) !important;
+    color: #fff !important;
+    border: 1px solid transparent !important;
+  }
+
+  .run-btn:hover {
+    background: var(--accent-hover, #D4654E) !important;
+  }
+
+  .run-btn:active {
+    background: #A84535 !important;
+  }
+
+  .run-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .run-btn:focus-visible,
+  .reset-btn:focus-visible {
+    outline: 2px solid var(--accent, #C05746);
+    outline-offset: 2px;
+  }
+
+  .reset-btn {
+    background: transparent !important;
+    color: var(--text-secondary, #A39E95) !important;
+    border: 1px solid var(--border-hover, #3D3935) !important;
+  }
+
+  .reset-btn:hover {
+    color: var(--text-primary, #E8E2D9) !important;
+    border-color: var(--text-tertiary, #6B6560) !important;
+    outline-offset: 2px;
+  }
+
+  .output-pre {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+    overflow-y: auto;
+    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--sandstone, #C4A882);
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--surface-0, #0F0E0C);
+  }
+
+  .output-pre .output-error {
+    color: #E07060;
+  }
+
+  .output-pre .output-dim {
+    color: var(--text-tertiary, #6B6560);
+  }
+
+  .playground-status {
+    padding: 10px 24px;
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #6B6560);
+    background: var(--surface-0, #0F0E0C);
+    border-top: 1px solid var(--border, #2A2725);
+    flex-shrink: 0;
+  }
+
+  .playground-status.status-ready {
+    color: #5B8C5A;
+  }
+
+  .playground-status.status-error {
+    color: #E07060;
+  }
+
+  .playground-status.status-running {
+    color: var(--sandstone, #C4A882);
+  }
+
+  /* Loading overlay */
+  .playground-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-tertiary, #6B6560);
+    font-size: 0.875rem;
+  }
+
+  @media (max-width: 768px) {
+    .playground-panes {
+      flex-direction: column;
+      min-height: 700px;
+    }
+
+    .playground-editor {
+      width: 100%;
+      border-right: none;
+      border-bottom: 1px solid var(--border, #2A2725);
+      min-height: 320px;
+    }
+
+    .playground-output {
+      width: 100%;
+      min-height: 280px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab,
+    .run-btn,
+    .reset-btn {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+import { PGlite } from '@electric-sql/pglite';
+import { ltree } from '@electric-sql/pglite/contrib/ltree';
+import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
+import { javascript } from '@codemirror/lang-javascript';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+
+// ---------------------------------------------------------------------------
+// Scenario definitions
+// ---------------------------------------------------------------------------
+
+const SCENARIOS = {
+  flat: {
+    label: 'Flat Tenancy',
+    description: 'Create organizations with no hierarchy.',
+    code: `// Create organizations (flat, no hierarchy)
+const org1 = await stratum.createOrganization({ name: "Acme Corp", slug: "acme" });
+console.log("Created:", org1.name, "(id:", org1.id + ")");
+
+const org2 = await stratum.createOrganization({ name: "Globex Inc", slug: "globex" });
+console.log("Created:", org2.name, "(id:", org2.id + ")");
+
+const orgs = await stratum.listOrganizations();
+console.log("\\nAll organizations:");
+orgs.forEach(o => console.log("  -", o.name, "(" + o.slug + ")"));`,
+  },
+  hierarchy: {
+    label: 'Hierarchy',
+    description: 'Build a 3-level MSP tenant hierarchy.',
+    code: `// Build a 3-level MSP hierarchy
+const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
+console.log("Root:", root.name, "| path:", root.ancestry_path);
+
+const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar", parent_id: root.id });
+console.log("MSP:", msp.name, "| path:", msp.ancestry_path);
+
+const client = await stratum.createTenant({ name: "Client Alpha", slug: "alpha", parent_id: msp.id });
+console.log("Client:", client.name, "| path:", client.ancestry_path);
+
+// Show the full hierarchy
+const all = await stratum.listTenants();
+console.log("\\nTenant hierarchy:");
+all.forEach(t => console.log("  " + "  ".repeat(t.depth) + t.name + " (depth: " + t.depth + ")"));`,
+  },
+  config: {
+    label: 'Config Inheritance',
+    description: 'Set config at the root and resolve inherited values on a child.',
+    code: `// Build hierarchy for config demo
+const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
+const child = await stratum.createTenant({ name: "NorthStar", slug: "northstar", parent_id: root.id });
+
+// Set config on root
+await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false, sensitive: false });
+await stratum.setConfig(root.id, "data_region", { value: "us-east-1", locked: true, sensitive: false });
+console.log("Config set on root: max_users=1000, data_region=us-east-1 (locked)");
+
+// Resolve on child (inherits from parent)
+const config = await stratum.resolveConfig(child.id);
+console.log("\\nResolved config for", child.name + ":");
+Object.entries(config).forEach(([key, val]) => {
+  console.log("  " + key + ":", JSON.stringify(val.value), val.inherited ? "(inherited)" : "(own)", val.locked ? "[LOCKED]" : "");
+});`,
+  },
+  gdpr: {
+    label: 'GDPR Compliance',
+    description: 'Export (Article 20) and purge (Article 17) tenant data.',
+    code: `// Create a tenant with config
+const org = await stratum.createTenant({ name: "Acme Corp", slug: "acme" });
+await stratum.setConfig(org.id, "plan", { value: "enterprise", locked: false, sensitive: false });
+console.log("Created tenant with config");
+
+// Export tenant data (Article 20)
+const exported = await stratum.exportTenantData(org.id);
+console.log("\\nExported data keys:", Object.keys(exported).join(", "));
+console.log("Tenant data:", JSON.stringify(exported.tenant, null, 2));
+
+// Purge tenant data (Article 17)
+await stratum.purgeTenant(org.id);
+console.log("\\nTenant purged successfully");
+
+// Verify purge
+const check = await stratum.getTenant(org.id);
+console.log("Tenant after purge:", check ? "STILL EXISTS (error!)" : "Gone (correct)");`,
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Patched migrations — all 17, with patches applied:
+//   1. uuid-ossp DO block removed
+//   2. ltree DO block replaced with direct CREATE EXTENSION
+//   3. BYPASSRLS warning DO block removed
+//   4. uuid_generate_v4() replaced with gen_random_uuid()
+//   5. _migrations table created before migration 016
+// ---------------------------------------------------------------------------
+
+const MIGRATIONS = [
+  // 001_init.sql
+  `CREATE EXTENSION IF NOT EXISTS ltree;
+
+CREATE TABLE IF NOT EXISTS tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_id UUID REFERENCES tenants(id) ON DELETE RESTRICT,
+  ancestry_path TEXT NOT NULL,
+  ancestry_ltree ltree,
+  depth INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE
+    CHECK (slug ~ '^[a-z][a-z0-9_]{0,62}$'),
+  config JSONB NOT NULL DEFAULT '{}',
+  metadata JSONB NOT NULL DEFAULT '{}',
+  isolation_strategy TEXT NOT NULL DEFAULT 'SHARED_RLS'
+    CHECK (isolation_strategy IN ('SHARED_RLS')),
+  status TEXT NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'archived')),
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
+CREATE TRIGGER update_tenants_updated_at
+  BEFORE UPDATE ON tenants
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE FUNCTION maintain_ancestry_ltree()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_id IS NULL THEN
+    NEW.ancestry_ltree = NEW.slug::ltree;
+  ELSE
+    SELECT ancestry_ltree || NEW.slug::ltree INTO NEW.ancestry_ltree
+    FROM tenants WHERE id = NEW.parent_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS maintain_tenant_ancestry_ltree ON tenants;
+CREATE TRIGGER maintain_tenant_ancestry_ltree
+  BEFORE INSERT OR UPDATE OF parent_id, slug ON tenants
+  FOR EACH ROW EXECUTE FUNCTION maintain_ancestry_ltree();
+
+CREATE INDEX IF NOT EXISTS idx_tenant_parent ON tenants(parent_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_ancestry ON tenants USING GIST (ancestry_ltree);
+CREATE INDEX IF NOT EXISTS idx_tenant_depth ON tenants(depth);
+CREATE INDEX IF NOT EXISTS idx_tenant_slug ON tenants(slug);
+CREATE INDEX IF NOT EXISTS idx_tenant_status ON tenants(status) WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS permission_policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  key TEXT NOT NULL,
+  value JSONB NOT NULL DEFAULT 'true',
+  mode TEXT NOT NULL DEFAULT 'INHERITED'
+    CHECK (mode IN ('LOCKED', 'INHERITED', 'DELEGATED')),
+  revocation_mode TEXT NOT NULL DEFAULT 'CASCADE'
+    CHECK (revocation_mode IN ('CASCADE', 'SOFT', 'PERMANENT')),
+  source_tenant_id UUID NOT NULL REFERENCES tenants(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_permission_source ON permission_policies(source_tenant_id);
+
+DROP TRIGGER IF EXISTS update_permission_policies_updated_at ON permission_policies;
+CREATE TRIGGER update_permission_policies_updated_at
+  BEFORE UPDATE ON permission_policies
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS config_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value JSONB NOT NULL,
+  inherited BOOLEAN NOT NULL DEFAULT false,
+  source_tenant_id UUID NOT NULL REFERENCES tenants(id),
+  locked BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, key)
+);
+
+DROP TRIGGER IF EXISTS update_config_entries_updated_at ON config_entries;
+CREATE TRIGGER update_config_entries_updated_at
+  BEFORE UPDATE ON config_entries
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  key_hash TEXT NOT NULL,
+  key_prefix VARCHAR(16),
+  name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys (key_hash);`,
+
+  // 002_schema_isolation.sql
+  `ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_isolation_strategy_check;
+ALTER TABLE tenants ADD CONSTRAINT tenants_isolation_strategy_check
+  CHECK (isolation_strategy IN ('SHARED_RLS', 'SCHEMA_PER_TENANT'));`,
+
+  // 003_db_isolation.sql
+  `ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_isolation_strategy_check;
+ALTER TABLE tenants ADD CONSTRAINT tenants_isolation_strategy_check
+  CHECK (isolation_strategy IN ('SHARED_RLS', 'SCHEMA_PER_TENANT', 'DB_PER_TENANT'));
+
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS connection_config JSONB DEFAULT NULL;`,
+
+  // 004_webhooks.sql
+  `CREATE TABLE IF NOT EXISTS webhooks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  secret_hash TEXT NOT NULL,
+  events TEXT[] NOT NULL DEFAULT '{}',
+  active BOOLEAN NOT NULL DEFAULT true,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(active) WHERE active = true;
+
+DROP TRIGGER IF EXISTS update_webhooks_updated_at ON webhooks;
+CREATE TRIGGER update_webhooks_updated_at
+  BEFORE UPDATE ON webhooks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_tenant ON webhook_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_type ON webhook_events(type);
+CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON webhook_events(created_at);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  webhook_id UUID NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event_id UUID NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'success', 'failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_retry_at TIMESTAMPTZ,
+  last_error TEXT,
+  response_code INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_deliveries_webhook ON webhook_deliveries(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_event ON webhook_deliveries(event_id);
+CREATE INDEX IF NOT EXISTS idx_deliveries_status ON webhook_deliveries(status) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON webhook_deliveries(next_retry_at) WHERE status = 'pending';`,
+
+  // 005_audit_logs.sql
+  `CREATE TABLE IF NOT EXISTS audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id TEXT NOT NULL,
+  actor_type TEXT NOT NULL CHECK (actor_type IN ('api_key', 'jwt', 'system')),
+  action TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id TEXT,
+  tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
+  source_ip INET,
+  request_id TEXT,
+  before_state JSONB,
+  after_state JSONB,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id);`,
+
+  // 006_api_key_scopes.sql
+  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] NOT NULL DEFAULT '{read,write}';`,
+
+  // 007_sensitive_config.sql
+  `ALTER TABLE config_entries ADD COLUMN IF NOT EXISTS sensitive BOOLEAN NOT NULL DEFAULT false;`,
+
+  // 008_api_key_management.sql
+  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit_max INTEGER;
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit_window TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_expires ON api_keys(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_api_keys_last_used ON api_keys(last_used_at);`,
+
+  // 009_consent.sql
+  `CREATE TABLE IF NOT EXISTS consent_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  subject_id TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  granted BOOLEAN NOT NULL DEFAULT true,
+  granted_at TIMESTAMPTZ DEFAULT now(),
+  revoked_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(tenant_id, subject_id, purpose)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consent_tenant ON consent_records(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_consent_subject ON consent_records(subject_id);
+CREATE INDEX IF NOT EXISTS idx_consent_purpose ON consent_records(purpose);`,
+
+  // 010_multi_region.sql
+  `CREATE TABLE IF NOT EXISTS regions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  display_name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  control_plane_url TEXT,
+  database_url TEXT,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draining', 'inactive')),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_regions_slug ON regions(slug);
+CREATE INDEX IF NOT EXISTS idx_regions_status ON regions(status);
+
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES regions(id);
+CREATE INDEX IF NOT EXISTS idx_tenants_region ON tenants(region_id);`,
+
+  // 011_demo_bootstrap.sql — no-op (demo data seeded separately)
+  `-- 011_demo_bootstrap: no-op in playground`,
+
+  // 012_roles.sql
+  `CREATE TABLE IF NOT EXISTS roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  scopes TEXT[] NOT NULL DEFAULT ARRAY['read'],
+  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles (tenant_id);
+
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS role_id UUID REFERENCES roles(id) ON DELETE SET NULL;`,
+
+  // 013_api_key_hmac.sql
+  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS hash_version SMALLINT NOT NULL DEFAULT 1;`,
+
+  // 014_sort_order.sql
+  `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_tenant_sort_order ON tenants(parent_id, sort_order);`,
+
+  // 015_region_url_encryption.sql
+  `ALTER TABLE regions RENAME COLUMN database_url TO database_url_encrypted;`,
+
+  // 016_migration_alias.sql — needs _migrations table
+  `CREATE TABLE IF NOT EXISTS _migrations (
+  name TEXT PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO _migrations (name, applied_at)
+SELECT '014_sort_order.sql', applied_at
+FROM _migrations
+WHERE name = '002_sort_order.sql'
+ON CONFLICT DO NOTHING;`,
+
+  // 017_abac_policies.sql
+  `CREATE TABLE IF NOT EXISTS abac_policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  action TEXT NOT NULL,
+  effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
+  conditions JSONB NOT NULL DEFAULT '[]',
+  priority INTEGER NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'INHERITED' CHECK (mode IN ('LOCKED', 'INHERITED', 'DELEGATED')),
+  source_tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_abac_policies_tenant_id ON abac_policies(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_abac_policies_resource_action ON abac_policies(resource_type, action);`,
+];
+
+// ---------------------------------------------------------------------------
+// Stratum helpers — mirror the Stratum API surface over raw PGlite SQL
+// ---------------------------------------------------------------------------
+
+function createStratumHelpers(db) {
+  return {
+    async createTenant({ name, slug, parent_id = null }) {
+      let ancestry_path, depth;
+      if (parent_id) {
+        const parent = await db.query('SELECT * FROM tenants WHERE id = $1', [parent_id]);
+        if (!parent.rows.length) throw new Error('Parent tenant not found');
+        const p = parent.rows[0];
+        ancestry_path = p.ancestry_path + '.' + slug;
+        depth = p.depth + 1;
+      } else {
+        ancestry_path = slug;
+        depth = 0;
+      }
+      const result = await db.query(
+        `INSERT INTO tenants (name, slug, parent_id, ancestry_path, ancestry_ltree, depth)
+         VALUES ($1, $2, $3, $4, $5::ltree, $6) RETURNING *`,
+        [name, slug, parent_id, ancestry_path, ancestry_path, depth]
+      );
+      return result.rows[0];
+    },
+
+    async createOrganization({ name, slug }) {
+      return this.createTenant({ name, slug, parent_id: null });
+    },
+
+    async listOrganizations() {
+      const result = await db.query('SELECT * FROM tenants WHERE parent_id IS NULL ORDER BY name');
+      return result.rows;
+    },
+
+    async listTenants() {
+      const result = await db.query('SELECT * FROM tenants ORDER BY depth, name');
+      return result.rows;
+    },
+
+    async getTenant(id) {
+      const result = await db.query('SELECT * FROM tenants WHERE id = $1', [id]);
+      return result.rows[0] || null;
+    },
+
+    async setConfig(tenantId, key, { value, locked = false, sensitive = false }) {
+      await db.query(
+        `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $1)
+         ON CONFLICT (tenant_id, key) DO UPDATE SET value = $3, locked = $4, sensitive = $5`,
+        [tenantId, key, JSON.stringify(value), locked, sensitive]
+      );
+    },
+
+    async resolveConfig(tenantId) {
+      const tenant = await this.getTenant(tenantId);
+      if (!tenant) throw new Error('Tenant not found');
+
+      const slugs = tenant.ancestry_path.split('.');
+      const config = {};
+
+      for (let i = 0; i < slugs.length; i++) {
+        const pathSlug = slugs.slice(0, i + 1).join('.');
+        const ancestor = await db.query('SELECT * FROM tenants WHERE ancestry_path = $1', [pathSlug]);
+        if (!ancestor.rows.length) continue;
+
+        const entries = await db.query('SELECT * FROM config_entries WHERE tenant_id = $1', [ancestor.rows[0].id]);
+        for (const entry of entries.rows) {
+          const isOwn = ancestor.rows[0].id === tenantId;
+          if (config[entry.key] && config[entry.key].locked && !isOwn) continue;
+          config[entry.key] = {
+            value: entry.value,
+            inherited: !isOwn,
+            locked: entry.locked,
+            source: ancestor.rows[0].slug,
+          };
+        }
+      }
+      return config;
+    },
+
+    async exportTenantData(tenantId) {
+      const tenant = await this.getTenant(tenantId);
+      const config = await db.query('SELECT * FROM config_entries WHERE tenant_id = $1', [tenantId]);
+      const audit = await db.query('SELECT * FROM audit_logs WHERE tenant_id = $1', [tenantId]);
+      return {
+        tenant,
+        config: config.rows,
+        audit_logs: audit.rows,
+      };
+    },
+
+    async purgeTenant(tenantId) {
+      await db.query('DELETE FROM config_entries WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM audit_logs WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// DB initialisation
+// ---------------------------------------------------------------------------
+
+async function initDB(onStatus) {
+  onStatus('Loading Postgres WASM...');
+  const db = await PGlite.create({ extensions: { ltree } });
+
+  onStatus('Running migrations...');
+  for (let i = 0; i < MIGRATIONS.length; i++) {
+    onStatus(`Running migration ${i + 1}/${MIGRATIONS.length}...`);
+    await db.exec(MIGRATIONS[i]);
+  }
+
+  onStatus('Ready');
+  return db;
+}
+
+// ---------------------------------------------------------------------------
+// CodeMirror setup
+// ---------------------------------------------------------------------------
+
+function createEditor(parent, initialCode) {
+  const state = EditorState.create({
+    doc: initialCode,
+    extensions: [
+      lineNumbers(),
+      highlightActiveLine(),
+      history(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      javascript(),
+      oneDark,
+      EditorView.theme({
+        '&': {
+          height: '100%',
+          backgroundColor: 'var(--code-bg, #161412)',
+        },
+        '.cm-scroller': {
+          fontFamily: 'var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace)',
+          fontSize: '0.875rem',
+          lineHeight: '1.6',
+        },
+        '.cm-content': {
+          padding: '16px 0',
+        },
+        '.cm-gutters': {
+          backgroundColor: 'var(--code-bg, #161412)',
+          borderRight: '1px solid var(--border, #2A2725)',
+          color: 'var(--text-tertiary, #6B6560)',
+        },
+        '.cm-activeLineGutter': {
+          backgroundColor: 'var(--surface-2, #252220)',
+        },
+        '.cm-activeLine': {
+          backgroundColor: 'rgba(255,255,255,0.03)',
+        },
+      }),
+      EditorView.lineWrapping,
+    ],
+  });
+
+  return new EditorView({ state, parent });
+}
+
+// ---------------------------------------------------------------------------
+// Main init
+// ---------------------------------------------------------------------------
+
+(async () => {
+  const statusEl = document.getElementById('status');
+  const outputEl = document.getElementById('output');
+  const runBtn = document.getElementById('run-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const editorEl = document.getElementById('editor');
+  const tabs = document.querySelectorAll('.tab');
+
+  let db = null;
+  let stratum = null;
+  let editorView = null;
+  let currentTab = 'flat';
+
+  function setStatus(msg, type = '') {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'playground-status' + (type ? ' status-' + type : '');
+  }
+
+  function setOutput(text, isError = false) {
+    if (!outputEl) return;
+    outputEl.textContent = '';
+    const span = document.createElement('span');
+    span.className = isError ? 'output-error' : '';
+    span.textContent = text;
+    outputEl.appendChild(span);
+  }
+
+  function appendOutput(text) {
+    if (!outputEl) return;
+    outputEl.textContent += text + '\n';
+  }
+
+  function getEditorCode() {
+    return editorView ? editorView.state.doc.toString() : '';
+  }
+
+  function setEditorCode(code) {
+    if (!editorView) return;
+    editorView.dispatch({
+      changes: { from: 0, to: editorView.state.doc.length, insert: code },
+    });
+  }
+
+  // Init editor with default scenario
+  if (editorEl) {
+    editorView = createEditor(editorEl, SCENARIOS.flat.code);
+  }
+
+  // Init DB
+  try {
+    db = await initDB((msg) => {
+      setStatus(msg, 'running');
+    });
+    stratum = createStratumHelpers(db);
+    setStatus('Ready -- Postgres running in your browser', 'ready');
+    if (runBtn) runBtn.disabled = false;
+  } catch (err) {
+    setStatus('Failed to initialize Postgres: ' + err.message, 'error');
+    setOutput('Initialization error:\n' + err.message, true);
+    return;
+  }
+
+  // Tab switching
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', async () => {
+      const tabKey = tab.dataset.tab;
+      if (!tabKey || !SCENARIOS[tabKey]) return;
+
+      tabs.forEach((t) => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+
+      currentTab = tabKey;
+      setEditorCode(SCENARIOS[tabKey].code);
+      setOutput('');
+
+      // Reset DB for fresh scenario
+      await resetDB();
+      setStatus('Ready', 'ready');
+    });
+  });
+
+  async function resetDB() {
+    setStatus('Resetting database...', 'running');
+    try {
+      // Drop all data by truncating core tables
+      await db.exec(`
+        TRUNCATE TABLE audit_logs, config_entries, permission_policies,
+          api_keys, webhook_deliveries, webhook_events, webhooks,
+          consent_records, abac_policies, roles RESTART IDENTITY CASCADE;
+        TRUNCATE TABLE tenants RESTART IDENTITY CASCADE;
+      `);
+      setStatus('Ready', 'ready');
+    } catch (err) {
+      // Fallback: recreate DB from scratch
+      try {
+        db = await initDB((msg) => setStatus(msg, 'running'));
+        stratum = createStratumHelpers(db);
+        setStatus('Ready', 'ready');
+      } catch (e) {
+        setStatus('Reset failed: ' + e.message, 'error');
+      }
+    }
+  }
+
+  // Reset button
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async () => {
+      setEditorCode(SCENARIOS[currentTab].code);
+      setOutput('');
+      await resetDB();
+    });
+  }
+
+  // Run button
+  if (runBtn) {
+    runBtn.addEventListener('click', async () => {
+      const code = getEditorCode();
+      if (!code.trim()) return;
+
+      runBtn.disabled = true;
+      setOutput('');
+      setStatus('Running...', 'running');
+
+      // Capture console.log output
+      const logs = [];
+      const origLog = console.log;
+      const origError = console.error;
+      console.log = (...args) => {
+        const line = args.map((a) =>
+          typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
+        ).join(' ');
+        logs.push(line);
+        origLog(...args);
+      };
+      console.error = (...args) => {
+        const line = '[error] ' + args.map((a) =>
+          typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
+        ).join(' ');
+        logs.push(line);
+        origError(...args);
+      };
+
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Execution timed out after 5 seconds')), 5000)
+      );
+
+      try {
+        const wrapped = new Function('stratum', `return (async () => {\n${code}\n})()`);
+        await Promise.race([wrapped(stratum), timeout]);
+        const output = logs.join('\n') || '(no output)';
+        setOutput(output);
+        setStatus('Done', 'ready');
+      } catch (err) {
+        const output = (logs.length ? logs.join('\n') + '\n\n' : '') + 'Error: ' + err.message;
+        setOutput(output, true);
+        setStatus('Error: ' + err.message, 'error');
+      } finally {
+        console.log = origLog;
+        console.error = origError;
+        runBtn.disabled = false;
+      }
+    });
+  }
+})();
+</script>
