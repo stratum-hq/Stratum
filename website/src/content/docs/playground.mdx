@@ -2,11 +2,61 @@
 title: Playground
 description: Try Stratum in your browser -- no installation required.
 template: splash
-hero:
-  title: Playground
-  tagline: Run Stratum code live in your browser. Powered by PGlite (Postgres in WebAssembly).
 ---
 
 import Playground from '../../components/Playground.astro';
 
-<Playground />
+<div class="playground-page">
+  <div class="playground-header">
+    <h1>Playground</h1>
+    <p>Run Stratum code live in your browser. Powered by PGlite (Postgres in WebAssembly).</p>
+  </div>
+  <Playground />
+</div>
+
+<style>{`
+  /* Override Starlight splash page padding */
+  .playground-page {
+    max-width: 100%;
+    padding: 0;
+  }
+
+  /* Nuke Starlight hero if it renders */
+  [data-page-url="/playground/"] .hero,
+  [data-page-url="/playground/"] header.hero {
+    display: none !important;
+  }
+
+  /* Tighten the main content area */
+  [data-page-url="/playground/"] main {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0 !important;
+  }
+
+  [data-page-url="/playground/"] .sl-container {
+    max-width: 100% !important;
+    padding: 0 1rem !important;
+  }
+
+  /* Hide prev/next nav on playground */
+  [data-page-url="/playground/"] .pagination-links {
+    display: none !important;
+  }
+
+  .playground-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .playground-header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: var(--sl-color-white);
+  }
+
+  .playground-header p {
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-3);
+    margin: 0;
+  }
+`}</style>
