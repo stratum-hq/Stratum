@@ -1,0 +1,248 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';
+---
+
+<Base title="About Stratum -- Built by a Security Engineer for Multi-Tenancy in Node.js" description="Meet Christian Crank, the security engineer behind Stratum. Born from real MSP/MSSP pain, Stratum brings proper multi-tenancy to the Node.js ecosystem.">
+
+<Nav />
+
+<article class="about">
+  <!-- Hero-style author section (no card container) -->
+  <div class="about-author">
+    <div class="about-headshot-wrap">
+      <img src="/headshot.png" alt="Photo of Christian Crank" class="about-headshot" width="120" height="120" />
+    </div>
+    <div class="about-author-info">
+      <h1>Christian Crank</h1>
+      <p class="about-title">Owner, Security Engineer</p>
+      <p class="about-bio">
+        Network security engineer with deep roots in the MSP and MSSP world.
+        Years of onboarding clients, building monitoring across fragmented platforms,
+        and watching tools fail at the one thing they all need: real multi-tenancy.
+      </p>
+    </div>
+  </div>
+
+  <!-- Origin story -->
+  <div class="about-story">
+    <h2>The problem that started it all</h2>
+    <p>
+      If you have worked in managed security, you know the drill. An MSSP manages MSPs.
+      MSPs manage clients. Clients sometimes have sub-clients. That is four levels of
+      hierarchy, and almost no tooling handles it correctly.
+    </p>
+
+    <!-- Hierarchy diagram callout -->
+    <div class="about-hierarchy">
+      <span class="about-hierarchy-label">The hierarchy Stratum models</span>
+      <pre><code>MSSP
+  MSP (Partner A)
+    Client (Acme Corp)
+      SubClient (Acme EU)
+  MSP (Partner B)
+    Client (Globex Inc)</code></pre>
+    </div>
+
+    <p>
+      Instead of one platform with proper tenant isolation, you end up running
+      multiple instances of the same tool. One per MSP, sometimes one per client.
+      Monitoring sprawls. Costs balloon. Things get lost between instances. You
+      spend more time boxing tooling than actually building solutions for your clients.
+    </p>
+
+    <h2>Why Stratum</h2>
+    <p>
+      Stratum models tenants as a tree, up to 20 levels deep. The hierarchy above
+      is not a diagram. It is a real data structure in Stratum. Config flows down
+      the tree automatically. Isolation strategies apply per tenant. GDPR compliance
+      is built in, not bolted on.
+    </p>
+    <p>
+      Node.js had no serious multi-tenancy library. The ecosystem gap was obvious to
+      anyone building B2B SaaS or managed services tooling. Stratum fills that gap.
+    </p>
+  </div>
+
+  <!-- Closing CTA -->
+  <div class="about-cta">
+    <div class="about-cta-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="about-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Read the docs</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</article>
+
+<!-- Person structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Christian Crank",
+  "jobTitle": "Security Engineer",
+  "image": "https://stratum-hq.org/headshot.png",
+  "url": "https://stratum-hq.org/about",
+  "worksFor": {
+    "@type": "Organization",
+    "name": "Stratum HQ",
+    "url": "https://stratum-hq.org"
+  }
+}
+</script>
+
+<Footer />
+
+<style>
+  .about {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: var(--space-24) var(--space-6) var(--space-8);
+  }
+
+  /* Author section - no card, just photo + text */
+  .about-author {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-6);
+    margin-bottom: var(--space-12);
+  }
+
+  .about-headshot-wrap {
+    flex-shrink: 0;
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-full);
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .about-headshot {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    display: block;
+  }
+
+  .about-author-info h1 {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: var(--space-1);
+  }
+
+  .about-title {
+    font-size: 1rem;
+    color: var(--sandstone);
+    font-weight: 500;
+    margin-bottom: var(--space-4);
+  }
+
+  .about-bio {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+  }
+
+  /* Story sections */
+  .about-story h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+  }
+
+  .about-story p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  /* Hierarchy diagram callout */
+  .about-hierarchy {
+    margin: var(--space-6) 0;
+    position: relative;
+  }
+
+  .about-hierarchy-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-2);
+  }
+
+  .about-hierarchy pre {
+    background: var(--code-bg);
+    padding: var(--space-6);
+    border-radius: var(--radius-md);
+    border-top: 2px solid var(--accent);
+    overflow-x: auto;
+    margin: 0;
+  }
+
+  .about-hierarchy code {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.8;
+    color: var(--code-text);
+  }
+
+  /* CTA */
+  .about-cta {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .about-cta-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .about-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .about {
+      padding: var(--space-8) var(--space-4);
+    }
+
+    .about-author {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .about-author-info h1 {
+      text-align: center;
+    }
+
+    .about-title {
+      text-align: center;
+    }
+  }
+</style>
+
+</Base>
