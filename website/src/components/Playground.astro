@@ -58,17 +58,20 @@
 
   .tab {
     all: unset;
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    padding: 10px 18px;
-    border-bottom: 2px solid transparent;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    margin: 0 !important;
+    padding: 10px 18px !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
     color: var(--text-secondary, #A39E95);
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
     font-size: 0.8125rem;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
+    line-height: 1.4;
     transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
                 border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -79,7 +82,7 @@
 
   .tab.active {
     color: var(--accent, #C05746);
-    border-bottom-color: var(--accent, #C05746);
+    border-bottom: 2px solid var(--accent, #C05746) !important;
     font-weight: 600;
   }
 
@@ -144,30 +147,43 @@
   .playground-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
   }
 
-  .run-btn {
-    background: var(--accent, #C05746);
-    color: #fff;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm, 4px);
-    padding: 0 16px;
-    min-height: 32px;
-    min-width: 72px;
-    text-align: center;
+  /* Shared button base -- nuke Starlight defaults */
+  .run-btn,
+  .reset-btn {
+    all: unset;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 6px 16px !important;
+    min-height: 32px !important;
+    min-width: 72px !important;
+    border-radius: 4px !important;
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
     font-size: 0.8125rem;
     font-weight: 600;
+    line-height: 1.4;
     cursor: pointer;
-    transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: center;
+    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+  }
+
+  .run-btn {
+    background: var(--accent, #C05746) !important;
+    color: #fff !important;
+    border: 1px solid transparent !important;
   }
 
   .run-btn:hover {
-    background: var(--accent-hover, #D4654E);
+    background: var(--accent-hover, #D4654E) !important;
   }
 
   .run-btn:active {
-    background: #A84535;
+    background: #A84535 !important;
   }
 
   .run-btn:disabled {
@@ -175,35 +191,21 @@
     cursor: not-allowed;
   }
 
-  .run-btn:focus-visible {
+  .run-btn:focus-visible,
+  .reset-btn:focus-visible {
     outline: 2px solid var(--accent, #C05746);
     outline-offset: 2px;
   }
 
   .reset-btn {
-    background: none;
-    color: var(--text-secondary, #A39E95);
-    border: 1px solid var(--border-hover, #3D3935);
-    border-radius: var(--radius-sm, 4px);
-    padding: 0 16px;
-    min-height: 32px;
-    min-width: 72px;
-    text-align: center;
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    background: transparent !important;
+    color: var(--text-secondary, #A39E95) !important;
+    border: 1px solid var(--border-hover, #3D3935) !important;
   }
 
   .reset-btn:hover {
-    color: var(--text-primary, #E8E2D9);
-    border-color: var(--text-tertiary, #6B6560);
-  }
-
-  .reset-btn:focus-visible {
-    outline: 2px solid var(--accent, #C05746);
+    color: var(--text-primary, #E8E2D9) !important;
+    border-color: var(--text-tertiary, #6B6560) !important;
     outline-offset: 2px;
   }
 
@@ -230,7 +232,7 @@
   }
 
   .playground-status {
-    padding: 8px 20px;
+    padding: 10px 24px;
     font-size: 0.75rem;
     color: var(--text-tertiary, #6B6560);
     background: var(--surface-0, #0F0E0C);
