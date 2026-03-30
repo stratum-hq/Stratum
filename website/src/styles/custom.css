@@ -21,6 +21,11 @@
   --sl-color-white: #E8E2D9;
   --sl-color-gray-1: #A39E95;
   --sl-color-gray-2: #6B6560;
+
+  /* Starlight maps --sl-color-text to gray-2 by default, which is our
+     tertiary (#6B6560) — too dark. Override to gray-1 (#A39E95) to match
+     the landing page body text color (--text-secondary). */
+  --sl-color-text: var(--sl-color-gray-1);
   --sl-color-gray-3: #3D3935;
   --sl-color-gray-4: #2A2725;
   --sl-color-gray-5: #1A1815;
@@ -92,6 +97,7 @@
   --sl-color-white: #1A1815;
   --sl-color-gray-1: #5C5650;
   --sl-color-gray-2: #8A847D;
+  --sl-color-text: var(--sl-color-gray-1);
   --sl-color-gray-3: #C4BDB4;
   --sl-color-gray-4: #D6D0C8;
   --sl-color-gray-5: #E5E0DA;
@@ -239,13 +245,30 @@ pre code {
 
 /* --------------------------------------------------------------------------
    Sidebar — compact, warm
+   Starlight sidebar links default to --sl-color-gray-2 (#6B6560, tertiary).
+   Override to gray-1 (#A39E95) to match landing page nav link color.
    -------------------------------------------------------------------------- */
 .sidebar-content {
   font-size: 0.875rem;
 }
 
-nav a[aria-current="page"] {
-  color: var(--accent);
+starlight-menu-button + nav a,
+.sidebar-content a,
+sidebar-sublist a,
+[data-pagefind-ignore] a {
+  color: var(--sl-color-gray-1) !important;
+}
+
+starlight-menu-button + nav a:hover,
+.sidebar-content a:hover,
+sidebar-sublist a:hover,
+[data-pagefind-ignore] a:hover {
+  color: var(--sl-color-white) !important;
+}
+
+nav a[aria-current="page"],
+nav a[aria-current="page"]:hover {
+  color: var(--sl-color-text-invert) !important;
   font-weight: 600;
 }
 
