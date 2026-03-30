@@ -15,6 +15,7 @@ import * as roleService from "./services/role-service.js";
 import * as abacService from "./services/abac-service.js";
 import { traced } from "./telemetry.js";
 import { defaultLogger, type StratumLogger } from "./logger.js";
+import { getTenantContext, runWithTenantContext } from "@stratum-hq/sdk";
 import type {
   TenantNode,
   CreateTenantInput,
@@ -42,6 +43,7 @@ import type {
   CreateRegionInput,
   UpdateRegionInput,
   TenantContext,
+  TenantContextLegacy,
   ConfigDiff,
   ConfigDiffItem,
   ConfigDiffEntry,
@@ -852,5 +854,39 @@ export class Stratum {
         throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
       }
     }
+  }
+
+  // --- AsyncLocalStorage convenience methods ---
+
+  /**
+   * Returns the current tenant ID from the AsyncLocalStorage context, or
+   * undefined if called outside an active tenant context.
+   */
+  static currentTenantId(): string | undefined {
+    try {
+      return getTenantContext().tenant_id;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Returns the full TenantContextLegacy object from the AsyncLocalStorage
+   * context, or undefined if called outside an active tenant context.
+   */
+  static currentTenantContext(): TenantContextLegacy | undefined {
+    try {
+      return getTenantContext();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Executes a function within a tenant context backed by AsyncLocalStorage.
+   * Wraps runWithTenantContext from @stratum-hq/sdk.
+   */
+  static runWithTenant<T>(ctx: TenantContextLegacy, fn: () => T): T {
+    return runWithTenantContext(ctx, fn);
   }
 }
