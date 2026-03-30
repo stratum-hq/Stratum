@@ -7,7 +7,7 @@ import type {
   CollectionLike,
 } from "../types.js";
 import { ALLOWED_PROXY_METHODS } from "../types.js";
-import { assertTenantId, aggregatePurgeResults } from "../utils.js";
+import { assertTenantId, aggregatePurgeResults, stripTenantIdFromUpdate, assertSafeAggregatePipeline } from "../utils.js";
 
 /**
  * Creates a Proxy over a CollectionLike that injects tenant_id into every operation.
@@ -76,12 +76,12 @@ export function createTenantScopedCollection(
 
         case "updateOne":
           return (filter: Record<string, unknown>, update: Record<string, unknown>, options?: unknown) => {
-            return target.updateOne({ ...filter, tenant_id: tenantId }, update, options);
+            return target.updateOne({ ...filter, tenant_id: tenantId }, stripTenantIdFromUpdate(update), options);
           };
 
         case "updateMany":
           return (filter: Record<string, unknown>, update: Record<string, unknown>, options?: unknown) => {
-            return target.updateMany({ ...filter, tenant_id: tenantId }, update, options);
+            return target.updateMany({ ...filter, tenant_id: tenantId }, stripTenantIdFromUpdate(update), options);
           };
 
         case "deleteOne":
@@ -96,6 +96,7 @@ export function createTenantScopedCollection(
 
         case "aggregate":
           return (pipeline: Record<string, unknown>[]) => {
+            assertSafeAggregatePipeline(pipeline);
             return target.aggregate([
               { $match: { tenant_id: tenantId } },
               ...pipeline,
@@ -127,6 +128,9 @@ export function createTenantScopedCollection(
               }
               if ("replacement" in opBody) {
                 opBody.replacement = { ...(opBody.replacement as Record<string, unknown>), tenant_id: tenantId };
+              }
+              if ("update" in opBody) {
+                opBody.update = stripTenantIdFromUpdate(opBody.update as Record<string, unknown>);
               }
 
               return { [opType]: opBody };
