@@ -4,6 +4,7 @@ import { MongoSharedAdapter } from "../../adapters/shared.js";
 import { MongoCollectionAdapter } from "../../adapters/collection.js";
 import { MongoDatabaseAdapter } from "../../adapters/database.js";
 import type { MongoClient } from "mongodb";
+import type { MongoClientLike } from "../../types.js";
 
 let client: MongoClient;
 
@@ -24,7 +25,10 @@ describe("Shared-collection isolation", () => {
   });
 
   it("tenantA cannot read tenantB documents", async () => {
-    const adapter = new MongoSharedAdapter(client, { databaseName: dbName });
+    const adapter = new MongoSharedAdapter({
+      client: client as unknown as MongoClientLike,
+      databaseName: dbName,
+    });
     const colB = adapter.scopedCollection("tenant-b", collectionName);
     await colB.insertOne({ data: "secret" });
 
@@ -34,7 +38,10 @@ describe("Shared-collection isolation", () => {
   });
 
   it("purge removes only target tenant data", async () => {
-    const adapter = new MongoSharedAdapter(client, { databaseName: dbName });
+    const adapter = new MongoSharedAdapter({
+      client: client as unknown as MongoClientLike,
+      databaseName: dbName,
+    });
     const colA = adapter.scopedCollection("tenant-a", collectionName);
     const colB = adapter.scopedCollection("tenant-b", collectionName);
     await colA.insertOne({ data: "a-data" });
@@ -57,7 +64,10 @@ describe("Collection-per-tenant isolation", () => {
   });
 
   it("tenantA collection is separate from tenantB collection", async () => {
-    const adapter = new MongoCollectionAdapter(client, { databaseName: dbName });
+    const adapter = new MongoCollectionAdapter({
+      client: client as unknown as MongoClientLike,
+      databaseName: dbName,
+    });
     const colB = adapter.scopedCollection("tenantb", "users");
     await colB.insertOne({ data: "secret" });
 
@@ -67,7 +77,10 @@ describe("Collection-per-tenant isolation", () => {
   });
 
   it("purge drops only target tenant collections", async () => {
-    const adapter = new MongoCollectionAdapter(client, { databaseName: dbName });
+    const adapter = new MongoCollectionAdapter({
+      client: client as unknown as MongoClientLike,
+      databaseName: dbName,
+    });
     const colA = adapter.scopedCollection("tenanta", "users");
     const colB = adapter.scopedCollection("tenantb", "users");
     await colA.insertOne({ data: "a-data" });
@@ -77,7 +90,6 @@ describe("Collection-per-tenant isolation", () => {
 
     const remainingB = await colB.find({}).toArray();
     expect(remainingB).toHaveLength(1);
-    // tenantA's collection should be gone
     const remainingA = await colA.find({}).toArray();
     expect(remainingA).toHaveLength(0);
   });
@@ -86,6 +98,7 @@ describe("Collection-per-tenant isolation", () => {
 describe("Database-per-tenant isolation", () => {
   const tenantADb = "stratum_tenant_tenanta";
   const tenantBDb = "stratum_tenant_tenantb";
+  const MONGODB_URL = process.env.MONGODB_URL || "mongodb://localhost:27017";
 
   afterEach(async () => {
     await client.db(tenantADb).dropDatabase().catch(() => {});
@@ -93,19 +106,25 @@ describe("Database-per-tenant isolation", () => {
   });
 
   it("tenantA database is separate from tenantB database", async () => {
-    const adapter = new MongoDatabaseAdapter(client, {});
-    const dbB = adapter.getDatabase("tenantb");
+    const adapter = new MongoDatabaseAdapter({
+      createClient: async () => client as unknown as MongoClientLike,
+      baseUri: `${MONGODB_URL}/stratum_tenant_placeholder`,
+    });
+    const dbB = await adapter.getDatabase("tenantb");
     await dbB.collection("docs").insertOne({ data: "secret" });
 
-    const dbA = adapter.getDatabase("tenanta");
+    const dbA = await adapter.getDatabase("tenanta");
     const results = await dbA.collection("docs").find({}).toArray();
     expect(results).toHaveLength(0);
   });
 
   it("purge drops only target tenant database", async () => {
-    const adapter = new MongoDatabaseAdapter(client, {});
-    const dbA = adapter.getDatabase("tenanta");
-    const dbB = adapter.getDatabase("tenantb");
+    const adapter = new MongoDatabaseAdapter({
+      createClient: async () => client as unknown as MongoClientLike,
+      baseUri: `${MONGODB_URL}/stratum_tenant_placeholder`,
+    });
+    const dbA = await adapter.getDatabase("tenanta");
+    const dbB = await adapter.getDatabase("tenantb");
     await dbA.collection("docs").insertOne({ data: "a-data" });
     await dbB.collection("docs").insertOne({ data: "b-data" });
 
