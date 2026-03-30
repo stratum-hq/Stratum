@@ -1,6 +1,6 @@
 # Stratum — Outstanding Work
 
-Last updated: 2026-03-27
+Last updated: 2026-03-30
 Source: CEO review (/plan-ceo-review) + eng review (/plan-eng-review)
 
 ## P0 — Critical (shipping blockers)
@@ -64,7 +64,7 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 
 Source: Competitive analysis of [lanemc/multi-tenant-saas-toolkit](https://github.com/lanemc/multi-tenant-saas-toolkit) — 2026-03-27
 
-- [x] ~~Sequelize adapter~~ → PR #57 (transaction-wrapping for tenant isolation, SequelizeLike structural interface, 13 tests). Mongoose deferred — requires MongoDB rearchitecture.
+- [x] ~~Sequelize adapter~~ → PR #57 (transaction-wrapping for tenant isolation, SequelizeLike structural interface, 13 tests). Mongoose shipped in PR #76 (see P5).
 - [x] ~~ABAC policy engine~~ → PR #60 (hierarchical ABAC with 9 operators, LOCKED/INHERITED/DELEGATED modes, deny-overrides-allow, migration 017, control-plane routes, 14 unit tests)
 - [x] ~~NestJS support~~ → PR #59 (StratumGuard, @Tenant() decorator, StratumModule.forRoot/forRootAsync, impersonation, custom resolvers, 14 tests)
 - [x] ~~"30-second quickstart" marketing~~ → PR #56 (README hero rewritten with flat-tenancy 5-line quickstart, autoMigrate emphasis)
