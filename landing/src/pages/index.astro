@@ -9,45 +9,48 @@ import Footer from '../components/Footer.astro';
 
 <Nav />
 
-<!-- Hero -->
-<section class="hero">
-  <div class="hero-content">
-    <h1>Drop-in multi-tenancy for <span class="accent">Node.js</span></h1>
-    <p class="hero-subtext">
-      Tenant hierarchy with config inheritance, permission delegation, and three isolation strategies. Start with flat tenancy, grow into hierarchy as your product matures.
-    </p>
-    <div class="hero-actions">
-      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
-      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
-    </div>
-    <div class="install-box">
-      <code>npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
-      <button class="install-copy" id="copy-btn" aria-label="Copy install command">copy</button>
-    </div>
-  </div>
-
-  <!-- ASCII-style tenant tree diagram -->
-  <div class="hero-diagram fade-in" aria-hidden="true">
-    <div class="diagram-label">tenant hierarchy</div>
-<pre>
-<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">← root tenant</span>
-<span class="tree-dim">├──</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">← reseller</span>
-<span class="tree-dim">│   ├──</span> <span class="tree-leaf">client-alpha</span>
-<span class="tree-dim">│   │   ├──</span> <span class="tree-leaf">team-eng</span>
-<span class="tree-dim">│   │   └──</span> <span class="tree-leaf">team-ops</span>
-<span class="tree-dim">│   └──</span> <span class="tree-leaf">client-beta</span>
-<span class="tree-dim">└──</span> <span class="tree-mid">Apex Partners</span>
-<span class="tree-dim">    ├──</span> <span class="tree-leaf">client-gamma</span>
-<span class="tree-dim">    └──</span> <span class="tree-leaf">client-delta</span>
-</pre>
-    <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.375rem;">
-      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
-        <span style="color: var(--sandstone); font-family: var(--font-mono);">max_users: 1000</span>
-        <span style="color: var(--text-tertiary);">inherited root &#8594; all children</span>
+<!-- Hero — bold typographic, full-bleed with geological texture -->
+<section class="idx-hero">
+  <div class="idx-hero-inner">
+    <div class="idx-hero-content">
+      <h1 class="idx-display">Multi-tenancy<br/>for <span class="accent">Node.js</span></h1>
+      <p class="idx-hero-sub">
+        Hierarchical tenants, config inheritance, three isolation strategies.
+        Start flat, grow into hierarchy as your product matures.
+      </p>
+      <div class="hero-actions">
+        <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+        <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
       </div>
-      <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
-        <span style="color: var(--accent); font-family: var(--font-mono);">data_region: locked</span>
-        <span style="color: var(--text-tertiary);">children cannot override</span>
+      <div class="install-box">
+        <code>npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
+        <button class="install-copy" id="copy-btn" aria-label="Copy install command">copy</button>
+      </div>
+    </div>
+
+    <!-- ASCII-style tenant tree diagram -->
+    <div class="hero-diagram fade-in" aria-hidden="true">
+      <div class="diagram-label">tenant hierarchy</div>
+<pre>
+<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">&larr; root tenant</span>
+<span class="tree-dim">&boxvr;&boxh;&boxh;</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">&larr; reseller</span>
+<span class="tree-dim">&boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-alpha</span>
+<span class="tree-dim">&boxv;   &boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">team-eng</span>
+<span class="tree-dim">&boxv;   &boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">team-ops</span>
+<span class="tree-dim">&boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-beta</span>
+<span class="tree-dim">&boxur;&boxh;&boxh;</span> <span class="tree-mid">Apex Partners</span>
+<span class="tree-dim">    &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-gamma</span>
+<span class="tree-dim">    &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-delta</span>
+</pre>
+      <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.375rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
+          <span style="color: var(--sandstone); font-family: var(--font-mono);">max_users: 1000</span>
+          <span style="color: var(--text-tertiary);">inherited root &#8594; all children</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
+          <span style="color: var(--accent); font-family: var(--font-mono);">data_region: locked</span>
+          <span style="color: var(--text-tertiary);">children cannot override</span>
+        </div>
       </div>
     </div>
   </div>
@@ -116,7 +119,7 @@ import Footer from '../components/Footer.astro';
         <div style="font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;">isolation model</div>
         <div class="isolation-row">
           <span class="isolation-label">shared RLS</span>
-          <span class="isolation-bar shared">row_security = on · lowest cost</span>
+          <span class="isolation-bar shared">row_security = on &middot; lowest cost</span>
         </div>
         <div class="isolation-row">
           <span class="isolation-label">schema</span>
@@ -266,6 +269,90 @@ import Footer from '../components/Footer.astro';
 </section>
 
 <Footer />
+
+<style>
+  /* Index hero — bold typographic, full-bleed with geological gradient */
+  .idx-hero {
+    position: relative;
+    background: linear-gradient(175deg, var(--surface-0) 0%, var(--surface-1) 45%, var(--surface-2) 100%);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .idx-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 80%, var(--accent-muted), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 20%, var(--sandstone-muted), transparent);
+    pointer-events: none;
+  }
+
+  .idx-hero-inner {
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 128px var(--space-6) var(--space-16);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-16);
+    align-items: center;
+  }
+
+  .idx-display {
+    font-family: var(--font-display);
+    font-size: clamp(2.75rem, 6vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+    margin-bottom: var(--space-6);
+    text-wrap: balance;
+    color: var(--text-primary);
+  }
+
+  .idx-hero-sub {
+    font-size: 1.0625rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: var(--space-8);
+    max-width: 52ch;
+  }
+
+  @media (max-width: 900px) {
+    .idx-hero-inner {
+      grid-template-columns: 1fr;
+      gap: var(--space-12);
+      padding-top: 96px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .idx-hero-inner {
+      padding-top: 80px;
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
+    }
+    .idx-display {
+      font-size: 2.25rem;
+    }
+    .idx-hero-sub {
+      font-size: 0.9375rem;
+    }
+    .hero-actions {
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+    .hero-actions .btn-primary,
+    .hero-actions .btn-secondary {
+      width: 100%;
+      justify-content: center;
+    }
+    .install-box {
+      max-width: 100%;
+    }
+  }
+</style>
 
 <script>
   // Copy install command
