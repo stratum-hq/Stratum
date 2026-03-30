@@ -53,7 +53,7 @@ PRs should be focused — one feature or fix per PR. Keep commits clean and desc
 
 ## Monorepo Structure
 
-This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 12 packages:
+This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 15 packages:
 
 | Package | Description |
 |---|---|
@@ -61,11 +61,14 @@ This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
 | `packages/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
 | `packages/control-plane` | Fastify v5 REST API with auth, scopes, rate limiting |
 | `packages/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `packages/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, RLS, schema/DB isolation |
+| `packages/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
+| `packages/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
 | `packages/nestjs` | NestJS integration — guard, `@Tenant()` decorator, DI module |
+| `packages/hono` | Hono middleware — tenant extraction, ALS context |
 | `packages/react-ui` | React components — tenant tree, config editor, permission editor |
 | `packages/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
 | `packages/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
+| `packages/test-utils` | Cross-tenant isolation test helpers |
 | `packages/stratum` | npm name reservation (placeholder) |
 | `packages/demo` | Demo application (MSSP hierarchy) |
 | `packages/integration-tests` | Integration tests against real PostgreSQL 16 |

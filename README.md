@@ -11,6 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/MongoDB-6%2F7-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/npm-%40stratum--hq%2F*-cb3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License" />
@@ -81,6 +82,12 @@ npm install @stratum-hq/sdk
 # NestJS integration (guard, decorator, module)
 npm install @stratum-hq/nestjs
 
+# Hono middleware
+npm install @stratum-hq/hono
+
+# MongoDB tenant isolation
+npm install @stratum-hq/mongodb mongodb
+
 # React admin components
 npm install @stratum-hq/react
 
@@ -96,10 +103,13 @@ npm install -g @stratum-hq/cli
 | `@stratum-hq/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
 | `@stratum-hq/control-plane` | Fastify v5 REST API with auth, scopes, OTel, Redis rate limiting |
 | `@stratum-hq/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, RLS, schema/DB isolation |
+| `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
+| `@stratum-hq/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
 | `@stratum-hq/react` | React components — tenant tree, config editor, permission editor |
 | `@stratum-hq/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
 | `@stratum-hq/nestjs` | NestJS integration — guard, `@Tenant()` decorator, module with DI |
+| `@stratum-hq/hono` | Hono middleware — tenant extraction, ALS context |
+| `@stratum-hq/test-utils` | Cross-tenant isolation test helpers |
 | `@stratum-hq/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
 
 ## Key Features
@@ -108,7 +118,8 @@ npm install -g @stratum-hq/cli
 - **Config inheritance** — values flow root→leaf, parents can lock keys
 - **Permission delegation** — LOCKED / INHERITED / DELEGATED modes with cascade revocation
 - **ABAC** — attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
-- **Three isolation strategies** — shared RLS, schema-per-tenant, database-per-tenant
+- **Three PostgreSQL isolation strategies** — shared RLS, schema-per-tenant, database-per-tenant
+- **MongoDB isolation** — shared collection, collection-per-tenant, database-per-tenant with Mongoose plugin
 - **Field-level encryption** — AES-256-GCM with key rotation
 - **Audit logging** — every mutation with actor identity and before/after state
 - **GDPR compliance** — data export (Article 20) and hard purge (Article 17)
@@ -120,7 +131,7 @@ npm install -g @stratum-hq/cli
 - **Config diff** — compare resolved config between any two tenants
 - **Tenant impersonation** — resolve full context for admin tooling
 - **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **310+ unit tests + 20 integration tests** — validated against real PostgreSQL 16
+- **1700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16 and MongoDB 7
 
 ## Running the Demo
 
@@ -182,14 +193,17 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
 @stratum-hq/lib (direct)  ←→  @stratum-hq/control-plane (HTTP)
          │                              │
          ├── @stratum-hq/db-adapters    ├── @stratum-hq/sdk
-         │   (pg, Prisma, Sequelize)    │   (client, middleware)
-         │                              │
-         └── PostgreSQL 16              ├── @stratum-hq/nestjs
-             (ltree, RLS, AES)          │   (guard, decorator, DI)
-                                        │
-                                        ├── @stratum-hq/react
-                                        │   (UI components)
-                                        │
+         │   (pg, Prisma, Sequelize,    │   (client, middleware)
+         │    Drizzle)                  │
+         │                              ├── @stratum-hq/nestjs
+         ├── @stratum-hq/mongodb        │   (guard, decorator, DI)
+         │   (shared, collection,       │
+         │    database isolation)       ├── @stratum-hq/hono
+         │                              │   (middleware, ALS context)
+         ├── PostgreSQL 16              │
+         │   (ltree, RLS, AES)         ├── @stratum-hq/react
+         │                              │   (UI components)
+         └── MongoDB 6/7               │
                                         └── @stratum-hq/cli
                                             (init, doctor, migrate)
 ```

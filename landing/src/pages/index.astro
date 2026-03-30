@@ -210,7 +210,7 @@ import Footer from '../components/Footer.astro';
 <section class="packages">
   <div class="packages-inner">
     <div class="packages-heading fade-in">
-      <h2>8 packages. Pick what you need.</h2>
+      <h2>12 packages. Pick what you need.</h2>
       <p>All published to npm under <code style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--sandstone);">@stratum-hq/*</code></p>
     </div>
     <table class="packages-table" aria-label="Stratum packages">
@@ -237,8 +237,28 @@ import Footer from '../components/Footer.astro';
         </tr>
         <tr>
           <td class="pkg-name">@stratum-hq/db-adapters</td>
-          <td class="pkg-desc">PostgreSQL — raw pg, Prisma, RLS, schema isolation</td>
+          <td class="pkg-desc">PostgreSQL — raw pg, Prisma, Sequelize, Drizzle, RLS, schema isolation</td>
           <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/db-adapters" class="pkg-link" aria-label="@stratum-hq/db-adapters on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/mongodb</td>
+          <td class="pkg-desc">MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant <span class="pkg-tag">new</span></td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/mongodb" class="pkg-link" aria-label="@stratum-hq/mongodb on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/nestjs</td>
+          <td class="pkg-desc">NestJS integration — guard, @Tenant() decorator, DI module</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/nestjs" class="pkg-link" aria-label="@stratum-hq/nestjs on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/hono</td>
+          <td class="pkg-desc">Hono middleware — tenant extraction, ALS context</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/hono" class="pkg-link" aria-label="@stratum-hq/hono on npm">npm &rarr;</a></td>
+        </tr>
+        <tr>
+          <td class="pkg-name">@stratum-hq/test-utils</td>
+          <td class="pkg-desc">Cross-tenant isolation test helpers</td>
+          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/test-utils" class="pkg-link" aria-label="@stratum-hq/test-utils on npm">npm &rarr;</a></td>
         </tr>
         <tr>
           <td class="pkg-name">@stratum-hq/react</td>

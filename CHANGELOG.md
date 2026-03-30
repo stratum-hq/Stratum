@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.0 (2026-03-30)
+
+### Added
+- **MongoDB tenant isolation** — new `@stratum-hq/mongodb` package with three isolation strategies: shared-collection (tenant_id field injection via Collection Proxy), collection-per-tenant (namespace separation), and database-per-tenant (with LRU pool manager). Includes Mongoose plugin with ALS-powered auto-scoping, GDPR purge with `Promise.allSettled` for partial-failure resilience, and fail-closed proxy semantics. 54 unit tests. (#76)
+- **Hono middleware** — new `@stratum-hq/hono` package with tenant extraction from header/JWT/path param, ALS context via `runWithTenantContext`, and optional resolve callback. (#70)
+- **Drizzle ORM adapter** — `@stratum-hq/db-adapters` now supports Drizzle alongside raw pg, Prisma, and Sequelize. `DrizzleLike` structural interface, transaction-wrapping with `set_config`. (#69)
+- **Test utilities** — new `@stratum-hq/test-utils` package with `assertIsolation()`, `assertConfigInheritance()`, and `assertMongoIsolation()` helpers for cross-tenant isolation testing. (#71)
+- **ALS convenience methods** — `Stratum.currentTenantId()`, `Stratum.currentTenantContext()`, `Stratum.runWithTenant()` on the Stratum class. (#72)
+- **Multi-schema migration runner** — `migrateAllSchemas()` with chunked `Promise.allSettled`, configurable concurrency, per-schema advisory locks. (#72)
+- **Browser playground** — PGlite + CodeMirror interactive playground running in-browser on Cloudflare Pages. (#67)
+- **Content/SEO pages** — comparison pages for each ORM (/compare/prisma, /compare/drizzle, /compare/sequelize, /compare/knex, /compare/mongodb), multi-tenancy checklist tool, connection pooling guide. (#73)
+- **About/Contact pages** — plus RSS/Atom feeds and shared Nav/Footer. (#66)
+- **MongoDB docs guide** — Starlight docs covering strategy selection, security tradeoffs, and performance. (#76)
+
+### Fixed
+- **Compare page navigation** — added Compare link to navbar. (#74)
+
+### Chores
+- Updated TODOs with 9 P5 items + 1 P3 item shipped. (#75)
+- Ecosystem research blog post and competitive analysis. (#68)
+- SEO keywords across all npm packages. (#65)
+
 ## 0.2.3 (2026-03-27)
 
 ### Added
