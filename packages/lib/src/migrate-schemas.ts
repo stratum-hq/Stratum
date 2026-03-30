@@ -55,49 +55,29 @@ export async function migrateAllSchemas(
     sql: fs.readFileSync(path.join(migrationsDir, file), "utf-8"),
   }));
 
-  // Simple semaphore for concurrency control
-  let active = 0;
+  // Process schemas in chunks of `concurrency` size
   let completed = 0;
-  const queue = [...schemas];
-  const promises: Promise<void>[] = [];
+  for (let i = 0; i < schemas.length; i += concurrency) {
+    const chunk = schemas.slice(i, i + concurrency);
+    const results = await Promise.allSettled(
+      chunk.map((schema) => migrateSchema(pool, schema, migrationSql, enforceRls)),
+    );
 
-  function next(): Promise<void> | undefined {
-    const schema = queue.shift();
-    if (!schema) return undefined;
-
-    active++;
-    const p = migrateSchema(pool, schema, migrationSql, enforceRls)
-      .then(() => {
+    for (let j = 0; j < results.length; j++) {
+      const schema = chunk[j];
+      const outcome = results[j];
+      if (outcome.status === "fulfilled") {
         result.succeeded.push(schema);
-      })
-      .catch((err) => {
+      } else {
+        const err = outcome.reason;
         result.failed.push({
           schema,
           error: err instanceof Error ? err : new Error(String(err)),
         });
-      })
-      .finally(() => {
-        active--;
-        completed++;
-        onProgress?.(schema, completed, schemas.length);
-        const n = next();
-        if (n) promises.push(n);
-      });
-
-    return p;
-  }
-
-  // Start up to `concurrency` workers
-  for (let i = 0; i < Math.min(concurrency, schemas.length); i++) {
-    const p = next();
-    if (p) promises.push(p);
-  }
-
-  await Promise.all(promises);
-
-  // Wait until all in-flight work is done (handles promises added in .finally)
-  while (active > 0 || completed < schemas.length) {
-    await Promise.all(promises);
+      }
+      completed++;
+      onProgress?.(schema, completed, schemas.length);
+    }
   }
 
   return result;
