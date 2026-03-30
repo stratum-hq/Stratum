@@ -8,6 +8,15 @@ import type { MongoClientLike } from "../../types.js";
 
 let client: MongoClient;
 
+/** Wraps a MongoClient so close() is a no-op. Needed because tests share one
+ *  connection but MongoDatabaseAdapter.purgeTenantData calls closeClient(). */
+function unclosableClient(c: MongoClient): MongoClientLike {
+  return {
+    db: (name?: string) => c.db(name),
+    close: async () => {},
+  } as MongoClientLike;
+}
+
 beforeEach(async () => {
   client = await getTestClient();
 });
@@ -107,7 +116,7 @@ describe("Database-per-tenant isolation", () => {
 
   it("tenantA database is separate from tenantB database", async () => {
     const adapter = new MongoDatabaseAdapter({
-      createClient: async () => client as unknown as MongoClientLike,
+      createClient: async () => unclosableClient(client),
       baseUri: `${MONGODB_URL}/stratum_tenant_placeholder`,
     });
     const dbB = await adapter.getDatabase("tenantb");
@@ -120,7 +129,7 @@ describe("Database-per-tenant isolation", () => {
 
   it("purge drops only target tenant database", async () => {
     const adapter = new MongoDatabaseAdapter({
-      createClient: async () => client as unknown as MongoClientLike,
+      createClient: async () => unclosableClient(client),
       baseUri: `${MONGODB_URL}/stratum_tenant_placeholder`,
     });
     const dbA = await adapter.getDatabase("tenanta");
