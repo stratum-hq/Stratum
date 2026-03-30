@@ -202,27 +202,27 @@ export const mongodb: ORMComparison = {
     filename: "mongodb-with-stratum.ts",
     code: `<span class="kw">import</span> mongoose <span class="kw">from</span> <span class="str">"mongoose"</span>;
 <span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
-<span class="kw">import</span> { StratumMongoose } <span class="kw">from</span> <span class="str">"@stratum-hq/mongodb"</span>;
+<span class="kw">import</span> { MongoSharedAdapter } <span class="kw">from</span> <span class="str">"@stratum-hq/mongodb"</span>;
+<span class="kw">import</span> { MongoClient } <span class="kw">from</span> <span class="str">"mongodb"</span>;
 
 <span class="cm">// Control plane: tenant hierarchy lives in PostgreSQL</span>
 <span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
 <span class="kw">await</span> stratum.<span class="fn">initialize</span>();
 
 <span class="cm">// MongoDB adapter for document isolation</span>
-<span class="kw">const</span> mongo = <span class="kw">new</span> <span class="fn">StratumMongoose</span>({
-  uri: process.env.MONGODB_URI,
-  strategy: <span class="str">"SHARED_COLLECTION"</span>,
+<span class="kw">const</span> mongo = <span class="kw">new</span> <span class="fn">MongoClient</span>(process.env.MONGODB_URI);
+<span class="kw">const</span> adapter = <span class="kw">new</span> <span class="fn">MongoSharedAdapter</span>({
+  client: mongo, databaseName: <span class="str">"myapp"</span>,
 });
-<span class="kw">await</span> mongo.<span class="fn">connect</span>();
 
 <span class="cm">// Tenant created in PG control plane</span>
 <span class="kw">const</span> tenant = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({
   name: <span class="str">"Acme"</span>, slug: <span class="str">"acme"</span>
 });
 
-<span class="cm">// Mongoose plugin auto-scopes queries to the current tenant</span>
-<span class="kw">const</span> Order = mongo.<span class="fn">model</span>(<span class="str">"Order"</span>, orderSchema);
-<span class="kw">const</span> orders = <span class="kw">await</span> Order.<span class="fn">find</span>(); <span class="cm">// filtered to current tenant via ALS</span>`,
+<span class="cm">// Scoped collection auto-injects tenant_id into every query</span>
+<span class="kw">const</span> orders = adapter.<span class="fn">scopedCollection</span>(tenant.id, <span class="str">"orders"</span>);
+<span class="kw">await</span> orders.<span class="fn">find</span>({}); <span class="cm">// only returns this tenant's documents</span>`,
   },
   gotchas: [
     "MongoDB has no Row-Level Security equivalent -- isolation is enforced at the application layer. Use database-per-tenant for sensitive data requiring physical separation.",

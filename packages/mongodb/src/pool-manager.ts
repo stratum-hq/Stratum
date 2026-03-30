@@ -17,13 +17,11 @@ export class MongoPoolManager {
   private readonly createClient: (uri: string) => MongoClientLike | Promise<MongoClientLike>;
   private readonly baseUri: string;
   private readonly maxClients: number;
-  private readonly idleTimeoutMs: number;
 
   constructor(options: MongoPoolManagerOptions) {
     this.createClient = options.createClient;
     this.baseUri = options.baseUri;
     this.maxClients = options.maxClients ?? 20;
-    this.idleTimeoutMs = options.idleTimeoutMs ?? 60_000;
   }
 
   /**
