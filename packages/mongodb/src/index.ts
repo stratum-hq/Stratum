@@ -27,4 +27,4 @@ export { MongoPoolManager } from "./pool-manager.js";
 export { stratumPlugin } from "./mongoose-plugin.js";
 
 // Utilities
-export { assertTenantId, aggregatePurgeResults } from "./utils.js";
+export { assertTenantId, aggregatePurgeResults, stripTenantIdFromUpdate, assertSafeAggregatePipeline } from "./utils.js";

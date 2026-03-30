@@ -1,4 +1,5 @@
 import { getTenantContext } from "@stratum-hq/sdk";
+import { stripTenantIdFromUpdate } from "./utils.js";
 
 interface SchemaLike {
   path(name: string): unknown;
@@ -69,6 +70,17 @@ export function stratumPlugin(schema: SchemaLike): void {
       const ctx = getTenantContext();
       const filter = query.getQuery();
       query.setQuery({ ...filter, tenant_id: ctx.tenant_id });
+
+      // Sanitize update payloads to prevent tenant_id reassignment
+      if (hook === "updateOne" || hook === "updateMany") {
+        const update = (query as unknown as { getUpdate(): Record<string, unknown> | null }).getUpdate();
+        if (update) {
+          (query as unknown as { setUpdate(u: Record<string, unknown>): void }).setUpdate(
+            stripTenantIdFromUpdate(update),
+          );
+        }
+      }
+
       next();
     });
   }
