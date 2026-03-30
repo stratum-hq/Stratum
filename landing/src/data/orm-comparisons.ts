@@ -183,4 +183,53 @@ export const knex: ORMComparison = {
   ],
 };
 
-export const allORMs: ORMComparison[] = [prisma, drizzle, sequelize, knex];
+export const mongodb: ORMComparison = {
+  slug: "mongodb",
+  name: "MongoDB",
+  tagline: "Document database with flexible schema",
+  description: `MongoDB is the most widely used document database in Node.js applications. @stratum-hq/mongodb is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB -- giving teams running Mongoose or the native driver first-class tenant isolation. The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MongoDB carries your application documents, scoped per tenant through a Mongoose plugin or adapter.`,
+  features: [
+    { capability: "Isolation strategies", orm: "Manual where: { tenantId } on every query", stratum: "3 strategies: shared collection, collection-per-tenant, database-per-tenant", verdict: "good" },
+    { capability: "Tenant scoping", orm: "Application-level only — no RLS equivalent", stratum: "Mongoose plugin auto-scopes all queries", verdict: "good" },
+    { capability: "Config inheritance", orm: "Not available", stratum: "Built-in via PostgreSQL control plane", verdict: "good" },
+    { capability: "GDPR purge", orm: "Build it yourself", stratum: "purgeTenantData() for all 3 strategies", verdict: "good" },
+    { capability: "Audit logging", orm: "Manual hooks", stratum: "Every mutation, actor-attributed (via PG control plane)", verdict: "good" },
+    { capability: "Security enforcement", orm: "Application-level (no DB-level RLS)", stratum: "Application-level for shared/collection; DB-level for database-per-tenant", verdict: "neutral" },
+    { capability: "Control plane", orm: "None", stratum: "PostgreSQL via @stratum-hq/lib (tenant hierarchy, config, audit)", verdict: "good" },
+    { capability: "Mongoose support", orm: "Native", stratum: "Plugin for automatic tenant scoping", verdict: "good" },
+  ],
+  codeExample: {
+    filename: "mongodb-with-stratum.ts",
+    code: `<span class="kw">import</span> mongoose <span class="kw">from</span> <span class="str">"mongoose"</span>;
+<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+<span class="kw">import</span> { StratumMongoose } <span class="kw">from</span> <span class="str">"@stratum-hq/mongodb"</span>;
+
+<span class="cm">// Control plane: tenant hierarchy lives in PostgreSQL</span>
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();
+
+<span class="cm">// MongoDB adapter for document isolation</span>
+<span class="kw">const</span> mongo = <span class="kw">new</span> <span class="fn">StratumMongoose</span>({
+  uri: process.env.MONGODB_URI,
+  strategy: <span class="str">"SHARED_COLLECTION"</span>,
+});
+<span class="kw">await</span> mongo.<span class="fn">connect</span>();
+
+<span class="cm">// Tenant created in PG control plane</span>
+<span class="kw">const</span> tenant = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({
+  name: <span class="str">"Acme"</span>, slug: <span class="str">"acme"</span>
+});
+
+<span class="cm">// Mongoose plugin auto-scopes queries to the current tenant</span>
+<span class="kw">const</span> Order = mongo.<span class="fn">model</span>(<span class="str">"Order"</span>, orderSchema);
+<span class="kw">const</span> orders = <span class="kw">await</span> Order.<span class="fn">find</span>(); <span class="cm">// filtered to current tenant via ALS</span>`,
+  },
+  gotchas: [
+    "MongoDB has no Row-Level Security equivalent -- isolation is enforced at the application layer. Use database-per-tenant for sensitive data requiring physical separation.",
+    "The control plane (tenant hierarchy, config, audit log) always requires PostgreSQL via @stratum-hq/lib. MongoDB carries application documents only.",
+    "For shared-collection strategy, add a compound index on { tenant_id, ...queryFields } to prevent full-collection scans.",
+    "Database-per-tenant requires a connection pool per tenant -- configure pool limits to avoid exhausting MongoDB connections.",
+  ],
+};
+
+export const allORMs: ORMComparison[] = [prisma, drizzle, sequelize, knex, mongodb];

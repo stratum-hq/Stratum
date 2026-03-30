@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  SLUG_REGEX,
   SlugSchema,
   UUIDSchema,
   PaginationSchema,
   validateSlug,
+  isValidSlug,
 } from "../utils/validation.js";
 
 describe("validation schemas", () => {
@@ -114,14 +116,40 @@ describe("validation schemas", () => {
     });
   });
 
+  describe("SLUG_REGEX", () => {
+    it("matches valid slugs", () => {
+      expect(SLUG_REGEX.test("acme")).toBe(true);
+      expect(SLUG_REGEX.test("a1_test")).toBe(true);
+    });
+
+    it("rejects invalid slugs", () => {
+      expect(SLUG_REGEX.test("UPPER")).toBe(false);
+      expect(SLUG_REGEX.test("1start")).toBe(false);
+      expect(SLUG_REGEX.test("")).toBe(false);
+    });
+  });
+
   describe("validateSlug helper", () => {
+    it("returns the slug for valid input", () => {
+      expect(validateSlug("acme")).toBe("acme");
+      expect(validateSlug("tenant_123")).toBe("tenant_123");
+    });
+
+    it("throws for invalid slug", () => {
+      expect(() => validateSlug("INVALID")).toThrow("Invalid tenant slug");
+      expect(() => validateSlug("has-hyphens")).toThrow("Invalid tenant slug");
+      expect(() => validateSlug("")).toThrow("Invalid tenant slug");
+    });
+  });
+
+  describe("isValidSlug helper", () => {
     it("returns true for valid slug", () => {
-      expect(validateSlug("acme")).toBe(true);
+      expect(isValidSlug("acme")).toBe(true);
     });
 
     it("returns false for invalid slug", () => {
-      expect(validateSlug("INVALID")).toBe(false);
-      expect(validateSlug("has-hyphens")).toBe(false);
+      expect(isValidSlug("INVALID")).toBe(false);
+      expect(isValidSlug("has-hyphens")).toBe(false);
     });
   });
 });

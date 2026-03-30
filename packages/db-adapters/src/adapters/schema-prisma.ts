@@ -1,3 +1,4 @@
+import { validateSlug } from "@stratum-hq/core";
 import { tenantSchemaName } from "../schema/manager.js";
 
 // Minimal interface for Prisma client operations used here.
@@ -6,14 +7,6 @@ interface PrismaClientLike {
   $extends: (extension: unknown) => PrismaClientLike;
   $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<number>;
   $transaction: <T>(fn: (tx: PrismaClientLike) => Promise<T>) => Promise<T>;
-}
-
-// Validate slug to prevent SQL injection — slugs follow /^[a-z][a-z0-9_]{0,62}$/
-function validateSlug(slug: string): string {
-  if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) {
-    throw new Error(`Invalid tenant slug: ${slug}`);
-  }
-  return slug;
 }
 
 export class SchemaPrismaAdapter {
