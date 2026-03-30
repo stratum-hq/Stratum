@@ -43,6 +43,14 @@
     "@stratum-hq/core": "*",
     "pg": "^8.11.0"
   },
+  "peerDependencies": {
+    "drizzle-orm": ">=0.29.0"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@prisma/client": "^5.10.0",
     "@types/pg": "^8.11.0",
