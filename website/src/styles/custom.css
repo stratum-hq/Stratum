@@ -245,13 +245,30 @@ pre code {
 
 /* --------------------------------------------------------------------------
    Sidebar — compact, warm
+   Starlight sidebar links default to --sl-color-gray-2 (#6B6560, tertiary).
+   Override to gray-1 (#A39E95) to match landing page nav link color.
    -------------------------------------------------------------------------- */
 .sidebar-content {
   font-size: 0.875rem;
 }
 
-nav a[aria-current="page"] {
-  color: var(--accent);
+starlight-menu-button + nav a,
+.sidebar-content a,
+sidebar-sublist a,
+[data-pagefind-ignore] a {
+  color: var(--sl-color-gray-1) !important;
+}
+
+starlight-menu-button + nav a:hover,
+.sidebar-content a:hover,
+sidebar-sublist a:hover,
+[data-pagefind-ignore] a:hover {
+  color: var(--sl-color-white) !important;
+}
+
+nav a[aria-current="page"],
+nav a[aria-current="page"]:hover {
+  color: var(--sl-color-text-invert) !important;
   font-weight: 600;
 }
 
