@@ -58,7 +58,7 @@ All P0 items have been fixed via PRs #29-#35. Merge all 7 fix branches to close 
 - [x] ~~Browser-based playground~~ → PR #67 (PGlite WASM Postgres + CodeMirror, 4 scenario tabs, runs in browser on Cloudflare Pages)
 - [x] ~~`npx @stratum-hq/create` scaffolding~~ → PR #58 (express/fastify/nextjs templates, project name validation)
 
-- [ ] **Differentiate landing page visual rhythms** — index.astro, what-is-stratum.astro, and compare.astro share identical eyebrow->H1->intro structure, making the site feel template-generated. Give each page its own visual entry point. Depends on Nav/Footer component extraction. (human: 1 day / CC: 20 min)
+- [x] ~~Differentiate landing page visual rhythms~~ → PR #73 (index.astro: bold typographic hero with geological gradient, what-is-stratum.astro: quiet editorial entry, compare.astro: compact data-forward header with ORM links)
 
 ## P4 — Future Expansion (gleaned from competitive analysis)
 
@@ -74,19 +74,19 @@ Source: Competitive analysis of [lanemc/multi-tenant-saas-toolkit](https://githu
 Source: Analysis of 204 npm packages, 6 GitHub repos, community threads, blog posts. Blog post: /blog/the-state-of-multi-tenancy-in-nodejs
 
 ### SDK Expansion (widen the moat)
-- [ ] **Drizzle ORM adapter** — Drizzle is the fastest-growing Node.js ORM (2025-2026). morka17/multi-tenant-user-role-base-app uses it. No multi-tenancy adapter exists on npm. First-mover opportunity. (human: 1 week / CC: 2 hours)
-- [ ] **Hono framework middleware** — Hono is gaining adoption for edge/serverless. No existing multi-tenancy middleware. Would complement the Express/Fastify/NestJS set. (human: 3 days / CC: 1 hour)
+- [x] ~~Drizzle ORM adapter~~ → PR #69 (DrizzleLike structural interface, transaction-wrapping with set_config, drizzle-orm optional peer dep, 15 tests)
+- [x] ~~Hono framework middleware~~ → PR #70 (@stratum-hq/hono package, tenant extraction from header/JWT/path param, ALS context via runWithTenantContext, optional resolve callback, 9 tests)
 - [ ] **Mongoose adapter** — Deferred from P4. mongo-tenant (68 months abandoned, 4,743 dl/wk from inertia alone) proves demand exists. MongoDB rearchitecture required. (human: 2 weeks / CC: 4 hours)
 
 ### DX Improvements (reduce friction)
-- [ ] **AsyncLocalStorage tenant context** — The 2026 community consensus: AsyncLocalStorage is the correct way to propagate tenant context through async call chains. Stratum currently requires passing pool/tenant explicitly. Add opt-in ALS-based context so downstream code can call `Stratum.currentTenant()` without prop-drilling. (human: 1 week / CC: 2 hours)
-- [ ] **Cross-tenant isolation test helpers** — Only 1 source in our entire survey explicitly tests that tenant A cannot read tenant B's data. Ship a `@stratum-hq/test-utils` package with helpers: `assertIsolation(tenantA, tenantB, table)`, `assertConfigInheritance(parent, child)`, etc. (human: 3 days / CC: 1 hour)
-- [ ] **Migration runner for N tenant schemas** — Zero community sources address running ALTER TABLE across 500 tenant schemas. Stratum's schema-per-tenant mode needs a `migrateAllSchemas()` utility that runs migrations idempotently across all tenant schemas with progress reporting. (human: 1 week / CC: 2 hours)
+- [x] ~~AsyncLocalStorage tenant context~~ → PR #72 (Stratum.currentTenantId(), Stratum.currentTenantContext(), Stratum.runWithTenant(), re-exports from @stratum-hq/sdk, 6 tests)
+- [x] ~~Cross-tenant isolation test helpers~~ → PR #71 (@stratum-hq/test-utils package, assertIsolation(), assertConfigInheritance(), parameterized SQL, descriptive error messages, 10 tests)
+- [x] ~~Migration runner for N tenant schemas~~ → PR #72 (migrateAllSchemas() with chunked Promise.allSettled, configurable concurrency, continue-on-error, progress callback, per-schema advisory locks, idempotent re-run, 7 tests)
 
 ### Content and SEO (own the search results)
-- [ ] **Comparison pages for each ORM** — "prisma multi tenant", "sequelize multi tenant", "knex multi tenant" are all high-intent search terms with no good answers. Create landing pages: /compare/prisma, /compare/sequelize, /compare/drizzle showing how Stratum works with each. (human: 1 week / CC: 2 hours)
-- [ ] **"Multi-tenancy checklist" interactive tool** — A checklist page on the docs site: "Do you need tenant hierarchy? Config inheritance? GDPR? Schema isolation?" with checkboxes that show which Stratum features match. SEO bait + lead qualification. (human: 3 days / CC: 1.5 hours)
+- [x] ~~Comparison pages for each ORM~~ → PR #73 (CompareORM.astro shared layout + data objects, /compare/prisma, /compare/drizzle, /compare/sequelize, /compare/knex)
+- [x] ~~"Multi-tenancy checklist" interactive tool~~ → PR #73 (/checklist with 4 categories, live-updating results, mobile sticky bar, a11y attributes)
 
 ### Architecture (long-term)
-- [ ] **Connection pooler integration guide** — Every separate-DB tutorial uses unbounded in-process LRU caches. Document how Stratum works with PgBouncer/Supavisor for production connection management. (human: 2 days / CC: 1 hour)
-- [ ] **Cost calculator for isolation strategies** — Nobody in the ecosystem quantifies the cost of separate-DB vs shared-RLS at 100/1000/10000 tenants. Build a simple calculator page: input tenant count, get estimated infra cost per strategy. (human: 3 days / CC: 1.5 hours)
+- [x] ~~Connection pooler integration guide~~ → PR #73 (/guides/connection-pooling covering PgBouncer, Supavisor, transaction-mode set_config, production checklist)
+- [ ] **Cost calculator for isolation strategies** — Deprioritized. Needs AWS pricing research. Ship when a user asks. (human: 3 days / CC: 1.5 hours)
