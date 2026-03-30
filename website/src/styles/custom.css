@@ -21,6 +21,11 @@
   --sl-color-white: #E8E2D9;
   --sl-color-gray-1: #A39E95;
   --sl-color-gray-2: #6B6560;
+
+  /* Starlight maps --sl-color-text to gray-2 by default, which is our
+     tertiary (#6B6560) — too dark. Override to gray-1 (#A39E95) to match
+     the landing page body text color (--text-secondary). */
+  --sl-color-text: var(--sl-color-gray-1);
   --sl-color-gray-3: #3D3935;
   --sl-color-gray-4: #2A2725;
   --sl-color-gray-5: #1A1815;
@@ -92,6 +97,7 @@
   --sl-color-white: #1A1815;
   --sl-color-gray-1: #5C5650;
   --sl-color-gray-2: #8A847D;
+  --sl-color-text: var(--sl-color-gray-1);
   --sl-color-gray-3: #C4BDB4;
   --sl-color-gray-4: #D6D0C8;
   --sl-color-gray-5: #E5E0DA;
