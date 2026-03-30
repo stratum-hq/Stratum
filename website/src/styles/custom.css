@@ -18,6 +18,7 @@
   --sl-color-accent-high: #E8E2D9;
 
   /* Surface grays — warm earth, not cool slate */
+  --sl-color-text: #E8E2D9;
   --sl-color-white: #E8E2D9;
   --sl-color-gray-1: #A39E95;
   --sl-color-gray-2: #6B6560;
@@ -89,6 +90,7 @@
   --sl-color-accent-low: #F0EDE8;
   --sl-color-accent: #A84535;
   --sl-color-accent-high: #1A1815;
+  --sl-color-text: #1A1815;
   --sl-color-white: #1A1815;
   --sl-color-gray-1: #5C5650;
   --sl-color-gray-2: #8A847D;
