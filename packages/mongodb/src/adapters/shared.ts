@@ -125,6 +125,9 @@ export function createTenantScopedCollection(
               if ("document" in opBody) {
                 opBody.document = { ...(opBody.document as Record<string, unknown>), tenant_id: tenantId };
               }
+              if ("replacement" in opBody) {
+                opBody.replacement = { ...(opBody.replacement as Record<string, unknown>), tenant_id: tenantId };
+              }
 
               return { [opType]: opBody };
             });

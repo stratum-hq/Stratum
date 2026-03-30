@@ -76,7 +76,7 @@ Source: Analysis of 204 npm packages, 6 GitHub repos, community threads, blog po
 ### SDK Expansion (widen the moat)
 - [x] ~~Drizzle ORM adapter~~ → PR #69 (DrizzleLike structural interface, transaction-wrapping with set_config, drizzle-orm optional peer dep, 15 tests)
 - [x] ~~Hono framework middleware~~ → PR #70 (@stratum-hq/hono package, tenant extraction from header/JWT/path param, ALS context via runWithTenantContext, optional resolve callback, 9 tests)
-- [ ] **Mongoose adapter** — Deferred from P4. mongo-tenant (68 months abandoned, 4,743 dl/wk from inertia alone) proves demand exists. MongoDB rearchitecture required. (human: 2 weeks / CC: 4 hours)
+- [x] ~~Mongoose adapter~~ → PR #76 (@stratum-hq/mongodb package with 3 isolation strategies, Mongoose plugin, 54 unit tests)
 
 ### DX Improvements (reduce friction)
 - [x] ~~AsyncLocalStorage tenant context~~ → PR #72 (Stratum.currentTenantId(), Stratum.currentTenantContext(), Stratum.runWithTenant(), re-exports from @stratum-hq/sdk, 6 tests)
