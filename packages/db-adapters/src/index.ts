@@ -61,3 +61,8 @@ export type { DatabasePoolManagerOptions } from "./database/pool-manager.js";
 export { DatabaseRawAdapter } from "./adapters/database-raw.js";
 export { DatabasePrismaAdapter } from "./adapters/database-prisma.js";
 export { SequelizeAdapter, withTenantScope } from "./adapters/sequelize.js";
+export {
+  DrizzleAdapter,
+  withTenantScope as withDrizzleTenantScope,
+} from "./adapters/drizzle.js";
+export type { DrizzleLike } from "./adapters/drizzle.js";
