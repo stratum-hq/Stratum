@@ -1,15 +1,7 @@
 import pg from "pg";
+import { validateSlug } from "@stratum-hq/core";
 import { tenantSchemaName } from "../schema/manager.js";
 import { resetSearchPath } from "../schema/session.js";
-
-// Validate slug to prevent SQL injection — slugs follow /^[a-z][a-z0-9_]{0,62}$/
-// so tenant_{slug} is always safe, but we verify the prefix is not tampered.
-function validateSlug(slug: string): string {
-  if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) {
-    throw new Error(`Invalid tenant slug: ${slug}`);
-  }
-  return slug;
-}
 
 export class SchemaRawAdapter {
   constructor(private pool: pg.Pool) {}
