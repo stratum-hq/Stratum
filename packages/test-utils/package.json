@@ -1,0 +1,50 @@
+{
+  "name": "@stratum-hq/test-utils",
+  "version": "0.2.3",
+  "description": "Cross-tenant isolation test helpers for Stratum — assertIsolation and assertConfigInheritance",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "tenant-isolation",
+    "testing",
+    "test-utils",
+    "row-level-security",
+    "rls",
+    "postgresql",
+    "stratum"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
