@@ -1,5 +1,10 @@
 export { Stratum, type StratumOptions } from "./stratum.js";
 export { migrate, type MigrateOptions } from "./migrate.js";
+export {
+  migrateAllSchemas,
+  type MigrateSchemasOptions,
+  type MigrateSchemasResult,
+} from "./migrate-schemas.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export { traced, getTracer, isTracingEnabled } from "./telemetry.js";
 
