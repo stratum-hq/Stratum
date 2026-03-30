@@ -1,0 +1,296 @@
+---
+import Base from './Base.astro';
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import type { ORMComparison } from '../data/orm-comparisons';
+
+interface Props {
+  orm: ORMComparison;
+}
+
+const { orm } = Astro.props;
+---
+
+<Base
+  title={`Stratum + ${orm.name} — Multi-Tenancy with ${orm.name} | Node.js`}
+  description={`How Stratum works with ${orm.name}. Add hierarchical tenants, config inheritance, isolation strategies, and GDPR compliance to your ${orm.name} application.`}
+>
+
+<Nav />
+
+<main class="orm-main">
+  <header class="orm-header">
+    <div class="orm-eyebrow">Compare</div>
+    <h1>Stratum + <span class="accent">{orm.name}</span></h1>
+    <p class="orm-tagline">{orm.tagline}</p>
+  </header>
+
+  <section class="orm-narrative">
+    <p>{orm.description}</p>
+  </section>
+
+  <section class="orm-features">
+    <h2>Feature comparison</h2>
+    <div class="orm-table-wrapper">
+      <table class="cmp-table" aria-label={`Stratum with ${orm.name} feature comparison`}>
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>{orm.name}</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orm.features.map((f) => (
+            <tr>
+              <td class="cmp-feat">{f.capability}</td>
+              <td class={f.verdict === "good" ? "cmp-neutral" : f.verdict === "neutral" ? "cmp-neutral" : "cmp-bad"}>{f.orm}</td>
+              <td class="cmp-good">{f.stratum}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="orm-code">
+    <h2>Getting started</h2>
+    <div class="code-block">
+      <div class="code-block-header">
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-dot"></span>
+        <span class="code-block-filename">{orm.codeExample.filename}</span>
+      </div>
+      <pre set:html={orm.codeExample.code} />
+    </div>
+  </section>
+
+  {orm.gotchas && orm.gotchas.length > 0 && (
+    <section class="orm-gotchas">
+      <h2>Things to know</h2>
+      <ul>
+        {orm.gotchas.map((g) => (
+          <li>{g}</li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <section class="orm-cta">
+    <h2>Start building with {orm.name} + Stratum</h2>
+    <div class="orm-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="orm-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      <a href="/compare" class="btn-secondary">All comparisons</a>
+    </div>
+  </section>
+</main>
+
+<Footer />
+
+<style>
+  .orm-main {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 3) var(--space-6) var(--space-16);
+  }
+
+  .orm-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .orm-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-3);
+  }
+
+  .orm-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+  }
+
+  .orm-tagline {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Narrative */
+  .orm-narrative {
+    margin-bottom: var(--space-8);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-6);
+  }
+
+  .orm-narrative p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+  }
+
+  /* Features */
+  .orm-features {
+    margin-bottom: var(--space-8);
+  }
+
+  .orm-features h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .orm-table-wrapper {
+    overflow-x: auto;
+  }
+
+  /* Reuse cmp-table styles */
+  .cmp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .cmp-table thead tr {
+    border-bottom: 2px solid var(--border);
+  }
+
+  .cmp-table th {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .cmp-table th:first-child {
+    min-width: 160px;
+  }
+
+  .cmp-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    line-height: 1.5;
+  }
+
+  .cmp-feat {
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .cmp-good {
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  .cmp-bad {
+    color: var(--text-tertiary);
+  }
+
+  .cmp-neutral {
+    color: var(--text-secondary);
+  }
+
+  /* Code */
+  .orm-code {
+    margin-bottom: var(--space-8);
+  }
+
+  .orm-code h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  /* Gotchas */
+  .orm-gotchas {
+    margin-bottom: var(--space-8);
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-6);
+  }
+
+  .orm-gotchas h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .orm-gotchas ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .orm-gotchas li {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+    padding-left: var(--space-4);
+    position: relative;
+  }
+
+  .orm-gotchas li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--warning);
+  }
+
+  /* CTA */
+  .orm-cta {
+    padding: var(--space-8);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+  }
+
+  .orm-cta h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-6);
+  }
+
+  .orm-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+    margin-bottom: var(--space-6);
+  }
+
+  .orm-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+
+</Base>

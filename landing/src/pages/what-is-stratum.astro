@@ -9,18 +9,19 @@ import Footer from '../components/Footer.astro';
 
 <Nav />
 
-<!-- Hero -->
+<!-- Editorial entry — quiet, starts with a scenario -->
 <section class="wis-hero">
-  <h1>What is <span class="accent">Stratum?</span></h1>
-  <p class="wis-elevator">
-    Stratum is an open-source multi-tenancy library for Node.js and TypeScript.
-    It gives your application hierarchical tenants, config inheritance, permission delegation,
-    three database isolation strategies, and GDPR compliance &mdash; so you never have to build
-    multi-tenancy from scratch again.
+  <p class="wis-lede">
+    You shipped multi-tenancy with a <code>tenant_id</code> column six months ago.
+    Now your biggest customer wants isolated data, your compliance team needs audit logs,
+    and the new reseller deal requires nested organizations three levels deep.
   </p>
-  <div class="wis-install">
-    <code>npm install @stratum-hq/lib pg</code>
-  </div>
+  <h1>That is the problem <span class="accent">Stratum</span> solves.</h1>
+  <p class="wis-elevator">
+    An open-source multi-tenancy library for Node.js and TypeScript.
+    Hierarchical tenants, config inheritance, permission delegation,
+    three database isolation strategies, and GDPR compliance &mdash; from day one.
+  </p>
 </section>
 
 <!-- The Problem -->
@@ -262,36 +263,43 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
 <style>
   /* What-is-Stratum page styles */
   .wis-hero {
-    max-width: 800px;
+    max-width: 700px;
     margin: 0 auto;
-    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
-    text-align: center;
+    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-12);
+    text-align: left;
+  }
+
+  .wis-lede {
+    font-size: 1.1875rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-8);
+    max-width: 60ch;
+  }
+
+  .wis-lede code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
   }
 
   .wis-hero h1 {
-    font-size: clamp(2rem, 5vw, 3rem);
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.2;
     margin-bottom: var(--space-6);
     color: var(--text-primary);
+    text-wrap: balance;
   }
 
   .wis-elevator {
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
     line-height: 1.7;
     color: var(--text-secondary);
-    margin-bottom: var(--space-6);
-  }
-
-  .wis-install {
-    display: inline-block;
-    padding: var(--space-3) var(--space-6);
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
-    color: var(--code-text);
+    max-width: 58ch;
   }
 
   .wis-section {

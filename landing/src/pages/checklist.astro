@@ -1,0 +1,454 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Base title="Multi-Tenancy Checklist — What Does Your SaaS Need? | Stratum" description="Interactive multi-tenancy requirements checklist. Select your needs across tenant model, data isolation, compliance, and enterprise features. See which Stratum features match.">
+
+<Nav />
+
+<main class="cl-main">
+  <header class="cl-header">
+    <div class="cl-eyebrow">Checklist</div>
+    <h1>What does your multi-tenancy <span class="accent">need?</span></h1>
+    <p class="cl-subtitle">Select your requirements. See which Stratum features match.</p>
+  </header>
+
+  <div class="cl-layout">
+    <div class="cl-categories">
+
+      <!-- Tenant Model -->
+      <fieldset class="cl-group" role="group" aria-label="Tenant model requirements">
+        <legend class="cl-group-title">Tenant Model</legend>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="hierarchy" />
+          <span class="cl-label">Tenant hierarchy (parent/child organizations)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="flat-orgs" />
+          <span class="cl-label">Flat organizations (single level)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="reseller" />
+          <span class="cl-label">Reseller / MSP support (nested partners)</span>
+        </label>
+      </fieldset>
+
+      <!-- Data Isolation -->
+      <fieldset class="cl-group" role="group" aria-label="Data isolation requirements">
+        <legend class="cl-group-title">Data Isolation</legend>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="rls" />
+          <span class="cl-label">Shared tables with Row-Level Security</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="schema-isolation" />
+          <span class="cl-label">Schema-per-tenant isolation</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="db-isolation" />
+          <span class="cl-label">Database-per-tenant isolation</span>
+        </label>
+      </fieldset>
+
+      <!-- Compliance -->
+      <fieldset class="cl-group" role="group" aria-label="Compliance requirements">
+        <legend class="cl-group-title">Compliance</legend>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="gdpr-export" />
+          <span class="cl-label">GDPR data export (Article 20)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="gdpr-purge" />
+          <span class="cl-label">GDPR hard purge (Article 17)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="audit" />
+          <span class="cl-label">Audit logging (who changed what, when)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="retention" />
+          <span class="cl-label">Data retention policies</span>
+        </label>
+      </fieldset>
+
+      <!-- Enterprise -->
+      <fieldset class="cl-group" role="group" aria-label="Enterprise feature requirements">
+        <legend class="cl-group-title">Enterprise</legend>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="webhooks" />
+          <span class="cl-label">Webhook delivery with retry</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="abac" />
+          <span class="cl-label">Attribute-based access control (ABAC)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="config-inherit" />
+          <span class="cl-label">Config inheritance (parent to child)</span>
+        </label>
+        <label class="cl-item">
+          <input type="checkbox" class="cl-check" data-feature="encryption" />
+          <span class="cl-label">Field-level encryption (key rotation)</span>
+        </label>
+      </fieldset>
+
+    </div>
+
+    <div class="cl-results" id="cl-results">
+      <div class="cl-results-header">
+        <span class="cl-results-count" id="cl-count">0</span>
+        <span class="cl-results-label">features matched</span>
+      </div>
+      <div class="cl-results-body" id="cl-results-body">
+        <div class="cl-empty" id="cl-empty">
+          <p class="cl-empty-title">Select your requirements</p>
+          <p class="cl-empty-desc">
+            Check items across the four categories to see which Stratum features
+            address your needs. Each checked item maps to a specific capability
+            in the library.
+          </p>
+        </div>
+        <ul class="cl-matched-list" id="cl-matched-list"></ul>
+      </div>
+      <div class="cl-results-footer" id="cl-results-footer" style="display: none;">
+        <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile sticky bar -->
+  <div class="cl-mobile-bar" id="cl-mobile-bar">
+    <button class="cl-mobile-toggle" id="cl-mobile-toggle" aria-label="Show matched features">
+      <span id="cl-mobile-count">0</span> features matched
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+  </div>
+</main>
+
+<Footer />
+
+<style>
+  .cl-main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 3) var(--space-6) var(--space-16);
+  }
+
+  .cl-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .cl-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-3);
+  }
+
+  .cl-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+  }
+
+  .cl-subtitle {
+    font-size: 1rem;
+    color: var(--text-secondary);
+  }
+
+  /* Layout — 2 column desktop */
+  .cl-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .cl-layout {
+      grid-template-columns: 1fr;
+    }
+    .cl-results {
+      display: none;
+    }
+  }
+
+  /* Categories */
+  .cl-group {
+    border: none;
+    margin-bottom: var(--space-6);
+  }
+
+  .cl-group-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--space-3);
+    display: block;
+  }
+
+  .cl-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    cursor: pointer;
+    min-height: 44px;
+  }
+
+  .cl-check {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .cl-label {
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+
+  .cl-item:hover .cl-label {
+    color: var(--text-primary);
+  }
+
+  .cl-check:checked + .cl-label {
+    color: var(--text-primary);
+  }
+
+  /* Results panel */
+  .cl-results {
+    position: sticky;
+    top: 80px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .cl-results-header {
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .cl-results-count {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .cl-results-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .cl-results-body {
+    padding: var(--space-6);
+    min-height: 200px;
+  }
+
+  .cl-empty-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+  }
+
+  .cl-empty-desc {
+    font-size: 0.875rem;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+  }
+
+  .cl-matched-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .cl-matched-item {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+    animation: cl-fade-in var(--duration-normal) var(--ease-out);
+  }
+
+  .cl-matched-item:last-child {
+    border-bottom: none;
+  }
+
+  .cl-matched-name {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .cl-matched-desc {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  @keyframes cl-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .cl-results-footer {
+    padding: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  /* Mobile sticky bar */
+  .cl-mobile-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    background: var(--surface-1);
+    border-top: 1px solid var(--border);
+    padding: var(--space-3) var(--space-6);
+  }
+
+  @media (max-width: 768px) {
+    .cl-mobile-bar {
+      display: block;
+    }
+    .cl-main {
+      padding-bottom: 96px;
+    }
+  }
+
+  .cl-mobile-toggle {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 44px;
+  }
+
+  .cl-mobile-toggle svg {
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+
+  .cl-mobile-bar.expanded .cl-mobile-toggle svg {
+    transform: rotate(180deg);
+  }
+
+  .cl-mobile-panel {
+    display: none;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: var(--space-4) 0;
+  }
+
+  .cl-mobile-bar.expanded .cl-mobile-panel {
+    display: block;
+  }
+</style>
+
+<script>
+  const featureMap: Record<string, { name: string; desc: string }> = {
+    "hierarchy": { name: "Tenant Hierarchy", desc: "Tree-structured tenants via PostgreSQL ltree, up to 20 levels deep." },
+    "flat-orgs": { name: "Flat Organizations", desc: "Single-level tenant model — create tenants without parent references." },
+    "reseller": { name: "Reseller / MSP Support", desc: "Nested partner hierarchies with delegated permissions and config inheritance." },
+    "rls": { name: "Row-Level Security", desc: "Shared tables with automatic RLS policy generation per tenant." },
+    "schema-isolation": { name: "Schema-per-Tenant", desc: "Dedicated PostgreSQL schema per tenant with search_path switching." },
+    "db-isolation": { name: "Database-per-Tenant", desc: "Separate PostgreSQL instance per tenant for maximum isolation." },
+    "gdpr-export": { name: "GDPR Data Export", desc: "Article 20 compliant data export per tenant — all tenant data in one call." },
+    "gdpr-purge": { name: "GDPR Hard Purge", desc: "Article 17 right to erasure — complete tenant data deletion with audit trail." },
+    "audit": { name: "Audit Logging", desc: "Every mutation logged with actor identity, timestamp, and change payload." },
+    "retention": { name: "Data Retention", desc: "Configurable retention policies per tenant with automatic cleanup." },
+    "webhooks": { name: "Webhook Delivery", desc: "Event-driven webhooks with retry logic and dead-letter queue." },
+    "abac": { name: "ABAC Policies", desc: "Attribute-based access control with policy evaluation at the tenant level." },
+    "config-inherit": { name: "Config Inheritance", desc: "Values flow root-to-leaf automatically. Lock keys so children cannot override." },
+    "encryption": { name: "Field Encryption", desc: "AES-256-GCM encryption for sensitive config values with key rotation support." },
+  };
+
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('.cl-check');
+  const countEl = document.getElementById('cl-count');
+  const mobileCountEl = document.getElementById('cl-mobile-count');
+  const emptyEl = document.getElementById('cl-empty');
+  const listEl = document.getElementById('cl-matched-list');
+  const footerEl = document.getElementById('cl-results-footer');
+  const mobileBar = document.getElementById('cl-mobile-bar');
+  const mobileToggle = document.getElementById('cl-mobile-toggle');
+
+  function update() {
+    const checked: string[] = [];
+    checkboxes.forEach((cb) => {
+      if (cb.checked && cb.dataset.feature) {
+        checked.push(cb.dataset.feature);
+      }
+    });
+
+    const count = checked.length;
+    if (countEl) countEl.textContent = String(count);
+    if (mobileCountEl) mobileCountEl.textContent = String(count);
+
+    if (emptyEl) emptyEl.style.display = count === 0 ? 'block' : 'none';
+    if (footerEl) footerEl.style.display = count > 0 ? 'block' : 'none';
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      checked.forEach((key) => {
+        const f = featureMap[key];
+        if (!f) return;
+        const li = document.createElement('li');
+        li.className = 'cl-matched-item';
+        li.innerHTML = `<span class="cl-matched-name">${f.name}</span><span class="cl-matched-desc">${f.desc}</span>`;
+        listEl.appendChild(li);
+      });
+    }
+  }
+
+  checkboxes.forEach((cb) => cb.addEventListener('change', update));
+
+  mobileToggle?.addEventListener('click', () => {
+    mobileBar?.classList.toggle('expanded');
+    // Create mobile panel if needed
+    let panel = mobileBar?.querySelector('.cl-mobile-panel');
+    if (!panel && mobileBar) {
+      panel = document.createElement('div');
+      panel.className = 'cl-mobile-panel';
+      mobileBar.appendChild(panel);
+    }
+    if (panel && listEl) {
+      panel.innerHTML = listEl.innerHTML || '<p style="color: var(--text-tertiary); font-size: 0.875rem;">Select requirements above to see matched features.</p>';
+    }
+  });
+</script>
+
+</Base>
