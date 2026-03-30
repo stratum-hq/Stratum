@@ -1,20 +1,7 @@
 import pg from "pg";
+import { validateSlug } from "@stratum-hq/core";
 
-const SLUG_REGEX = /^[a-z][a-z0-9_]{0,62}$/;
 const DB_PREFIX = "stratum_tenant_";
-
-/**
- * Validates a tenant slug for use in a database name.
- * Throws if invalid to prevent SQL injection.
- */
-function validateSlug(slug: string): string {
-  if (!SLUG_REGEX.test(slug)) {
-    throw new Error(
-      `Invalid tenant slug: "${slug}". Must match ^[a-z][a-z0-9_]{0,62}$`,
-    );
-  }
-  return slug;
-}
 
 /**
  * Returns the database name for a given tenant slug.

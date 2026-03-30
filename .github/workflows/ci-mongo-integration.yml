@@ -1,0 +1,36 @@
+name: MongoDB Integration Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  mongo-integration:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.runCommand('ping')\""
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      MONGODB_URL: mongodb://localhost:27017
+      MONGODB_TEST_DB: stratum_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build MongoDB package
+        run: npx turbo build --filter=@stratum-hq/mongodb
+      - name: Run MongoDB integration tests
+        run: npx turbo test:integration --filter=@stratum-hq/mongodb

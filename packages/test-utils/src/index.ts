@@ -1,1 +1,2 @@
-export { assertIsolation, assertConfigInheritance } from "./assertions.js";
+export { assertIsolation, assertConfigInheritance, assertMongoIsolation } from "./assertions.js";
+export type { MongoIsolationOptions } from "./assertions.js";

@@ -1,4 +1,5 @@
 import pg from "pg";
+import { validateSlug } from "@stratum-hq/core";
 
 export interface DatabasePoolManagerOptions {
   /** Template connection config (host, port, user, password, ssl, etc.) — database name is overridden per tenant. */
@@ -32,18 +33,6 @@ export class DatabasePoolManager {
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30_000;
   }
 
-  /** Validates tenant slug to prevent injection in database names. */
-  private validateSlug(slug: string): void {
-    if (!/^[a-z][a-z0-9_]*$/.test(slug)) {
-      throw new Error(
-        `Invalid tenant slug: "${slug}". Slugs must start with a lowercase letter and contain only lowercase alphanumeric characters and underscores.`,
-      );
-    }
-    if (slug.length > 63) {
-      throw new Error(`Tenant slug too long (max 63 chars): "${slug}"`);
-    }
-  }
-
   /**
    * Returns an existing pool for the tenant slug, or creates a new one.
    * Evicts the LRU pool if the pool limit is reached.
@@ -52,7 +41,7 @@ export class DatabasePoolManager {
    * multi-region deployments where the same slug may exist in different regions.
    */
   async getPool(tenantSlug: string, regionId?: string): Promise<pg.Pool> {
-    this.validateSlug(tenantSlug);
+    validateSlug(tenantSlug);
     const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
     const existing = this.pools.get(poolKey);
     if (existing) {

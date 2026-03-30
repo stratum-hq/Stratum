@@ -118,10 +118,12 @@ export {
 } from "./utils/ancestry.js";
 
 export {
+  SLUG_REGEX,
   SlugSchema,
   UUIDSchema,
   PaginationSchema,
   validateSlug,
+  isValidSlug,
   type PaginationInput,
   type PaginatedResult,
 } from "./utils/validation.js";

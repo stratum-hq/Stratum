@@ -174,3 +174,111 @@ function escapeIdentifier(id: string): string {
   }
   return `"${id}"`;
 }
+
+export interface MongoIsolationOptions {
+  strategy: "SHARED_COLLECTION" | "COLLECTION_PER_TENANT" | "DATABASE_PER_TENANT";
+  /** Collection to use for the test documents. Defaults to "test_isolation". */
+  collectionName?: string;
+  /** Field name for tenant scoping in SHARED_COLLECTION mode. Defaults to "tenant_id". */
+  tenantIdField?: string;
+}
+
+/**
+ * Verifies that tenantA cannot read tenantB's documents in MongoDB.
+ * Works for all three isolation strategies. Inserts a test document as tenantB,
+ * queries as tenantA, asserts 0 documents returned, and cleans up.
+ */
+export async function assertMongoIsolation(
+  clientOrAdapter: unknown,
+  tenantA: string,
+  tenantB: string,
+  options: MongoIsolationOptions,
+): Promise<void> {
+  const collectionName = options.collectionName ?? "test_isolation";
+  const tenantIdField = options.tenantIdField ?? "tenant_id";
+  const testMarker = `__stratum_isolation_test_${Date.now()}`;
+
+  // We use dynamic property access so this file compiles without mongodb as a
+  // required dependency (it is an optional peer dependency).
+  const client = clientOrAdapter as {
+    db: (name?: string) => {
+      collection: (name: string) => {
+        insertOne: (doc: Record<string, unknown>) => Promise<unknown>;
+        deleteOne: (filter: Record<string, unknown>) => Promise<unknown>;
+        findOne: (filter: Record<string, unknown>) => Promise<unknown>;
+      };
+    };
+  };
+
+  switch (options.strategy) {
+    case "SHARED_COLLECTION": {
+      const db = client.db();
+      const col = db.collection(collectionName);
+      // Insert a document belonging to tenantB
+      await col.insertOne({ [tenantIdField]: tenantB, _testMarker: testMarker });
+      try {
+        // Query using tenantA's filter -- should return nothing
+        const found = await col.findOne({
+          [tenantIdField]: tenantA,
+          _testMarker: testMarker,
+        });
+        if (found !== null && found !== undefined) {
+          throw new Error(
+            `Tenant '${tenantA}' was able to read a document belonging to tenant '${tenantB}' in collection '${collectionName}' -- SHARED_COLLECTION isolation is not enforced`,
+          );
+        }
+      } finally {
+        await col.deleteOne({ [tenantIdField]: tenantB, _testMarker: testMarker });
+      }
+      break;
+    }
+
+    case "COLLECTION_PER_TENANT": {
+      const db = client.db();
+      const tenantBCollection = `${collectionName}_${tenantB}`;
+      const tenantACollection = `${collectionName}_${tenantA}`;
+      const colB = db.collection(tenantBCollection);
+      // Insert a document in tenantB's collection
+      await colB.insertOne({ _testMarker: testMarker });
+      try {
+        // Query tenantA's collection -- should return nothing
+        const colA = db.collection(tenantACollection);
+        const found = await colA.findOne({ _testMarker: testMarker });
+        if (found !== null && found !== undefined) {
+          throw new Error(
+            `Tenant '${tenantA}' was able to read a document from tenant '${tenantB}' -- COLLECTION_PER_TENANT routing is not enforced (found in '${tenantACollection}' a document inserted into '${tenantBCollection}')`,
+          );
+        }
+      } finally {
+        await colB.deleteOne({ _testMarker: testMarker });
+      }
+      break;
+    }
+
+    case "DATABASE_PER_TENANT": {
+      const dbB = client.db(tenantB);
+      const colB = dbB.collection(collectionName);
+      // Insert a document in tenantB's database
+      await colB.insertOne({ _testMarker: testMarker });
+      try {
+        // Query tenantA's database -- should return nothing
+        const dbA = client.db(tenantA);
+        const colA = dbA.collection(collectionName);
+        const found = await colA.findOne({ _testMarker: testMarker });
+        if (found !== null && found !== undefined) {
+          throw new Error(
+            `Tenant '${tenantA}' was able to read a document belonging to tenant '${tenantB}' -- DATABASE_PER_TENANT isolation is not enforced (databases '${tenantA}' and '${tenantB}' share data)`,
+          );
+        }
+      } finally {
+        await colB.deleteOne({ _testMarker: testMarker });
+      }
+      break;
+    }
+
+    default: {
+      const exhaustive: never = options.strategy;
+      throw new Error(`Unknown MongoDB isolation strategy: ${exhaustive}`);
+    }
+  }
+}

@@ -1,0 +1,231 @@
+---
+title: MongoDB Multi-Tenancy
+description: Use @stratum-hq/mongodb for document-database tenant isolation alongside the PostgreSQL control plane.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/mongodb` adds multi-tenant document isolation for applications using MongoDB or Mongoose. Stratum is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB in the same project.
+
+**How it fits together:** The control plane -- tenant hierarchy, config inheritance, audit log, and GDPR operations -- always lives in PostgreSQL via `@stratum-hq/lib`. MongoDB carries your application documents. The two databases are complementary, not competing.
+
+## Choosing a Strategy
+
+Three isolation strategies are available, set once per deployment:
+
+| Strategy | Boundary | Isolation Level | Best For |
+|---|---|---|---|
+| `SHARED_COLLECTION` | `tenant_id` field | Application-enforced | Most applications, high tenant count |
+| `COLLECTION_PER_TENANT` | Collection namespace | Application-enforced | Apps needing separate indexes per tenant |
+| `DATABASE_PER_TENANT` | Separate MongoDB database | Connection-level | Compliance requirements, sensitive data |
+
+### Shared Collection
+
+All tenants share the same MongoDB collections. A `tenant_id` field on every document scopes queries. The Mongoose plugin or adapter automatically injects and filters `tenant_id` on every operation.
+
+**Tradeoff:** Isolation is application-enforced. There is no MongoDB equivalent of PostgreSQL Row-Level Security. A bug in your application code could expose cross-tenant data. Mitigate this with `assertMongoIsolation()` in your test suite and code review discipline.
+
+### Collection-per-Tenant
+
+Each tenant gets its own set of collections, named `{collection}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' collections still live in the same database and are accessible to the same connection.
+
+**Tradeoff:** Good for applications that need different indexes per tenant (e.g., tenant-specific sort orders). Does not prevent a misconfigured query from reading another tenant's collection. Use `assertMongoIsolation()` to verify routing is correct.
+
+### Database-per-Tenant
+
+Each tenant gets a dedicated MongoDB database with its own connection pool. This is the strongest isolation available in MongoDB.
+
+**Tradeoff:** Each database requires its own connection pool entry. For large tenant counts, configure the pool manager's `maxPoolSize` and `maxDatabases` to avoid exhausting MongoDB connections.
+
+<Aside type="tip">
+  Prefer `DATABASE_PER_TENANT` when tenants have compliance requirements (healthcare, financial services) or when your threat model requires physical data separation.
+</Aside>
+
+## Getting Started
+
+Install the package:
+
+```bash
+npm install @stratum-hq/mongodb mongodb mongoose
+```
+
+Basic setup for each strategy:
+
+```typescript
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+import { StratumMongoose } from "@stratum-hq/mongodb";
+
+// Control plane: always PostgreSQL
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const stratum = new Stratum({ pool, autoMigrate: true });
+await stratum.initialize();
+
+// MongoDB adapter
+const mongo = new StratumMongoose({
+  uri: process.env.MONGODB_URI,
+  strategy: "SHARED_COLLECTION", // or COLLECTION_PER_TENANT, DATABASE_PER_TENANT
+});
+await mongo.connect();
+
+// Create a tenant (stored in PostgreSQL control plane)
+const tenant = await stratum.createTenant({
+  name: "Acme Corp",
+  slug: "acme_corp",
+});
+```
+
+For `DATABASE_PER_TENANT`, pass a connection string template:
+
+```typescript
+const mongo = new StratumMongoose({
+  uriTemplate: (tenantSlug: string) =>
+    `mongodb://localhost:27017/app_${tenantSlug}`,
+  strategy: "DATABASE_PER_TENANT",
+  poolOptions: {
+    maxPoolSize: 5,    // per-database connection limit
+    maxDatabases: 100, // evict LRU databases beyond this count
+  },
+});
+```
+
+## Mongoose Plugin
+
+Apply the Stratum plugin to your Mongoose schemas to enable automatic tenant scoping via AsyncLocalStorage (ALS):
+
+```typescript
+import mongoose from "mongoose";
+import { stratumPlugin } from "@stratum-hq/mongodb";
+
+const orderSchema = new mongoose.Schema({
+  product: String,
+  quantity: Number,
+  total: Number,
+});
+
+// Apply once per schema -- injects tenant_id and auto-filters queries
+orderSchema.plugin(stratumPlugin, { strategy: "SHARED_COLLECTION" });
+
+export const Order = mongoose.model("Order", orderSchema);
+```
+
+The plugin hooks into `find`, `findOne`, `findOneAndUpdate`, `updateMany`, `deleteOne`, `deleteMany`, and `countDocuments`. It reads the current tenant from ALS context set by your request middleware.
+
+### ALS Context Setup
+
+Wire the ALS context in your web framework middleware:
+
+```typescript
+import { setTenantContext } from "@stratum-hq/mongodb";
+
+// Express example
+app.use(async (req, res, next) => {
+  const tenantId = req.headers["x-tenant-id"] as string;
+  // Resolve tenant from your control plane
+  const tenant = await stratum.getTenant(tenantId);
+  setTenantContext({ tenantId: tenant.id, tenantSlug: tenant.slug }, next);
+});
+```
+
+Once the middleware is in place, all Mongoose queries inside the request are automatically scoped:
+
+```typescript
+// No manual where clause needed -- the plugin adds tenant_id automatically
+const orders = await Order.find({ status: "pending" });
+
+// For COLLECTION_PER_TENANT, routes to the right collection automatically
+// For DATABASE_PER_TENANT, routes to the right database connection automatically
+```
+
+## GDPR Compliance
+
+`purgeTenantData()` permanently deletes all documents belonging to a tenant. Call this after removing the tenant from the PostgreSQL control plane.
+
+```typescript
+import { purgeTenantData } from "@stratum-hq/mongodb";
+
+await purgeTenantData(mongo, tenantId, {
+  // Collections to purge (SHARED_COLLECTION and COLLECTION_PER_TENANT)
+  collections: ["orders", "invoices", "activity_logs"],
+  // For DATABASE_PER_TENANT, drops the entire database
+  dropDatabase: true,
+});
+```
+
+### Partial Failure Handling
+
+`purgeTenantData()` runs each collection deletion independently. If one collection fails, the others continue. Check the result for partial failures:
+
+```typescript
+const result = await purgeTenantData(mongo, tenantId, {
+  collections: ["orders", "invoices", "activity_logs"],
+});
+
+if (result.errors.length > 0) {
+  // Log and retry or alert -- partial purge means some data remains
+  console.error("Purge incomplete:", result.errors);
+  // result.deleted lists collections that succeeded
+  // result.errors lists collections that failed with the error
+}
+```
+
+<Aside type="caution">
+  Always verify `result.errors` after calling `purgeTenantData()`. Partial purges leave tenant data in place. For GDPR compliance, treat any error as a blocking issue requiring manual remediation.
+</Aside>
+
+## Security Considerations
+
+MongoDB does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is no database-level mechanism that enforces tenant isolation independent of application code. This is an important tradeoff to understand for your threat model.
+
+**What this means in practice:**
+
+- For `SHARED_COLLECTION` and `COLLECTION_PER_TENANT`: if a query is executed without the Mongoose plugin active (e.g., using the raw `MongoClient` directly), it will see all tenants' data.
+- For `DATABASE_PER_TENANT`: isolation is at the connection level -- a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MongoDB offers.
+
+**Recommendations:**
+
+1. **Use `DATABASE_PER_TENANT` for sensitive data.** This provides connection-level isolation that does not depend on application-layer filtering.
+2. **Never bypass the Mongoose plugin.** If you need raw `MongoClient` access, wrap it in the same ALS context and apply the tenant filter manually.
+3. **Add `assertMongoIsolation()` to your test suite** (from `@stratum-hq/test-utils`) to catch regressions before they reach production.
+4. **Audit all query paths** that touch tenant data -- especially background jobs and admin scripts that run outside the normal request middleware.
+
+<Aside type="note">
+  This is an honest limitation of the MongoDB data model. If your compliance requirements mandate database-level enforcement, use `DATABASE_PER_TENANT` or consider whether PostgreSQL with `SHARED_RLS` is a better fit for your data.
+</Aside>
+
+## Performance
+
+### Shared Collection Index Requirements
+
+Without the right indexes, every query in `SHARED_COLLECTION` mode does a full collection scan. Add a compound index with `tenant_id` as the leading field:
+
+```typescript
+// Add to your schema before plugin application
+orderSchema.index({ tenant_id: 1, created_at: -1 });
+orderSchema.index({ tenant_id: 1, status: 1 });
+```
+
+The `tenant_id` prefix ensures MongoDB uses the index for all tenant-scoped queries. Without it, queries are `O(n)` across all tenants' documents.
+
+### Database-per-Tenant Pool Tuning
+
+Each tenant database gets its own connection pool. Tune `maxPoolSize` and `maxDatabases` based on your active tenant count and MongoDB instance capacity:
+
+```typescript
+const mongo = new StratumMongoose({
+  uriTemplate: (slug) => `mongodb://localhost:27017/app_${slug}`,
+  strategy: "DATABASE_PER_TENANT",
+  poolOptions: {
+    maxPoolSize: 5,     // connections per tenant database (default: 5)
+    minPoolSize: 1,     // keep at least 1 connection warm
+    maxDatabases: 200,  // evict LRU after this many active databases
+    idleTimeoutMs: 30000, // close idle connections after 30 seconds
+  },
+});
+```
+
+A rough formula: `maxConnections = activeTenants * maxPoolSize`. For 100 active tenants at `maxPoolSize: 5`, budget 500 connections on your MongoDB instance.
+
+### Collection-per-Tenant
+
+Collection-per-tenant has minimal additional overhead over shared collection. Each collection gets its own indexes, which is the primary reason to choose this strategy -- it allows tenant-specific index configurations without cross-tenant interference.

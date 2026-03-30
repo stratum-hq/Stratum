@@ -40,7 +40,11 @@
     "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
-    "pg": "^8.11.0"
+    "pg": "^8.11.0",
+    "mongodb": "^6.0.0 || ^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mongodb": { "optional": true }
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",
