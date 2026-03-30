@@ -1,0 +1,504 @@
+---
+import Base from '../../layouts/Base.astro';
+import '../../styles/global.css';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<Base title="Connection Pooling with Stratum — PgBouncer and Supavisor Guide" description="When you need a connection pooler with Stratum, how to configure PgBouncer and Supavisor, transaction-mode pooling compatibility, and a production checklist.">
+
+<Nav />
+
+<main class="guide-main">
+  <header class="guide-header">
+    <div class="guide-eyebrow">Guide</div>
+    <h1>Connection pooling with <span class="accent">Stratum</span></h1>
+    <p class="guide-meta">Production guide for PgBouncer, Supavisor, and transaction-mode pooling.</p>
+  </header>
+
+  <article class="guide-body">
+
+    <section class="guide-section">
+      <h2>When you need a connection pooler</h2>
+      <p>
+        PostgreSQL allocates a backend process for every connection. At 100+ concurrent connections,
+        memory pressure and context switching degrade query performance. A connection pooler sits
+        between your application and PostgreSQL, multiplexing many application connections onto fewer
+        database connections.
+      </p>
+      <p>
+        Stratum uses a standard <code>pg.Pool</code> instance internally. By default, this pool opens
+        direct connections to PostgreSQL. In production, you should route those connections through a
+        pooler when:
+      </p>
+      <ul class="guide-list">
+        <li>Your application runs more than 50 concurrent connections</li>
+        <li>You use serverless or edge runtimes where connection count is unpredictable</li>
+        <li>You deploy multiple application instances against the same database</li>
+        <li>Your PostgreSQL host has a hard connection limit (common on managed services)</li>
+      </ul>
+    </section>
+
+    <section class="guide-section">
+      <h2>PgBouncer setup</h2>
+      <p>
+        PgBouncer is the most widely deployed PostgreSQL connection pooler. It runs as a lightweight
+        process (typically &lt;10MB RAM) and supports three pooling modes: session, transaction, and
+        statement.
+      </p>
+
+      <h3>Installation</h3>
+      <p>On Debian/Ubuntu:</p>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-filename">shell</span>
+        </div>
+        <pre>sudo apt install pgbouncer</pre>
+      </div>
+
+      <h3>Configuration for Stratum</h3>
+      <p>
+        Stratum uses <code>SET app.current_tenant</code> via <code>set_config()</code> to pass tenant
+        context to PostgreSQL for RLS policies. This requires <strong>transaction-mode pooling</strong>
+        with specific settings to ensure <code>set_config</code> values are scoped correctly.
+      </p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-filename">pgbouncer.ini</span>
+        </div>
+        <pre><span class="cm">;; Database section</span>
+[databases]
+myapp = host=127.0.0.1 port=5432 dbname=myapp
+
+<span class="cm">;; PgBouncer settings</span>
+[pgbouncer]
+listen_addr = 127.0.0.1
+listen_port = 6432
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+
+<span class="cm">;; Transaction mode — required for Stratum's set_config</span>
+pool_mode = transaction
+
+<span class="cm">;; Pool sizing</span>
+default_pool_size = 20
+max_client_conn = 200
+min_pool_size = 5
+
+<span class="cm">;; Reset session state between transactions</span>
+<span class="cm">;; This clears set_config values after each transaction</span>
+server_reset_query = DISCARD ALL</pre>
+      </div>
+
+      <h3>Stratum configuration</h3>
+      <p>Point your <code>pg.Pool</code> at PgBouncer instead of PostgreSQL directly:</p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-filename">stratum-pgbouncer.ts</span>
+        </div>
+        <pre set:html={`<span class="kw">import</span> { Pool } <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="cm">// Connect through PgBouncer</span>
+<span class="kw">const</span> pool = <span class="kw">new</span> <span class="fn">Pool</span>({
+  host: <span class="str">"127.0.0.1"</span>,
+  port: <span class="num">6432</span>,        <span class="cm">// PgBouncer port, not 5432</span>
+  database: <span class="str">"myapp"</span>,
+  max: <span class="num">20</span>,             <span class="cm">// Match PgBouncer's default_pool_size</span>
+});
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();`} />
+      </div>
+    </section>
+
+    <section class="guide-section">
+      <h2>Supavisor setup</h2>
+      <p>
+        Supavisor is a cloud-native connection pooler built by Supabase in Elixir. It supports
+        multi-tenant connection pooling natively, making it a natural fit for Stratum deployments.
+        If you use Supabase as your PostgreSQL host, Supavisor is already running.
+      </p>
+
+      <h3>Self-hosted Supavisor</h3>
+      <p>
+        For self-hosted deployments, Supavisor runs as a Docker container or Elixir release:
+      </p>
+
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-filename">docker-compose.yml</span>
+        </div>
+        <pre><span class="fn">supavisor</span>:
+  <span class="str">image</span>: supabase/supavisor:latest
+  <span class="str">ports</span>:
+    - <span class="str">"6543:6543"</span>
+  <span class="str">environment</span>:
+    <span class="str">DATABASE_URL</span>: postgres://user:pass@db:5432/myapp
+    <span class="str">POOL_MODE</span>: transaction
+    <span class="str">DEFAULT_POOL_SIZE</span>: <span class="str">"20"</span>
+    <span class="str">MAX_CLIENT_CONN</span>: <span class="str">"200"</span></pre>
+      </div>
+
+      <h3>Stratum configuration</h3>
+      <div class="code-block">
+        <div class="code-block-header">
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-dot"></span>
+          <span class="code-block-filename">stratum-supavisor.ts</span>
+        </div>
+        <pre set:html={`<span class="kw">import</span> { Pool } <span class="kw">from</span> <span class="str">"pg"</span>;
+<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="cm">// Connect through Supavisor</span>
+<span class="kw">const</span> pool = <span class="kw">new</span> <span class="fn">Pool</span>({
+  host: <span class="str">"127.0.0.1"</span>,
+  port: <span class="num">6543</span>,        <span class="cm">// Supavisor port</span>
+  database: <span class="str">"myapp"</span>,
+  max: <span class="num">20</span>,
+});
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();`} />
+      </div>
+
+      <p>
+        If you use Supabase hosted, the connection string already routes through Supavisor.
+        Use the "Transaction" connection string from your Supabase dashboard.
+      </p>
+    </section>
+
+    <section class="guide-section">
+      <h2>Transaction-mode pooling and set_config</h2>
+      <p>
+        Stratum's RLS isolation sets a session variable (<code>app.current_tenant</code>) using
+        PostgreSQL's <code>set_config()</code> function. This variable is read by RLS policies to
+        filter rows to the current tenant.
+      </p>
+      <p>
+        In <strong>transaction mode</strong>, the pooler assigns a server connection for the duration
+        of each transaction and returns it to the pool afterward. Session-level settings like
+        <code>set_config()</code> are cleared between transactions by <code>server_reset_query</code>.
+      </p>
+      <p>
+        Stratum handles this correctly by calling <code>set_config('app.current_tenant', tenantId, true)</code>
+        with the <code>is_local</code> parameter set to <code>true</code>. This scopes the setting
+        to the current transaction, which is the correct behavior with transaction-mode pooling.
+      </p>
+
+      <h3>What to avoid</h3>
+      <ul class="guide-list">
+        <li>
+          <strong>Session-mode pooling for high-concurrency apps.</strong> Session mode pins a server
+          connection to a client for the entire session. This defeats the purpose of pooling in most
+          web applications.
+        </li>
+        <li>
+          <strong>Statement-mode pooling.</strong> Statement mode cannot support multi-statement
+          transactions, which Stratum requires for tenant operations.
+        </li>
+        <li>
+          <strong>Removing <code>server_reset_query</code>.</strong> Without <code>DISCARD ALL</code>,
+          session state from one transaction can leak into the next. This is a security risk in
+          multi-tenant applications.
+        </li>
+      </ul>
+    </section>
+
+    <section class="guide-section">
+      <h2>Production checklist</h2>
+      <p>
+        Before going to production with a connection pooler and Stratum, verify each item:
+      </p>
+
+      <div class="guide-checklist">
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>Pool mode is <code>transaction</code></strong>
+            <p>Required for Stratum's <code>set_config</code> with <code>is_local = true</code>.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong><code>server_reset_query = DISCARD ALL</code></strong>
+            <p>Clears session state between transactions. Prevents tenant context leaking.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>Pool sizes are aligned</strong>
+            <p>Your <code>pg.Pool.max</code> should not exceed <code>default_pool_size</code> on the pooler. If using Knex or Drizzle alongside Stratum, account for both pools.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>Health checks pass through the pooler</strong>
+            <p>Run <code>SELECT 1</code> through the pooler port, not directly to PostgreSQL.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>Monitoring is in place</strong>
+            <p>Track pooler metrics: active connections, wait queue, server connections. PgBouncer exposes <code>SHOW POOLS</code>, Supavisor exposes Prometheus metrics.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>Stratum migrations run against PostgreSQL directly</strong>
+            <p>Run <code>stratum.initialize()</code> against the direct PostgreSQL connection (port 5432), not through the pooler. Migrations use DDL statements that may not work through transaction-mode poolers.</p>
+          </div>
+        </div>
+        <div class="guide-check-item">
+          <span class="guide-check-marker"></span>
+          <div>
+            <strong>SSL is configured end-to-end</strong>
+            <p>If PostgreSQL requires SSL, configure it on both the pooler-to-database and application-to-pooler connections.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </article>
+
+  <section class="guide-cta">
+    <h2>Ready to deploy?</h2>
+    <div class="guide-cta-links">
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+      <a href="/compare" class="btn-secondary">ORM comparisons</a>
+    </div>
+  </section>
+</main>
+
+<Footer />
+
+<style>
+  .guide-main {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 3) var(--space-6) var(--space-16);
+  }
+
+  .guide-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .guide-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: var(--space-3);
+  }
+
+  .guide-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+  }
+
+  .guide-meta {
+    font-size: 1rem;
+    color: var(--text-secondary);
+  }
+
+  /* Article body */
+  .guide-body {
+    border-top: 1px solid var(--border);
+  }
+
+  .guide-section {
+    padding: var(--space-8) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .guide-section:last-child {
+    border-bottom: none;
+  }
+
+  .guide-section h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+    line-height: 1.3;
+  }
+
+  .guide-section h3 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-6);
+    margin-bottom: var(--space-3);
+    line-height: 1.3;
+  }
+
+  .guide-section p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+    max-width: 65ch;
+  }
+
+  .guide-section p:last-child {
+    margin-bottom: 0;
+  }
+
+  .guide-section code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .guide-section strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .guide-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-4) 0;
+  }
+
+  .guide-list li {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    padding: var(--space-2) 0 var(--space-2) var(--space-4);
+    position: relative;
+  }
+
+  .guide-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14px;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-full);
+    background: var(--text-tertiary);
+  }
+
+  .guide-list li strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Code blocks inherit global styles */
+  .guide-section .code-block {
+    margin: var(--space-4) 0;
+  }
+
+  /* Production checklist */
+  .guide-checklist {
+    margin-top: var(--space-4);
+  }
+
+  .guide-check-item {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .guide-check-item:last-child {
+    border-bottom: none;
+  }
+
+  .guide-check-marker {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-sm);
+    margin-top: 2px;
+  }
+
+  .guide-check-item strong {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  .guide-check-item strong code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .guide-check-item p {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .guide-check-item p code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* CTA */
+  .guide-cta {
+    margin-top: var(--space-8);
+    padding: var(--space-8);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    text-align: center;
+  }
+
+  .guide-cta h2 {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-6);
+  }
+
+  .guide-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+</style>
+
+</Base>
