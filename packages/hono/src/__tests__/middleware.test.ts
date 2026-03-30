@@ -3,14 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import { stratumMiddleware } from "../middleware.js";
 
-// Mock setTenantContext from SDK
+// Mock runWithTenantContext from SDK — execute the callback so downstream handlers run
 vi.mock("@stratum-hq/sdk", () => ({
-  setTenantContext: vi.fn(),
+  runWithTenantContext: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
 }));
 
-import { setTenantContext } from "@stratum-hq/sdk";
+import { runWithTenantContext } from "@stratum-hq/sdk";
 
-const mockedSetTenantContext = vi.mocked(setTenantContext);
+const mockedRunWithTenantContext = vi.mocked(runWithTenantContext);
 
 function createApp(options?: Parameters<typeof stratumMiddleware>[0]) {
   const app = new Hono();
@@ -99,15 +99,16 @@ describe("stratumMiddleware", () => {
     expect(contextTenantId).toBe("ctx-tenant");
   });
 
-  it("sets ALS context via SDK setTenantContext", async () => {
+  it("sets ALS context via SDK runWithTenantContext", async () => {
     const app = createApp();
     await app.request("/test", {
       headers: { "x-tenant-id": "als-tenant" },
     });
 
-    expect(mockedSetTenantContext).toHaveBeenCalledOnce();
-    expect(mockedSetTenantContext).toHaveBeenCalledWith(
+    expect(mockedRunWithTenantContext).toHaveBeenCalledOnce();
+    expect(mockedRunWithTenantContext).toHaveBeenCalledWith(
       expect.objectContaining({ tenant_id: "als-tenant" }),
+      expect.any(Function),
     );
   });
 

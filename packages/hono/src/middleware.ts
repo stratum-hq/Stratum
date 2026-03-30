@@ -1,5 +1,6 @@
 import type { Context, Next, MiddlewareHandler } from "hono";
-import { setTenantContext } from "@stratum-hq/sdk";
+import { runWithTenantContext } from "@stratum-hq/sdk";
+import type { TenantContextLegacy } from "@stratum-hq/core";
 import { IsolationStrategy } from "@stratum-hq/core";
 
 export interface StratumMiddlewareOptions {
@@ -9,6 +10,12 @@ export interface StratumMiddlewareOptions {
   jwtClaim?: string;
   /** URL path parameter name to extract tenant ID from */
   pathParam?: string;
+  /**
+   * Optional callback to resolve a full tenant context from the tenant ID.
+   * When provided, the middleware will call this to obtain ancestry, config,
+   * and permissions instead of using placeholder values.
+   */
+  resolve?: (tenantId: string) => Promise<TenantContextLegacy> | TenantContextLegacy;
 }
 
 function extractFromHeader(c: Context, header: string): string | undefined {
@@ -30,7 +37,7 @@ function extractFromPathParam(c: Context, param: string): string | undefined {
 /**
  * Hono middleware that extracts a tenant ID from the request and sets it
  * in both the Hono context (`c.get('tenantId')`) and the SDK's
- * AsyncLocalStorage context via `setTenantContext()`.
+ * AsyncLocalStorage context via `runWithTenantContext()`.
  */
 export function stratumMiddleware(
   options: StratumMiddlewareOptions = {},
@@ -53,15 +60,22 @@ export function stratumMiddleware(
 
     c.set("tenantId", tenantId);
 
-    setTenantContext({
-      tenant_id: tenantId,
-      ancestry_path: tenantId,
-      depth: 0,
-      resolved_config: {},
-      resolved_permissions: {},
-      isolation_strategy: IsolationStrategy.SHARED_RLS,
-    });
+    const ctx: TenantContextLegacy = options.resolve
+      ? await options.resolve(tenantId)
+      : /**
+         * @warning Placeholder context — ancestry_path, resolved_config, and
+         * resolved_permissions are stub values. Provide a `resolve` callback
+         * to populate real tenant data.
+         */
+        {
+          tenant_id: tenantId,
+          ancestry_path: tenantId,
+          depth: 0,
+          resolved_config: {},
+          resolved_permissions: {},
+          isolation_strategy: IsolationStrategy.SHARED_RLS,
+        };
 
-    await next();
+    return runWithTenantContext(ctx, () => next());
   };
 }
