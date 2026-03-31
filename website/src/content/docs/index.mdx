@@ -100,6 +100,7 @@ const config = await stratum.resolveConfig(msp.id);
 | [`@stratum-hq/sdk`](/packages/sdk/) | HTTP client, LRU cache, Express/Fastify middleware |
 | [`@stratum-hq/db-adapters`](/packages/db-adapters/) | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle |
 | [`@stratum-hq/mongodb`](/guides/mongodb/) | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
+| [`@stratum-hq/mysql`](/guides/mysql/) | MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant + TypeORM, Knex, Sequelize |
 | [`@stratum-hq/nestjs`](/packages/nestjs/) | NestJS integration — guard, `@Tenant()` decorator, DI module |
 | [`@stratum-hq/hono`](/packages/hono/) | Hono middleware — tenant extraction, ALS context |
 | [`@stratum-hq/test-utils`](/packages/test-utils/) | Cross-tenant isolation test helpers |
