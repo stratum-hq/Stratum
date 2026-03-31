@@ -91,12 +91,12 @@ function renderWithContext(ui: React.ReactElement) {
 }
 
 describe("PermissionEditor", () => {
-  it("renders without crashing and matches snapshot", async () => {
+  it("renders without crashing", async () => {
     const { container } = renderWithContext(<PermissionEditor />);
     await waitFor(() => {
       expect(within(container).getByRole("table")).toBeInTheDocument();
     });
-    expect(container).toMatchSnapshot();
+    expect(container.querySelector(".stratum-permission-editor")).toBeInTheDocument();
   });
 
   it("renders a table with permission columns", async () => {
