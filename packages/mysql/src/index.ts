@@ -23,7 +23,7 @@ export { MysqlPoolManager } from "./pool-manager.js";
 export { createTenantView, dropTenantView, setTenantSession } from "./views/manager.js";
 
 // Integrations
-export { stratumTypeOrmSubscriber } from "./integrations/typeorm-subscriber.js";
+export { StratumTypeOrmSubscriber } from "./integrations/typeorm-subscriber.js";
 export type { InsertEvent, EntitySubscriberInterface } from "./integrations/typeorm-subscriber.js";
 export { withTenantScope } from "./integrations/knex.js";
 export type { KnexLike, KnexQueryBuilderLike } from "./integrations/knex.js";
