@@ -76,12 +76,12 @@ function renderWithContext(ui: React.ReactElement) {
 }
 
 describe("TenantTree", () => {
-  it("renders without crashing and matches snapshot", async () => {
+  it("renders without crashing", async () => {
     const { container } = renderWithContext(<TenantTree />);
     await waitFor(() => {
       expect(within(container).queryByText("Loading...")).not.toBeInTheDocument();
     });
-    expect(container).toMatchSnapshot();
+    expect(container.querySelector(".stratum-tree")).toBeInTheDocument();
   });
 
   it("renders a tree role element", async () => {

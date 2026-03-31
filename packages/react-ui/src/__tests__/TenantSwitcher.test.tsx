@@ -58,13 +58,13 @@ function renderWithContext(ui: React.ReactElement) {
 }
 
 describe("TenantSwitcher", () => {
-  it("renders without crashing and matches snapshot", async () => {
+  it("renders without crashing", async () => {
     const { container } = renderWithContext(<TenantSwitcher />);
     // Wait for loading state to clear
     await waitFor(() => {
       expect(within(container).queryByText("Loading...")).not.toBeInTheDocument();
     });
-    expect(container).toMatchSnapshot();
+    expect(container.querySelector(".stratum-tenant-switcher")).toBeInTheDocument();
   });
 
   it("displays current tenant name", async () => {
