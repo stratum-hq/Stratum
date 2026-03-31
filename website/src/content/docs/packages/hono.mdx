@@ -1,0 +1,43 @@
+---
+title: "@stratum-hq/hono"
+description: Hono middleware for tenant extraction and AsyncLocalStorage context.
+---
+
+`@stratum-hq/hono` provides Hono middleware that extracts tenant identity from requests and sets up AsyncLocalStorage context for downstream handlers.
+
+## Installation
+
+```bash
+npm install @stratum-hq/hono @stratum-hq/sdk @stratum-hq/core
+```
+
+## Quick Start
+
+```typescript
+import { Hono } from "hono";
+import { stratumMiddleware } from "@stratum-hq/hono";
+
+const app = new Hono();
+
+app.use("*", stratumMiddleware({
+  // Extract tenant from header, JWT, or path param
+  extract: (c) => c.req.header("x-tenant-id"),
+  // Optional: resolve full tenant context
+  resolve: async (tenantId) => {
+    return stratum.resolveContext(tenantId);
+  },
+}));
+
+app.get("/users", async (c) => {
+  // Tenant context available via ALS
+  const tenantId = Stratum.currentTenantId();
+  // ...
+});
+```
+
+## Features
+
+- **Tenant extraction** -- from header, JWT claim, or URL path parameter
+- **ALS context** -- sets tenant context via `runWithTenantContext` for downstream handlers
+- **Optional resolve callback** -- fetch full tenant context from the control plane
+- **Lightweight** -- no heavy dependencies, structural types only

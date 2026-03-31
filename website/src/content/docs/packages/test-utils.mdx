@@ -1,0 +1,43 @@
+---
+title: "@stratum-hq/test-utils"
+description: Cross-tenant isolation test helpers for PostgreSQL, MongoDB, and MySQL.
+---
+
+`@stratum-hq/test-utils` provides test helpers that verify tenant isolation is working correctly. Use these in your CI pipeline to catch isolation regressions before they reach production.
+
+## Installation
+
+```bash
+npm install -D @stratum-hq/test-utils
+```
+
+## Quick Start
+
+```typescript
+import { assertIsolation } from "@stratum-hq/test-utils";
+
+describe("tenant isolation", () => {
+  it("tenantA cannot read tenantB data", async () => {
+    await assertIsolation({
+      pool,
+      tenantA: "acme",
+      tenantB: "globex",
+      table: "users",
+      setup: async (pool, tenantId) => {
+        // Insert test data for each tenant
+        await pool.query(
+          "INSERT INTO users (tenant_id, name) VALUES ($1, $2)",
+          [tenantId, `User for ${tenantId}`],
+        );
+      },
+    });
+  });
+});
+```
+
+## Features
+
+- **`assertIsolation()`** -- verifies that tenantA cannot read tenantB's data via parameterized SQL
+- **`assertConfigInheritance()`** -- verifies config values flow correctly through the tenant hierarchy
+- **Descriptive error messages** -- clear failure output showing exactly which isolation boundary was breached
+- **Database-agnostic** -- works with PostgreSQL, MongoDB, and MySQL
