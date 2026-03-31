@@ -1,0 +1,41 @@
+---
+title: "@stratum-hq/mysql"
+description: MySQL tenant isolation with three strategies, ORM integrations, and View utilities.
+---
+
+`@stratum-hq/mysql` adds multi-tenant row isolation for applications using MySQL. Three isolation strategies are available: shared table, table-per-tenant, and database-per-tenant. Includes integrations for TypeORM, Knex, and Sequelize.
+
+## Installation
+
+```bash
+npm install @stratum-hq/mysql mysql2
+```
+
+## Quick Start
+
+```typescript
+import mysql from "mysql2/promise";
+import { MysqlSharedAdapter } from "@stratum-hq/mysql";
+
+const pool = mysql.createPool(process.env.MYSQL_URL);
+const adapter = new MysqlSharedAdapter({ pool, databaseName: "myapp" });
+
+// Structured methods auto-inject tenant_id
+const users = await adapter.scopedSelect("acme", "users");
+await adapter.scopedInsert("acme", "users", { name: "Alice" });
+```
+
+## Features
+
+- **Three isolation strategies** -- shared table, table-per-tenant, database-per-tenant
+- **Structured query methods** -- `scopedSelect`, `scopedInsert`, `scopedUpdate`, `scopedDelete` with automatic tenant_id injection
+- **TypeORM subscriber** -- auto-injects tenant_id on insert via AsyncLocalStorage
+- **Knex helper** -- `withTenantScope()` wraps query builders with automatic WHERE clause
+- **Sequelize adapter** -- `withMysqlTenantScope()` with try/finally session variable cleanup
+- **MySQL View utilities** -- `createTenantView()`, `dropTenantView()`, `setTenantSession()` for view-based isolation
+- **GDPR purge** -- `purgeTenantData()` across all three strategies
+- **LRU pool manager** -- active query tracking, idle timeout, configurable eviction
+
+## Full Guide
+
+See the [MySQL Multi-Tenancy guide](/guides/mysql/) for strategy selection, ORM integration details, security considerations, and performance tuning.

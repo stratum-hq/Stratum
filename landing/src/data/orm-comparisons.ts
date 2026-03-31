@@ -232,4 +232,53 @@ export const mongodb: ORMComparison = {
   ],
 };
 
-export const allORMs: ORMComparison[] = [prisma, drizzle, sequelize, knex, mongodb];
+export const mysql: ORMComparison = {
+  slug: "mysql",
+  name: "MySQL",
+  tagline: "The world's most popular open-source relational database",
+  description: `MySQL is the default database for millions of applications, from WordPress to Laravel to legacy enterprise systems. @stratum-hq/mysql brings Stratum's tenant isolation to MySQL with three strategies: shared table (WHERE tenant_id filtering), table-per-tenant (separate tables per tenant), and database-per-tenant (full database isolation). The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MySQL carries your application data, scoped per tenant through structured query methods or ORM integrations.`,
+  features: [
+    { capability: "Isolation strategies", orm: "Manual WHERE tenant_id on every query", stratum: "3 strategies: shared table, table-per-tenant, database-per-tenant", verdict: "good" },
+    { capability: "Tenant scoping", orm: "Application-level only", stratum: "Structured methods auto-inject tenant_id into all queries", verdict: "good" },
+    { capability: "View-based isolation", orm: "Manual CREATE VIEW with session variables", stratum: "Built-in createTenantView() with session variable management", verdict: "good" },
+    { capability: "Config inheritance", orm: "Not available", stratum: "Built-in via PostgreSQL control plane", verdict: "good" },
+    { capability: "GDPR purge", orm: "Build it yourself", stratum: "purgeTenantData() for all 3 strategies", verdict: "good" },
+    { capability: "ORM support", orm: "TypeORM, Knex, Sequelize (manual tenant logic)", stratum: "TypeORM subscriber, Knex helper, Sequelize adapter included", verdict: "good" },
+    { capability: "Control plane", orm: "None", stratum: "PostgreSQL via @stratum-hq/lib (tenant hierarchy, config, audit)", verdict: "good" },
+    { capability: "Security enforcement", orm: "Application-level (no RLS in MySQL)", stratum: "Application-level for shared/table; DB-level for database-per-tenant", verdict: "neutral" },
+  ],
+  codeExample: {
+    filename: "mysql-with-stratum.ts",
+    code: `<span class="kw">import</span> mysql <span class="kw">from</span> <span class="str">"mysql2/promise"</span>;
+<span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+<span class="kw">import</span> { MysqlSharedAdapter } <span class="kw">from</span> <span class="str">"@stratum-hq/mysql"</span>;
+
+<span class="cm">// Control plane: tenant hierarchy lives in PostgreSQL</span>
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
+<span class="kw">await</span> stratum.<span class="fn">initialize</span>();
+
+<span class="cm">// MySQL adapter for application data isolation</span>
+<span class="kw">const</span> mysqlPool = mysql.<span class="fn">createPool</span>(process.env.MYSQL_URL);
+<span class="kw">const</span> adapter = <span class="kw">new</span> <span class="fn">MysqlSharedAdapter</span>({
+  pool: mysqlPool, databaseName: <span class="str">"myapp"</span>,
+});
+
+<span class="cm">// Tenant created in PG control plane</span>
+<span class="kw">const</span> tenant = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({
+  name: <span class="str">"Acme"</span>, slug: <span class="str">"acme"</span>
+});
+
+<span class="cm">// Scoped queries auto-inject tenant_id</span>
+<span class="kw">const</span> users = <span class="kw">await</span> adapter.<span class="fn">scopedSelect</span>(tenant.id, <span class="str">"users"</span>);
+<span class="cm">// only returns this tenant's rows</span>`,
+  },
+  gotchas: [
+    "MySQL has no Row-Level Security. Isolation is enforced at the application layer via structured query methods. Use database-per-tenant for sensitive data requiring physical separation.",
+    "MySQL Views referencing session variables (@stratum_tenant_id) may not use indexes efficiently. Benchmark with large tables. The shared-table adapter's structured methods are the high-performance path.",
+    "The control plane (tenant hierarchy, config, audit log) always requires PostgreSQL via @stratum-hq/lib. MySQL carries application data only.",
+    "Database-per-tenant requires a connection pool per tenant. Configure maxPools to avoid exhausting MySQL connections. Idle pools are automatically closed after 60 seconds.",
+    "The TypeORM subscriber handles writes only (auto-injects tenant_id on insert). Use the shared-table adapter for tenant-scoped reads.",
+  ],
+};
+
+export const allORMs: ORMComparison[] = [prisma, drizzle, sequelize, knex, mongodb, mysql];
