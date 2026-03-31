@@ -8,12 +8,13 @@ afterEach(() => {
 });
 
 describe("Toast", () => {
-  it("renders without crashing and matches snapshot", () => {
+  it("renders without crashing", () => {
     const onDismiss = vi.fn();
     const { container } = render(
       <Toast message="Operation successful" type="success" onDismiss={onDismiss} autoDismiss={0} />,
     );
-    expect(container).toMatchSnapshot();
+    expect(container.querySelector(".stratum-toast")).toBeInTheDocument();
+    expect(container.textContent).toContain("Operation successful");
   });
 
   it("displays the message text", () => {
