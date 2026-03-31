@@ -10,7 +10,8 @@
 - **ALS convenience methods** — `Stratum.currentTenantId()`, `Stratum.currentTenantContext()`, `Stratum.runWithTenant()` on the Stratum class. (#72)
 - **Multi-schema migration runner** — `migrateAllSchemas()` with chunked `Promise.allSettled`, configurable concurrency, per-schema advisory locks. (#72)
 - **Browser playground** — PGlite + CodeMirror interactive playground running in-browser on Cloudflare Pages. (#67)
-- **Content/SEO pages** — comparison pages for each ORM (/compare/prisma, /compare/drizzle, /compare/sequelize, /compare/knex, /compare/mongodb), multi-tenancy checklist tool, connection pooling guide. (#73)
+- **MySQL tenant isolation** — new `@stratum-hq/mysql` package with three isolation strategies: shared table (structured query methods with tenant_id injection), table-per-tenant (namespace separation), and database-per-tenant (with LRU pool manager, active query tracking, and idle timeout). Includes TypeORM subscriber, Knex `withTenantScope()` helper, Sequelize adapter with try/finally session variable cleanup, and MySQL View utilities. 60 unit tests, 6 integration tests. (#80)
+- **Content/SEO pages** — comparison pages for each ORM (/compare/prisma, /compare/drizzle, /compare/sequelize, /compare/knex, /compare/mongodb, /compare/mysql), multi-tenancy checklist tool, connection pooling guide. (#73, #80)
 - **About/Contact pages** — plus RSS/Atom feeds and shared Nav/Footer. (#66)
 - **MongoDB docs guide** — Starlight docs covering strategy selection, security tradeoffs, and performance. (#76)
 

@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/MongoDB-6%2F7-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/MySQL-8-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
   <img src="https://img.shields.io/badge/npm-%40stratum--hq%2F*-cb3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License" />
@@ -88,6 +89,9 @@ npm install @stratum-hq/hono
 # MongoDB tenant isolation
 npm install @stratum-hq/mongodb mongodb
 
+# MySQL tenant isolation
+npm install @stratum-hq/mysql mysql2
+
 # React admin components
 npm install @stratum-hq/react
 
@@ -105,6 +109,7 @@ npm install -g @stratum-hq/cli
 | `@stratum-hq/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
 | `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
 | `@stratum-hq/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
+| `@stratum-hq/mysql` | MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize integrations |
 | `@stratum-hq/react` | React components — tenant tree, config editor, permission editor |
 | `@stratum-hq/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
 | `@stratum-hq/nestjs` | NestJS integration — guard, `@Tenant()` decorator, module with DI |
@@ -120,6 +125,7 @@ npm install -g @stratum-hq/cli
 - **ABAC** — attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
 - **Three PostgreSQL isolation strategies** — shared RLS, schema-per-tenant, database-per-tenant
 - **MongoDB isolation** — shared collection, collection-per-tenant, database-per-tenant with Mongoose plugin
+- **MySQL isolation** — shared table, table-per-tenant, database-per-tenant with TypeORM, Knex, and Sequelize integrations
 - **Field-level encryption** — AES-256-GCM with key rotation
 - **Audit logging** — every mutation with actor identity and before/after state
 - **GDPR compliance** — data export (Article 20) and hard purge (Article 17)
@@ -131,7 +137,7 @@ npm install -g @stratum-hq/cli
 - **Config diff** — compare resolved config between any two tenants
 - **Tenant impersonation** — resolve full context for admin tooling
 - **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **1700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16 and MongoDB 7
+- **1700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
 
 ## Running the Demo
 
@@ -166,7 +172,7 @@ npx @stratum-hq/cli doctor  # Check your DB setup
 
 ### Integration Tests
 
-Integration tests run against real PostgreSQL:
+Integration tests run against real PostgreSQL, MongoDB, and MySQL:
 
 ```bash
 docker compose --profile test up -d test-db
@@ -200,10 +206,16 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
          │   (shared, collection,       │
          │    database isolation)       ├── @stratum-hq/hono
          │                              │   (middleware, ALS context)
+         ├── @stratum-hq/mysql          │
+         │   (shared, table, database   ├── @stratum-hq/react
+         │    isolation + ORM helpers)  │   (UI components)
+         │                              │
          ├── PostgreSQL 16              │
-         │   (ltree, RLS, AES)         ├── @stratum-hq/react
-         │                              │   (UI components)
-         └── MongoDB 6/7               │
+         │   (ltree, RLS, AES)         │
+         │                              │
+         ├── MongoDB 6/7               │
+         │                              │
+         └── MySQL 8                   │
                                         └── @stratum-hq/cli
                                             (init, doctor, migrate)
 ```
