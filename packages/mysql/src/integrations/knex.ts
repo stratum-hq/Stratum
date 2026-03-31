@@ -16,6 +16,10 @@ export interface KnexLike {
 /**
  * Returns a wrapper function that pre-scopes queries to the given tenant.
  * Call the returned function with a table name to get a WHERE tenant_id = ? builder.
+ *
+ * Known limitation: the .where() clause is ignored by Knex on INSERT operations.
+ * You must include tenant_id in the data object yourself when inserting:
+ *   await scoped("users").insert({ tenant_id: tenantId, name: "Alice" });
  */
 export function withTenantScope(
   knex: KnexLike,
