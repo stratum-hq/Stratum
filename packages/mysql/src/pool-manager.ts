@@ -19,6 +19,7 @@ interface PoolEntry {
  */
 export class MysqlPoolManager {
   private readonly pools: Map<string, PoolEntry> = new Map();
+  private readonly pending: Map<string, Promise<MysqlPoolLike>> = new Map();
   private readonly createPool: (uri: string) => MysqlPoolLike | Promise<MysqlPoolLike>;
   private readonly baseUri: string;
   private readonly maxPools: number;
@@ -58,6 +59,17 @@ export class MysqlPoolManager {
       return existing.pool;
     }
 
+    // Deduplicate concurrent creation requests for the same slug.
+    const inflight = this.pending.get(slug);
+    if (inflight) {
+      const pool = await inflight;
+      const entry = this.pools.get(slug);
+      if (entry) {
+        entry.refCount++;
+      }
+      return pool;
+    }
+
     // Evict before adding so we never exceed maxPools.
     if (this.pools.size >= this.maxPools) {
       await this.evictLRU();
@@ -65,10 +77,16 @@ export class MysqlPoolManager {
 
     const dbName = `stratum_tenant_${slug}`;
     const uri = this.buildUri(dbName);
-    const pool = await this.createPool(uri);
+    const createPromise = Promise.resolve(this.createPool(uri));
+    this.pending.set(slug, createPromise);
 
-    this.pools.set(slug, { pool, lastUsed: Date.now(), refCount: 1 });
-    return pool;
+    try {
+      const pool = await createPromise;
+      this.pools.set(slug, { pool, lastUsed: Date.now(), refCount: 1 });
+      return pool;
+    } finally {
+      this.pending.delete(slug);
+    }
   }
 
   /**

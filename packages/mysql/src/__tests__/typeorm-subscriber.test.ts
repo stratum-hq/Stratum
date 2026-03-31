@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { stratumTypeOrmSubscriber } from "../integrations/typeorm-subscriber.js";
+import { StratumTypeOrmSubscriber } from "../integrations/typeorm-subscriber.js";
 
 vi.mock("@stratum-hq/sdk", () => ({
   getTenantContext: vi.fn(),
@@ -7,11 +7,11 @@ vi.mock("@stratum-hq/sdk", () => ({
 
 import { getTenantContext } from "@stratum-hq/sdk";
 
-describe("stratumTypeOrmSubscriber", () => {
-  let subscriber: stratumTypeOrmSubscriber;
+describe("StratumTypeOrmSubscriber", () => {
+  let subscriber: StratumTypeOrmSubscriber;
 
   beforeEach(() => {
-    subscriber = new stratumTypeOrmSubscriber();
+    subscriber = new StratumTypeOrmSubscriber();
     vi.clearAllMocks();
   });
 
