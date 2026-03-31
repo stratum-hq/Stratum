@@ -17,7 +17,7 @@ export interface EntitySubscriberInterface {
  * This subscriber handles writes only. Use the shared-table adapter's
  * structured methods for tenant-scoped reads.
  */
-export class stratumTypeOrmSubscriber implements EntitySubscriberInterface {
+export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   /** Injects the current tenant's ID into the entity before insert. */
   beforeInsert(event: InsertEvent): void {
     const context = getTenantContext();
