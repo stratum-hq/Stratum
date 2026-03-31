@@ -7,6 +7,7 @@ import type {
   AdapterStats,
 } from "../types.js";
 import { MysqlPoolManager } from "../pool-manager.js";
+import { escapeIdentifier } from "../utils.js";
 
 /**
  * Database-per-tenant adapter: each tenant gets a dedicated MySQL database.
@@ -30,13 +31,21 @@ export class MysqlDatabaseAdapter implements MysqlAdapter {
     return this.poolManager.getPool(tenantSlug);
   }
 
+  /** Decrements the refCount for the pool associated with the given slug. */
+  releasePool(tenantSlug: string): void {
+    this.poolManager.releasePool(tenantSlug);
+  }
+
   async purgeTenantData(tenantSlug: string): Promise<PurgeResult> {
     validateSlug(tenantSlug);
     try {
       const pool = await this.poolManager.getPool(tenantSlug);
       const dbName = `stratum_tenant_${tenantSlug}`;
-      await pool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
-      this.poolManager.releasePool(tenantSlug);
+      try {
+        await pool.query(`DROP DATABASE IF EXISTS ${escapeIdentifier(dbName)}`);
+      } finally {
+        this.poolManager.releasePool(tenantSlug);
+      }
       await this.poolManager.closePool(tenantSlug);
       return {
         success: true,
