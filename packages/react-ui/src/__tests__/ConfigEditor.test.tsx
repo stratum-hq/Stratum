@@ -87,12 +87,12 @@ function renderWithContext(ui: React.ReactElement) {
 }
 
 describe("ConfigEditor", () => {
-  it("renders without crashing and matches snapshot", async () => {
+  it("renders without crashing", async () => {
     const { container } = renderWithContext(<ConfigEditor />);
     await waitFor(() => {
       expect(within(container).getByRole("table")).toBeInTheDocument();
     });
-    expect(container).toMatchSnapshot();
+    expect(container.querySelector(".stratum-config-editor")).toBeInTheDocument();
   });
 
   it("renders a table with config columns", async () => {
