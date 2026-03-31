@@ -53,9 +53,12 @@ export class MysqlTableAdapter implements MysqlAdapter {
     const errors: PurgeResult["errors"] = [];
     let tablesProcessed = 0;
 
+    const exactSuffix = `_${tenantSlug}`;
     for (const row of tableRows) {
       const tableName = Object.values(row)[0];
       if (!tableName) continue;
+      // Post-filter: verify exact suffix match to prevent 'e' matching 'orders_acme'
+      if (!tableName.endsWith(exactSuffix)) continue;
       try {
         await this.pool.query(`DROP TABLE IF EXISTS ${escapedDb}.${escapeIdentifier(tableName)}`);
         tablesProcessed++;
