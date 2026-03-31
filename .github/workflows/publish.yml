@@ -77,6 +77,31 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npm publish --workspaces --access public
+      - name: Publish packages (skip already-published versions)
+        run: |
+          failed=0
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              name=$(node -p "require('./$pkg/package.json').name")
+              version=$(node -p "require('./$pkg/package.json').version")
+              is_private=$(node -p "require('./$pkg/package.json').private || false")
+              if [ "$is_private" = "true" ]; then
+                echo "⏭️  $name (private, skipping)"
+                continue
+              fi
+              output=$(cd "$pkg" && npm publish --access public 2>&1) && {
+                echo "✅ $name@$version published"
+              } || {
+                if echo "$output" | grep -q "You cannot publish over the previously published"; then
+                  echo "⏭️  $name@$version already published, skipping"
+                else
+                  echo "❌ $name@$version failed to publish"
+                  echo "$output"
+                  failed=1
+                fi
+              }
+            fi
+          done
+          exit $failed
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
