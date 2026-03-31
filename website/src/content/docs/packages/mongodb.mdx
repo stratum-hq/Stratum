@@ -1,0 +1,44 @@
+---
+title: "@stratum-hq/mongodb"
+description: MongoDB tenant isolation with three strategies, Mongoose plugin, and GDPR purge.
+---
+
+`@stratum-hq/mongodb` adds multi-tenant document isolation for applications using MongoDB or Mongoose. Three isolation strategies are available: shared collection, collection-per-tenant, and database-per-tenant.
+
+## Installation
+
+```bash
+npm install @stratum-hq/mongodb mongodb
+```
+
+Optional: `mongoose` for the auto-scoping plugin.
+
+## Quick Start
+
+```typescript
+import { MongoClient } from "mongodb";
+import { MongoSharedAdapter } from "@stratum-hq/mongodb";
+
+const client = new MongoClient(process.env.MONGODB_URI);
+const adapter = new MongoSharedAdapter({
+  client,
+  databaseName: "myapp",
+});
+
+// Scoped collection auto-injects tenant_id into every query
+const orders = adapter.scopedCollection("acme", "orders");
+await orders.insertOne({ product: "Widget", quantity: 5 });
+const results = await orders.find({}).toArray(); // only acme's orders
+```
+
+## Features
+
+- **Three isolation strategies** -- shared collection, collection-per-tenant, database-per-tenant
+- **Mongoose plugin** -- auto-injects tenant_id via AsyncLocalStorage on save, find, update, delete, and aggregate
+- **Fail-closed proxy** -- blocks unsafe aggregate stages (`$lookup`, `$merge`, `$out`) that could bypass isolation
+- **GDPR purge** -- `purgeTenantData()` with `Promise.allSettled` for partial-failure resilience
+- **LRU pool manager** -- for database-per-tenant, manages connection pools with configurable eviction
+
+## Full Guide
+
+See the [MongoDB Multi-Tenancy guide](/guides/mongodb/) for strategy selection, security tradeoffs, Mongoose plugin setup, ALS context wiring, and performance tuning.

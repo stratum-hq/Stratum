@@ -1,0 +1,270 @@
+---
+title: MySQL Multi-Tenancy
+description: Use @stratum-hq/mysql for relational-database tenant isolation alongside the PostgreSQL control plane.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/mysql` adds multi-tenant row isolation for applications using MySQL. Stratum supports PostgreSQL, MongoDB, and MySQL in the same project.
+
+**How it fits together:** The control plane -- tenant hierarchy, config inheritance, audit log, and GDPR operations -- always lives in PostgreSQL via `@stratum-hq/lib`. MySQL carries your application data. The two databases are complementary, not competing.
+
+## Choosing a Strategy
+
+Three isolation strategies are available, set once per deployment:
+
+| Strategy | Boundary | Isolation Level | Best For |
+|---|---|---|---|
+| `SHARED_TABLE` | `tenant_id` column | Application-enforced | Most applications, high tenant count |
+| `TABLE_PER_TENANT` | Table namespace | Application-enforced | Apps needing separate indexes per tenant |
+| `DATABASE_PER_TENANT` | Separate MySQL database | Connection-level | Compliance requirements, sensitive data |
+
+### Shared Table
+
+All tenants share the same MySQL tables. A `tenant_id` column on every table scopes queries. The adapter's structured methods (`scopedSelect`, `scopedInsert`, `scopedUpdate`, `scopedDelete`) automatically inject and filter `tenant_id` on every operation.
+
+**Tradeoff:** Isolation is application-enforced. MySQL has no equivalent of PostgreSQL Row-Level Security. A bug in your application code could expose cross-tenant data. Mitigate this with isolation tests in your test suite and code review discipline.
+
+### Table-per-Tenant
+
+Each tenant gets its own set of tables, named `{table}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' tables still live in the same database and are accessible to the same connection.
+
+**Tradeoff:** Good for applications that need different indexes per tenant. Does not prevent a misconfigured query from reading another tenant's table.
+
+### Database-per-Tenant
+
+Each tenant gets a dedicated MySQL database with its own connection pool. This is the strongest isolation available in MySQL.
+
+**Tradeoff:** Each database requires its own connection pool. For large tenant counts, configure the pool manager's `maxPools` and `idleTimeoutMs` to avoid exhausting MySQL connections. Idle pools are automatically closed after 60 seconds by default.
+
+<Aside type="tip">
+  Prefer `DATABASE_PER_TENANT` when tenants have compliance requirements (healthcare, financial services) or when your threat model requires physical data separation.
+</Aside>
+
+## Getting Started
+
+Install the package:
+
+```bash
+npm install @stratum-hq/mysql mysql2
+```
+
+### Shared Table
+
+```typescript
+import mysql from "mysql2/promise";
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+import { MysqlSharedAdapter } from "@stratum-hq/mysql";
+
+// Control plane: always PostgreSQL
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const stratum = new Stratum({ pool, autoMigrate: true });
+await stratum.initialize();
+
+// MySQL adapter for application data
+const mysqlPool = mysql.createPool(process.env.MYSQL_URL);
+const adapter = new MysqlSharedAdapter({
+  pool: mysqlPool,
+  databaseName: "myapp",
+});
+
+// Create a tenant (stored in PostgreSQL control plane)
+const tenant = await stratum.createTenant({
+  name: "Acme Corp",
+  slug: "acme",
+});
+
+// Structured query methods auto-inject tenant_id
+const users = await adapter.scopedSelect(tenant.id, "users");
+await adapter.scopedInsert(tenant.id, "users", { name: "Alice", email: "alice@acme.com" });
+await adapter.scopedUpdate(tenant.id, "users", { name: "Bob" }, { id: 1 });
+await adapter.scopedDelete(tenant.id, "users", { id: 1 });
+```
+
+### Table-per-Tenant
+
+```typescript
+import { MysqlTableAdapter } from "@stratum-hq/mysql";
+
+const adapter = new MysqlTableAdapter({
+  pool: mysqlPool,
+  databaseName: "myapp",
+});
+
+// Returns the escaped table name: `users_acme`
+const tableName = adapter.scopedTable("acme", "users");
+
+// Use the pool directly with the scoped table name
+const [rows] = await mysqlPool.query(`SELECT * FROM ${tableName}`);
+```
+
+### Database-per-Tenant
+
+```typescript
+import { MysqlDatabaseAdapter } from "@stratum-hq/mysql";
+
+const adapter = new MysqlDatabaseAdapter({
+  createPool: (uri) => mysql.createPool(uri),
+  baseUri: "mysql://root@localhost:3306/placeholder",
+  maxPools: 20,         // LRU eviction beyond this count
+  idleTimeoutMs: 60000, // close idle pools after 60 seconds
+});
+
+// Returns a pool connected to stratum_tenant_acme
+const tenantPool = await adapter.getPool("acme");
+const [rows] = await tenantPool.query("SELECT * FROM users");
+
+// Clean up on app shutdown
+await adapter.closeAll();
+```
+
+## ORM Integrations
+
+### TypeORM Subscriber
+
+Auto-injects `tenant_id` on every insert using AsyncLocalStorage context:
+
+```typescript
+import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
+
+const dataSource = new DataSource({
+  subscribers: [StratumTypeOrmSubscriber],
+  // ... your TypeORM config
+});
+```
+
+<Aside type="caution">
+  TypeORM subscribers can intercept writes but not reads. The subscriber auto-injects `tenant_id` on insert, but you must use the shared-table adapter's structured methods (or manual WHERE clauses) for tenant-scoped reads.
+</Aside>
+
+### Knex Helper
+
+Wraps any Knex query builder with automatic `WHERE tenant_id = ?`:
+
+```typescript
+import { withTenantScope } from "@stratum-hq/mysql";
+
+const tenantKnex = withTenantScope(knex, "acme");
+const users = await tenantKnex("users").select("*");
+// Automatically adds: WHERE tenant_id = 'acme'
+```
+
+### Sequelize Adapter
+
+Wraps queries with MySQL session variables, guaranteeing cleanup via `try/finally`:
+
+```typescript
+import { withMysqlTenantScope } from "@stratum-hq/mysql";
+
+await withMysqlTenantScope(sequelize, "acme", async (scoped) => {
+  // Session variable @stratum_tenant_id is set for this scope
+  // Guaranteed cleanup via try/finally, even on errors
+  const users = await scoped.query("SELECT * FROM users_view");
+});
+```
+
+## MySQL Views (Convenience Layer)
+
+MySQL Views can create tenant-scoped read access using session variables. Use `setTenantSession()` to set the session variable, then query through the view.
+
+```typescript
+import { createTenantView, setTenantSession } from "@stratum-hq/mysql";
+
+// Create a view that filters by @stratum_tenant_id
+await createTenantView(mysqlPool, "users");
+// Creates: CREATE OR REPLACE VIEW users_tenant_view AS
+//          SELECT * FROM users WHERE tenant_id = @stratum_tenant_id
+
+// Set the session variable, then query the view
+const conn = await mysqlPool.getConnection();
+await setTenantSession(conn, "acme");
+const [rows] = await conn.query("SELECT * FROM users_tenant_view");
+conn.release();
+```
+
+<Aside type="caution">
+  **Views are NOT a security boundary.** Unlike PostgreSQL RLS, MySQL Views can be bypassed by querying the underlying table directly. Views referencing session variables (`@stratum_tenant_id`) may not use indexes efficiently on large tables. Benchmark with >100k rows. Use the shared-table adapter's structured methods for high-performance workloads.
+</Aside>
+
+## GDPR Compliance
+
+All three adapters implement `purgeTenantData()` to permanently delete tenant data:
+
+```typescript
+// Shared table: discovers tenant tables via INFORMATION_SCHEMA, deletes rows
+const result = await sharedAdapter.purgeTenantData("acme");
+
+// Table-per-tenant: discovers and drops tenant-specific tables
+const result = await tableAdapter.purgeTenantData("acme");
+
+// Database-per-tenant: drops the entire tenant database
+const result = await dbAdapter.purgeTenantData("acme");
+```
+
+Check the result for partial failures:
+
+```typescript
+if (!result.success) {
+  console.error("Purge incomplete:", result.errors);
+  // result.errors lists tables that failed with the error
+}
+```
+
+<Aside type="caution">
+  Always check `result.success` after calling `purgeTenantData()`. Partial purges leave tenant data in place. For GDPR compliance, treat any error as a blocking issue.
+</Aside>
+
+## Security Considerations
+
+MySQL does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is no database-level mechanism that enforces tenant isolation independent of application code.
+
+**What this means in practice:**
+
+- For `SHARED_TABLE` and `TABLE_PER_TENANT`: if a query is executed without using the adapter's structured methods, it will see all tenants' data.
+- For `DATABASE_PER_TENANT`: isolation is at the connection level -- a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MySQL offers.
+
+**Recommendations:**
+
+1. **Use `DATABASE_PER_TENANT` for sensitive data.** This provides connection-level isolation that does not depend on application-layer filtering.
+2. **Always use structured methods** (`scopedSelect`, `scopedInsert`, etc.) or the Knex/Sequelize integrations for tenant-scoped queries. Never query raw tables without tenant filtering.
+3. **Add isolation tests to your test suite** to catch regressions before they reach production.
+4. **Audit all query paths** that touch tenant data, especially background jobs and admin scripts.
+
+<Aside type="note">
+  This is an honest limitation of the MySQL data model. If your compliance requirements mandate database-level enforcement, use `DATABASE_PER_TENANT` or consider whether PostgreSQL with RLS is a better fit for your data.
+</Aside>
+
+## Performance
+
+### Shared Table Index Requirements
+
+Add a compound index with `tenant_id` as the leading field on every table:
+
+```sql
+CREATE INDEX idx_users_tenant ON users (tenant_id, created_at);
+CREATE INDEX idx_orders_tenant ON orders (tenant_id, status);
+```
+
+Without tenant-prefixed indexes, every scoped query does a full table scan.
+
+### Database-per-Tenant Pool Tuning
+
+Each tenant database gets its own connection pool. Tune `maxPools` and `idleTimeoutMs` based on your active tenant count and MySQL instance capacity:
+
+```typescript
+const adapter = new MysqlDatabaseAdapter({
+  createPool: (uri) => mysql.createPool(uri),
+  baseUri: process.env.MYSQL_URL,
+  maxPools: 50,          // max concurrent tenant pools (default: 20)
+  idleTimeoutMs: 60000,  // close idle pools after 60s (default: 60000)
+});
+```
+
+A rough formula: `maxConnections = activeTenants * connectionsPerPool`. For 50 active tenants at mysql2's default `connectionLimit: 10`, budget 500 connections on your MySQL instance.
+
+### MySQL Views Performance
+
+Views referencing session variables (`@stratum_tenant_id`) may not use indexes efficiently because MySQL treats session variables as opaque runtime values. The optimizer cannot push them into index lookups.
+
+For high-performance workloads, use the shared-table adapter's structured methods instead. The parameterized `WHERE tenant_id = ?` in structured methods allows MySQL to use indexes normally.

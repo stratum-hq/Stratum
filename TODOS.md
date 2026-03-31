@@ -1,6 +1,6 @@
 # Stratum — Outstanding Work
 
-Last updated: 2026-03-30
+Last updated: 2026-03-31
 Source: CEO review (/plan-ceo-review) + eng review (/plan-eng-review)
 
 ## P0 — Critical (shipping blockers)
@@ -77,6 +77,7 @@ Source: Analysis of 204 npm packages, 6 GitHub repos, community threads, blog po
 - [x] ~~Drizzle ORM adapter~~ → PR #69 (DrizzleLike structural interface, transaction-wrapping with set_config, drizzle-orm optional peer dep, 15 tests)
 - [x] ~~Hono framework middleware~~ → PR #70 (@stratum-hq/hono package, tenant extraction from header/JWT/path param, ALS context via runWithTenantContext, optional resolve callback, 9 tests)
 - [x] ~~Mongoose adapter~~ → PR #76 (@stratum-hq/mongodb package with 3 isolation strategies, Mongoose plugin, 54 unit tests)
+- [x] ~~MySQL adapter~~ → PR #80 (@stratum-hq/mysql package with 3 isolation strategies, TypeORM subscriber, Knex helper, Sequelize adapter, MySQL View utilities, 60 unit tests, 6 integration tests)
 
 ### DX Improvements (reduce friction)
 - [x] ~~AsyncLocalStorage tenant context~~ → PR #72 (Stratum.currentTenantId(), Stratum.currentTenantContext(), Stratum.runWithTenant(), re-exports from @stratum-hq/sdk, 6 tests)
