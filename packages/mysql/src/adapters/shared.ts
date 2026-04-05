@@ -119,10 +119,13 @@ export class MysqlSharedAdapter implements MysqlAdapter {
   }
 
   /**
-   * Executes SQL as-is. Caller owns the WHERE clause and all tenant scoping.
-   * No tenant_id injection is performed.
+   * Executes raw SQL without any tenant scoping. The caller is fully responsible
+   * for including appropriate WHERE tenant_id = ? clauses.
+   *
+   * WARNING: This method does NOT inject tenant_id. Use scopedSelect/scopedInsert
+   * for automatically scoped operations.
    */
-  async scopedRawQuery(sql: string, params?: unknown[]): Promise<unknown> {
+  async unscopedRawQuery(sql: string, params?: unknown[]): Promise<unknown> {
     return this.pool.query(sql, params);
   }
 
