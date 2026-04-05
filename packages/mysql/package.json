@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/mysql",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MySQL tenant isolation for Stratum — shared table, table-per-tenant, and database-per-tenant strategies",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
