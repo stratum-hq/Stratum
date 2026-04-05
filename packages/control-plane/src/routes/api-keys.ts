@@ -45,6 +45,13 @@ export function createApiKeyRoutes(stratum: Stratum) {
       const raw = request.query.days ? parseInt(request.query.days, 10) : 90;
       const days = Number.isNaN(raw) || raw < 1 ? 90 : Math.min(raw, 365);
       const keys = await stratum.listDormantKeys(days);
+      const scopedTenantId = request.apiKey?.tenant_id;
+      if (scopedTenantId) {
+        const descendants = await stratum.getDescendants(scopedTenantId);
+        const allowed = new Set([scopedTenantId, ...descendants.map((d: { id: string }) => d.id)]);
+        reply.status(200).send(keys.filter((k: { tenant_id?: string | null }) => k.tenant_id && allowed.has(k.tenant_id)));
+        return;
+      }
       reply.status(200).send(keys);
     });
 

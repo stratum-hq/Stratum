@@ -30,7 +30,10 @@ export class DrizzleAdapter extends BaseAdapter {
     const wrappedTransaction = async <T>(fn: (tx: DrizzleLike) => Promise<T>): Promise<T> => {
       const tenantId = contextFn();
       if (!tenantId) {
-        return original.transaction(fn);
+        throw new Error(
+          "Tenant context is required for database operations. " +
+          "Use the unwrapped instance for system/admin operations."
+        );
       }
       return original.transaction(async (tx: DrizzleLike) => {
         await tx.execute({
@@ -44,7 +47,10 @@ export class DrizzleAdapter extends BaseAdapter {
     const wrappedExecute = async (query: unknown): Promise<unknown> => {
       const tenantId = contextFn();
       if (!tenantId) {
-        return original.execute(query);
+        throw new Error(
+          "Tenant context is required for database operations. " +
+          "Use the unwrapped instance for system/admin operations."
+        );
       }
       return original.transaction(async (tx: DrizzleLike) => {
         await tx.execute({

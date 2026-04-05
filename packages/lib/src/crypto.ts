@@ -5,9 +5,15 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURRENT_KEY_VERSION = "v1";
 
-const HKDF_SALT: Buffer = process.env.STRATUM_HKDF_SALT
-  ? Buffer.from(process.env.STRATUM_HKDF_SALT, "hex")
-  : Buffer.alloc(32, 0);
+const HKDF_SALT: Buffer = (() => {
+  if (process.env.STRATUM_HKDF_SALT) {
+    return Buffer.from(process.env.STRATUM_HKDF_SALT, "hex");
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("STRATUM_HKDF_SALT must be set in production");
+  }
+  return crypto.randomBytes(32);
+})();
 
 function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
   return Buffer.from(

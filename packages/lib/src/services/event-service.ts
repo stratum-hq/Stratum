@@ -35,7 +35,7 @@ function isBlockedIp(ip: string): boolean {
 }
 
 /** Validates that a webhook URL does not target internal/private networks. */
-function validateWebhookUrl(url: string): void {
+export function validateWebhookUrl(url: string): void {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -65,7 +65,7 @@ function validateWebhookUrl(url: string): void {
  * DNS-rebinding-safe validation: resolve hostname and check all resolved IPs
  * against blocked ranges. Call this at delivery time, not just registration.
  */
-async function validateWebhookUrlWithDns(url: string): Promise<void> {
+export async function validateWebhookUrlWithDns(url: string): Promise<void> {
   // First run the synchronous checks
   validateWebhookUrl(url);
 
