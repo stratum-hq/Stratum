@@ -14,21 +14,21 @@ function createMockBuilder(): KnexQueryBuilderLike {
   return builder;
 }
 
-function createMockKnex(): KnexLike {
-  const builder = createMockBuilder();
-  const knex = vi.fn().mockReturnValue(builder) as unknown as KnexLike;
-  return knex;
+function createMockKnexWithBuilder(): { knex: KnexLike; mockBuilder: KnexQueryBuilderLike } {
+  const mockBuilder = createMockBuilder();
+  const knex = vi.fn().mockReturnValue(mockBuilder) as unknown as KnexLike;
+  return { knex, mockBuilder };
 }
 
 describe("withTenantScope", () => {
   it("returns a scoped query builder factory", () => {
-    const knex = createMockKnex();
+    const { knex } = createMockKnexWithBuilder();
     const scoped = withTenantScope(knex, "tenant1");
     expect(typeof scoped).toBe("function");
   });
 
   it("scoped builder adds WHERE tenant_id clause for the given tenant", () => {
-    const knex = createMockKnex();
+    const { knex } = createMockKnexWithBuilder();
     const scoped = withTenantScope(knex, "tenant1");
     const builder = scoped("users");
 
@@ -37,7 +37,7 @@ describe("withTenantScope", () => {
   });
 
   it("works with select chains", () => {
-    const knex = createMockKnex();
+    const { knex } = createMockKnexWithBuilder();
     const scoped = withTenantScope(knex, "tenant1");
     const builder = scoped("orders");
 
@@ -46,7 +46,7 @@ describe("withTenantScope", () => {
   });
 
   it("works with update chains", () => {
-    const knex = createMockKnex();
+    const { knex } = createMockKnexWithBuilder();
     const scoped = withTenantScope(knex, "tenant1");
     const builder = scoped("users");
 
@@ -55,7 +55,7 @@ describe("withTenantScope", () => {
   });
 
   it("works with delete chains", () => {
-    const knex = createMockKnex();
+    const { knex } = createMockKnexWithBuilder();
     const scoped = withTenantScope(knex, "tenant1");
     const builder = scoped("users");
 
@@ -63,12 +63,28 @@ describe("withTenantScope", () => {
     expect(builder.delete).toHaveBeenCalled();
   });
 
-  it("works with insert", async () => {
-    const knex = createMockKnex();
+  it("insert injects tenant_id into a single row", async () => {
+    const { knex, mockBuilder } = createMockKnexWithBuilder();
+    const originalInsertSpy = mockBuilder.insert as ReturnType<typeof vi.fn>;
+
     const scoped = withTenantScope(knex, "tenant1");
     const builder = scoped("users");
 
     await builder.insert({ name: "Bob" });
-    expect(builder.insert).toHaveBeenCalledWith({ name: "Bob" });
+    expect(originalInsertSpy).toHaveBeenCalledWith({ name: "Bob", tenant_id: "tenant1" });
+  });
+
+  it("insert injects tenant_id into each row of a batch", async () => {
+    const { knex, mockBuilder } = createMockKnexWithBuilder();
+    const originalInsertSpy = mockBuilder.insert as ReturnType<typeof vi.fn>;
+
+    const scoped = withTenantScope(knex, "tenant1");
+    const builder = scoped("users");
+
+    await builder.insert([{ name: "Alice" }, { name: "Bob" }]);
+    expect(originalInsertSpy).toHaveBeenCalledWith([
+      { name: "Alice", tenant_id: "tenant1" },
+      { name: "Bob", tenant_id: "tenant1" },
+    ]);
   });
 });
