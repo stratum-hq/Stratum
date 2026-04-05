@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/lib",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Stratum tenant management library - framework-agnostic business logic",
   "keywords": [
     "multi-tenancy",
