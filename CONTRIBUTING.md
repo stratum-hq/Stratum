@@ -34,12 +34,12 @@ Tests use [Vitest](https://vitest.dev/). Integration tests in `packages/integrat
 
 ## Making Changes
 
-1. **Fork** the repo and create a branch from `master`:
+1. **Fork** the repo and create a branch from `main`:
    ```bash
    git checkout -b feat/my-feature
    ```
 2. Make your changes and ensure tests pass.
-3. Push your branch and open a **Pull Request** against `master`.
+3. Push your branch and open a **Pull Request** against `main`.
 4. Fill out the PR description and link any related issues.
 
 PRs should be focused — one feature or fix per PR. Keep commits clean and descriptive.
