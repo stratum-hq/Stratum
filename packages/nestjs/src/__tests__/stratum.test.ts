@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { resolveFromHeader, resolveFromJwt, setTenantContext } from "@stratum-hq/sdk";
+import { resolveFromHeader, resolveFromJwt } from "@stratum-hq/sdk";
 
 // ── Minimal NestJS interface stubs ──────────────────────────────────────────
 interface HttpArgumentsHost {
@@ -151,13 +151,10 @@ async function canActivate(
 
       options.impersonation.onImpersonate?.(req, tenantId, impersonateTenantId);
 
-      setTenantContext(impersonatedContext as any);
       return true;
     }
   }
 
-  // 4. Bind AsyncLocalStorage context
-  setTenantContext(callerContext as any);
   return true;
 }
 

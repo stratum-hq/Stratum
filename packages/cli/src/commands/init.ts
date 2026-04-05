@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import crypto from "node:crypto";
 import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 
@@ -187,9 +188,10 @@ function writeFile(filePath: string, content: string, force: boolean): void {
 
 function generateEnvFile(outDir: string, _info: ProjectInfo, force: boolean): void {
   void _info;
+  const jwtSecret = crypto.randomBytes(32).toString("base64url");
   const content = `# Stratum Configuration
 DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
-JWT_SECRET=change-me-in-production
+JWT_SECRET=${jwtSecret}
 NODE_ENV=development
 
 # Control Plane (if using @stratum-hq/sdk)

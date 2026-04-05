@@ -2,6 +2,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import crypto from "node:crypto";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 
@@ -178,6 +179,7 @@ COMMENT ON DATABASE ${dbName} IS 'Multi-tenant database for ${projectName}';
 
 function generateEnv(projectName: string): string {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  const jwtSecret = crypto.randomBytes(32).toString("base64url");
   return `# Environment variables for ${projectName}
 # Copy to .env and fill in values
 
@@ -185,7 +187,7 @@ function generateEnv(projectName: string): string {
 DATABASE_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}
 
 # Authentication
-JWT_SECRET=change-me-in-production
+JWT_SECRET=${jwtSecret}
 
 # Stratum Control Plane
 STRATUM_URL=http://localhost:3001

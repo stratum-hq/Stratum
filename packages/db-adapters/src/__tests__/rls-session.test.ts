@@ -36,7 +36,7 @@ describe("RLS Session", () => {
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(call[0]).toBe(
-        "SELECT set_config('app.current_tenant_id', $1, false)",
+        "SELECT set_config('app.current_tenant_id', $1, true)",
       );
       expect(call[1]).toEqual(["tenant-abc-123"]);
     });
@@ -49,13 +49,13 @@ describe("RLS Session", () => {
       expect(params).toEqual(["f47ac10b-58cc-4372-a567-0e02b2c3d479"]);
     });
 
-    it("uses session-level scope (third arg false)", async () => {
+    it("uses transaction-scoped scope (third arg true)", async () => {
       await setTenantContext(client, "any-tenant");
 
       const sql = (client.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      // The third argument to set_config is `false`, meaning session-level
-      // (not transaction-local) so context persists even without a transaction
-      expect(sql).toContain("false");
+      // The third argument to set_config is `true`, meaning transaction-scoped
+      // so context is automatically cleared when the transaction ends
+      expect(sql).toContain("true");
     });
   });
 
@@ -68,7 +68,7 @@ describe("RLS Session", () => {
       await resetTenantContext(client);
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(call[0]).toBe("SELECT set_config('app.current_tenant_id', '', false)");
+      expect(call[0]).toBe("SELECT set_config('app.current_tenant_id', '', true)");
     });
   });
 

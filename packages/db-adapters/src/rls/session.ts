@@ -4,11 +4,11 @@ export async function setTenantContext(
   client: pg.PoolClient,
   tenantId: string,
 ): Promise<void> {
-  await client.query("SELECT set_config('app.current_tenant_id', $1, false)", [tenantId]);
+  await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
 }
 
 export async function resetTenantContext(client: pg.PoolClient): Promise<void> {
-  await client.query("SELECT set_config('app.current_tenant_id', '', false)");
+  await client.query("SELECT set_config('app.current_tenant_id', '', true)");
 }
 
 export async function withTenantContext<T>(
@@ -18,10 +18,15 @@ export async function withTenantContext<T>(
 ): Promise<T> {
   const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     await setTenantContext(client, tenantId);
-    return await fn(client);
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
   } finally {
-    await resetTenantContext(client);
     client.release();
   }
 }

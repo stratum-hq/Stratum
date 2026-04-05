@@ -1,8 +1,10 @@
 import { Module, DynamicModule, Global } from "@nestjs/common";
 import type { FactoryProvider, ModuleMetadata } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 import { StratumClient } from "@stratum-hq/sdk";
 import { STRATUM_CLIENT, STRATUM_OPTIONS } from "./constants.js";
 import { StratumGuard } from "./stratum.guard.js";
+import { StratumContextInterceptor } from "./stratum.interceptor.js";
 
 export interface StratumModuleOptions {
   controlPlaneUrl: string;
@@ -51,7 +53,7 @@ export class StratumModule {
 
     return {
       module: StratumModule,
-      providers: [clientProvider, optionsProvider, StratumGuard],
+      providers: [clientProvider, optionsProvider, StratumGuard, { provide: APP_INTERCEPTOR, useClass: StratumContextInterceptor }],
       exports: [STRATUM_CLIENT, StratumGuard],
     };
   }
@@ -82,7 +84,7 @@ export class StratumModule {
     return {
       module: StratumModule,
       imports: asyncOptions.imports ?? [],
-      providers: [optionsProvider, clientProvider, StratumGuard],
+      providers: [optionsProvider, clientProvider, StratumGuard, { provide: APP_INTERCEPTOR, useClass: StratumContextInterceptor }],
       exports: [STRATUM_CLIENT, StratumGuard],
     };
   }

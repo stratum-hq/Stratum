@@ -95,14 +95,14 @@ describe("MysqlSharedAdapter", () => {
     });
   });
 
-  describe("scopedRawQuery", () => {
+  describe("unscopedRawQuery", () => {
     it("passes SQL through without modification", async () => {
-      await adapter.scopedRawQuery("SELECT 1", []);
+      await adapter.unscopedRawQuery("SELECT 1", []);
       expect(pool.query).toHaveBeenCalledWith("SELECT 1", []);
     });
 
     it("passes SQL without params", async () => {
-      await adapter.scopedRawQuery("SELECT NOW()");
+      await adapter.unscopedRawQuery("SELECT NOW()");
       expect(pool.query).toHaveBeenCalledWith("SELECT NOW()", undefined);
     });
   });

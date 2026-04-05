@@ -32,7 +32,7 @@ await adapter.scopedUpdate("tenant-a", "users", { name: "Bob" }, { id: 1 });
 await adapter.scopedDelete("tenant-a", "users", { id: 1 });
 
 // Raw escape hatch (you own the WHERE clause)
-await adapter.scopedRawQuery("SELECT * FROM users WHERE tenant_id = ? AND active = ?", ["tenant-a", true]);
+await adapter.unscopedRawQuery("SELECT * FROM users WHERE tenant_id = ? AND active = ?", ["tenant-a", true]);
 
 // GDPR purge
 await adapter.purgeTenantData("tenant-a");

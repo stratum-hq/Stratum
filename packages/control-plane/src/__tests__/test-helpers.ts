@@ -11,8 +11,8 @@ import { createApiKeyRoutes } from "../routes/api-keys.js";
 import { createConfigDiffRoutes } from "../routes/config-diff.js";
 import type { Stratum } from "@stratum-hq/lib";
 
-// The JWT secret used in dev mode (from config.ts fallback)
-export const TEST_JWT_SECRET = "dev-secret-change-in-production";
+// Must match the JWT_SECRET env var set in vitest.config.ts
+export const TEST_JWT_SECRET = "test-jwt-secret-for-unit-tests";
 
 /**
  * Create a mock Stratum instance with all methods stubbed via vi.fn().

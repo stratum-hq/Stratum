@@ -31,7 +31,10 @@ export class SequelizeAdapter extends BaseAdapter {
     const wrappedQuery = async (sql: string, options?: Record<string, unknown>) => {
       const tenantId = contextFn();
       if (!tenantId) {
-        return original.query(sql, options);
+        throw new Error(
+          "Tenant context is required for database operations. " +
+          "Use the unwrapped instance for system/admin operations."
+        );
       }
       return original.transaction(async (t: unknown) => {
         await original.query(

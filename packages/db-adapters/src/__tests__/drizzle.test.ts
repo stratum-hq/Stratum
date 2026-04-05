@@ -128,34 +128,24 @@ describe("DrizzleAdapter", () => {
       expect((mock.executions[0].query as any).params).toEqual(["tenant-2"]);
     });
 
-    it("skips transaction wrapper when contextFn returns empty string (execute)", async () => {
+    it("throws when contextFn returns empty string (execute)", async () => {
       const mock = createMockDrizzle();
-      const transactionSpy = vi.spyOn(mock, "transaction");
       const wrapped = adapter.withTenantScope(mock, () => "");
 
-      await wrapped.execute({ sql: "SELECT 1" });
-
-      expect(transactionSpy).not.toHaveBeenCalled();
-      expect(mock.executions).toHaveLength(1);
-      expect((mock.executions[0].query as any).sql).toBe("SELECT 1");
+      await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow(
+        "Tenant context is required for database operations.",
+      );
     });
 
-    it("skips transaction wrapper when contextFn returns empty string (transaction)", async () => {
+    it("throws when contextFn returns empty string (transaction)", async () => {
       const mock = createMockDrizzle();
-      const transactionSpy = vi.spyOn(mock, "transaction");
       const wrapped = adapter.withTenantScope(mock, () => "");
 
-      await wrapped.transaction(async (tx) => {
-        await tx.execute({ sql: "SELECT 1" });
-      });
-
-      // transaction is called once (the user's call), but no extra wrapping
-      expect(transactionSpy).toHaveBeenCalledTimes(1);
-      // Only the user's query, no set_config
-      const setConfigCalls = mock.executions.filter(
-        (e) => typeof (e.query as any)?.sql === "string" && (e.query as any).sql.includes("set_config"),
-      );
-      expect(setConfigCalls).toHaveLength(0);
+      await expect(
+        wrapped.transaction(async (tx) => {
+          await tx.execute({ sql: "SELECT 1" });
+        }),
+      ).rejects.toThrow("Tenant context is required for database operations.");
     });
 
     it("propagates errors thrown by set_config (execute path)", async () => {
@@ -193,15 +183,14 @@ describe("DrizzleAdapter", () => {
       ).rejects.toThrow("set_config failed");
     });
 
-    it("delegates execute() to the original instance when no tenant", async () => {
+    it("throws when execute() called with no tenant", async () => {
       const mock = createMockDrizzle();
-      const executeSpy = vi.spyOn(mock, "execute");
       const wrapped = adapter.withTenantScope(mock, () => "");
 
       const query = { sql: "SELECT 1" };
-      await wrapped.execute(query);
-
-      expect(executeSpy).toHaveBeenCalledWith(query);
+      await expect(wrapped.execute(query)).rejects.toThrow(
+        "Tenant context is required for database operations.",
+      );
     });
   });
 });
@@ -226,15 +215,13 @@ describe("withTenantScope (convenience function)", () => {
     expect((mock.executions[0].query as any).params).toEqual(["fn-tenant"]);
   });
 
-  it("skips transaction when contextFn returns empty string", async () => {
+  it("throws when contextFn returns empty string", async () => {
     const mock = createMockDrizzle();
-    const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
     const wrapped = withTenantScope(mock, () => "", pool as any);
 
-    await wrapped.execute({ sql: "SELECT 1" });
-
-    expect(transactionSpy).not.toHaveBeenCalled();
-    expect(mock.executions).toHaveLength(1);
+    await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow(
+      "Tenant context is required for database operations.",
+    );
   });
 });

@@ -500,7 +500,7 @@ export class Stratum {
 
   // Webhook operations
   async createWebhook(input: CreateWebhookInput, audit?: AuditContext): Promise<Webhook> {
-    this.validateWebhookUrl(input.url);
+    await eventService.validateWebhookUrlWithDns(input.url);
     const webhook = await webhookService.createWebhook(this.pool, input);
     if (audit) {
       await auditService.createAuditEntry(
@@ -518,7 +518,7 @@ export class Stratum {
   }
   async updateWebhook(id: string, input: UpdateWebhookInput, audit?: AuditContext): Promise<Webhook> {
     if (input.url !== undefined) {
-      this.validateWebhookUrl(input.url);
+      await eventService.validateWebhookUrlWithDns(input.url);
     }
     const webhook = await webhookService.updateWebhook(this.pool, id, input);
     if (audit) {
@@ -547,7 +547,7 @@ export class Stratum {
     const webhook = await webhookService.getWebhook(this.pool, id);
 
     // SSRF protection
-    this.validateWebhookUrl(webhook.url);
+    await eventService.validateWebhookUrlWithDns(webhook.url);
 
     const testPayload = JSON.stringify({
       id: crypto.randomUUID(),
@@ -575,6 +575,7 @@ export class Stratum {
           "X-Stratum-Timestamp": timestamp,
         },
         body: testPayload,
+        redirect: "error",
         signal: AbortSignal.timeout(10_000),
       });
       return { success: response.ok, response_code: response.status };
@@ -827,33 +828,6 @@ export class Stratum {
       );
     }
     return result;
-  }
-
-  /** Validates that a webhook URL does not target internal/private networks. */
-  private validateWebhookUrl(url: string): void {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      throw new Error(`Invalid webhook URL: ${url}`);
-    }
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error(`Webhook URL must use http or https: ${url}`);
-    }
-    const hostname = parsed.hostname.toLowerCase();
-    const blocked = ["localhost", "localhost.localdomain", "metadata.google.internal"];
-    if (blocked.includes(hostname)) {
-      throw new Error(`Webhook URL targets a blocked host: ${hostname}`);
-    }
-    const privatePatterns = [
-      /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
-      /^169\.254\./, /^0\./, /^::1$/, /^fc00:/, /^fe80:/,
-    ];
-    for (const pattern of privatePatterns) {
-      if (pattern.test(hostname)) {
-        throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
-      }
-    }
   }
 
   // --- AsyncLocalStorage convenience methods ---
