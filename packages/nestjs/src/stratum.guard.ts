@@ -1,7 +1,7 @@
 import { Inject, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import type { StratumClient } from "@stratum-hq/sdk";
-import { resolveFromHeader, resolveFromJwt, setTenantContext } from "@stratum-hq/sdk";
+import { resolveFromHeader, resolveFromJwt } from "@stratum-hq/sdk";
 import { TenantNotFoundError } from "@stratum-hq/core";
 import { STRATUM_CLIENT, STRATUM_OPTIONS } from "./constants.js";
 import type { StratumModuleOptions } from "./stratum.module.js";
@@ -90,14 +90,10 @@ export class StratumGuard implements CanActivate {
 
         this.options.impersonation.onImpersonate?.(req, tenantId, impersonateTenantId);
 
-        // 4. Bind AsyncLocalStorage context for getTenantContext()
-        setTenantContext(impersonatedContext);
         return true;
       }
     }
 
-    // 4. Bind AsyncLocalStorage context for getTenantContext()
-    setTenantContext(callerContext);
     return true;
   }
 }

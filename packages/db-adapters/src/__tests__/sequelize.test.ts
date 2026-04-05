@@ -129,16 +129,13 @@ describe("SequelizeAdapter", () => {
       expect(mock.queries[0].options).toMatchObject({ bind: ["tenant-2"] });
     });
 
-    it("skips transaction wrapper when contextFn returns empty string", async () => {
+    it("throws when contextFn returns empty string", async () => {
       const mock = createMockSequelize();
-      const transactionSpy = vi.spyOn(mock, "transaction");
       const wrapped = adapter.withTenantScope(mock, () => "");
 
-      await wrapped.query("SELECT 1");
-
-      expect(transactionSpy).not.toHaveBeenCalled();
-      expect(mock.queries).toHaveLength(1);
-      expect(mock.queries[0].sql).toBe("SELECT 1");
+      await expect(wrapped.query("SELECT 1")).rejects.toThrow(
+        "Tenant context is required for database operations.",
+      );
     });
 
     it("propagates errors thrown by set_config", async () => {
@@ -194,15 +191,13 @@ describe("withTenantScope (convenience function)", () => {
     expect(mock.queries[0].options).toMatchObject({ bind: ["fn-tenant"] });
   });
 
-  it("skips transaction when contextFn returns empty string", async () => {
+  it("throws when contextFn returns empty string", async () => {
     const mock = createMockSequelize();
-    const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
     const wrapped = withTenantScope(mock, () => "", pool as any);
 
-    await wrapped.query("SELECT 1");
-
-    expect(transactionSpy).not.toHaveBeenCalled();
-    expect(mock.queries).toHaveLength(1);
+    await expect(wrapped.query("SELECT 1")).rejects.toThrow(
+      "Tenant context is required for database operations.",
+    );
   });
 });

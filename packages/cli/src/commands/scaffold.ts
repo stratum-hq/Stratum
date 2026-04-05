@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import crypto from "node:crypto";
 import * as log from "../utils/log.js";
 
 function writeFile(filePath: string, content: string, force: boolean): void {
@@ -367,13 +368,14 @@ volumes:
 }
 
 function scaffoldEnv(outDir: string, force: boolean): void {
+  const jwtSecret = crypto.randomBytes(32).toString("base64url");
   writeFile(path.join(outDir, ".env.stratum"), `# Stratum Environment Variables
 
 # Database
 DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
 
 # Authentication
-JWT_SECRET=change-me-in-production
+JWT_SECRET=${jwtSecret}
 
 # Control Plane (if using @stratum-hq/sdk)
 STRATUM_URL=http://localhost:3001
