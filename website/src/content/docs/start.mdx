@@ -1,0 +1,20 @@
+---
+title: Start Building
+description: Configure your multi-tenant stack and get a ready-to-run project in seconds.
+---
+
+import StackWizard from '../../components/StackWizard.astro';
+
+Pick your database, isolation strategy, ORM, and framework. The wizard generates a single command that scaffolds a production-ready multi-tenant project.
+
+<StackWizard />
+
+## Or use the CLI directly
+
+If you already know what you want, run the create command with a preset string:
+
+```bash
+npx @stratum-hq/create my-app --preset postgres-rls-prisma-express
+```
+
+The preset format is `{database}-{strategy}-{orm}-{framework}`. See the [quick start guide](/getting-started/quick-start/) for a step-by-step walkthrough.
