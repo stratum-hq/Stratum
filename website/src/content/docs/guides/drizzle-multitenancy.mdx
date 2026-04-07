@@ -1,0 +1,311 @@
+---
+title: Multi-Tenancy with Drizzle ORM
+description: Add automatic tenant isolation to Drizzle ORM using PostgreSQL Row-Level Security and Stratum's withTenant wrapper.
+---
+
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+
+Drizzle ORM does not have built-in multi-tenancy support. The standard approach is to add `.where(eq(orders.tenantId, currentTenantId))` to every query. This is error-prone: miss one query and you have a cross-tenant data leak.
+
+Stratum's `withTenant()` wrapper for Drizzle takes a different approach. It wraps every `execute()` and `transaction()` call so that PostgreSQL's Row-Level Security handles tenant isolation at the database level. No manual `.where()` filters needed.
+
+## The Problem
+
+A typical Drizzle multi-tenancy setup looks like this:
+
+```typescript
+// The manual way -- must remember for every query
+const orders = await db
+  .select()
+  .from(ordersTable)
+  .where(eq(ordersTable.tenantId, currentTenantId));
+
+const stats = await db
+  .select({ total: sum(ordersTable.total) })
+  .from(ordersTable)
+  .where(eq(ordersTable.tenantId, currentTenantId)); // easy to forget
+
+// Joins are worse -- both tables need filtering
+const result = await db
+  .select()
+  .from(ordersTable)
+  .innerJoin(productsTable, eq(ordersTable.productId, productsTable.id))
+  .where(
+    and(
+      eq(ordersTable.tenantId, currentTenantId),
+      eq(productsTable.tenantId, currentTenantId), // miss this = data leak
+    )
+  );
+```
+
+Every query needs the filter. Every join needs it on both sides. Aggregations, subqueries, CTEs... all need manual scoping. One missed filter in a midnight deploy and tenant data leaks.
+
+## The Stratum Approach
+
+Stratum's Drizzle adapter wraps `execute()` and `transaction()` to inject a `set_config('app.current_tenant_id', tenantId, true)` call before every operation. Combined with PostgreSQL RLS policies on your tables, the database enforces tenant isolation regardless of what queries you write.
+
+```typescript
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { withTenant } from "@stratum-hq/db-adapters";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = drizzle(pool);
+
+// Wrap the Drizzle instance for tenant-scoped queries
+const tenantDb = withTenant(db, () => currentTenantId, pool);
+
+// No .where() needed -- RLS handles isolation
+const orders = await tenantDb.execute(
+  db.select().from(ordersTable)
+);
+```
+
+<Aside type="note">
+  The `withTenant` function was previously named `withTenantScope`. The old name
+  still works as a deprecated alias, but new code should use `withTenant` for
+  consistency with the Prisma adapter.
+</Aside>
+
+## Full Walkthrough
+
+### 1. Start PostgreSQL
+
+<Tabs>
+  <TabItem label="Docker Compose">
+    ```yaml
+    # docker-compose.yml
+    services:
+      db:
+        image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: stratum
+          POSTGRES_PASSWORD: stratum_dev
+          POSTGRES_DB: stratum
+        ports:
+          - "5432:5432"
+        volumes:
+          - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ```
+  </TabItem>
+  <TabItem label="Plain Docker">
+    ```bash
+    docker run -d --name stratum-db \
+      -e POSTGRES_USER=stratum \
+      -e POSTGRES_PASSWORD=stratum_dev \
+      -e POSTGRES_DB=stratum \
+      -p 5432:5432 postgres:16-alpine
+    ```
+  </TabItem>
+</Tabs>
+
+### 2. Create Tables with RLS Policies
+
+```sql
+-- init.sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL,
+  product TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  total NUMERIC(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable Row-Level Security
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+
+-- RLS policy: only show rows matching the session tenant
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- Index for performance
+CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
+```
+
+<Aside type="caution">
+  `FORCE ROW LEVEL SECURITY` prevents the table owner from bypassing policies.
+  Always include it. Stratum's `enableRLS()` helper sets this flag automatically.
+</Aside>
+
+### 3. Drizzle Schema
+
+```typescript
+// src/schema.ts
+import { pgTable, uuid, text, integer, numeric, timestamp } from "drizzle-orm/pg-core";
+
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  product: text("product").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  total: numeric("total", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+```
+
+### 4. Install Dependencies
+
+```bash
+npm install @stratum-hq/lib @stratum-hq/db-adapters pg drizzle-orm
+npm install -D drizzle-kit @types/pg
+```
+
+### 5. Express App with Tenant Middleware
+
+```typescript
+// src/index.ts
+import express from "express";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Stratum } from "@stratum-hq/lib";
+import { withTenant } from "@stratum-hq/db-adapters";
+import { orders } from "./schema.js";
+
+const app = express();
+app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+    || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+});
+
+const db = drizzle(pool);
+const stratum = new Stratum({ pool, autoMigrate: true });
+
+// Tenant middleware
+app.use(async (req, res, next) => {
+  const tenantId = req.headers["x-tenant-id"] as string;
+  if (!tenantId) {
+    res.status(400).json({ error: "Missing x-tenant-id header" });
+    return;
+  }
+
+  req.tenantDb = withTenant(db, () => tenantId, pool);
+  req.tenantId = tenantId;
+  next();
+});
+
+// Routes
+app.get("/orders", async (req, res) => {
+  const result = await req.tenantDb.execute(
+    db.select().from(orders)
+  );
+  res.json(result);
+});
+
+app.post("/orders", async (req, res) => {
+  const result = await req.tenantDb.execute(
+    db.insert(orders).values({
+      tenantId: req.tenantId,
+      product: req.body.product,
+      quantity: req.body.quantity,
+      total: req.body.total,
+    }).returning()
+  );
+  res.status(201).json(result[0]);
+});
+
+async function main() {
+  await stratum.initialize();
+  app.listen(3000, () => console.log("Listening on :3000"));
+}
+
+main();
+```
+
+### 6. Using Transactions
+
+The wrapped Drizzle instance supports transactions. The tenant context is automatically injected before your callback runs:
+
+```typescript
+await req.tenantDb.transaction(async (tx) => {
+  // Both operations run with the tenant context set
+  await tx.execute(
+    db.insert(orders).values({
+      tenantId: req.tenantId,
+      product: "Widget",
+      quantity: 1,
+      total: "9.99",
+    })
+  );
+
+  await tx.execute(
+    db.insert(orders).values({
+      tenantId: req.tenantId,
+      product: "Gadget",
+      quantity: 2,
+      total: "19.98",
+    })
+  );
+});
+```
+
+### 7. Test Isolation
+
+```bash
+# Create orders for Tenant A
+curl http://localhost:3000/orders -X POST \
+  -H "x-tenant-id: $TENANT_A" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Widget", "quantity": 5, "total": "49.95"}'
+
+# Create orders for Tenant B
+curl http://localhost:3000/orders -X POST \
+  -H "x-tenant-id: $TENANT_B" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Gadget", "quantity": 2, "total": "29.90"}'
+
+# Tenant A only sees their orders
+curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_A"
+
+# Tenant B only sees their orders
+curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_B"
+```
+
+## How the Adapter Works
+
+The Drizzle adapter wraps two methods on the Drizzle instance:
+
+**`execute(query)`** -- Wraps the call in a `transaction()` that sets the tenant context first, then runs the query. This guarantees the `set_config` and your statement execute on the same connection.
+
+**`transaction(fn)`** -- Injects a `set_config` call before running your callback. The tenant context applies to all operations within the transaction.
+
+When `contextFn` returns an empty string, the adapter throws an error rather than silently running without tenant scope. Use the unwrapped Drizzle instance for admin or system operations that intentionally bypass tenant isolation.
+
+## Error Handling
+
+The adapter throws a clear error if no tenant context is available:
+
+```typescript
+const tenantDb = withTenant(db, () => "", pool);
+
+// Throws: "Tenant context is required for database operations.
+//          Use the unwrapped instance for system/admin operations."
+await tenantDb.execute(db.select().from(orders));
+```
+
+This prevents accidental unscoped queries. For system operations (migrations, admin dashboards), use the original `db` instance directly.
+
+## Comparison: Manual Filters vs RLS
+
+| Aspect | Manual `.where()` | Stratum + RLS |
+|---|---|---|
+| Every query needs filter | Yes | No |
+| Joins need double filter | Yes | No |
+| Aggregations | Must filter manually | Automatically scoped |
+| Raw SQL | Must add WHERE clause | Filtered by database |
+| Missed filter = data leak | Yes | No, database enforces |
+| Performance | JS-level filtering | Native PostgreSQL |
+
+## Next Steps
+
+- Scaffold a complete project: `npx @stratum-hq/create my-app` then `stratum init`
+- Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant
+- See the [Prisma + RLS guide](/guides/prisma-rls/) for the Prisma equivalent
+- Build a [Next.js multi-tenant app](/guides/nextjs-multitenant/) with subdomain routing
+- Build an [Express API with RLS](/guides/express-rls/) for a simpler backend setup

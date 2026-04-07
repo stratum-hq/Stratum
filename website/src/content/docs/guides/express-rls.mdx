@@ -1,0 +1,323 @@
+---
+title: Express Multi-Tenant API with RLS
+description: Build a multi-tenant Express API using PostgreSQL Row-Level Security and Stratum for automatic tenant isolation on every query.
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+This is the simplest path to a multi-tenant API. Express handles HTTP, `pg` handles queries, and PostgreSQL Row-Level Security enforces tenant isolation at the database level. No ORM required.
+
+## What You Get
+
+- Tenant resolution from headers via Stratum SDK middleware
+- Every SQL query automatically scoped to the current tenant
+- No manual `WHERE tenant_id = ?` clauses
+- Config and permissions resolved per-tenant from the Stratum control plane
+
+## Project Setup
+
+### 1. Initialize
+
+```bash
+mkdir my-api && cd my-api
+npm init -y
+npm install express pg @stratum-hq/lib @stratum-hq/db-adapters
+npm install -D typescript @types/express @types/pg tsx
+```
+
+### 2. Start PostgreSQL
+
+<Tabs>
+  <TabItem label="Docker Compose">
+    ```yaml
+    # docker-compose.yml
+    services:
+      db:
+        image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: stratum
+          POSTGRES_PASSWORD: stratum_dev
+          POSTGRES_DB: stratum
+        ports:
+          - "5432:5432"
+        volumes:
+          - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ```
+
+    ```bash
+    docker compose up -d
+    ```
+  </TabItem>
+  <TabItem label="Plain Docker">
+    ```bash
+    docker run -d --name stratum-db \
+      -e POSTGRES_USER=stratum \
+      -e POSTGRES_PASSWORD=stratum_dev \
+      -e POSTGRES_DB=stratum \
+      -p 5432:5432 postgres:16-alpine
+    ```
+  </TabItem>
+</Tabs>
+
+### 3. Create Tables with RLS
+
+```sql
+-- init.sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+
+-- Application table
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL,
+  product TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  total NUMERIC(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+
+-- Tenant isolation policy
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- Performance index
+CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
+```
+
+<Aside type="caution">
+  Always include `FORCE ROW LEVEL SECURITY`. Without it, the table owner bypasses
+  RLS policies. Stratum's `enableRLS()` helper sets this automatically.
+</Aside>
+
+## The Application
+
+### Tenant Middleware
+
+The middleware reads the tenant ID from the `x-tenant-id` header and creates a tenant-scoped connection pool for the request:
+
+```typescript
+// src/middleware.ts
+import { Pool } from "pg";
+import { createTenantPool } from "@stratum-hq/db-adapters";
+import { Request, Response, NextFunction } from "express";
+
+export function tenantMiddleware(pool: Pool) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const tenantId = req.headers["x-tenant-id"] as string;
+    if (!tenantId) {
+      res.status(400).json({ error: "Missing x-tenant-id header" });
+      return;
+    }
+
+    // Create a tenant-scoped pool for this request
+    req.tenantPool = createTenantPool(pool, () => tenantId);
+    req.tenantId = tenantId;
+    next();
+  };
+}
+```
+
+`createTenantPool` returns a pool wrapper that automatically calls `set_config('app.current_tenant_id', tenantId, true)` inside a transaction before every query. RLS policies do the rest.
+
+### Express App
+
+```typescript
+// src/index.ts
+import express from "express";
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+import { tenantMiddleware } from "./middleware.js";
+
+const app = express();
+app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+    || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+});
+
+const stratum = new Stratum({ pool, autoMigrate: true });
+
+// Apply tenant middleware to all /api routes
+app.use("/api", tenantMiddleware(pool));
+
+// List orders (automatically filtered by RLS)
+app.get("/api/orders", async (req, res) => {
+  const result = await req.tenantPool.query(
+    "SELECT * FROM orders ORDER BY created_at DESC"
+  );
+  res.json(result.rows);
+});
+
+// Create an order
+app.post("/api/orders", async (req, res) => {
+  const { product, quantity, total } = req.body;
+  const result = await req.tenantPool.query(
+    "INSERT INTO orders (tenant_id, product, quantity, total) VALUES ($1, $2, $3, $4) RETURNING *",
+    [req.tenantId, product, quantity, total]
+  );
+  res.status(201).json(result.rows[0]);
+});
+
+// Get order by ID (RLS ensures it belongs to the current tenant)
+app.get("/api/orders/:id", async (req, res) => {
+  const result = await req.tenantPool.query(
+    "SELECT * FROM orders WHERE id = $1",
+    [req.params.id]
+  );
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+  res.json(result.rows[0]);
+});
+
+// Delete an order (RLS prevents deleting another tenant's order)
+app.delete("/api/orders/:id", async (req, res) => {
+  const result = await req.tenantPool.query(
+    "DELETE FROM orders WHERE id = $1 RETURNING *",
+    [req.params.id]
+  );
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+  res.json({ deleted: result.rows[0] });
+});
+
+// Health check (no tenant required)
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+async function main() {
+  await stratum.initialize();
+  app.listen(3000, () => console.log("Listening on :3000"));
+}
+
+main();
+```
+
+### TypeScript Declarations
+
+Add type declarations for the request properties:
+
+```typescript
+// src/types.d.ts
+import { TenantPool } from "@stratum-hq/db-adapters";
+
+declare global {
+  namespace Express {
+    interface Request {
+      tenantPool: TenantPool;
+      tenantId: string;
+    }
+  }
+}
+```
+
+## Running the App
+
+```bash
+npx tsx src/index.ts
+```
+
+## Testing Isolation
+
+Create two tenants and verify they cannot see each other's data:
+
+```bash
+# Create tenants via Stratum control plane
+TENANT_A="aaaaaaaa-0000-0000-0000-000000000001"
+TENANT_B="bbbbbbbb-0000-0000-0000-000000000002"
+
+# Insert orders for Tenant A
+curl http://localhost:3000/api/orders -X POST \
+  -H "x-tenant-id: $TENANT_A" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Widget", "quantity": 5, "total": "49.95"}'
+
+curl http://localhost:3000/api/orders -X POST \
+  -H "x-tenant-id: $TENANT_A" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Sprocket", "quantity": 10, "total": "99.90"}'
+
+# Insert orders for Tenant B
+curl http://localhost:3000/api/orders -X POST \
+  -H "x-tenant-id: $TENANT_B" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Gadget", "quantity": 2, "total": "29.90"}'
+
+# Tenant A sees 2 orders (Widget + Sprocket)
+curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_A"
+
+# Tenant B sees 1 order (Gadget)
+curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_B"
+
+# Tenant B cannot delete Tenant A's order (returns 404, not 403)
+ORDER_A_ID=$(curl -s http://localhost:3000/api/orders \
+  -H "x-tenant-id: $TENANT_A" | jq -r '.[0].id')
+
+curl -X DELETE "http://localhost:3000/api/orders/$ORDER_A_ID" \
+  -H "x-tenant-id: $TENANT_B"
+# {"error": "Order not found"}
+```
+
+The last test is the important one. Tenant B tries to delete Tenant A's order by ID. RLS filters the DELETE query, so no row matches, and the API returns 404. The tenant never knows the order exists.
+
+## Adding More Tables
+
+Use Stratum's migration helpers to add RLS to new tables:
+
+```typescript
+import { migrateTable } from "@stratum-hq/db-adapters";
+
+const client = await pool.connect();
+try {
+  await client.query("BEGIN");
+  await migrateTable(client, "invoices");
+  await migrateTable(client, "products");
+  await client.query("COMMIT");
+} finally {
+  client.release();
+}
+```
+
+Or use the CLI:
+
+```bash
+npx @stratum-hq/cli migrate invoices products
+```
+
+## Using an ORM Instead
+
+If you prefer an ORM over raw SQL:
+
+- **Prisma**: See [Multi-Tenancy with Prisma and PostgreSQL RLS](/guides/prisma-rls/)
+- **Drizzle**: See [Multi-Tenancy with Drizzle ORM](/guides/drizzle-multitenancy/)
+
+Both guides use the same RLS setup. Only the query layer changes.
+
+## Scaffold with Stratum CLI
+
+Skip the manual setup entirely:
+
+```bash
+npx @stratum-hq/create my-api
+cd my-api
+npx @stratum-hq/cli init
+npx @stratum-hq/cli scaffold express
+```
+
+This generates the middleware, route templates, and environment configuration. The scaffolded Express middleware uses the Stratum SDK client for tenant resolution with JWT support.
+
+## Next Steps
+
+- Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant
+- Build a [Next.js multi-tenant app](/guides/nextjs-multitenant/) with subdomain routing
+- Add [config inheritance](/guides/config-inheritance/) for per-tenant feature flags and limits
+- Set up [ABAC policies](/guides/abac/) for fine-grained permission control

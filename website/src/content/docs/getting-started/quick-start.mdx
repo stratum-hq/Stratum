@@ -95,11 +95,15 @@ or migration step required to get started.
 The example above uses a single flat tenant. Most real apps need either
 multi-tenant isolation or a parent/child hierarchy. Pick your path:
 
-| I want to… | Guide |
+| I want to... | Guide |
 |---|---|
 | Isolate multiple customers in one database | [Flat tenancy with RLS](/guides/isolation-strategies/) |
+| Use Prisma with Row-Level Security | [Prisma + PostgreSQL RLS](/guides/prisma-rls/) |
+| Use Drizzle ORM with tenant isolation | [Drizzle ORM multi-tenancy](/guides/drizzle-multitenancy/) |
+| Build a multi-tenant Next.js app | [Next.js multi-tenant SaaS](/guides/nextjs-multitenant/) |
+| Build a multi-tenant Express API | [Express API with RLS](/guides/express-rls/) |
 | Model MSSPs, MSPs, and end-clients as a tree | [Tenant hierarchy](/guides/tenant-hierarchy/) |
 | Inherit config down a hierarchy | [Config inheritance](/guides/config-inheritance/) |
 | Delegate permissions between tenants | [Permission delegation](/guides/permission-delegation/) |
-| Add Stratum to Express / Next.js / Fastify | [Packages — SDK](/packages/sdk/) |
+| Add Stratum to Express / Next.js / Fastify | [Packages -- SDK](/packages/sdk/) |
 | Understand the full data model | [Concepts](/getting-started/concepts/) |
