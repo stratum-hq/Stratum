@@ -18,6 +18,13 @@
   "bin": {
     "create-stratum": "./dist/index.js"
   },
+  "exports": {
+    ".": "./dist/index.js",
+    "./matrix": {
+      "import": "./src/matrix.ts",
+      "types": "./src/matrix.ts"
+    }
+  },
   "type": "module",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@stratum-hq/*",
