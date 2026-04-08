@@ -114,26 +114,56 @@
   .wizard-form {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 24px;
+    grid-template-rows: auto auto auto auto;
+    gap: 6px 24px;
     padding: 32px;
+  }
+
+  /* Row 1: first pair of labels */
+  .wizard-field:nth-child(1) label,
+  .wizard-field:nth-child(2) label { grid-row: 1; }
+  /* Row 2: first pair of selects */
+  .wizard-field:nth-child(1) select,
+  .wizard-field:nth-child(2) select { grid-row: 2; }
+  /* Row 3: second pair of labels */
+  .wizard-field:nth-child(3) label,
+  .wizard-field:nth-child(4) label { grid-row: 3; }
+  /* Row 4: second pair of selects */
+  .wizard-field:nth-child(3) select,
+  .wizard-field:nth-child(4) select { grid-row: 4; }
+
+  /* Each field becomes a subgrid contributor (contents mode) */
+  .wizard-field {
+    display: contents;
+  }
+
+  /* Gap between row 2 and row 3 (between the two pairs) */
+  .wizard-field:nth-child(3) label {
+    margin-top: 18px;
   }
 
   @media (max-width: 600px) {
     .wizard-form {
       grid-template-columns: 1fr;
-      gap: 16px;
+      grid-template-rows: auto;
+      gap: 6px;
       padding: 24px 20px;
+    }
+
+    .wizard-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .wizard-field:nth-child(3) label {
+      margin-top: 0;
     }
 
     .wizard-header {
       padding: 24px 20px 0;
     }
-  }
-
-  .wizard-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
   }
 
   .wizard-field label {
@@ -142,9 +172,7 @@
     color: var(--text-secondary, #A39E95);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    min-height: 1.2em;
-    display: flex;
-    align-items: flex-end;
+    align-self: end;
   }
 
   .wizard-field select {
