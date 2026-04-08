@@ -32,10 +32,18 @@ export default defineConfig({
             crossorigin: true,
           },
         },
+        {
+          tag: "script",
+          attrs: {
+            defer: true,
+            "data-domain": "docs.stratum-hq.org",
+            src: "https://plausible.io/js/script.js",
+          },
+        },
       ],
       sidebar: [
-        { label: '← stratum-hq.org', link: 'https://stratum-hq.org', attrs: { target: '_blank' } },
-        { label: 'Blog', link: 'https://stratum-hq.org/blog', attrs: { target: '_blank' } },
+        { label: 'stratum-hq.org', link: 'https://stratum-hq.org', attrs: { target: '_blank' } },
+        { label: 'Start Building', link: '/start/' },
         { label: 'Playground', link: '/playground/' },
         {
           label: "Getting Started",

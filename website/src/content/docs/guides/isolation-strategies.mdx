@@ -27,6 +27,8 @@ const tenant = await stratum.createTenant({
 });
 ```
 
+For a complete tutorial on setting up RLS with Prisma or Drizzle, see the [Prisma + PostgreSQL RLS guide](/guides/prisma-rls/) or the [Drizzle ORM guide](/guides/drizzle-multitenancy/).
+
 ### How RLS Works
 
 Every tenant-scoped table has an RLS policy that checks `current_setting('app.current_tenant_id')`:

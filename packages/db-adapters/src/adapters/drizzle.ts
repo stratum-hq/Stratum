@@ -24,7 +24,7 @@ export class DrizzleAdapter extends BaseAdapter {
    * When contextFn returns an empty string the original methods are forwarded
    * without wrapping.
    */
-  withTenantScope(db: DrizzleLike, contextFn: () => string): DrizzleLike {
+  withTenant(db: DrizzleLike, contextFn: () => string): DrizzleLike {
     const original = db;
 
     const wrappedTransaction = async <T>(fn: (tx: DrizzleLike) => Promise<T>): Promise<T> => {
@@ -69,11 +69,14 @@ export class DrizzleAdapter extends BaseAdapter {
 }
 
 // Convenience function matching the other adapters' API shape.
-export function withTenantScope(
+export function withTenant(
   db: DrizzleLike,
   contextFn: () => string,
   pool: pg.Pool,
 ): DrizzleLike {
   const adapter = new DrizzleAdapter(pool);
-  return adapter.withTenantScope(db, contextFn);
+  return adapter.withTenant(db, contextFn);
 }
+
+/** @deprecated Use `withTenant` instead. */
+export const withTenantScope = withTenant;

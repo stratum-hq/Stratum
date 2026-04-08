@@ -1,0 +1,343 @@
+---
+title: Next.js Multi-Tenant SaaS
+description: Build a multi-tenant Next.js app with subdomain routing, server components, and PostgreSQL Row-Level Security using Stratum.
+---
+
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+
+This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). Tenant resolution happens in Next.js middleware, server components read the tenant context from headers, and PostgreSQL RLS enforces data isolation at the database level.
+
+## Architecture Overview
+
+The setup has three layers:
+
+1. **Middleware** resolves the tenant from the subdomain (or header, or path) and forwards the tenant ID to downstream handlers
+2. **Server components and API routes** read the tenant ID from headers and use Stratum to resolve config and permissions
+3. **Database queries** run through Stratum's `withTenant()` wrapper, which sets the PostgreSQL session variable for RLS
+
+```
+Request → Middleware (resolve tenant) → Server Component / API Route → withTenant(prisma) → PostgreSQL RLS
+```
+
+## Project Setup
+
+### 1. Create the Next.js App
+
+```bash
+npx create-next-app@latest my-saas --typescript --app --src-dir
+cd my-saas
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client
+npm install -D prisma @types/pg
+```
+
+### 3. Database Setup
+
+Start PostgreSQL and create tables with RLS. See the [Prisma + RLS guide](/guides/prisma-rls/) for the full Docker and SQL setup. The short version:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL,
+  product TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  total NUMERIC(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+## Tenant Resolution Middleware
+
+Create `middleware.ts` in your project root (not inside `src/`). This middleware extracts the tenant identifier from the subdomain, a custom header, or the URL path, then forwards it as an `x-tenant-id` header to all downstream handlers.
+
+```typescript
+// middleware.ts
+import { NextRequest, NextResponse } from "next/server";
+
+export function middleware(request: NextRequest) {
+  // Strategy 1: Subdomain-based (acme.yourapp.com)
+  const hostname = request.headers.get("host") || "";
+  const subdomain = hostname.split(".")[0];
+
+  // Strategy 2: Header-based (x-tenant-id)
+  const headerTenantId = request.headers.get("x-tenant-id");
+
+  // Strategy 3: Path-based (/tenant/acme/dashboard)
+  const pathTenantId = request.nextUrl.pathname.match(/^\/tenant\/([^/]+)/)?.[1];
+
+  const tenantId = headerTenantId || pathTenantId || subdomain;
+
+  // Forward tenant ID to API routes and server components
+  const requestHeaders = new Headers(request.headers);
+  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
+    requestHeaders.set("x-tenant-id", tenantId);
+  }
+
+  return NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+}
+
+export const config = {
+  matcher: [
+    // Match all paths except static files
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
+};
+```
+
+<Aside type="tip">
+  For local development, use header-based resolution (`x-tenant-id`) since
+  subdomains require DNS setup. In production, subdomain-based resolution is
+  the standard SaaS pattern.
+</Aside>
+
+## Stratum Client Library
+
+Create a shared module that initializes Stratum and provides tenant-scoped database access.
+
+```typescript
+// src/lib/stratum.ts
+import { Pool } from "pg";
+import { PrismaClient } from "@prisma/client";
+import { Stratum } from "@stratum-hq/lib";
+import { withTenant } from "@stratum-hq/db-adapters";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const prisma = new PrismaClient();
+
+export const stratum = new Stratum({ pool });
+
+export function getTenantPrisma(tenantId: string) {
+  return withTenant(prisma, () => tenantId, pool);
+}
+
+export async function getTenantFromHeaders(headers: Headers) {
+  const tenantId = headers.get("x-tenant-id");
+  if (!tenantId) return null;
+
+  const [config, permissions] = await Promise.all([
+    stratum.resolveConfig(tenantId),
+    stratum.resolvePermissions(tenantId),
+  ]);
+
+  return {
+    tenant_id: tenantId,
+    resolved_config: config,
+    resolved_permissions: permissions,
+  };
+}
+```
+
+## Server Components
+
+Server components can read the tenant context directly from headers using Next.js's `headers()` function.
+
+```typescript
+// src/app/dashboard/page.tsx
+import { headers } from "next/headers";
+import { getTenantFromHeaders, getTenantPrisma } from "@/lib/stratum";
+
+export default async function DashboardPage() {
+  const headerList = await headers();
+  const tenant = await getTenantFromHeaders(headerList);
+
+  if (!tenant) {
+    return <div>No tenant context. Use a tenant subdomain or set x-tenant-id.</div>;
+  }
+
+  const tenantPrisma = getTenantPrisma(tenant.tenant_id);
+  const orders = await tenantPrisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  return (
+    <main>
+      <h1>Dashboard for {tenant.tenant_id}</h1>
+      <p>Theme: {tenant.resolved_config?.theme?.value ?? "default"}</p>
+      <h2>Recent Orders</h2>
+      <ul>
+        {orders.map((order) => (
+          <li key={order.id}>
+            {order.product} x{order.quantity} = ${order.total}
+          </li>
+        ))}
+      </ul>
+    </main>
+  );
+}
+```
+
+<Aside type="note">
+  Server components run on the server, so the database query never reaches the
+  client. The tenant-scoped Prisma client only exists in server-side code.
+</Aside>
+
+## API Routes
+
+API routes follow the same pattern: read the tenant ID from headers, create a scoped Prisma client, run queries.
+
+```typescript
+// src/app/api/orders/route.ts
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import { getTenantPrisma } from "@/lib/stratum";
+
+export async function GET() {
+  const headerList = await headers();
+  const tenantId = headerList.get("x-tenant-id");
+  if (!tenantId) {
+    return NextResponse.json({ error: "Missing tenant" }, { status: 400 });
+  }
+
+  const tenantPrisma = getTenantPrisma(tenantId);
+  const orders = await tenantPrisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json(orders);
+}
+
+export async function POST(request: Request) {
+  const headerList = await headers();
+  const tenantId = headerList.get("x-tenant-id");
+  if (!tenantId) {
+    return NextResponse.json({ error: "Missing tenant" }, { status: 400 });
+  }
+
+  const body = await request.json();
+  const tenantPrisma = getTenantPrisma(tenantId);
+  const order = await tenantPrisma.order.create({
+    data: {
+      tenantId,
+      product: body.product,
+      quantity: body.quantity,
+      total: body.total,
+    },
+  });
+
+  return NextResponse.json(order, { status: 201 });
+}
+```
+
+## Tenant-Aware Config
+
+Use Stratum's config inheritance to control feature flags, limits, and themes per tenant:
+
+```typescript
+// src/app/settings/page.tsx
+import { headers } from "next/headers";
+import { getTenantFromHeaders } from "@/lib/stratum";
+
+export default async function SettingsPage() {
+  const headerList = await headers();
+  const tenant = await getTenantFromHeaders(headerList);
+
+  if (!tenant) {
+    return <div>No tenant context.</div>;
+  }
+
+  const config = tenant.resolved_config;
+
+  return (
+    <main>
+      <h1>Settings</h1>
+      <dl>
+        <dt>Max Users</dt>
+        <dd>{config?.max_users?.value ?? "Unlimited"}</dd>
+        <dt>Theme</dt>
+        <dd>{config?.theme?.value ?? "default"}</dd>
+        <dt>SIEM Enabled</dt>
+        <dd>{config?.["features.siem"]?.value ? "Yes" : "No"}</dd>
+      </dl>
+    </main>
+  );
+}
+```
+
+## Local Development with Subdomains
+
+For local development, you have two options:
+
+### Option 1: /etc/hosts (simplest)
+
+Add entries to `/etc/hosts`:
+
+```
+127.0.0.1 acme.localhost
+127.0.0.1 globex.localhost
+```
+
+Then access `http://acme.localhost:3000` and `http://globex.localhost:3000`.
+
+### Option 2: Header-based (no DNS changes)
+
+Use `curl` or your API client with the `x-tenant-id` header:
+
+```bash
+# Test as Acme tenant
+curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_A_ID"
+
+# Test as Globex tenant
+curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_B_ID"
+```
+
+## Production Deployment
+
+For production with real subdomains:
+
+1. **DNS**: Add a wildcard A record: `*.yourapp.com` pointing to your server
+2. **TLS**: Use a wildcard certificate for `*.yourapp.com` (Let's Encrypt supports this via DNS-01 challenge)
+3. **Middleware**: The middleware above works as-is since it reads from the `host` header
+
+```typescript
+// In middleware.ts, add domain validation for production
+const allowedBaseDomains = ["yourapp.com", "localhost"];
+const parts = hostname.split(".");
+const baseDomain = parts.slice(-2).join(".");
+
+if (!allowedBaseDomains.includes(baseDomain)) {
+  return new NextResponse("Invalid domain", { status: 400 });
+}
+```
+
+## Scaffold with Stratum CLI
+
+Instead of setting this up manually, use the Stratum scaffolding tools:
+
+```bash
+npx @stratum-hq/create my-saas --template nextjs
+cd my-saas
+npx @stratum-hq/cli init
+```
+
+This generates the middleware, Stratum client library, API route helpers, and example server components. The `init` command detects Next.js and scaffolds the right files.
+
+## Generate a ready-to-run project
+
+Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
+
+## Next Steps
+
+- See the [Prisma + RLS guide](/guides/prisma-rls/) for detailed database setup
+- See the [Drizzle guide](/guides/drizzle-multitenancy/) if you prefer Drizzle over Prisma
+- Learn about [isolation strategies](/guides/isolation-strategies/) to pick between RLS, schema-per-tenant, and database-per-tenant
+- Build an [Express API](/guides/express-rls/) if you need a standalone backend
+- Read about [config inheritance](/guides/config-inheritance/) for per-tenant feature flags

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DrizzleAdapter, withTenantScope } from "../adapters/drizzle.js";
+import { DrizzleAdapter, withTenant, withTenantScope } from "../adapters/drizzle.js";
 import type { DrizzleLike } from "../adapters/drizzle.js";
 import { BaseAdapter } from "../base-adapter.js";
 
@@ -62,16 +62,16 @@ describe("DrizzleAdapter", () => {
     expect(adapter).toBeInstanceOf(BaseAdapter);
   });
 
-  describe("withTenantScope (method)", () => {
+  describe("withTenant (method)", () => {
     it("returns a new wrapped object, not the original instance", () => {
       const mock = createMockDrizzle();
-      const result = adapter.withTenantScope(mock, () => "tenant-1");
+      const result = adapter.withTenant(mock, () => "tenant-1");
       expect(result).not.toBe(mock);
     });
 
     it("returned object exposes execute and transaction", () => {
       const mock = createMockDrizzle();
-      const result = adapter.withTenantScope(mock, () => "tenant-1");
+      const result = adapter.withTenant(mock, () => "tenant-1");
       expect(typeof result.execute).toBe("function");
       expect(typeof result.transaction).toBe("function");
     });
@@ -79,7 +79,7 @@ describe("DrizzleAdapter", () => {
     it("wrapped execute calls transaction() and sets set_config inside it", async () => {
       const mock = createMockDrizzle();
       const transactionSpy = vi.spyOn(mock, "transaction");
-      const wrapped = adapter.withTenantScope(mock, () => "tenant-abc");
+      const wrapped = adapter.withTenant(mock, () => "tenant-abc");
 
       await wrapped.execute({ sql: "SELECT 1" });
 
@@ -92,7 +92,7 @@ describe("DrizzleAdapter", () => {
 
     it("set_config receives tenant ID as params", async () => {
       const mock = createMockDrizzle();
-      const wrapped = adapter.withTenantScope(mock, () => "tenant-xyz");
+      const wrapped = adapter.withTenant(mock, () => "tenant-xyz");
 
       await wrapped.execute({ sql: "SELECT 1" });
 
@@ -102,7 +102,7 @@ describe("DrizzleAdapter", () => {
     it("wrapped transaction injects set_config before user callback", async () => {
       const mock = createMockDrizzle();
       const transactionSpy = vi.spyOn(mock, "transaction");
-      const wrapped = adapter.withTenantScope(mock, () => "tenant-abc");
+      const wrapped = adapter.withTenant(mock, () => "tenant-abc");
 
       await wrapped.transaction(async (tx) => {
         await tx.execute({ sql: "INSERT INTO foo VALUES (1)" });
@@ -117,7 +117,7 @@ describe("DrizzleAdapter", () => {
     it("reads tenant ID lazily from contextFn on each call", async () => {
       let currentTenant = "tenant-1";
       const mock = createMockDrizzle();
-      const wrapped = adapter.withTenantScope(mock, () => currentTenant);
+      const wrapped = adapter.withTenant(mock, () => currentTenant);
 
       await wrapped.execute({ sql: "SELECT 1" });
       expect((mock.executions[0].query as any).params).toEqual(["tenant-1"]);
@@ -130,7 +130,7 @@ describe("DrizzleAdapter", () => {
 
     it("throws when contextFn returns empty string (execute)", async () => {
       const mock = createMockDrizzle();
-      const wrapped = adapter.withTenantScope(mock, () => "");
+      const wrapped = adapter.withTenant(mock, () => "");
 
       await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow(
         "Tenant context is required for database operations.",
@@ -139,7 +139,7 @@ describe("DrizzleAdapter", () => {
 
     it("throws when contextFn returns empty string (transaction)", async () => {
       const mock = createMockDrizzle();
-      const wrapped = adapter.withTenantScope(mock, () => "");
+      const wrapped = adapter.withTenant(mock, () => "");
 
       await expect(
         wrapped.transaction(async (tx) => {
@@ -159,7 +159,7 @@ describe("DrizzleAdapter", () => {
         return fn(failTx);
       };
 
-      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+      const wrapped = adapter.withTenant(mock, () => "tenant-1");
 
       await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow("set_config failed");
     });
@@ -174,7 +174,7 @@ describe("DrizzleAdapter", () => {
         return fn(failTx);
       };
 
-      const wrapped = adapter.withTenantScope(mock, () => "tenant-1");
+      const wrapped = adapter.withTenant(mock, () => "tenant-1");
 
       await expect(
         wrapped.transaction(async (tx) => {
@@ -185,7 +185,7 @@ describe("DrizzleAdapter", () => {
 
     it("throws when execute() called with no tenant", async () => {
       const mock = createMockDrizzle();
-      const wrapped = adapter.withTenantScope(mock, () => "");
+      const wrapped = adapter.withTenant(mock, () => "");
 
       const query = { sql: "SELECT 1" };
       await expect(wrapped.execute(query)).rejects.toThrow(
@@ -195,11 +195,11 @@ describe("DrizzleAdapter", () => {
   });
 });
 
-describe("withTenantScope (convenience function)", () => {
+describe("withTenant (convenience function)", () => {
   it("returns a new wrapped object, not the original instance", () => {
     const mock = createMockDrizzle();
     const pool = new MockPool();
-    const result = withTenantScope(mock, () => "tenant-1", pool as any);
+    const result = withTenant(mock, () => "tenant-1", pool as any);
     expect(result).not.toBe(mock);
   });
 
@@ -207,7 +207,7 @@ describe("withTenantScope (convenience function)", () => {
     const mock = createMockDrizzle();
     const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
-    const wrapped = withTenantScope(mock, () => "fn-tenant", pool as any);
+    const wrapped = withTenant(mock, () => "fn-tenant", pool as any);
 
     await wrapped.execute({ sql: "SELECT 1" });
 
@@ -218,10 +218,16 @@ describe("withTenantScope (convenience function)", () => {
   it("throws when contextFn returns empty string", async () => {
     const mock = createMockDrizzle();
     const pool = new MockPool();
-    const wrapped = withTenantScope(mock, () => "", pool as any);
+    const wrapped = withTenant(mock, () => "", pool as any);
 
     await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow(
       "Tenant context is required for database operations.",
     );
+  });
+});
+
+describe("withTenantScope (deprecated alias)", () => {
+  it("is the same function as withTenant", () => {
+    expect(withTenantScope).toBe(withTenant);
   });
 });

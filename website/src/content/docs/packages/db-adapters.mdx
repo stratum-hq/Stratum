@@ -45,6 +45,8 @@ The adapter wraps every query in a transaction that:
 
 ## Prisma Adapter
 
+For a full tutorial with Docker setup, RLS policies, and Express integration, see the [Prisma + PostgreSQL RLS guide](/guides/prisma-rls/).
+
 For applications using Prisma ORM:
 
 ```typescript
@@ -144,6 +146,31 @@ import {
 await setTenantContext(client, "tenant-uuid");
 const id = await getCurrentTenantId(client);   // "tenant-uuid"
 await resetTenantContext(client);               // RESET app.current_tenant_id
+```
+
+## Drizzle Adapter
+
+For a full tutorial with Docker setup, RLS policies, and Express integration, see the [Drizzle ORM multi-tenancy guide](/guides/drizzle-multitenancy/).
+
+For applications using Drizzle ORM:
+
+```typescript
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { withDrizzleTenant } from "@stratum-hq/db-adapters";
+import { getTenantContext } from "@stratum-hq/sdk";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = drizzle(pool);
+
+const tenantDb = withDrizzleTenant(
+  db,
+  () => getTenantContext().tenant_id,
+  pool,
+);
+
+// All queries automatically scoped to the current tenant
+const result = await tenantDb.execute(db.select().from(orders));
 ```
 
 ## Sequelize Adapter
