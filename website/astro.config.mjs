@@ -42,6 +42,7 @@ export default defineConfig({
         },
       ],
       sidebar: [
+        { label: 'stratum-hq.org', link: 'https://stratum-hq.org', attrs: { target: '_blank' } },
         { label: 'Start Building', link: '/start/' },
         { label: 'Playground', link: '/playground/' },
         {
