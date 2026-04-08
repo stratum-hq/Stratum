@@ -5,6 +5,8 @@ import * as path from "path";
 import crypto from "node:crypto";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
+import { parsePresetString, isValidPreset, formatPresetString } from "./matrix.js";
+import { createPresetProject } from "./preset-project.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +15,7 @@ export type Template = "express" | "fastify" | "nextjs";
 export interface ParsedArgs {
   projectName: string | null;
   template: Template;
+  preset: string | null;
   skipInstall: boolean;
   force: boolean;
 }
@@ -24,8 +27,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const args = [...argv];
   let projectName: string | null = null;
   let template: Template = "express";
+  let preset: string | null = null;
   let skipInstall = false;
   let force = false;
+  let templateExplicit = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -37,6 +42,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const val = args[i + 1];
       if (val === "express" || val === "fastify" || val === "nextjs") {
         template = val;
+        templateExplicit = true;
         i++;
       } else {
         console.error(`Unknown template: ${val}. Available: express, fastify, nextjs`);
@@ -46,16 +52,27 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const val = arg.slice("--template=".length);
       if (val === "express" || val === "fastify" || val === "nextjs") {
         template = val;
+        templateExplicit = true;
       } else {
         console.error(`Unknown template: ${val}. Available: express, fastify, nextjs`);
         process.exit(1);
       }
+    } else if (arg === "--preset") {
+      preset = args[i + 1] || null;
+      i++;
+    } else if (arg.startsWith("--preset=")) {
+      preset = arg.slice("--preset=".length) || null;
     } else if (!arg.startsWith("--")) {
       projectName = arg;
     }
   }
 
-  return { projectName, template, skipInstall, force };
+  if (preset && templateExplicit) {
+    console.error("Error: --template and --preset cannot be used together. Use one or the other.");
+    process.exit(1);
+  }
+
+  return { projectName, template, preset, skipInstall, force };
 }
 
 // ─── Usage ────────────────────────────────────────────────────────────────────
@@ -65,13 +82,16 @@ function printUsage(): void {
   console.log("");
   console.log("Options:");
   console.log("  --template <express|fastify|nextjs>  Framework template (default: express)");
+  console.log("  --preset <db-strategy-orm-framework> Full stack preset (e.g. postgres-rls-prisma-express)");
   console.log("  --skip-install                       Skip npm install");
   console.log("  --force                              Overwrite existing directory");
   console.log("");
   console.log("Examples:");
   console.log("  npx @stratum-hq/create my-app");
   console.log("  npx @stratum-hq/create my-app --template fastify");
-  console.log("  npx @stratum-hq/create my-app --template nextjs --skip-install");
+  console.log("  npx @stratum-hq/create my-app --preset postgres-rls-prisma-express");
+  console.log("  npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono");
+  console.log("  npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs");
 }
 
 // ─── File generation helpers ──────────────────────────────────────────────────
@@ -438,7 +458,7 @@ export function validateProjectName(projectName: string): string | null {
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 export function main(argv: string[]): void {
-  const { projectName, template, skipInstall, force } = parseArgs(argv);
+  const { projectName, template, preset, skipInstall, force } = parseArgs(argv);
 
   if (!projectName) {
     printUsage();
@@ -465,7 +485,26 @@ export function main(argv: string[]): void {
 
   fs.mkdirSync(targetDir, { recursive: true });
 
-  createProject(projectName, template, targetDir, skipInstall);
+  // Preset path: full stack generation
+  if (preset) {
+    const parsed = parsePresetString(preset);
+    if (!parsed) {
+      console.error(`Error: Invalid preset string "${preset}".`);
+      console.error("Format: {database}-{strategy}-{orm}-{framework}");
+      console.error("Example: postgres-rls-prisma-express, mongodb-database-mongoose-hono");
+      process.exit(1);
+    }
+    if (!isValidPreset(parsed)) {
+      console.error(`Error: Invalid preset combination "${preset}".`);
+      console.error(`${parsed.database} does not support ${parsed.strategy}/${parsed.orm} together.`);
+      console.error("Run with --help to see valid combinations.");
+      process.exit(1);
+    }
+    createPresetProject(projectName, parsed, targetDir, skipInstall);
+  } else {
+    // Template path: existing behavior, untouched
+    createProject(projectName, template, targetDir, skipInstall);
+  }
 
   console.log(`\nSuccess! Created ${projectName} at ${targetDir}\n`);
   console.log("Next steps:\n");
@@ -475,7 +514,16 @@ export function main(argv: string[]): void {
   if (skipInstall) {
     console.log("  npm install");
   }
-  if (template === "nextjs") {
+  if (preset) {
+    const parsed = parsePresetString(preset)!;
+    if (parsed.framework === "nextjs") {
+      console.log("  npm run dev");
+    } else if (parsed.framework === "nestjs") {
+      console.log("  node --env-file=.env src/main.ts");
+    } else {
+      console.log("  node --env-file=.env src/index.ts");
+    }
+  } else if (template === "nextjs") {
     console.log("  npm run dev");
   } else {
     console.log("  node --env-file=.env src/index.ts");

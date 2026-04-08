@@ -1,0 +1,552 @@
+---
+// StackWizard.astro — interactive stack configurator
+// Vanilla JS, no React. Follows Playground.astro pattern.
+---
+
+<div class="wizard" id="wizard-root">
+  <noscript>
+    <div class="wizard-noscript">
+      <p>The Stack Wizard requires JavaScript. You can also run the CLI directly:</p>
+      <code>npx @stratum-hq/create my-app</code>
+    </div>
+  </noscript>
+
+  <div class="wizard-header">
+    <h2>Configure your multi-tenant stack</h2>
+    <p>Pick your database, isolation strategy, ORM, and framework. Get a ready-to-run project in seconds.</p>
+  </div>
+
+  <div class="wizard-form">
+    <div class="wizard-field">
+      <label for="wizard-db">Database</label>
+      <select id="wizard-db">
+        <option value="">Select database...</option>
+        <option value="postgres">PostgreSQL</option>
+        <option value="mongodb">MongoDB</option>
+        <option value="mysql">MySQL</option>
+      </select>
+    </div>
+
+    <div class="wizard-field">
+      <label for="wizard-strategy">Isolation Strategy</label>
+      <select id="wizard-strategy" disabled>
+        <option value="">Select strategy...</option>
+      </select>
+    </div>
+
+    <div class="wizard-field">
+      <label for="wizard-orm">ORM / Driver</label>
+      <select id="wizard-orm" disabled>
+        <option value="">Select ORM...</option>
+      </select>
+    </div>
+
+    <div class="wizard-field">
+      <label for="wizard-framework">Framework</label>
+      <select id="wizard-framework" disabled>
+        <option value="">Select framework...</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="wizard-output" id="wizard-output" style="display:none">
+    <div class="wizard-command">
+      <code id="wizard-cmd"></code>
+      <button id="wizard-copy" aria-label="Copy command">Copy</button>
+    </div>
+    <div class="wizard-preview">
+      <h3>What you get</h3>
+      <pre id="wizard-files"></pre>
+    </div>
+  </div>
+</div>
+
+<style>
+  .wizard {
+    width: 100%;
+    background: var(--surface-1, #1A1815);
+    border: 1px solid var(--border, #2A2725);
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    margin: 2rem 0;
+  }
+
+  .wizard-noscript {
+    padding: 24px;
+    background: var(--surface-2, #252220);
+    color: var(--text-secondary, #A39E95);
+    text-align: center;
+  }
+
+  .wizard-noscript code {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: var(--code-bg, #161412);
+    color: var(--sandstone, #C4A882);
+    border-radius: var(--radius-sm, 4px);
+    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.875rem;
+  }
+
+  .wizard-header {
+    padding: 32px 32px 0;
+  }
+
+  .wizard-header h2 {
+    margin: 0 0 8px;
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary, #E8E2D9);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .wizard-header p {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-secondary, #A39E95);
+    line-height: 1.6;
+    max-width: 55ch;
+  }
+
+  .wizard-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 6px 24px;
+    padding: 32px;
+  }
+
+  /* Row 1: first pair of labels */
+  .wizard-field:nth-child(1) label,
+  .wizard-field:nth-child(2) label { grid-row: 1; }
+  /* Row 2: first pair of selects */
+  .wizard-field:nth-child(1) select,
+  .wizard-field:nth-child(2) select { grid-row: 2; }
+  /* Row 3: second pair of labels */
+  .wizard-field:nth-child(3) label,
+  .wizard-field:nth-child(4) label { grid-row: 3; }
+  /* Row 4: second pair of selects */
+  .wizard-field:nth-child(3) select,
+  .wizard-field:nth-child(4) select { grid-row: 4; }
+
+  /* Each field becomes a subgrid contributor (contents mode) */
+  .wizard-field {
+    display: contents;
+  }
+
+  /* Gap between row 2 and row 3 (between the two pairs) */
+  .wizard-field:nth-child(3) label {
+    margin-top: 18px;
+  }
+
+  @media (max-width: 600px) {
+    .wizard-form {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      gap: 6px;
+      padding: 24px 20px;
+    }
+
+    .wizard-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .wizard-field:nth-child(3) label {
+      margin-top: 0;
+    }
+
+    .wizard-header {
+      padding: 24px 20px 0;
+    }
+  }
+
+  .wizard-field label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary, #A39E95);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    align-self: end;
+  }
+
+  .wizard-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--surface-0, #0F0E0C);
+    border: 1px solid var(--border, #2A2725);
+    border-radius: var(--radius-sm, 4px);
+    color: var(--text-primary, #E8E2D9);
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    font-size: 0.9375rem;
+    padding: 10px 36px 10px 12px;
+    cursor: pointer;
+    transition: border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    width: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A39E95' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+  }
+
+  .wizard-field select:hover:not(:disabled) {
+    border-color: var(--border-hover, #3D3935);
+  }
+
+  .wizard-field select:focus {
+    outline: 2px solid var(--sl-color-accent, #C05746);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+
+  .wizard-field select:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .wizard-output {
+    border-top: 1px solid var(--border, #2A2725);
+    padding: 24px 32px 32px;
+  }
+
+  @media (max-width: 600px) {
+    .wizard-output {
+      padding: 20px;
+    }
+  }
+
+  .wizard-command {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--code-bg, #161412);
+    border: 1px solid var(--border, #2A2725);
+    border-radius: var(--radius-sm, 4px);
+    padding: 12px 16px;
+    overflow-x: auto;
+  }
+
+  .wizard-command code {
+    flex: 1;
+    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.875rem;
+    color: var(--sandstone, #C4A882);
+    white-space: nowrap;
+  }
+
+  .wizard-command button {
+    all: unset;
+    box-sizing: border-box;
+    padding: 6px 14px;
+    background: var(--sl-color-accent, #C05746);
+    color: var(--text-primary, #E8E2D9);
+    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm, 4px);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .wizard-command button:hover {
+    opacity: 0.85;
+  }
+
+  .wizard-command button:focus-visible {
+    outline: 2px solid var(--sl-color-accent, #C05746);
+    outline-offset: 2px;
+  }
+
+  .wizard-preview {
+    margin-top: 24px;
+  }
+
+  .wizard-preview h3 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary, #E8E2D9);
+  }
+
+  .wizard-preview pre {
+    margin: 0;
+    padding: 16px 20px;
+    background: var(--code-bg, #161412);
+    border: 1px solid var(--border, #2A2725);
+    border-radius: var(--radius-sm, 4px);
+    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    color: var(--text-secondary, #A39E95);
+    overflow-x: auto;
+  }
+</style>
+
+<script>
+  // ── Matrix data (from packages/create/src/matrix.ts) ──────────────────────
+  const VALID_COMBINATIONS = {
+    postgres: {
+      strategies: ['rls', 'schema', 'database'],
+      orms: ['prisma', 'drizzle', 'sequelize', 'knex', 'pg'],
+      frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
+    },
+    mongodb: {
+      strategies: ['database', 'collection'],
+      orms: ['mongoose'],
+      frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
+    },
+    mysql: {
+      strategies: ['database', 'table-prefix'],
+      orms: ['sequelize', 'knex', 'pg'],
+      frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
+    },
+  };
+
+  // ── Display labels ────────────────────────────────────────────────────────
+  const LABELS = {
+    rls: 'Row-Level Security',
+    schema: 'Schema-per-tenant',
+    database: 'Database-per-tenant',
+    collection: 'Collection-per-tenant',
+    'table-prefix': 'Table prefix',
+    prisma: 'Prisma',
+    drizzle: 'Drizzle',
+    sequelize: 'Sequelize',
+    knex: 'Knex',
+    mongoose: 'Mongoose',
+    pg: 'pg (node-postgres)',
+    express: 'Express',
+    fastify: 'Fastify',
+    nextjs: 'Next.js',
+    hono: 'Hono',
+    nestjs: 'NestJS',
+    none: 'None (library only)',
+  };
+
+  // ── File tree templates ───────────────────────────────────────────────────
+  function getFileTree(db, strategy, orm, framework) {
+    const lines = ['my-app/'];
+
+    // package.json deps
+    const deps = [];
+    if (framework !== 'none') deps.push(framework === 'nextjs' ? 'next' : framework);
+    if (orm === 'prisma') deps.push('@prisma/client');
+    else if (orm === 'drizzle') deps.push('drizzle-orm');
+    else if (orm === 'mongoose') deps.push('mongoose');
+    else if (orm === 'sequelize') deps.push('sequelize');
+    else if (orm === 'knex') deps.push('knex');
+    else if (orm === 'pg') deps.push('pg');
+    deps.push('@stratum-hq/db-adapters');
+    lines.push('  package.json          # ' + deps.join(', '));
+
+    // Docker / DB setup
+    if (db === 'postgres') {
+      lines.push('  docker-compose.yml    # postgres:16-alpine');
+      if (strategy === 'rls') {
+        lines.push('  init.sql              # uuid-ossp, ltree, RLS policies');
+      } else if (strategy === 'schema') {
+        lines.push('  init.sql              # uuid-ossp, ltree, schema setup');
+      }
+    } else if (db === 'mongodb') {
+      lines.push('  docker-compose.yml    # mongo:7');
+    } else if (db === 'mysql') {
+      lines.push('  docker-compose.yml    # mysql:8');
+    }
+
+    // ORM config
+    if (orm === 'prisma') {
+      if (strategy === 'rls') {
+        lines.push('  prisma/schema.prisma  # Tenant model with RLS');
+      } else {
+        lines.push('  prisma/schema.prisma  # Tenant model');
+      }
+    } else if (orm === 'drizzle') {
+      lines.push('  drizzle.config.ts     # Drizzle Kit config');
+      lines.push('  src/schema.ts         # Drizzle table definitions');
+    } else if (orm === 'mongoose') {
+      lines.push('  src/models/           # Mongoose schemas');
+    }
+
+    // Source files
+    lines.push('  src/');
+
+    if (framework === 'nextjs') {
+      lines.push('    middleware.ts        # Tenant resolution from host/headers');
+      lines.push('    app/layout.tsx       # Root layout');
+      lines.push('    app/page.tsx         # Landing page');
+      lines.push('    lib/stratum.ts       # Stratum client + withTenant()');
+    } else if (framework === 'express') {
+      lines.push('    index.ts            # Express server with tenant middleware');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+    } else if (framework === 'fastify') {
+      lines.push('    index.ts            # Fastify server with tenant plugin');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+    } else if (framework === 'hono') {
+      lines.push('    index.ts            # Hono server with tenant middleware');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+    } else if (framework === 'nestjs') {
+      lines.push('    app.module.ts       # NestJS root module');
+      lines.push('    tenant.guard.ts     # Tenant resolution guard');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+    } else {
+      // none
+      lines.push('    index.ts            # Library entry point');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+    }
+
+    lines.push('  .env.example');
+    lines.push('  tsconfig.json');
+
+    return lines.join('\n');
+  }
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const dbSelect = document.getElementById('wizard-db');
+  const strategySelect = document.getElementById('wizard-strategy');
+  const ormSelect = document.getElementById('wizard-orm');
+  const frameworkSelect = document.getElementById('wizard-framework');
+  const output = document.getElementById('wizard-output');
+  const cmdEl = document.getElementById('wizard-cmd');
+  const filesEl = document.getElementById('wizard-files');
+  const copyBtn = document.getElementById('wizard-copy');
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function populateSelect(select, options, placeholder) {
+    const currentValue = select.value;
+    select.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = placeholder;
+    select.appendChild(defaultOpt);
+
+    for (const val of options) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = LABELS[val] || val;
+      select.appendChild(opt);
+    }
+
+    // Restore value if still valid
+    if (options.includes(currentValue)) {
+      select.value = currentValue;
+    }
+
+    // Auto-select if only one option
+    if (options.length === 1) {
+      select.value = options[0];
+    }
+  }
+
+  function clearDownstream(fromIndex) {
+    const selects = [dbSelect, strategySelect, ormSelect, frameworkSelect];
+    const placeholders = ['Select database...', 'Select strategy...', 'Select ORM...', 'Select framework...'];
+    for (let i = fromIndex; i < selects.length; i++) {
+      selects[i].innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = placeholders[i];
+      selects[i].appendChild(opt);
+      selects[i].disabled = true;
+    }
+    output.style.display = 'none';
+  }
+
+  function updateWizard() {
+    const db = dbSelect.value;
+
+    if (!db) {
+      clearDownstream(1);
+      return;
+    }
+
+    const config = VALID_COMBINATIONS[db];
+    if (!config) {
+      clearDownstream(1);
+      return;
+    }
+
+    // Populate strategy
+    populateSelect(strategySelect, config.strategies, 'Select strategy...');
+    strategySelect.disabled = false;
+
+    const strategy = strategySelect.value;
+    if (!strategy) {
+      clearDownstream(2);
+      return;
+    }
+
+    // Populate ORM
+    populateSelect(ormSelect, config.orms, 'Select ORM...');
+    ormSelect.disabled = false;
+
+    const orm = ormSelect.value;
+    if (!orm) {
+      clearDownstream(3);
+      return;
+    }
+
+    // Populate framework
+    populateSelect(frameworkSelect, config.frameworks, 'Select framework...');
+    frameworkSelect.disabled = false;
+
+    const framework = frameworkSelect.value;
+    if (!framework) {
+      output.style.display = 'none';
+      return;
+    }
+
+    // All selected -- show output
+    const preset = db + '-' + strategy + '-' + orm + '-' + framework;
+    cmdEl.textContent = 'npx @stratum-hq/create my-app --preset ' + preset;
+    filesEl.textContent = getFileTree(db, strategy, orm, framework);
+    output.style.display = '';
+
+    // Plausible event
+    if (window.plausible) {
+      window.plausible('wizard-complete', { props: { preset: preset } });
+    }
+  }
+
+  // ── Event listeners ───────────────────────────────────────────────────────
+  dbSelect.addEventListener('change', function () {
+    clearDownstream(1);
+    updateWizard();
+  });
+
+  strategySelect.addEventListener('change', function () {
+    clearDownstream(2);
+    updateWizard();
+  });
+
+  ormSelect.addEventListener('change', function () {
+    clearDownstream(3);
+    updateWizard();
+  });
+
+  frameworkSelect.addEventListener('change', function () {
+    updateWizard();
+  });
+
+  // Copy button
+  copyBtn.addEventListener('click', function () {
+    const text = cmdEl.textContent;
+    navigator.clipboard.writeText(text).then(function () {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(function () {
+        copyBtn.textContent = 'Copy';
+      }, 2000);
+    });
+
+    if (window.plausible) {
+      window.plausible('npx-copy', { props: { command: text } });
+    }
+  });
+</script>

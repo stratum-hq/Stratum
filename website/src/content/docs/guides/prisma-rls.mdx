@@ -1,0 +1,338 @@
+---
+title: Multi-Tenancy with Prisma and PostgreSQL RLS
+description: Add automatic Row-Level Security to Prisma using Stratum's withTenant wrapper so every query is tenant-scoped without manual WHERE clauses.
+---
+
+import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+
+Prisma has no built-in support for PostgreSQL Row-Level Security. Most tutorials tell you to add `WHERE tenant_id = ?` to every query, or to use Prisma middleware to inject filters. Both approaches are fragile: they miss raw queries, aggregations, and nested relations.
+
+Stratum's `withTenant()` wrapper takes a different approach. Instead of filtering at the application layer, it sets a PostgreSQL session variable (`app.current_tenant_id`) inside a transaction before every query. Combined with RLS policies on your tables, the database itself enforces tenant isolation. No middleware hacks, no missed queries.
+
+## The Problem
+
+A typical Prisma multi-tenancy guide will suggest middleware like this:
+
+```typescript
+// The fragile way -- Prisma middleware
+prisma.$use(async (params, next) => {
+  if (params.action === 'findMany') {
+    params.args.where = { ...params.args.where, tenantId: currentTenantId };
+  }
+  return next(params);
+});
+// Problems: doesn't cover raw queries, aggregations, or nested relations
+```
+
+This breaks in several ways:
+
+- **Raw queries** (`prisma.$queryRaw`, `prisma.$executeRaw`) bypass middleware entirely
+- **Aggregations** (`groupBy`, `count`, `aggregate`) need separate handling
+- **Nested relations** (`include`, `select` with nested objects) can leak cross-tenant data
+- **Bulk operations** (`createMany`, `updateMany`, `deleteMany`) need their own filter logic
+- **New Prisma versions** deprecated `$use` middleware in favor of `$extends`, breaking existing implementations
+
+## The Stratum Approach
+
+Stratum's Prisma adapter is a thin wrapper (under 40 lines) that uses `prisma.$extends` with `$allOperations` to wrap every query in a transaction. Before the query executes, it calls `set_config('app.current_tenant_id', tenantId, true)` to set the tenant context. PostgreSQL RLS policies handle the rest.
+
+```typescript
+import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
+import { withTenant } from "@stratum-hq/db-adapters";
+
+const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// All queries through tenantPrisma are automatically scoped by RLS
+const tenantPrisma = withTenant(prisma, () => currentTenantId, pool);
+const orders = await tenantPrisma.order.findMany(); // Only this tenant's orders
+```
+
+That is the entire integration. Three arguments: your Prisma client, a function that returns the current tenant ID, and a `pg` connection pool. Every query that runs through `tenantPrisma` is automatically tenant-scoped at the database level.
+
+<Aside type="tip">
+  The `contextFn` (second argument) is called lazily on every query. This makes it
+  safe to use with AsyncLocalStorage, request-scoped contexts, or any other mechanism
+  that resolves the tenant ID at runtime.
+</Aside>
+
+## Full Walkthrough
+
+This section walks through a complete setup: PostgreSQL with RLS, Prisma schema, Express middleware, and Stratum integration.
+
+### 1. Start PostgreSQL
+
+<Tabs>
+  <TabItem label="Docker Compose">
+    ```yaml
+    # docker-compose.yml
+    services:
+      db:
+        image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: stratum
+          POSTGRES_PASSWORD: stratum_dev
+          POSTGRES_DB: stratum
+        ports:
+          - "5432:5432"
+        volumes:
+          - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ```
+  </TabItem>
+  <TabItem label="Plain Docker">
+    ```bash
+    docker run -d --name stratum-db \
+      -e POSTGRES_USER=stratum \
+      -e POSTGRES_PASSWORD=stratum_dev \
+      -e POSTGRES_DB=stratum \
+      -p 5432:5432 postgres:16-alpine
+    ```
+  </TabItem>
+</Tabs>
+
+### 2. Create Tables with RLS Policies
+
+Create an `init.sql` file (or run these statements against your database):
+
+```sql
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+
+-- Create the orders table with a tenant_id column
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id UUID NOT NULL,
+  product TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  total NUMERIC(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable Row-Level Security
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+
+-- Create the isolation policy
+-- This reads the session variable set by Stratum's adapter
+CREATE POLICY tenant_isolation ON orders
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+
+-- Index for performance (tenant_id as leading column)
+CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
+```
+
+<Aside type="caution">
+  `FORCE ROW LEVEL SECURITY` is important. Without it, the table owner can bypass
+  RLS policies. Stratum's `enableRLS()` helper always sets this flag.
+</Aside>
+
+The key line is the `CREATE POLICY`. It tells PostgreSQL: "For every SELECT, INSERT, UPDATE, and DELETE on this table, only allow rows where `tenant_id` matches the value stored in the `app.current_tenant_id` session variable." Stratum's adapter sets that variable before every query.
+
+### 3. Prisma Schema
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  product   String
+  quantity  Int      @default(1)
+  total     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@map("orders")
+}
+```
+
+Generate the Prisma client:
+
+```bash
+npx prisma generate
+```
+
+<Aside type="note">
+  Use `npx prisma db pull` instead of `prisma generate` if you created the tables
+  manually (as in step 2). This introspects your database and generates the schema
+  from existing tables.
+</Aside>
+
+### 4. Install Dependencies
+
+```bash
+npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client
+npm install -D prisma @types/pg
+```
+
+### 5. Express App with Tenant Middleware
+
+```typescript
+// src/index.ts
+import express from "express";
+import { Pool } from "pg";
+import { PrismaClient } from "@prisma/client";
+import { Stratum } from "@stratum-hq/lib";
+import { withTenant } from "@stratum-hq/db-adapters";
+
+const app = express();
+app.use(express.json());
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+    || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+});
+
+const prisma = new PrismaClient();
+const stratum = new Stratum({ pool, autoMigrate: true });
+
+// Tenant middleware: resolve tenant from header
+app.use(async (req, res, next) => {
+  const tenantId = req.headers["x-tenant-id"] as string;
+  if (!tenantId) {
+    res.status(400).json({ error: "Missing x-tenant-id header" });
+    return;
+  }
+
+  // Create a tenant-scoped Prisma client for this request
+  req.tenantPrisma = withTenant(prisma, () => tenantId, pool);
+  req.tenantId = tenantId;
+  next();
+});
+
+// Routes -- no manual WHERE clauses needed
+app.get("/orders", async (req, res) => {
+  const orders = await req.tenantPrisma.order.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(orders);
+});
+
+app.post("/orders", async (req, res) => {
+  const order = await req.tenantPrisma.order.create({
+    data: {
+      tenantId: req.tenantId,
+      product: req.body.product,
+      quantity: req.body.quantity,
+      total: req.body.total,
+    },
+  });
+  res.status(201).json(order);
+});
+
+// Initialize Stratum and start server
+async function main() {
+  await stratum.initialize();
+  app.listen(3000, () => console.log("Listening on :3000"));
+}
+
+main();
+```
+
+### 6. Test with Multiple Tenants
+
+Create two tenants, insert data for each, and verify isolation:
+
+```bash
+# Create tenants (using Stratum's control plane)
+TENANT_A=$(curl -s http://localhost:3000/api/tenants -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Corp", "slug": "acme"}' | jq -r '.id')
+
+TENANT_B=$(curl -s http://localhost:3000/api/tenants -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Globex Inc", "slug": "globex"}' | jq -r '.id')
+
+# Insert orders for Tenant A
+curl http://localhost:3000/orders -X POST \
+  -H "x-tenant-id: $TENANT_A" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Widget", "quantity": 5, "total": 49.95}'
+
+# Insert orders for Tenant B
+curl http://localhost:3000/orders -X POST \
+  -H "x-tenant-id: $TENANT_B" \
+  -H "Content-Type: application/json" \
+  -d '{"product": "Gadget", "quantity": 2, "total": 29.90}'
+
+# Query as Tenant A -- only sees Widget
+curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_A"
+
+# Query as Tenant B -- only sees Gadget
+curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_B"
+```
+
+## Adding RLS to More Tables
+
+Use Stratum's migration helpers to add RLS to existing tables without writing SQL manually:
+
+```typescript
+import { migrateTable } from "@stratum-hq/db-adapters";
+
+const client = await pool.connect();
+try {
+  await client.query("BEGIN");
+  await migrateTable(client, "invoices");  // adds tenant_id + RLS + policy
+  await migrateTable(client, "products");
+  await client.query("COMMIT");
+} finally {
+  client.release();
+}
+```
+
+Or use the CLI:
+
+```bash
+npx @stratum-hq/cli migrate invoices products
+```
+
+## How the Adapter Works Internally
+
+The Prisma adapter is intentionally minimal. Here is what it does on every query:
+
+1. Intercepts the query via `prisma.$extends({ query: { $allOperations } })`
+2. Calls `contextFn()` to get the current tenant ID
+3. Opens a Prisma `$transaction`
+4. Inside the transaction, runs `SELECT set_config('app.current_tenant_id', $1, true)` with the tenant ID as a parameterized value
+5. Executes the original query (now filtered by RLS)
+6. Commits the transaction
+
+The `true` argument to `set_config` makes the value transaction-local, so it is automatically cleaned up when the transaction ends. There is no risk of tenant context leaking between requests in a connection pool.
+
+<Aside type="note">
+  The adapter does not create RLS policies. It only sets the session variable that
+  existing policies read. You must create the RLS policies on your tables (as shown
+  above) for isolation to work.
+</Aside>
+
+## Comparison: Middleware vs RLS
+
+| Aspect | Prisma Middleware | Stratum + RLS |
+|---|---|---|
+| Raw queries | Not filtered | Filtered by database |
+| Aggregations | Must add filter manually | Automatically scoped |
+| Nested relations | Can leak data | Scoped at database level |
+| New operations | Must update middleware | Works automatically |
+| Bypass risk | Application bug = data leak | Database enforces isolation |
+| Performance | Extra JS processing | Native PostgreSQL filtering |
+
+## Generate a ready-to-run project
+
+Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
+
+## Next Steps
+
+- Scaffold a complete project: `npx @stratum-hq/create my-app` then `stratum init`
+- Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant
+- Add [Drizzle ORM](/guides/drizzle-multitenancy/) as an alternative to Prisma
+- Build a [Next.js multi-tenant app](/guides/nextjs-multitenant/) with subdomain routing
+- Build an [Express API with RLS](/guides/express-rls/) for a simpler backend setup

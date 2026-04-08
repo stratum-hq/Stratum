@@ -63,6 +63,7 @@ export { DatabasePrismaAdapter } from "./adapters/database-prisma.js";
 export { SequelizeAdapter, withTenantScope } from "./adapters/sequelize.js";
 export {
   DrizzleAdapter,
+  withTenant as withDrizzleTenant,
   withTenantScope as withDrizzleTenantScope,
 } from "./adapters/drizzle.js";
 export type { DrizzleLike } from "./adapters/drizzle.js";
