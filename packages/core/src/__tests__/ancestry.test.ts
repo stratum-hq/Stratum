@@ -139,34 +139,33 @@ describe("ancestry utilities", () => {
     });
   });
 
+  // Ancestry paths as stored by tenant-service EXCLUDE the tenant's own id:
+  // a root tenant has "/", its child has "/rootId", a grandchild has
+  // "/rootId/childId" (see createTenant: appendToPath(parent.path, parent.id)).
   describe("getAncestorIds", () => {
-    it("root path has no ancestors (empty array)", () => {
-      expect(getAncestorIds(rootPath)).toEqual([]);
+    it("root tenant (path '/') has no ancestors", () => {
+      expect(getAncestorIds("/")).toEqual([]);
     });
 
-    it("child path ancestors are [rootId]", () => {
-      expect(getAncestorIds(childPath)).toEqual([rootId]);
+    it("child of root (path '/rootId') has ancestors [rootId]", () => {
+      expect(getAncestorIds(`/${rootId}`)).toEqual([rootId]);
     });
 
-    it("grandchild path ancestors are [rootId, childId]", () => {
-      expect(getAncestorIds(grandchildPath)).toEqual([rootId, childId]);
+    it("grandchild (path '/rootId/childId') has ancestors [rootId, childId]", () => {
+      expect(getAncestorIds(`/${rootId}/${childId}`)).toEqual([rootId, childId]);
     });
   });
 
   describe("getSelfId", () => {
-    it("gets root id from root path", () => {
-      expect(getSelfId(rootPath)).toBe(rootId);
+    it("returns the direct parent id for a child of root", () => {
+      expect(getSelfId(`/${rootId}`)).toBe(rootId);
     });
 
-    it("gets child id from child path", () => {
-      expect(getSelfId(childPath)).toBe(childId);
+    it("returns the direct parent id for a grandchild", () => {
+      expect(getSelfId(`/${rootId}/${childId}`)).toBe(childId);
     });
 
-    it("gets grandchild id from grandchild path", () => {
-      expect(getSelfId(grandchildPath)).toBe(grandchildId);
-    });
-
-    it("returns null for bare / path", () => {
+    it("returns null for a root tenant path", () => {
       expect(getSelfId("/")).toBeNull();
     });
   });

@@ -79,17 +79,20 @@ export function appendToPath(parentPath: string, childId: string): string {
 }
 
 /**
- * Get all ancestor IDs from an ancestry path (excluding self).
- * getAncestorIds("/a/b/c") => ["a", "b"] (excludes "c")
+ * Get all ancestor IDs from an ancestry path.
+ *
+ * An ancestry_path stores the chain of ancestor IDs and does NOT include the
+ * tenant's own ID (a tenant created under parent P gets
+ * `appendToPath(P.ancestry_path, P.id)`). Every ID in the path is therefore
+ * an ancestor: getAncestorIds("/a/b") => ["a", "b"].
  */
 export function getAncestorIds(path: string): string[] {
-  const ids = parseAncestryPath(path);
-  return ids.slice(0, -1);
+  return parseAncestryPath(path);
 }
 
 /**
- * Get the leaf (self) ID from an ancestry path.
- * getSelfId("/a/b/c") => "c"
+ * Get the last ID in an ancestry path — the tenant's direct parent
+ * (ancestry paths exclude self). Returns null for a root tenant ("/").
  */
 export function getSelfId(path: string): string | null {
   const ids = parseAncestryPath(path);

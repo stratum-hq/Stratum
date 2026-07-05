@@ -407,10 +407,13 @@ describe("getAncestors", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
+    // Real ancestry paths EXCLUDE the tenant's own id (createTenant appends
+    // the PARENT's id to the parent's path) — regression guard for the bug
+    // where getAncestorIds sliced off the nearest ancestor.
     const leaf = makeTenant({
       id: "leaf-id",
-      ancestry_path: "/root-id/mid-id/leaf-id",
-      depth: 3,
+      ancestry_path: "/root-id/mid-id",
+      depth: 2,
     });
 
     const root = makeTenant({ id: "root-id", depth: 0, ancestry_path: "/" });
@@ -436,6 +439,8 @@ describe("getAncestors", () => {
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe("root-id");
     expect(result[1].id).toBe("mid-id");
+    // The ancestor query must include BOTH path ids — the direct parent too
+    expect(mockQuery.mock.calls[1][1]).toEqual([["root-id", "mid-id"]]);
   });
 
   it("returns empty array for root tenant", async () => {
@@ -446,8 +451,7 @@ describe("getAncestors", () => {
 
     // Query 1: SELECT root tenant (ancestry_path="/")
     mockQuery.mockResolvedValueOnce({ rows: [root] });
-    // getAncestorIds("/") returns [] from parseAncestryPath, then slicing gives []
-    // so getAncestors returns early with []
+    // getAncestorIds("/") returns [] so getAncestors returns early with []
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;
