@@ -220,6 +220,19 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
                                             (init, doctor, migrate)
 ```
 
+## Roadmap
+
+Stratum is in active development toward a stable 1.0. Near-term focus:
+
+- **v0.3.0 on npm** — ship the current changelog (security hardening, ABAC, Stack Wizard, MongoDB/MySQL isolation) to the registry
+- **5-minute demo** — recorded walkthrough: scaffold → tenant hierarchy → locked config inheritance → GDPR purge
+- **Live showcase** — a hosted white-label MSP portal built entirely on Stratum
+- **Comparisons** — honest "Stratum vs X" docs: hand-rolled `tenant_id`, auth-level organizations, tenant databases, authz engines
+- **Starter template** — Next.js SaaS starter with Stratum pre-wired
+- **`@stratum-hq/control-plane` docs** — dedicated package page and deployment guide
+
+Have a use case we should prioritize? [Open an issue](https://github.com/stratum-hq/Stratum/issues).
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
