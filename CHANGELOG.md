@@ -1,5 +1,10 @@
 # Changelog
 
+## @stratum-hq/react 0.3.1 (2026-07-05)
+
+### Fixed
+- Support React 19 — widened `react`/`react-dom` peer ranges to `^18 || ^19` (the components are compatible; the old cap forced `--legacy-peer-deps`). Found while deploying the MSP reference app on Next 15.
+
 ## 0.3.1 (2026-07-05)
 
 ### Fixed
