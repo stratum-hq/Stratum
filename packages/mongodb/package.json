@@ -44,5 +44,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stratum-hq/Stratum.git",
+    "directory": "packages/mongodb"
+  }
 }

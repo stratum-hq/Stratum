@@ -41,5 +41,10 @@
   "devDependencies": {
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stratum-hq/Stratum.git",
+    "directory": "packages/core"
   }
 }
