@@ -2,6 +2,7 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
 export default defineConfig({
+  site: "https://docs.stratum-hq.org",
   integrations: [
     starlight({
       title: "Stratum",
@@ -13,9 +14,9 @@ export default defineConfig({
       description:
         "Drop-in multi-tenancy for Node.js and TypeScript.",
       customCss: ["./src/styles/custom.css"],
-      social: {
-        github: "https://github.com/stratum-hq/stratum",
-      },
+      social: [
+        { icon: "github", label: "GitHub", href: "https://github.com/stratum-hq/Stratum" },
+      ],
       head: [
         {
           tag: "link",
@@ -47,19 +48,19 @@ export default defineConfig({
         { label: 'Playground', link: '/playground/' },
         {
           label: "Getting Started",
-          autogenerate: { directory: "getting-started" },
+          items: [{ autogenerate: { directory: "getting-started" } }],
         },
         {
           label: "Guides",
-          autogenerate: { directory: "guides" },
+          items: [{ autogenerate: { directory: "guides" } }],
         },
         {
           label: "API Reference",
-          autogenerate: { directory: "api" },
+          items: [{ autogenerate: { directory: "api" } }],
         },
         {
           label: "Packages",
-          autogenerate: { directory: "packages" },
+          items: [{ autogenerate: { directory: "packages" } }],
         },
       ],
     }),
