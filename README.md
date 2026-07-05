@@ -137,7 +137,7 @@ npm install -g @stratum-hq/cli
 - **Config diff** — compare resolved config between any two tenants
 - **Tenant impersonation** — resolve full context for admin tooling
 - **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **1700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
+- **700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
 
 ## Running the Demo
 
