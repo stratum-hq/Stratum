@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/test-utils",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Cross-tenant isolation test helpers for Stratum — assertIsolation and assertConfigInheritance",
   "keywords": [
     "multi-tenancy",
@@ -44,7 +44,9 @@
     "mongodb": "^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
-    "mongodb": { "optional": true }
+    "mongodb": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",

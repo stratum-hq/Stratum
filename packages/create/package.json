@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/create",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Create a new Stratum multi-tenancy project",
   "keywords": [
     "multi-tenancy",

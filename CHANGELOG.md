@@ -1,8 +1,14 @@
 # Changelog
 
-## 0.3.0 (2026-03-30)
+## 0.3.0 (2026-07-05)
+
+### Security
+- **Hardening sprint** — NestJS interceptor with `run()` replaces `enterWith()` to prevent cross-tenant context leaks under concurrency; DNS-rebinding-safe webhook URL validation with `redirect: "error"`; production enforcement of real JWT secrets and `STRATUM_HKDF_SALT`; transaction-scoped RLS `set_config`; fail-closed Drizzle/Sequelize adapters when tenant context is missing; Knex tenant_id auto-injection on INSERT; DB-level scoping for scoped API keys; SHA-pinned GitHub Actions. (#84)
+- Dependency security bumps across the workspace (fastify, hono, form-data, path-to-regexp, lodash, and more).
 
 ### Added
+- **`create --preset` architecture** — stack combination matrix (database/strategy/ORM/framework) with ORM-aware project generators, plus the interactive Stack Wizard on the docs site. Scaffolded projects now target Next 15 / React 19 / NestJS 11. (#85)
+- **MIT LICENSE and READMEs in every published package.**
 - **MongoDB tenant isolation** — new `@stratum-hq/mongodb` package with three isolation strategies: shared-collection (tenant_id field injection via Collection Proxy), collection-per-tenant (namespace separation), and database-per-tenant (with LRU pool manager). Includes Mongoose plugin with ALS-powered auto-scoping, GDPR purge with `Promise.allSettled` for partial-failure resilience, and fail-closed proxy semantics. 54 unit tests. (#76)
 - **Hono middleware** — new `@stratum-hq/hono` package with tenant extraction from header/JWT/path param, ALS context via `runWithTenantContext`, and optional resolve callback. (#70)
 - **Drizzle ORM adapter** — `@stratum-hq/db-adapters` now supports Drizzle alongside raw pg, Prisma, and Sequelize. `DrizzleLike` structural interface, transaction-wrapping with `set_config`. (#69)

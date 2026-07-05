@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/react",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "type": "module",
   "description": "Stratum React UI components for multi-tenant administration",
   "keywords": [
