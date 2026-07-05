@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml/badge.svg" alt="Integration Tests" /></a>
+  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-mongo-integration.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci-mongo-integration.yml/badge.svg" alt="MongoDB Integration Tests" /></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/MongoDB-6%2F7-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />

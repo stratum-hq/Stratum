@@ -1,7 +1,8 @@
 # Publish packages to npm on version tag push
 #
-# NPM_TOKEN secret must be configured in GitHub repository settings.
-# IMPORTANT: npm tokens expire after 90 days — set a calendar reminder to rotate.
+# Auth: npm Trusted Publishing (OIDC) — each @stratum-hq package must have a
+# GitHub Actions trusted publisher configured on npmjs.com pointing at
+# stratum-hq/Stratum + publish.yml. No token secret required.
 
 name: Publish to npm
 
@@ -78,6 +79,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
 
+      # Trusted publishing (OIDC) needs npm >= 11.5; Node 20 bundles npm 10
+      - run: npm install -g npm@latest
+
       - run: npm ci
       - run: npm run build
       - name: Publish packages (skip already-published versions)
@@ -106,5 +110,3 @@ jobs:
             fi
           done
           exit $failed
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
