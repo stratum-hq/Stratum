@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-07-05)
+
+### Fixed
+- **`getAncestors` dropped the direct parent from the ancestor chain** — `getAncestorIds` assumed ancestry paths include the tenant's own id and sliced off the last element, but paths store only the ancestor chain. Every depth-1 tenant returned zero ancestors; deeper tenants lost their nearest parent. Found by dogfooding the MSP reference app. (`@stratum-hq/core` 0.3.1, `@stratum-hq/lib` 0.3.1)
+
 ## 0.3.0 (2026-07-05)
 
 ### Security
