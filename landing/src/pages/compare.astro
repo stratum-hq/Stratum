@@ -5,7 +5,7 @@ import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 ---
 
-<Base title="Stratum vs Alternatives — Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, and ABP.IO. See why Stratum is the multi-tenancy library Node.js has been missing.">
+<Base title="Stratum vs Alternatives — Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, ABP.IO, Clerk / Auth0 Organizations, Nile, and Oso / Permit.io. See why Stratum is the multi-tenancy library Node.js has been missing.">
 
 <Nav />
 
@@ -16,7 +16,8 @@ import Footer from '../components/Footer.astro';
     <div class="cmp-eyebrow">Compare</div>
     <h1>Stratum vs the <span class="accent">alternatives</span></h1>
     <p class="cmp-subtitle">
-      Four ways to handle multi-tenancy in Node.js. An honest look at each.
+      Seven honest comparisons — from rolling your own to auth-layer orgs,
+      tenant databases, and authorization engines. Where each fits, and where Stratum does.
     </p>
   </header>
 
@@ -282,6 +283,298 @@ import Footer from '../components/Footer.astro';
     </div>
   </section>
 
+  <!-- Comparison 4: Clerk / Auth0 Organizations -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs Clerk Organizations</h2>
+      <p class="cmp-section-intro">
+        Clerk Organizations (and Auth0 Organizations) give you multi-tenant <em>auth</em>:
+        org membership, invitations, and SSO scoped per organization. Stratum gives you
+        multi-tenant <em>data</em>. Different halves of the same feature.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        Clerk Organizations and Auth0 Organizations live at the <strong>authentication and
+        membership layer</strong>. They model who belongs to which org, hand you a polished
+        invitation and member-management UI, let each organization bring its own SSO connection,
+        and put an <code>org_id</code> in the session token. For the login and org-switching
+        experience, they are hard to beat.
+      </p>
+      <p>
+        What they deliberately don't touch is the layer below the token. They don't isolate a
+        tenant's rows in your database, inherit config down through nested tenants, enforce
+        row-level security, audit the data mutations your app performs, or purge a tenant's data
+        for a GDPR request. That's not a gap in the products — it's simply not the layer they
+        operate at.
+      </p>
+      <p>
+        Stratum takes the <code>org_id</code> those systems already resolve and builds the tenant
+        data layer beneath it: the isolation strategy, the config tree, permission delegation, and
+        the compliance workflows. The two compose cleanly — Clerk decides who is in the org,
+        Stratum decides what that org's data can do and where it lives.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs Clerk / Auth0 Organizations">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Clerk / Auth0 Orgs</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">Org membership + invites</td>
+            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-bad">Not in scope</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">SSO per organization</td>
+            <td class="cmp-good">Yes</td>
+            <td class="cmp-bad">Not in scope</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data isolation strategies</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">RLS, schema, database</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Nested tenants</td>
+            <td class="cmp-neutral">Flat orgs (+ optional sub-orgs)</td>
+            <td class="cmp-good">20-level tree, ltree-backed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Root-to-leaf, lockable keys</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data mutation audit log</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Every mutation, before/after state</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">GDPR purge of tenant data</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Full export + hard purge</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Pricing model</td>
+            <td class="cmp-neutral">Proprietary SaaS</td>
+            <td class="cmp-good">Open source, MIT</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cmp-callout">
+      <p>
+        <strong>Use both:</strong> Clerk (or Auth0) for authentication and the org-membership UI
+        your users see. Stratum for the tenant data layer beneath it — isolation, config, and
+        compliance. They sit at different layers and slot together.
+      </p>
+    </div>
+  </section>
+
+  <!-- Comparison 5: Nile -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs Nile</h2>
+      <p class="cmp-section-intro">
+        Nile (thenile.dev) is a tenant-aware Postgres you adopt and host with them. Stratum is a
+        library over the Postgres you <em>already</em> run. The split is: their database, or your
+        database with a tenancy model on top.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        Nile virtualizes tenants at the <strong>database</strong> itself — you build on Nile's
+        hosted Postgres and get per-tenant isolation baked into the platform. If you're greenfield
+        and comfortable putting your data on a startup database vendor, it's an elegant story:
+        tenancy is a property of the database, not something you assemble in application code.
+      </p>
+      <p>
+        Stratum takes the opposite stance on <em>where</em> tenancy lives. It's an MIT-licensed
+        library that runs over your existing PostgreSQL — RDS, Supabase, Neon, or self-hosted —
+        so there's no database to migrate to and no vendor to depend on. On top of that Postgres it
+        adds the application-layer tenancy model Nile doesn't aim to cover: nested tenant
+        hierarchy, config inheritance with lockable keys, permission delegation, and GDPR
+        export/purge workflows.
+      </p>
+      <p>
+        So the choice is less feature-by-feature and more about ownership. Nile asks you to adopt a
+        database; Stratum asks you to keep yours and drop in a layer. If nested tenancy, config
+        inheritance, or compliance operations matter to you, those are Stratum's territory
+        regardless of which Postgres you run.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs Nile">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Nile</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">What it is</td>
+            <td class="cmp-neutral">Hosted tenant-aware Postgres</td>
+            <td class="cmp-good">Library over your Postgres</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Runs on existing DB</td>
+            <td class="cmp-bad">Adopt their database</td>
+            <td class="cmp-good">RDS, Supabase, Neon, self-hosted</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Per-tenant isolation</td>
+            <td class="cmp-good">Yes — at the DB</td>
+            <td class="cmp-good">RLS, schema, database</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Nested tenant hierarchy</td>
+            <td class="cmp-neutral">Flat tenants</td>
+            <td class="cmp-good">20-level tree, ltree-backed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Root-to-leaf, lockable keys</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Permission delegation / ABAC</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Delegation modes + ABAC policies</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">GDPR export + purge</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Article 20 export, Article 17 purge</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Lock-in / licensing</td>
+            <td class="cmp-neutral">Vendor-hosted</td>
+            <td class="cmp-good">No lock-in, MIT</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cmp-callout">
+      <p>
+        <strong>Choose by ownership:</strong> greenfield and happy to host your data with a startup
+        database vendor → Nile is a genuinely elegant fit. Existing Postgres, or you need nested
+        tenancy, config inheritance, or compliance workflows → Stratum layers onto what you already
+        run.
+      </p>
+    </div>
+  </section>
+
+  <!-- Comparison 6: Oso / Permit.io -->
+  <section class="cmp-section">
+    <div class="cmp-section-header">
+      <h2>Stratum vs Oso / Permit.io</h2>
+      <p class="cmp-section-intro">
+        Oso and Permit.io are authorization engines: policy-as-code for evaluating who can do what.
+        Stratum is a tenancy layer that happens to include scoped permissions. They overlap at one
+        edge and diverge everywhere else.
+      </p>
+    </div>
+
+    <div class="cmp-narrative">
+      <p>
+        Oso and Permit.io are built to answer one question extremely well: given a subject, an
+        action, and a resource, is it allowed? They give you a policy language, ReBAC/ABAC
+        evaluation, and a place to centralize app-wide authorization logic. If your access rules are
+        rich and cross-cutting, a dedicated policy engine is the right tool.
+      </p>
+      <p>
+        What they don't provide is the tenancy substrate: the tenant data model, the isolation
+        strategies (RLS, schema, database), config inheritance down a tenant tree, tenant lifecycle
+        operations like onboarding, archive, and purge, or an audit trail of tenant data mutations.
+        A policy engine decides <em>whether</em> an action is allowed; it doesn't store, isolate, or
+        manage the tenants themselves.
+      </p>
+      <p>
+        There is one honest overlap. Stratum's permission delegation and ABAC cover permissions
+        <em>within a tenant hierarchy</em> — delegation modes with cascade revocation, and ABAC
+        policies that inherit down the tree. That's narrower and more opinionated than a general
+        policy engine, and for tenancy-scoped access it's usually enough on its own.
+      </p>
+    </div>
+
+    <div class="cmp-table-wrapper">
+      <table class="cmp-table" aria-label="Stratum vs Oso / Permit.io">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Oso / Permit.io</th>
+            <th>Stratum</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cmp-feat">General policy-as-code authz</td>
+            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-neutral">Tenancy-scoped only</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">ReBAC / ABAC evaluation</td>
+            <td class="cmp-good">Yes, general-purpose</td>
+            <td class="cmp-good">ABAC + hierarchical inheritance</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant data model</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Hierarchy, ltree-backed</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Isolation strategies</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">RLS, schema, database</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Config inheritance</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Root-to-leaf, lockable keys</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Tenant lifecycle</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Onboard, archive, purge</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Data mutation audit log</td>
+            <td class="cmp-bad">No</td>
+            <td class="cmp-good">Every mutation, before/after state</td>
+          </tr>
+          <tr>
+            <td class="cmp-feat">Licensing</td>
+            <td class="cmp-neutral">Open core / SaaS</td>
+            <td class="cmp-good">Open source, MIT</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cmp-callout">
+      <p>
+        <strong>Choose by scope:</strong> complex, app-wide authorization policy → pair an authz
+        engine like Oso or Permit.io with Stratum's tenant layer. Permissions that only ever run
+        within your tenant hierarchy → Stratum's built-in delegation and ABAC are usually enough on
+        their own.
+      </p>
+    </div>
+  </section>
+
   <!-- Summary -->
   <section class="cmp-summary">
     <h2>The short version</h2>
@@ -297,6 +590,18 @@ import Footer from '../components/Footer.astro';
       <div class="cmp-summary-card">
         <div class="cmp-summary-label">vs ABP Framework</div>
         <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent — until now.</p>
+      </div>
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs Clerk / Auth0 Orgs</div>
+        <p>They own auth and org membership. Stratum owns the tenant data layer beneath the token — isolation, config, compliance. Compose them.</p>
+      </div>
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs Nile</div>
+        <p>Nile is a database you host with them. Stratum is a library over the Postgres you already run — plus nested tenancy and compliance. No lock-in.</p>
+      </div>
+      <div class="cmp-summary-card">
+        <div class="cmp-summary-label">vs Oso / Permit.io</div>
+        <p>Policy engines evaluate authz; they don't model tenants. Pair one with Stratum for app-wide policy, or use Stratum alone for tenancy-scoped permissions.</p>
       </div>
     </div>
   </section>
