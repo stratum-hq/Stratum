@@ -117,11 +117,11 @@ function generatePackageJson(projectName: string, template: Template): string {
       fastify: "^4.26.0",
     },
     nextjs: {
-      next: "^14.1.0",
-      react: "^18.2.0",
-      "react-dom": "^18.2.0",
-      "@types/react": "^18.2.0",
-      "@types/react-dom": "^18.2.0",
+      next: "^15.5.16",
+      react: "^19.0.0",
+      "react-dom": "^19.0.0",
+      "@types/react": "^19.0.0",
+      "@types/react-dom": "^19.0.0",
     },
   };
 

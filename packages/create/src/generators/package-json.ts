@@ -115,20 +115,20 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
       deps["fastify"] = "^4.26.0";
       break;
     case "nextjs":
-      deps["next"] = "^14.1.0";
-      deps["react"] = "^18.2.0";
-      deps["react-dom"] = "^18.2.0";
-      devDeps["@types/react"] = "^18.2.0";
-      devDeps["@types/react-dom"] = "^18.2.0";
+      deps["next"] = "^15.5.16";
+      deps["react"] = "^19.0.0";
+      deps["react-dom"] = "^19.0.0";
+      devDeps["@types/react"] = "^19.0.0";
+      devDeps["@types/react-dom"] = "^19.0.0";
       break;
     case "hono":
       deps["hono"] = "^4.1.0";
       deps["@hono/node-server"] = "^1.8.0";
       break;
     case "nestjs":
-      deps["@nestjs/core"] = "^10.3.0";
-      deps["@nestjs/common"] = "^10.3.0";
-      deps["@nestjs/platform-express"] = "^10.3.0";
+      deps["@nestjs/core"] = "^11.0.0";
+      deps["@nestjs/common"] = "^11.0.0";
+      deps["@nestjs/platform-express"] = "^11.0.0";
       deps["reflect-metadata"] = "^0.2.0";
       deps["rxjs"] = "^7.8.0";
       break;
