@@ -229,6 +229,10 @@ export class Stratum {
   getAncestors(id: string): Promise<TenantNode[]> {
     return tenantService.getAncestors(this.pool, id);
   }
+  /** The root tenant for any tenant in the tree (itself if already a root). */
+  getRoot(id: string): Promise<TenantNode> {
+    return tenantService.getRoot(this.pool, id);
+  }
   getDescendants(id: string): Promise<TenantNode[]> {
     return tenantService.getDescendants(this.pool, id);
   }

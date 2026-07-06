@@ -460,6 +460,41 @@ export async function getAncestors(pool: pg.Pool, id: string): Promise<TenantNod
   });
 }
 
+/**
+ * Get the root tenant for any tenant in the tree: the top-most ancestor, or the
+ * tenant itself when it is already a root. Resolves in one row lookup for the
+ * tenant plus one for its root (never fetches the whole ancestor chain), so it
+ * is the efficient primitive for "which top-level org owns this tenant" — a
+ * common need in hierarchical multi-tenancy (billing scope, ownership checks,
+ * root-level policy).
+ */
+export async function getRoot(pool: pg.Pool, id: string): Promise<TenantNode> {
+  return withClient(pool, async (client) => {
+    const tenantRes = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE id = $1`,
+      [id],
+    );
+    if (tenantRes.rows.length === 0) {
+      throw new TenantNotFoundError(id);
+    }
+    const tenant = tenantRes.rows[0];
+    // ancestry_path is ordered root-first and excludes self, so element 0 is
+    // the root. An empty path means this tenant is already a root.
+    const ancestorIds = getAncestorIds(tenant.ancestry_path);
+    if (ancestorIds.length === 0) {
+      return tenant;
+    }
+    const rootRes = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE id = $1`,
+      [ancestorIds[0]],
+    );
+    if (rootRes.rows.length === 0) {
+      throw new TenantNotFoundError(ancestorIds[0]);
+    }
+    return rootRes.rows[0];
+  });
+}
+
 export async function getDescendants(pool: pg.Pool, id: string): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
     const existsRes = await client.query<{ id: string }>(

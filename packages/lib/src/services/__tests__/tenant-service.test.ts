@@ -481,6 +481,71 @@ describe("getAncestors", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getRoot
+// ---------------------------------------------------------------------------
+describe("getRoot", () => {
+  it("returns the top-most ancestor for a nested tenant", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+
+    const leaf = makeTenant({
+      id: "leaf-id",
+      ancestry_path: "/root-id/mid-id",
+      depth: 2,
+    });
+    const root = makeTenant({ id: "root-id", ancestry_path: "/", depth: 0 });
+
+    // Query 1: SELECT the tenant. Query 2: SELECT the root by ancestorIds[0].
+    mockQuery.mockResolvedValueOnce({ rows: [leaf] });
+    mockQuery.mockResolvedValueOnce({ rows: [root] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await tenantService.getRoot(pool, "leaf-id");
+
+    expect(result.id).toBe("root-id");
+    // Second query looks up the root id (path element 0), not the whole chain.
+    expect(mockQuery.mock.calls[1][1]).toEqual(["root-id"]);
+  });
+
+  it("returns the tenant itself when it is already a root", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    const root = makeTenant({ id: "root-id", ancestry_path: "/", depth: 0 });
+
+    mockQuery.mockResolvedValueOnce({ rows: [root] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await tenantService.getRoot(pool, "root-id");
+
+    expect(result.id).toBe("root-id");
+    // No second query: an empty ancestry path means it is already the root.
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws TenantNotFoundError for unknown tenant", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(tenantService.getRoot(pool, "nonexistent")).rejects.toThrow(
+      TenantNotFoundError,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getDescendants
 // ---------------------------------------------------------------------------
 describe("getDescendants", () => {
