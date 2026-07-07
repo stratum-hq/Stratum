@@ -159,21 +159,34 @@ export async function resolveKeyScopes(pool: pg.Pool, keyId: string): Promise<st
  * This is the principal-agnostic counterpart to assignRoleToKey. Applications
  * that manage their own users can store the user's role here and resolve its
  * scopes via resolvePrincipalScopes, rather than reimplementing role storage.
+ *
+ * Pass `tenantId` to enforce that the role belongs to that tenant (global roles,
+ * tenant_id IS NULL, are always allowed): the assignment is REFUSED (returns
+ * false) if the role is owned by a different tenant. This prevents a caller from
+ * granting a foreign tenant's role to one of its principals. When `tenantId` is
+ * omitted the library does not scope the role, and the caller is responsible for
+ * authorizing the assignment.
  */
 export async function assignRole(
   pool: pg.Pool,
   principalType: string,
   principalId: string,
   roleId: string,
+  tenantId?: string,
 ): Promise<boolean> {
   return withClient(pool, async (client) => {
     const res = await client.query<{ role_id: string }>(
       `INSERT INTO principal_roles (principal_type, principal_id, role_id)
-       VALUES ($1, $2, $3)
+       SELECT $1, $2, $3
+       WHERE EXISTS (
+         SELECT 1 FROM roles
+         WHERE id = $3
+           AND ($4::uuid IS NULL OR tenant_id = $4 OR tenant_id IS NULL)
+       )
        ON CONFLICT (principal_type, principal_id)
        DO UPDATE SET role_id = EXCLUDED.role_id, assigned_at = now()
        RETURNING role_id`,
-      [principalType, principalId, roleId],
+      [principalType, principalId, roleId, tenantId ?? null],
     );
     return res.rows.length > 0;
   });
@@ -200,19 +213,27 @@ export async function removeRole(
  * Resolve the effective scopes for any principal via its assigned role.
  * Returns [] when the principal has no role assignment (fail closed), so a
  * caller can treat "no role" as "no scopes" without special-casing null.
+ *
+ * Pass `tenantId` to scope resolution to that tenant: scopes are returned only
+ * when the assigned role belongs to that tenant or is a global role
+ * (tenant_id IS NULL); otherwise [] is returned. This stops a principal from
+ * resolving a role owned by a different tenant. When `tenantId` is omitted the
+ * role's tenant is not checked.
  */
 export async function resolvePrincipalScopes(
   pool: pg.Pool,
   principalType: string,
   principalId: string,
+  tenantId?: string,
 ): Promise<string[]> {
   return withClient(pool, async (client) => {
     const res = await client.query<{ scopes: string[] | null }>(
       `SELECT r.scopes
        FROM principal_roles pr
        JOIN roles r ON r.id = pr.role_id
-       WHERE pr.principal_type = $1 AND pr.principal_id = $2`,
-      [principalType, principalId],
+       WHERE pr.principal_type = $1 AND pr.principal_id = $2
+         AND ($3::uuid IS NULL OR r.tenant_id = $3 OR r.tenant_id IS NULL)`,
+      [principalType, principalId, tenantId ?? null],
     );
     if (res.rows.length === 0) return [];
     return res.rows[0].scopes ?? [];
