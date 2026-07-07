@@ -751,6 +751,21 @@ export class Stratum {
     return roleService.resolveKeyScopes(this.pool, keyId);
   }
 
+  /**
+   * Assign a role to any principal (an application user, service account, etc.),
+   * not just an API key. One role per principal. See resolvePrincipalScopes.
+   */
+  assignRole(principalType: string, principalId: string, roleId: string): Promise<boolean> {
+    return roleService.assignRole(this.pool, principalType, principalId, roleId);
+  }
+  removeRole(principalType: string, principalId: string): Promise<boolean> {
+    return roleService.removeRole(this.pool, principalType, principalId);
+  }
+  /** Resolve a principal's effective scopes via its assigned role ([] if none). */
+  resolvePrincipalScopes(principalType: string, principalId: string): Promise<string[]> {
+    return roleService.resolvePrincipalScopes(this.pool, principalType, principalId);
+  }
+
   // ABAC operations
   createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput): Promise<AbacPolicy> {
     return traced("abac.create_policy", { tenant_id: tenantId }, async () => {

@@ -150,3 +150,71 @@ export async function resolveKeyScopes(pool: pg.Pool, keyId: string): Promise<st
     return row.role_scopes ?? row.scopes ?? ["read"];
   });
 }
+
+/**
+ * Assign a role to any principal (an application user, a service account, an
+ * API key, etc.), keyed by an application-defined (type, id) pair. One role per
+ * principal: assigning again replaces the previous role. Returns true on write.
+ *
+ * This is the principal-agnostic counterpart to assignRoleToKey. Applications
+ * that manage their own users can store the user's role here and resolve its
+ * scopes via resolvePrincipalScopes, rather than reimplementing role storage.
+ */
+export async function assignRole(
+  pool: pg.Pool,
+  principalType: string,
+  principalId: string,
+  roleId: string,
+): Promise<boolean> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<{ role_id: string }>(
+      `INSERT INTO principal_roles (principal_type, principal_id, role_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (principal_type, principal_id)
+       DO UPDATE SET role_id = EXCLUDED.role_id, assigned_at = now()
+       RETURNING role_id`,
+      [principalType, principalId, roleId],
+    );
+    return res.rows.length > 0;
+  });
+}
+
+/** Remove a principal's role assignment. Returns true if one was removed. */
+export async function removeRole(
+  pool: pg.Pool,
+  principalType: string,
+  principalId: string,
+): Promise<boolean> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<{ role_id: string }>(
+      `DELETE FROM principal_roles
+       WHERE principal_type = $1 AND principal_id = $2
+       RETURNING role_id`,
+      [principalType, principalId],
+    );
+    return res.rows.length > 0;
+  });
+}
+
+/**
+ * Resolve the effective scopes for any principal via its assigned role.
+ * Returns [] when the principal has no role assignment (fail closed), so a
+ * caller can treat "no role" as "no scopes" without special-casing null.
+ */
+export async function resolvePrincipalScopes(
+  pool: pg.Pool,
+  principalType: string,
+  principalId: string,
+): Promise<string[]> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<{ scopes: string[] | null }>(
+      `SELECT r.scopes
+       FROM principal_roles pr
+       JOIN roles r ON r.id = pr.role_id
+       WHERE pr.principal_type = $1 AND pr.principal_id = $2`,
+      [principalType, principalId],
+    );
+    if (res.rows.length === 0) return [];
+    return res.rows[0].scopes ?? [];
+  });
+}
