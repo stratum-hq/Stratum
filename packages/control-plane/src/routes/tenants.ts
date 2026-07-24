@@ -14,7 +14,7 @@ import {
   setupDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
-import { createTenantScopeGuard, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
+import { createTenantScopeGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   // A move must authorize BOTH ends. The plugin-level guard below only covers
@@ -25,7 +25,7 @@ export function createTenantRoutes(stratum: Stratum) {
 
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access their own tenant subtree
-    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
+    declareTenantScope(app, fromParamId);
     // GET /api/v1/tenants — List tenants (with cursor pagination)
     app.get("/", async (request, reply) => {
       const scopedTenantId = request.apiKey?.tenant_id;

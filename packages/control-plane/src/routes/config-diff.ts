@@ -1,8 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
+import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 export function createConfigDiffRoutes(stratum: Stratum) {
   return async function configDiffRoutes(app: FastifyInstance): Promise<void> {
+    // Operator-level configuration diff tool.
+    declareTenantScope(app, "global");
+
     // GET /api/v1/config/diff?tenant_a=UUID&tenant_b=UUID — Compare resolved config between two tenants
     app.get<{ Querystring: { tenant_a: string; tenant_b: string } }>(
       "/diff",

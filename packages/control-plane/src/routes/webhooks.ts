@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
-import { createTenantScopeGuard, fromBodyTenantId } from "../middleware/tenant-scope.js";
+import { declareTenantScope, fromBodyTenantId } from "../middleware/tenant-scope.js";
 
 /**
  * Post-fetch tenant access check for webhook routes.
@@ -49,7 +49,7 @@ export function createWebhookRoutes(stratum: Stratum) {
   return async function webhookRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access webhooks for their own tenant subtree.
     // This guard covers the POST / (create) route where tenant_id is in the body.
-    app.addHook("preHandler", createTenantScopeGuard(stratum, fromBodyTenantId));
+    declareTenantScope(app, fromBodyTenantId);
 
     // POST /api/v1/webhooks — Create webhook
     app.post("/", async (request, reply) => {
