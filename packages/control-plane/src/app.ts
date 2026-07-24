@@ -8,6 +8,7 @@ import { registerOpenApi } from "./openapi.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createAuthorizeMiddleware } from "./middleware/authorize.js";
+import { createTenantScopeEnforcer } from "./middleware/tenant-scope.js";
 import { createPerKeyRateLimitMiddleware } from "./middleware/per-key-rate-limit.js";
 import { createRedisRateLimiter } from "./middleware/rate-limit-redis.js";
 import { createRedisClient, checkRedisHealth } from "./redis.js";
@@ -81,6 +82,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerOpenApi(app);
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  // Default-deny: a route that declares no tenant scope is refused.
+  app.addHook("preHandler", createTenantScopeEnforcer(stratum));
 
   // Use Redis-backed rate limiting when REDIS_URL is configured, otherwise in-memory
   const redisClient = createRedisClient();

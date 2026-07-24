@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
-import { createTenantScopeGuard, fromBodyTenantId, fromQueryTenantId } from "../middleware/tenant-scope.js";
+import { declareTenantScope, fromBodyTenantId } from "../middleware/tenant-scope.js";
 
 const createApiKeySchema = z.object({
   tenant_id: z.string().uuid(),
@@ -12,10 +12,14 @@ const createApiKeySchema = z.object({
 
 export function createApiKeyRoutes(stratum: Stratum) {
   return async function apiKeyRoutes(app: FastifyInstance): Promise<void> {
+    // Scoped keys can only manage keys for their own tenant subtree. On create,
+    // the target tenant is in the body; the other routes scope themselves in
+    // their handlers.
+    declareTenantScope(app, fromBodyTenantId);
+
     // POST /api/v1/api-keys — Create a new API key (plaintext returned once)
     app.post<{ Body: { tenant_id: string; name?: string } }>(
       "/",
-      { preHandler: createTenantScopeGuard(stratum, fromBodyTenantId) },
       async (request, reply) => {
         const parsed = createApiKeySchema.safeParse(request.body);
         if (!parsed.success) {
