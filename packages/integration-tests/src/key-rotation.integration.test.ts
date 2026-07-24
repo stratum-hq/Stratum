@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { Stratum } from "@stratum-hq/lib";
 import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { tenantInput } from "./helpers/fixtures.js";
 
 function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
   const salt = Buffer.alloc(32, 0);
@@ -51,8 +52,14 @@ describe("Encryption & Key Rotation (integration)", () => {
   });
 
   it("sensitive config values are encrypted in the database", async () => {
-    const tenant = await stratum.createTenant({ name: "Enc Test", slug: "enc_test" });
-    await stratum.setConfig(tenant.id, "db_password", { value: "super-secret", sensitive: true });
+    const tenant = await stratum.createTenant(
+      tenantInput({ name: "Enc Test", slug: "enc_test" }),
+    );
+    await stratum.setConfig(tenant.id, "db_password", {
+      value: "super-secret",
+      locked: false,
+      sensitive: true,
+    });
 
     // Read raw value from DB — should be encrypted, not plaintext
     const pool = getPool();

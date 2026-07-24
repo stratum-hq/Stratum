@@ -32,7 +32,7 @@ function installMemoryStorage(name: "localStorage" | "sessionStorage"): void {
 }
 
 for (const name of ["localStorage", "sessionStorage"] as const) {
-  if (typeof (globalThis as Partial<Window>)[name]?.clear !== "function") {
+  if (typeof globalThis[name]?.clear !== "function") {
     installMemoryStorage(name);
   }
 }
