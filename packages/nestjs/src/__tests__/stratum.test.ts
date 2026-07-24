@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { resolveFromHeader, resolveFromJwt } from "@stratum-hq/sdk";
+import { StratumGuard } from "../stratum.guard.js";
 
 // ── Minimal NestJS interface stubs ──────────────────────────────────────────
 interface HttpArgumentsHost {
@@ -82,16 +83,16 @@ async function canActivate(
     headers?: Record<string, string | string[] | undefined>;
   }>();
 
-  // 1. Resolve tenant ID: header → JWT (verified) → custom resolvers
+  // 1. Resolve tenant ID: JWT (verified) → header → custom resolvers
   let tenantId: string | null = null;
 
-  tenantId = resolveFromHeader(req);
+  tenantId = resolveFromJwt(req, options.jwtClaimPath, {
+    secret: options.jwtSecret,
+    verify: options.jwtVerify,
+  });
 
   if (!tenantId) {
-    tenantId = resolveFromJwt(req, options.jwtClaimPath, {
-      secret: options.jwtSecret,
-      verify: options.jwtVerify,
-    });
+    tenantId = resolveFromHeader(req);
   }
 
   if (!tenantId && options.resolvers) {
@@ -238,7 +239,7 @@ describe("StratumGuard", () => {
       expect(client.resolveTenant).toHaveBeenCalledWith("tenant-from-jwt");
     });
 
-    it("prefers x-tenant-id header over JWT claim", async () => {
+    it("prefers the verified JWT claim over the x-tenant-id header", async () => {
       const token = makeJwt({ tenant_id: "jwt-tenant" });
       const req: Record<string, unknown> = {
         headers: {
@@ -250,7 +251,7 @@ describe("StratumGuard", () => {
 
       await canActivate(client, ctx, { jwtVerify: () => ({ tenant_id: "jwt-tenant" }) });
 
-      expect(client.resolveTenant).toHaveBeenCalledWith("header-tenant");
+      expect(client.resolveTenant).toHaveBeenCalledWith("jwt-tenant");
     });
   });
 
@@ -370,6 +371,57 @@ describe("StratumGuard", () => {
         }),
       ).rejects.toThrow(ForbiddenException);
     });
+  });
+});
+
+// ── Real StratumGuard: verified JWT must be authoritative ─────────────────────
+// Exercises the actual guard (not the mirror above) to lock in that an untrusted
+// X-Tenant-ID header cannot override the tenant proven by a verified JWT.
+describe("StratumGuard (real guard): tenant identity precedence", () => {
+  function makeJwt(payload: Record<string, unknown>): string {
+    const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+    const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    return `${header}.${body}.fakesig`;
+  }
+
+  it("uses the verified JWT tenant and ignores a conflicting X-Tenant-ID header", async () => {
+    const token = makeJwt({ tenant_id: "tenant-a" });
+    const req: Record<string, unknown> = {
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-tenant-id": "tenant-b",
+      },
+    };
+    const ctx = makeExecutionContext(req);
+
+    const resolveTenant = vi.fn(async (id: string) => ({ id, slug: id, name: id }));
+    const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
+    const options = { jwtVerify: () => ({ tenant_id: "tenant-a" }) };
+
+    const guard = new StratumGuard(client, options as unknown as import("../stratum.module.js").StratumModuleOptions);
+    const result = await guard.canActivate(ctx as unknown as import("@nestjs/common").ExecutionContext);
+
+    expect(result).toBe(true);
+    // The verified JWT tenant is authoritative; the header must not be used.
+    expect(resolveTenant).toHaveBeenCalledWith("tenant-a");
+    expect(resolveTenant).not.toHaveBeenCalledWith("tenant-b");
+    expect((req["tenant"] as { id: string }).id).toBe("tenant-a");
+  });
+
+  it("falls back to the X-Tenant-ID header only when no verified JWT tenant is present", async () => {
+    const req: Record<string, unknown> = {
+      headers: { "x-tenant-id": "tenant-header" },
+    };
+    const ctx = makeExecutionContext(req);
+
+    const resolveTenant = vi.fn(async (id: string) => ({ id, slug: id, name: id }));
+    const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
+
+    const guard = new StratumGuard(client, {} as unknown as import("../stratum.module.js").StratumModuleOptions);
+    const result = await guard.canActivate(ctx as unknown as import("@nestjs/common").ExecutionContext);
+
+    expect(result).toBe(true);
+    expect(resolveTenant).toHaveBeenCalledWith("tenant-header");
   });
 });
 
