@@ -27,8 +27,11 @@ const ADMIN_ROUTES = [
 ];
 
 function getRequiredScope(method: string, url: string): ScopeRequirement {
+  // Match on the request path. Take everything before the first "?" so the
+  // route match is evaluated on the normalized path alone.
+  const path = url.split("?", 1)[0];
   for (const pattern of ADMIN_ROUTES) {
-    if (pattern.test(url)) {
+    if (pattern.test(path)) {
       return "admin";
     }
   }

@@ -2,12 +2,12 @@ import { FastifyInstance } from "fastify";
 import { SetConfigInputSchema } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
-import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
+import { declareTenantScope, fromParamId } from "../middleware/tenant-scope.js";
 
 export function createConfigRoutes(stratum: Stratum) {
   return async function configRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access config for their own tenant subtree
-    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
+    declareTenantScope(app, fromParamId);
     // GET /api/v1/tenants/:id/config — Get resolved config
     app.get<{ Params: { id: string } }>("/", async (request, reply) => {
       const resolved = await stratum.resolveConfig(request.params.id);

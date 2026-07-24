@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { AuditLogQuerySchema } from "@stratum-hq/core";
 import type { AuditContext } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
+import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 export function buildAuditContext(request: FastifyRequest): AuditContext {
   return {
@@ -14,6 +15,9 @@ export function buildAuditContext(request: FastifyRequest): AuditContext {
 
 export function createAuditLogRoutes(stratum: Stratum) {
   return async function auditLogRoutes(app: FastifyInstance): Promise<void> {
+    // Scoped keys are constrained to their own tenant inside the handlers below.
+    declareTenantScope(app, "global");
+
     // GET /api/v1/audit-logs — List audit logs with filters
     app.get("/", async (request, reply) => {
       const query = AuditLogQuerySchema.parse(request.query);

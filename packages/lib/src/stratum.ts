@@ -6,6 +6,7 @@ import * as permissionService from "./services/permission-service.js";
 import * as apiKeyService from "./services/api-key-service.js";
 import * as webhookService from "./services/webhook-service.js";
 import * as eventService from "./services/event-service.js";
+import { signWebhookPayload } from "./webhook-signature.js";
 import * as auditService from "./services/audit-service.js";
 import * as consentService from "./services/consent-service.js";
 import * as retentionService from "./services/retention-service.js";
@@ -503,6 +504,9 @@ export class Stratum {
   listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null }>> {
     return apiKeyService.listApiKeys(this.pool, tenantId);
   }
+  getApiKey(id: string): Promise<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null } | null> {
+    return apiKeyService.getApiKey(this.pool, id);
+  }
   listDormantKeys(dormantDays?: number): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; last_used_at: Date | null; created_at: Date }>> {
     return apiKeyService.listDormantKeys(this.pool, dormantDays);
   }
@@ -568,10 +572,8 @@ export class Stratum {
 
     // Sign with the actual secret (decrypted)
     const rawSecret = webhookService.decryptSecret(webhook.secret_hash);
-    const signature =
-      "sha256=" +
-      crypto.createHmac("sha256", rawSecret).update(testPayload).digest("hex");
     const timestamp = new Date().toISOString();
+    const signature = signWebhookPayload(rawSecret, timestamp, testPayload);
 
     try {
       const response = await globalThis.fetch(webhook.url, {

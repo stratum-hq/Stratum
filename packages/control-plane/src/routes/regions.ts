@@ -2,9 +2,13 @@ import { FastifyInstance } from "fastify";
 import { CreateRegionInputSchema, UpdateRegionInputSchema } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
+import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 export function createRegionRoutes(stratum: Stratum) {
   return async function regionRoutes(app: FastifyInstance): Promise<void> {
+    // Operator-level region registry; no per-tenant target to enforce.
+    declareTenantScope(app, "global");
+
     // POST /api/v1/regions — Create region
     app.post("/", async (request, reply) => {
       const input = CreateRegionInputSchema.parse(request.body);

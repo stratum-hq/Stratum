@@ -4,11 +4,13 @@ import jwt from "jsonwebtoken";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { createAuthorizeMiddleware } from "../middleware/authorize.js";
+import { createTenantScopeEnforcer } from "../middleware/tenant-scope.js";
 import { healthRoutes } from "../routes/health.js";
 import { createTenantRoutes } from "../routes/tenants.js";
 import { createConfigRoutes } from "../routes/config.js";
 import { createApiKeyRoutes } from "../routes/api-keys.js";
 import { createConfigDiffRoutes } from "../routes/config-diff.js";
+import { createRoleRoutes } from "../routes/roles.js";
 import type { Stratum } from "@stratum-hq/lib";
 
 // Must match the JWT_SECRET env var set in vitest.config.ts
@@ -52,7 +54,17 @@ export function createMockStratum(): Stratum {
     revokeApiKey: vi.fn(),
     rotateApiKey: vi.fn(),
     listApiKeys: vi.fn(),
+    getApiKey: vi.fn(),
     listDormantKeys: vi.fn(),
+
+    // Role methods
+    createRole: vi.fn(),
+    getRole: vi.fn(),
+    listRoles: vi.fn(),
+    updateRole: vi.fn(),
+    deleteRole: vi.fn(),
+    assignRoleToKey: vi.fn(),
+    removeRoleFromKey: vi.fn(),
   } as unknown as Stratum;
 }
 
@@ -69,6 +81,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   // Wire up the same middleware chain as the real app
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  app.addHook("preHandler", createTenantScopeEnforcer(stratum));
   app.setErrorHandler(errorHandler);
 
   // Register routes (pass a stub Redis health checker — Redis is not used in tests)
@@ -78,6 +91,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   await app.register(createConfigRoutes(stratum), { prefix: "/api/v1/tenants/:id/config" });
   await app.register(createApiKeyRoutes(stratum), { prefix: "/api/v1/api-keys" });
   await app.register(createConfigDiffRoutes(stratum), { prefix: "/api/v1/config" });
+  await app.register(createRoleRoutes(stratum), { prefix: "/api/v1/roles" });
 
   await app.ready();
   return app;
