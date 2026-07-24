@@ -582,6 +582,48 @@ describe("getDescendants", () => {
     expect(result[1].id).toBe("grandchild-1");
   });
 
+  // These are SQL-string assertions per this repo's testing contract: the mock
+  // client does not run Postgres, so what they prove is that the subtree query
+  // carries the right predicate. The three states (active / archived / soft-
+  // deleted) are exercised for real against a database in
+  // packages/integration-tests/src/tenant-descendants.integration.test.ts.
+  it("excludes archived and soft-deleted descendants by default", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await tenantService.getDescendants(pool, "parent-id");
+
+    // The subtree query (2nd call) filters to active rows only. deleteTenant
+    // sets status='archived' alongside deleted_at, so this one predicate drops
+    // both archived and soft-deleted descendants — matching getChildren.
+    const subtreeSql = mockQuery.mock.calls[1][0] as string;
+    expect(subtreeSql).toContain("status = 'active'");
+  });
+
+  it("includes descendants of any status when includeArchived is true", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await tenantService.getDescendants(pool, "parent-id", true);
+
+    const subtreeSql = mockQuery.mock.calls[1][0] as string;
+    expect(subtreeSql).not.toContain("status = 'active'");
+  });
+
   it("returns empty array when no descendants exist", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();

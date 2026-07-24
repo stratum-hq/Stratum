@@ -495,7 +495,31 @@ export async function getRoot(pool: pg.Pool, id: string): Promise<TenantNode> {
   });
 }
 
-export async function getDescendants(pool: pg.Pool, id: string): Promise<TenantNode[]> {
+/**
+ * Get every descendant of a tenant: its whole subtree, excluding the tenant
+ * itself, ordered by depth (shallowest first).
+ *
+ * By default this returns only LIVE descendants (`status = 'active'`), matching
+ * `getChildren`, `listTenants`, and the default of `getTenant`. Archived and
+ * soft-deleted tenants are excluded. `deleteTenant` sets `status = 'archived'`
+ * (alongside `deleted_at`), so a single `status = 'active'` predicate excludes
+ * both archived and soft-deleted rows.
+ *
+ * This is the primitive callers use to scope work to a subtree, so the default
+ * is the conservative one: a tenant that is no longer active does not appear in
+ * a live subtree listing. Callers that genuinely need the full historical
+ * subtree (for example lifecycle or data-retention passes that must also reach
+ * removed tenants) pass `includeArchived = true`, mirroring `getTenant`.
+ *
+ * @param pool - pg Pool
+ * @param id - Tenant whose descendants to fetch
+ * @param includeArchived - when true, return descendants of any status
+ */
+export async function getDescendants(
+  pool: pg.Pool,
+  id: string,
+  includeArchived = false,
+): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
     const existsRes = await client.query<{ id: string }>(
       `SELECT id FROM tenants WHERE id = $1`,
@@ -505,11 +529,12 @@ export async function getDescendants(pool: pg.Pool, id: string): Promise<TenantN
       throw new TenantNotFoundError(id);
     }
 
-    // Use ltree <@ operator for efficient subtree query
+    // Use ltree <@ operator for efficient subtree query. Filter to active rows
+    // unless the caller opts into the full subtree.
     const res = await client.query<TenantNode>(
       `SELECT * FROM tenants
        WHERE ancestry_ltree <@ (SELECT ancestry_ltree FROM tenants WHERE id = $1)
-         AND id != $1
+         AND id != $1${includeArchived ? "" : "\n         AND status = 'active'"}
        ORDER BY depth ASC`,
       [id],
     );

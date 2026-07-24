@@ -233,8 +233,13 @@ export class Stratum {
   getRoot(id: string): Promise<TenantNode> {
     return tenantService.getRoot(this.pool, id);
   }
-  getDescendants(id: string): Promise<TenantNode[]> {
-    return tenantService.getDescendants(this.pool, id);
+  /**
+   * Descendant subtree of a tenant, shallowest first. Excludes archived and
+   * soft-deleted tenants by default; pass `includeArchived` to get the full
+   * historical subtree. See {@link tenantService.getDescendants}.
+   */
+  getDescendants(id: string, includeArchived?: boolean): Promise<TenantNode[]> {
+    return tenantService.getDescendants(this.pool, id, includeArchived);
   }
   getChildren(id: string): Promise<TenantNode[]> {
     return tenantService.getChildren(this.pool, id);
