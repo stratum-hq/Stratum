@@ -38,6 +38,15 @@ jobs:
 
       - run: npm ci
 
+      # Lint and typecheck run here too, not only in the pre-push hook, so a
+      # `--no-verify` push or a fork PR cannot skip them. This mirrors what
+      # `npm run verify` does locally, keeping CI and the hook in agreement.
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build packages
         run: npm run build
 
