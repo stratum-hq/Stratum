@@ -294,13 +294,36 @@ as is the `typecheck` task it depends on. Do not assume `npm run verify` will wo
 `package.json` first. When it lands, it becomes the gate and this section should be updated
 to say so plainly.
 
-Until then, the gate is these three commands, run locally, in this order:
+The two checks it needs to call are already here as standalone scripts, so wiring them is
+one line each: `npm run lint:secrets` and `npm run lint:deps`. The pre-push hook should use
+`npm run lint:secrets:staged`, which reads the index rather than the working tree.
+
+Until then, the gate is these five commands, run locally, in this order:
 
 ```bash
-npm run lint     # expect exit 0, 18 tasks
-npm run build    # expect exit 0, 14 tasks
-npm test         # expect exit 1, from the 4 known demo failures only
+npm run lint          # expect exit 0, 18 tasks
+npm run build         # expect exit 0, 14 tasks
+npm test              # expect exit 1, from the 4 known demo failures only
+npm run lint:secrets  # expect exit 0
+npm run lint:deps     # expect exit 0
 ```
+
+The last two are the guardrails, and they fail in opposite ways, which is worth knowing
+before you hit one.
+
+`lint:secrets` is **not** a ratchet. It expects zero and has no regenerate command on
+purpose. A finding is either a false positive, which you record by hand in
+`scripts/secret-allowlist.json` with a reason, or an incident, which you rotate. The demo
+stack's global-admin bootstrap key is already allowlisted, with the reasoning written out;
+do not add to that list casually. See `docs/secret-scanning.md`.
+
+`lint:deps` **is** a ratchet over the current `npm audit` counts, per severity, split into
+`runtime` and `all`. It fails when a count rises, and it also fails when a count falls,
+until you run `npm run lint:deps:write` and commit the baseline. Failing on improvement is
+deliberate: it is what makes the number go down instead of the baseline going stale. Do not
+regenerate it to make a rise go away without saying so in the PR. It needs the network,
+and it records counts only because this repository is public. See
+`docs/dependency-policy.md`.
 
 **Local checks are the gate right now.** GitHub Actions minutes for this organization are
 exhausted until August 9, so most pull requests are opened with CI skipped. Nothing is
