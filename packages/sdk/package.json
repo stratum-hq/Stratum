@@ -32,7 +32,7 @@
     "build": "tsc",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "publishConfig": {

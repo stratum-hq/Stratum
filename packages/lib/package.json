@@ -37,7 +37,7 @@
     "build": "tsc && cp -r src/migrations dist/migrations",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "publishConfig": {
