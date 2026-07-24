@@ -1,25 +1,32 @@
-import crypto from "node:crypto";
 import dns from "node:dns/promises";
+import net from "node:net";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
 import type { TenantEvent } from "@stratum-hq/core";
 import { getWebhooksForEvent, decryptSecret } from "./webhook-service.js";
+import { signWebhookPayload } from "../webhook-signature.js";
 
 const MAX_ATTEMPTS = 5;
 
-/** Blocked IP ranges for SSRF protection */
-const BLOCKED_IP_PATTERNS = [
-  /^127\./, // loopback
-  /^10\./, // RFC 1918
-  /^172\.(1[6-9]|2\d|3[01])\./, // RFC 1918
-  /^192\.168\./, // RFC 1918
-  /^169\.254\./, // link-local
-  /^0\./, // current network
-  /^::1$/, // IPv6 loopback
-  /^fc00:/, // IPv6 unique local
-  /^fe80:/, // IPv6 link-local
-  /^fd00:ec2:/, // AWS IMDSv2 IPv6
-];
+/**
+ * Reserved, private, loopback, link-local, and cloud-metadata ranges a webhook
+ * must never target (SSRF protection). BlockList compares parsed address bytes,
+ * so it matches every textual notation of an address, and it also checks an
+ * IPv4-mapped IPv6 literal against the IPv4 rules.
+ */
+const BLOCKED_IP_RANGES = new net.BlockList();
+// IPv4
+BLOCKED_IP_RANGES.addSubnet("0.0.0.0", 8, "ipv4"); // "this" network / unspecified
+BLOCKED_IP_RANGES.addSubnet("10.0.0.0", 8, "ipv4"); // RFC 1918
+BLOCKED_IP_RANGES.addSubnet("127.0.0.0", 8, "ipv4"); // loopback
+BLOCKED_IP_RANGES.addSubnet("169.254.0.0", 16, "ipv4"); // link-local, incl. cloud metadata
+BLOCKED_IP_RANGES.addSubnet("172.16.0.0", 12, "ipv4"); // RFC 1918
+BLOCKED_IP_RANGES.addSubnet("192.168.0.0", 16, "ipv4"); // RFC 1918
+// IPv6
+BLOCKED_IP_RANGES.addAddress("::", "ipv6"); // unspecified
+BLOCKED_IP_RANGES.addAddress("::1", "ipv6"); // loopback
+BLOCKED_IP_RANGES.addSubnet("fc00::", 7, "ipv6"); // unique-local (covers fc00::/8 and fd00::/8)
+BLOCKED_IP_RANGES.addSubnet("fe80::", 10, "ipv6"); // link-local
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -29,9 +36,19 @@ const BLOCKED_HOSTNAMES = new Set([
   "169.254.169.254", // AWS/Azure metadata
 ]);
 
-/** Check if an IP matches any blocked private/reserved range. */
-function isBlockedIp(ip: string): boolean {
-  return BLOCKED_IP_PATTERNS.some((pattern) => pattern.test(ip));
+/** Strip the surrounding brackets from an IPv6 URL host literal ("[::1]" -> "::1"). */
+function unwrapHostLiteral(host: string): string {
+  return host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+}
+
+/** Check if a host that is an IP literal matches any blocked private/reserved range. */
+function isBlockedIp(host: string): boolean {
+  const ip = unwrapHostLiteral(host);
+  const family = net.isIP(ip);
+  if (family === 0) {
+    return false; // not an IP literal; hostname handling applies instead
+  }
+  return BLOCKED_IP_RANGES.check(ip, family === 4 ? "ipv4" : "ipv6");
 }
 
 /** Validates that a webhook URL does not target internal/private networks. */
@@ -103,13 +120,6 @@ export async function validateWebhookUrlWithDns(url: string): Promise<void> {
       );
     }
   }
-}
-
-function signPayload(secret: string, payload: string): string {
-  return (
-    "sha256=" +
-    crypto.createHmac("sha256", secret).update(payload).digest("hex")
-  );
 }
 
 function retryDelayMs(attempts: number): number {
@@ -208,8 +218,8 @@ export async function deliverWebhook(
   await validateWebhookUrlWithDns(webhook.url);
 
   const rawSecret = decryptSecret(webhook.secret_hash);
-  const signature = signPayload(rawSecret, payload);
   const timestamp = new Date().toISOString();
+  const signature = signWebhookPayload(rawSecret, timestamp, payload);
 
   try {
     const response = await globalThis.fetch(webhook.url, {

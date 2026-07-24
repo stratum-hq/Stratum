@@ -6,6 +6,12 @@ export {
   type MigrateSchemasResult,
 } from "./migrate-schemas.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
+export {
+  verifyWebhookSignature,
+  signWebhookPayload,
+  DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
+  type VerifyWebhookOptions,
+} from "./webhook-signature.js";
 export { traced, getTracer, isTracingEnabled } from "./telemetry.js";
 
 // Re-export core types for convenience
