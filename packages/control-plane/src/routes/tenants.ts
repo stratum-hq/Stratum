@@ -14,7 +14,7 @@ import {
   setupDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
-import { createTenantScopeGuard, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
+import { createTenantScopeGuard, createTenantCreateGuard, createTenantBatchCreateGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   // A move must authorize BOTH ends. The plugin-level guard below only covers
@@ -22,10 +22,15 @@ export function createTenantRoutes(stratum: Stratum) {
   // therefore passes on the fast path. This second guard authorizes the
   // destination parent.
   const destinationScopeGuard = createTenantScopeGuard(stratum, fromBodyNewParentId);
+  // A create has no `:id` for the plugin-level guard to check, so it authorizes
+  // the requested parent instead: scoped keys may only create inside their own
+  // subtree, and may not create new roots.
+  const createScopeGuard = createTenantCreateGuard(stratum);
+  const batchCreateScopeGuard = createTenantBatchCreateGuard(stratum);
 
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access their own tenant subtree
-    app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
+    declareTenantScope(app, fromParamId);
     // GET /api/v1/tenants — List tenants (with cursor pagination)
     app.get("/", async (request, reply) => {
       const scopedTenantId = request.apiKey?.tenant_id;
@@ -41,7 +46,7 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants — Create tenant
-    app.post("/", async (request, reply) => {
+    app.post("/", { preHandler: createScopeGuard }, async (request, reply) => {
       const parsed = CreateTenantInputSchema.safeParse(request.body);
       if (!parsed.success) {
         reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: parsed.error.issues } });
@@ -68,7 +73,7 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants/batch — Create multiple tenants atomically
-    app.post("/batch", async (request, reply) => {
+    app.post("/batch", { preHandler: batchCreateScopeGuard }, async (request, reply) => {
       const body = request.body as { tenants?: unknown[] };
       if (!Array.isArray(body?.tenants) || body.tenants.length === 0) {
         reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Body must contain a non-empty 'tenants' array" } });
