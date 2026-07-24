@@ -1,0 +1,33 @@
+{
+  "$comment": [
+    "Generated. Do not hand-edit: run `npm run lint:deps:write`.",
+    "Vulnerability counts from `npm audit`, by severity, for two scopes.",
+    "`runtime` is `npm audit --omit=dev`: what ships to a consumer of the published",
+    "packages. `all` adds the build and test toolchain. Runtime is the number that",
+    "matters; the total mostly measures the toolchain.",
+    "This is a ratchet. A count going up fails the build. A count going down fails it",
+    "too, until you regenerate this file and commit it, which is how improvements get",
+    "locked in instead of quietly evaporating.",
+    "Counts only, no package names: this repository is public. See",
+    "docs/dependency-policy.md.",
+    "Regenerating after a count rises is not remediation. It is raising the ceiling,",
+    "and it needs a reviewer to agree in the pull request."
+  ],
+  "generated": "2026-07-24",
+  "scopes": {
+    "runtime": {
+      "critical": 0,
+      "high": 3,
+      "moderate": 1,
+      "low": 1,
+      "info": 0
+    },
+    "all": {
+      "critical": 1,
+      "high": 6,
+      "moderate": 11,
+      "low": 1,
+      "info": 0
+    }
+  }
+}
