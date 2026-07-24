@@ -21,16 +21,19 @@ export class StratumGuard implements CanActivate {
       originalTenantId?: string;
     }>();
 
-    // 1. Resolve tenant ID: header → JWT (verified) → custom resolvers
+    // 1. Resolve tenant ID: JWT (verified) → header → custom resolvers.
+    //    The verified JWT is authoritative; the header is only a fallback when
+    //    no JWT tenant is present, so it can never override a verified identity.
+    //    Order mirrors express.ts.
     let tenantId: string | null = null;
 
-    tenantId = resolveFromHeader(req);
+    tenantId = resolveFromJwt(req, this.options.jwtClaimPath, {
+      secret: this.options.jwtSecret,
+      verify: this.options.jwtVerify,
+    });
 
     if (!tenantId) {
-      tenantId = resolveFromJwt(req, this.options.jwtClaimPath, {
-        secret: this.options.jwtSecret,
-        verify: this.options.jwtVerify,
-      });
+      tenantId = resolveFromHeader(req);
     }
 
     if (!tenantId && this.options.resolvers) {
