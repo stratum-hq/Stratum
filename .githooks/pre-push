@@ -1,9 +1,11 @@
 #!/bin/sh
 #
-# Stratum verification gate.
+# Stratum pre-push gate. Two stages, cheapest first:
 #
-# Runs `npm run verify` (lint, typecheck, test, build) before every push and
-# blocks the push if anything fails.
+#   1. Forbidden action guards. Refuses tag pushes, direct pushes to main, and
+#      rewrites of main. See .githooks/forbidden-actions.sh.
+#   2. The verification gate. Runs `npm run verify` (lint, typecheck, test,
+#      build) and blocks the push if anything fails.
 #
 # Installed automatically by the root `prepare` script on `npm install`, which
 # points core.hooksPath at this directory.
@@ -12,17 +14,30 @@
 #
 #   git push --no-verify
 #
-# Use it when the failure is unrelated to your change (a flaky environment, an
-# already-broken base branch) and you need the branch pushed anyway. CI still
-# runs, so a bypassed push does not skip verification, it only defers it.
+# Use it when a verification failure is unrelated to your change (a flaky
+# environment, an already-broken base branch) and you need the branch pushed
+# anyway. CI still runs, so a bypassed push does not skip verification, it only
+# defers it.
+#
+# --no-verify is a blunt instrument: git skips this hook entirely, guards
+# included. It is not a way around the guards. Each guard has its own named
+# escape hatch that unlocks exactly one thing, and pushing a tag is additionally
+# gated server side by scripts/release-guard.sh, which --no-verify cannot reach.
 
-echo "pre-push: running npm run verify"
+hooks_dir=$(dirname "$0")
 
-if npm run verify; then
-	exit 0
-fi
+"$hooks_dir/forbidden-actions.sh" pre-push || exit 1
 
-cat >&2 <<'EOF'
+# `verify` arrives with the verification gate. Skip cleanly if it is not
+# defined yet so this hook works on any branch.
+if node -e "process.exit(require('./package.json').scripts.verify ? 0 : 1)" 2>/dev/null; then
+	echo "pre-push: running npm run verify"
+
+	if npm run verify; then
+		exit 0
+	fi
+
+	cat >&2 <<'EOF'
 
 pre-push: verification failed, push blocked.
 
@@ -32,4 +47,7 @@ Fix the failures above and push again, or bypass the gate with:
 
 EOF
 
-exit 1
+	exit 1
+fi
+
+exit 0

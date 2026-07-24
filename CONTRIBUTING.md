@@ -71,6 +71,67 @@ rather than skipping it.
 
 PRs should be focused — one feature or fix per PR. Keep commits clean and descriptive.
 
+## Forbidden Actions
+
+A few actions cause real, externally visible damage, so they are enforced by git
+hooks rather than by convention. `npm install` points `core.hooksPath` at
+`.githooks/`, so a fresh clone is protected with no setup step. The logic lives in
+`.githooks/forbidden-actions.sh` and you can run it directly to see what it does.
+
+| Action | Blocked by | Escape hatch |
+|---|---|---|
+| Pushing any git tag | `pre-push` | `STRATUM_RELEASE_TAG=<tag>` |
+| Pushing to `main` | `pre-push` | `STRATUM_ALLOW_MAIN_PUSH=1` |
+| Force-pushing or deleting `main` | `pre-push` | `STRATUM_ALLOW_MAIN_FORCE_PUSH=1` |
+| Committing on `main` | `pre-commit` | `STRATUM_ALLOW_MAIN_COMMIT=1` |
+
+Each variable unlocks exactly one thing for exactly one command. `STRATUM_RELEASE_TAG`
+in particular names the single tag you mean, so a `git push --tags` that also carries
+stale tags still stops.
+
+`git push --no-verify` makes git skip the pre-push hook entirely, guards included. It
+is the bypass for verification failures, not for these guards. Tags are the reason the
+release guard below exists.
+
+### Why tags are the dangerous one
+
+`.github/workflows/publish.yml` triggers on `push: tags: ["v*"]` and publishes every
+non-private package under `packages/` to npm using OIDC trusted publishing. There is no
+token to be missing and no manual approval step. One stray `git push --tags` ships a
+real public release, and npm releases cannot be cleanly unpublished.
+
+The pre-push guard sees every route a tag can take to a remote, because git hands the
+hook the ref updates themselves:
+
+```bash
+git push --tags
+git push --follow-tags
+git push origin v1.2.3
+git push origin refs/tags/v1.2.3
+```
+
+### Cutting a release
+
+Releasing is a human decision. It takes two deliberate steps, and both are checked.
+
+```bash
+# 1. Annotate the tag on a commit that is already on main.
+git tag -a v1.2.3 -m "Release v1.2.3"
+
+# 2. Name the tag you mean when you push it.
+STRATUM_RELEASE_TAG=v1.2.3 git push origin refs/tags/v1.2.3
+```
+
+`scripts/release-guard.sh` then runs as the first job of the publish workflow and
+refuses to publish unless the tag is named `vMAJOR.MINOR.PATCH`, is annotated rather
+than lightweight, and points at a commit already reachable from `main`. It runs server
+side, so it applies however the tag arrived, including from a fork, from the GitHub
+release UI, or from a push that used `--no-verify`.
+
+Maintainers should also add a GitHub tag protection ruleset for `v*` and a required
+reviewer on a `publish` environment. Those close the same hole from the server side and
+cannot be bypassed locally at all.
+
 ## Code Style
 
 - **Language:** TypeScript throughout. Avoid `any` where possible.
