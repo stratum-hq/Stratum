@@ -1,13 +1,16 @@
 import pg from "pg";
+import { validateSlug } from "@stratum-hq/core";
 import { tenantSchemaName } from "./manager.js";
 
 export async function setSchemaSearchPath(
   client: pg.PoolClient,
   tenantSlug: string,
 ): Promise<void> {
-  const schemaName = tenantSchemaName(tenantSlug);
-  // Schema name is derived from a validated slug — safe for interpolation.
-  // SET LOCAL only takes effect for the current transaction.
+  // The schema name is interpolated (identifiers cannot be bound), so the slug
+  // must be validated against the canonical slug charset first; validateSlug
+  // throws on anything else. SET LOCAL only takes effect for the current
+  // transaction.
+  const schemaName = tenantSchemaName(validateSlug(tenantSlug));
   await client.query(`SET LOCAL search_path TO ${schemaName}, public`);
 }
 
