@@ -83,6 +83,66 @@ export function createTenantScopeGuard(
   };
 }
 
+/**
+ * Authorize a single tenant CREATE against the caller's key scope.
+ *
+ * A scoped key may only create tenants within its own subtree, so the new
+ * tenant's parent must be the key's own tenant or a descendant of it. A scoped
+ * key may not create a new root (a tenant with no parent). Global (operator)
+ * keys are unrestricted and may create roots anywhere.
+ */
+async function authorizeCreateUnder(
+  stratum: Stratum,
+  request: FastifyRequest,
+  parentId: string | null,
+): Promise<void> {
+  const apiKey = request.apiKey;
+  if (!apiKey) return;
+
+  // Only global API keys (null tenant_id) may create roots or create anywhere.
+  if (apiKey.tenant_id === null && request.authMethod === "api_key") return;
+
+  if (!parentId) {
+    throw new ForbiddenError(
+      "API key tenant scope may not create root tenants",
+    );
+  }
+  await checkTenantScope(stratum, request, () => parentId);
+}
+
+/**
+ * Guard for POST /tenants: constrain a scoped key's new tenant to its subtree.
+ */
+export function createTenantCreateGuard(stratum: Stratum) {
+  return async function tenantCreateGuard(
+    request: FastifyRequest,
+    _reply: FastifyReply,
+  ): Promise<void> {
+    const body = request.body as { parent_id?: string | null } | null;
+    await authorizeCreateUnder(stratum, request, body?.parent_id ?? null);
+  };
+}
+
+/**
+ * Guard for POST /tenants/batch: every tenant in the batch is authorized the
+ * same way a single create is, so the batch route cannot sidestep the subtree
+ * constraint.
+ */
+export function createTenantBatchCreateGuard(stratum: Stratum) {
+  return async function tenantBatchCreateGuard(
+    request: FastifyRequest,
+    _reply: FastifyReply,
+  ): Promise<void> {
+    const body = request.body as {
+      tenants?: Array<{ parent_id?: string | null }>;
+    } | null;
+    const tenants = Array.isArray(body?.tenants) ? body.tenants : [];
+    for (const tenant of tenants) {
+      await authorizeCreateUnder(stratum, request, tenant?.parent_id ?? null);
+    }
+  };
+}
+
 // Endpoints that carry no authentication and therefore no tenant scope.
 // Kept in step with the same skip list in the auth and authorize middleware.
 function isUnauthenticatedPath(url: string): boolean {
