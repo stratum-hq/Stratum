@@ -55,6 +55,43 @@ describe("HMAC signature generation", () => {
   });
 });
 
+describe("webhook egress filter (SSRF protection)", () => {
+  // Regression: bracketed IPv6 literals must be rejected in every notation.
+  // The URL parser exposes IPv6 hosts wrapped in brackets, so a filter that
+  // only matches the unbracketed textual form lets internal targets through.
+  const mustReject: [string, string][] = [
+    ["bracketed IPv6 loopback", "http://[::1]/hook"],
+    ["expanded IPv6 loopback", "http://[0:0:0:0:0:0:0:1]/hook"],
+    ["IPv6 link-local", "http://[fe80::1]/hook"],
+    ["IPv6 unique-local", "http://[fd00:ec2::254]/hook"],
+    ["IPv4-mapped loopback", "http://[::ffff:127.0.0.1]/hook"],
+    ["IPv4-mapped metadata address", "http://[::ffff:169.254.169.254]/hook"],
+    ["unspecified IPv6 address", "http://[::]/hook"],
+    ["integer-coerced loopback", "http://2130706433/hook"],
+  ];
+
+  for (const [label, url] of mustReject) {
+    it(`rejects ${label}`, () => {
+      expect(() => eventService.validateWebhookUrl(url)).toThrow();
+    });
+  }
+
+  // Unbracketed forms that already worked must keep working.
+  it("still rejects IPv4 loopback and metadata", () => {
+    expect(() => eventService.validateWebhookUrl("http://127.0.0.1/hook")).toThrow();
+    expect(() => eventService.validateWebhookUrl("http://169.254.169.254/hook")).toThrow();
+    expect(() => eventService.validateWebhookUrl("http://localhost/hook")).toThrow();
+  });
+
+  it("allows a public https target", () => {
+    expect(() => eventService.validateWebhookUrl("https://example.com/hook")).not.toThrow();
+  });
+
+  it("fails closed on an unparseable URL", () => {
+    expect(() => eventService.validateWebhookUrl("http://[not-an-ip/hook")).toThrow();
+  });
+});
+
 describe("retry backoff calculation", () => {
   // attempts^2 * 5000ms
   const cases: [number, number][] = [
