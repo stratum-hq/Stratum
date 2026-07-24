@@ -14,9 +14,15 @@ import {
   setupDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
-import { createTenantScopeGuard, fromParamId } from "../middleware/tenant-scope.js";
+import { createTenantScopeGuard, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
 
 export function createTenantRoutes(stratum: Stratum) {
+  // A move must authorize BOTH ends. The plugin-level guard below only covers
+  // `:id`, the tenant being moved, which a scoped key already owns and which
+  // therefore passes on the fast path. This second guard authorizes the
+  // destination parent.
+  const destinationScopeGuard = createTenantScopeGuard(stratum, fromBodyNewParentId);
+
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access their own tenant subtree
     app.addHook("preHandler", createTenantScopeGuard(stratum, fromParamId));
@@ -103,7 +109,7 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants/:id/move — Move tenant
-    app.post<{ Params: { id: string } }>("/:id/move", async (request, reply) => {
+    app.post<{ Params: { id: string } }>("/:id/move", { preHandler: destinationScopeGuard }, async (request, reply) => {
       const input = MoveTenantInputSchema.parse(request.body);
       const tenant = await stratum.moveTenant(request.params.id, input.new_parent_id, buildAuditContext(request));
       reply.status(200).send(tenant);

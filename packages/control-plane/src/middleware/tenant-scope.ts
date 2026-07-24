@@ -74,3 +74,17 @@ export function fromQueryTenantId(req: FastifyRequest): string | null {
 export function fromBodyTenantId(req: FastifyRequest): string | null {
   return (req.body as Record<string, string> | null)?.tenant_id ?? null;
 }
+
+/**
+ * Extract new_parent_id from a move request body: the move DESTINATION.
+ *
+ * A move has two tenants to authorize, not one. The route-level `:id` guard
+ * only covers the tenant being moved, which a scoped key already owns, so it
+ * passes on the fast path. Without authorizing the destination as well, a
+ * tenant can graft itself under any other tenant and inherit that tenant's
+ * resolved config (including decrypted `sensitive` values) and delegated
+ * permissions, because resolution walks UP the ancestry path.
+ */
+export function fromBodyNewParentId(req: FastifyRequest): string | null {
+  return (req.body as Record<string, string> | null)?.new_parent_id ?? null;
+}
