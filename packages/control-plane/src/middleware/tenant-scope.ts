@@ -1,55 +1,137 @@
-import { FastifyRequest, FastifyReply } from "fastify";
+import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
 import { ForbiddenError } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 
+/** Reads the target tenant id from a request, or null when there is none to check. */
+export type TenantIdExtractor = (req: FastifyRequest) => string | null;
+
 /**
- * Tenant-scope enforcement middleware.
+ * A route's tenant-scope declaration:
+ *  - an extractor: enforce that the caller's key may reach the extracted tenant;
+ *  - "global": operator-level route with no single tenant target, or one that
+ *    scopes itself in its handler. The middleware performs no tenant check.
+ */
+export type TenantScopeDeclaration = TenantIdExtractor | "global";
+
+declare module "fastify" {
+  interface FastifyContextConfig {
+    tenantScope?: TenantScopeDeclaration;
+  }
+}
+
+/**
+ * Core tenant-scope check.
  *
- * Ensures that tenant-scoped API keys can only access data belonging
- * to their own tenant or its descendants in the hierarchy.
+ * Ensures that tenant-scoped API keys can only access data belonging to their
+ * own tenant or its descendants in the hierarchy. Global keys (tenant_id ===
+ * null) have unrestricted access.
+ */
+async function checkTenantScope(
+  stratum: Stratum,
+  request: FastifyRequest,
+  extractTenantId: TenantIdExtractor,
+): Promise<void> {
+  const apiKey = request.apiKey;
+  if (!apiKey) return;
+
+  // Only API keys may have global (null tenant_id) access.
+  // JWT auth should never reach here with null tenant_id after the auth middleware
+  // fix, but guard defensively anyway.
+  if (apiKey.tenant_id === null) {
+    if (request.authMethod === "api_key") return;
+    throw new ForbiddenError("JWT authentication requires a tenant scope");
+  }
+
+  const targetTenantId = extractTenantId(request);
+  if (!targetTenantId) return;
+
+  // Fast path: exact match
+  if (apiKey.tenant_id === targetTenantId) return;
+
+  // Hierarchy check: target must be a descendant of the key's tenant
+  try {
+    const target = await stratum.getTenant(targetTenantId);
+    const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
+    if (ancestorIds.includes(apiKey.tenant_id)) return;
+  } catch {
+    // Tenant not found: fail closed for scoped keys
+    throw new ForbiddenError(
+      "API key tenant scope does not grant access to this tenant",
+    );
+  }
+
+  throw new ForbiddenError(
+    "API key tenant scope does not grant access to this tenant",
+  );
+}
+
+/**
+ * Tenant-scope enforcement middleware for a single extractor.
  *
- * Global keys (tenant_id === null) have unrestricted access.
+ * Retained for routes that must authorize a second tenant beyond the one the
+ * global enforcer already covers (for example, a move's destination parent).
  */
 export function createTenantScopeGuard(
   stratum: Stratum,
-  extractTenantId: (req: FastifyRequest) => string | null,
+  extractTenantId: TenantIdExtractor,
 ) {
   return async function tenantScopeGuard(
     request: FastifyRequest,
     _reply: FastifyReply,
   ): Promise<void> {
-    const apiKey = request.apiKey;
-    if (!apiKey) return;
+    await checkTenantScope(stratum, request, extractTenantId);
+  };
+}
 
-    // Only API keys may have global (null tenant_id) access.
-    // JWT auth should never reach here with null tenant_id after the auth middleware
-    // fix, but guard defensively anyway.
-    if (apiKey.tenant_id === null) {
-      if (request.authMethod === "api_key") return;
-      throw new ForbiddenError("JWT authentication requires a tenant scope");
+// Endpoints that carry no authentication and therefore no tenant scope.
+// Kept in step with the same skip list in the auth and authorize middleware.
+function isUnauthenticatedPath(url: string): boolean {
+  return (
+    url === "/api/v1/health" ||
+    url.startsWith("/api/v1/health?") ||
+    url.startsWith("/api/docs")
+  );
+}
+
+/**
+ * Declare the tenant scope for every route registered in the current plugin.
+ *
+ * Stamps the declaration onto each route's config so the global enforcer can
+ * read it. A route may still set its own `config.tenantScope`, which wins.
+ */
+export function declareTenantScope(
+  app: FastifyInstance,
+  declaration: TenantScopeDeclaration,
+): void {
+  app.addHook("onRoute", (routeOptions) => {
+    routeOptions.config = {
+      ...routeOptions.config,
+      tenantScope: routeOptions.config?.tenantScope ?? declaration,
+    };
+  });
+}
+
+/**
+ * Default-deny authorization enforcer, registered once as a global preHandler.
+ *
+ * Every route must declare its tenant scope (see {@link declareTenantScope}). A
+ * route that declares none is refused, so a route added without a guard fails
+ * closed rather than silently serving data.
+ */
+export function createTenantScopeEnforcer(stratum: Stratum) {
+  return async function tenantScopeEnforcer(
+    request: FastifyRequest,
+    _reply: FastifyReply,
+  ): Promise<void> {
+    if (isUnauthenticatedPath(request.url)) return;
+
+    const declaration = request.routeOptions?.config?.tenantScope;
+    if (declaration === undefined) {
+      throw new ForbiddenError("Route has no tenant-scope declaration");
     }
+    if (declaration === "global") return;
 
-    const targetTenantId = extractTenantId(request);
-    if (!targetTenantId) return;
-
-    // Fast path: exact match
-    if (apiKey.tenant_id === targetTenantId) return;
-
-    // Hierarchy check: target must be a descendant of the key's tenant
-    try {
-      const target = await stratum.getTenant(targetTenantId);
-      const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
-      if (ancestorIds.includes(apiKey.tenant_id)) return;
-    } catch {
-      // Tenant not found — fail closed for scoped keys
-      throw new ForbiddenError(
-        "API key tenant scope does not grant access to this tenant",
-      );
-    }
-
-    throw new ForbiddenError(
-      "API key tenant scope does not grant access to this tenant",
-    );
+    await checkTenantScope(stratum, request, declaration);
   };
 }
 

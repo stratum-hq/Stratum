@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
 import { buildAuditContext } from "./audit-logs.js";
+import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 const createRoleSchema = z.object({
   name: z.string().min(1).max(100),
@@ -22,6 +23,9 @@ const assignRoleSchema = z.object({
 
 export function createRoleRoutes(stratum: Stratum) {
   return async function roleRoutes(app: FastifyInstance): Promise<void> {
+    // Operator-level role administration.
+    declareTenantScope(app, "global");
+
     // POST /api/v1/roles — Create a role
     app.post("/", async (request, reply) => {
       const parsed = createRoleSchema.safeParse(request.body);

@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { createAuthorizeMiddleware } from "../middleware/authorize.js";
+import { createTenantScopeEnforcer } from "../middleware/tenant-scope.js";
 import { healthRoutes } from "../routes/health.js";
 import { createTenantRoutes } from "../routes/tenants.js";
 import { createConfigRoutes } from "../routes/config.js";
@@ -69,6 +70,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   // Wire up the same middleware chain as the real app
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  app.addHook("preHandler", createTenantScopeEnforcer(stratum));
   app.setErrorHandler(errorHandler);
 
   // Register routes (pass a stub Redis health checker — Redis is not used in tests)
