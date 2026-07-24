@@ -14,7 +14,7 @@
     "seed": "tsx api/src/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc -p api/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
-    "lint": "tsc -p api/tsconfig.json --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf api/dist web/dist"
   },
   "dependencies": {

@@ -28,7 +28,7 @@
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf dist",
     "migrate": "tsx src/db/migrate.ts"
   },

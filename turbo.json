@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": ["eslint.config.mjs"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -19,7 +20,9 @@
       "cache": false
     },
     "lint": {
-      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "//#lint:root": {
       "outputs": []
     },
     "dev": {
