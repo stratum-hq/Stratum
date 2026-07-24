@@ -264,12 +264,15 @@ export async function deletePermission(
         throw new PermissionRevocationDeniedError(policy.key);
 
       case RevocationMode.CASCADE: {
-        // Recursively delete from all descendants
-        // Find all descendants via ancestry_ltree
+        // Recursively delete from all descendants. Match descendants by the
+        // stable, ID-based ancestry_path (this tenant's id appears as a path
+        // segment of every descendant) so revocation reaches all current
+        // descendants regardless of any slug rename. ancestry_ltree is derived
+        // from slugs and must not scope revocation.
         const descendantsRes = await client.query<{ id: string }>(
           `SELECT id FROM tenants
-           WHERE ancestry_ltree <@ (SELECT ancestry_ltree FROM tenants WHERE id = $1)
-             AND id != $1`,
+           WHERE id != $1
+             AND (ancestry_path LIKE '%/' || $1 || '/%' OR ancestry_path LIKE '%/' || $1)`,
           [tenantId],
         );
         const descendantIds = descendantsRes.rows.map((r) => r.id);
