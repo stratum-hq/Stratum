@@ -17,9 +17,12 @@ not an application.
 What it provides:
 
 - **Tenant hierarchy.** A tree of tenants stored in PostgreSQL with a materialized path in
-  an `ltree` column. Advisory locks guard moves, max depth 20. See
+  an `ltree` column, plus a denormalized `depth` column. `pg_advisory_xact_lock` guards
+  create and move so concurrent writes cannot corrupt the tree. See
   `packages/lib/src/migrations/001_init.sql` and
   `packages/lib/src/services/tenant-service.ts`.
+  Note: `README.md` claims "max depth 20". No such limit is enforced anywhere in
+  `packages/lib` or `packages/core`. Do not rely on it.
 - **Config inheritance.** Config values resolve up the ancestry chain, root to leaf. A
   parent can lock a key so descendants cannot override it.
   `packages/lib/src/services/config-service.ts`.
