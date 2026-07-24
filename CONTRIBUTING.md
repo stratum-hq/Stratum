@@ -32,13 +32,40 @@ npm test
 
 Tests use [Vitest](https://vitest.dev/). Integration tests in `packages/integration-tests` require a running database.
 
+## The Verification Gate
+
+`npm run verify` runs the four checks CI runs, in order:
+
+```bash
+npm run verify   # lint, then typecheck, then test, then build
+```
+
+It stops at the first failure and exits non-zero. The order is deliberate:
+lint needs no build and finishes in a couple of seconds, so the cheapest and
+most common failures surface first. A full cold run of all four stages takes
+roughly 25 seconds; repeat runs are near instant because Turbo caches them.
+
+`npm install` points `core.hooksPath` at `.githooks/`, which installs a
+**pre-push hook** that runs `npm run verify` and blocks the push if it fails.
+This happens automatically on a fresh clone, so there is no setup step.
+
+If you need to push despite a failure, for example when the failure is
+unrelated to your change or your environment is misbehaving:
+
+```bash
+git push --no-verify
+```
+
+CI still runs on the pull request, so bypassing the hook defers verification
+rather than skipping it.
+
 ## Making Changes
 
 1. **Fork** the repo and create a branch from `main`:
    ```bash
    git checkout -b feat/my-feature
    ```
-2. Make your changes and ensure tests pass.
+2. Make your changes and run `npm run verify` until it passes.
 3. Push your branch and open a **Pull Request** against `main`.
 4. Fill out the PR description and link any related issues.
 
@@ -48,7 +75,7 @@ PRs should be focused — one feature or fix per PR. Keep commits clean and desc
 
 - **Language:** TypeScript throughout. Avoid `any` where possible.
 - **Tests:** Vitest for unit and integration tests. New features should include tests.
-- **Formatting:** The project uses consistent formatting; run `npm run build` to catch type errors before submitting.
+- **Formatting:** The project uses consistent formatting; run `npm run verify` to catch lint and type errors before submitting.
 - **Commits:** Use conventional commit messages (`feat:`, `fix:`, `chore:`, etc.).
 
 ## Monorepo Structure
