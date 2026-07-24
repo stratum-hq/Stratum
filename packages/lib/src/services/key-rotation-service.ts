@@ -7,10 +7,14 @@ export interface KeyRotationResult {
   webhooks_rotated: number;
 }
 
+// Lowest possible UUID; a keyset cursor starting here precedes every real row.
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
 /**
  * Re-encrypts all sensitive data (config entries and webhook secrets)
- * from oldKey to newKey in batches, using SKIP LOCKED to avoid blocking
- * concurrent writes. Each batch is its own transaction so locks are held briefly.
+ * from oldKey to newKey in batches, walking the primary key with a keyset
+ * cursor (id > lastId, ordered by id) so every row is rotated exactly once.
+ * Each batch is its own transaction so locks are held briefly.
  *
  * After rotation, update the STRATUM_ENCRYPTION_KEY environment variable to
  * the new key.
@@ -24,13 +28,15 @@ export async function rotateEncryptionKey(
   let configCount = 0;
   let webhookCount = 0;
 
-  // Process config entries in batches
+  // Process config entries in batches, advancing a keyset cursor by id.
+  let lastConfigId = ZERO_UUID;
   while (true) {
     const count = await withTransaction(pool, async (client) => {
       const batch = await client.query<{ id: string; value: string }>(
-        `SELECT id, value FROM config_entries WHERE sensitive = true
-         AND value NOT LIKE 'rotated:%' LIMIT $1 FOR UPDATE SKIP LOCKED`,
-        [batchSize],
+        `SELECT id, value FROM config_entries
+         WHERE sensitive = true AND id > $1
+         ORDER BY id LIMIT $2 FOR UPDATE`,
+        [lastConfigId, batchSize],
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
@@ -41,18 +47,22 @@ export async function rotateEncryptionKey(
           [JSON.stringify(reEncrypted), row.id],
         );
       }
+      lastConfigId = batch.rows[batch.rows.length - 1].id;
       return batch.rows.length;
     });
     configCount += count;
     if (count < batchSize) break;
   }
 
-  // Process webhooks in batches
+  // Process webhooks in batches, advancing a keyset cursor by id.
+  let lastWebhookId = ZERO_UUID;
   while (true) {
     const count = await withTransaction(pool, async (client) => {
       const batch = await client.query<{ id: string; secret_hash: string }>(
-        `SELECT id, secret_hash FROM webhooks WHERE secret_hash IS NOT NULL LIMIT $1 FOR UPDATE SKIP LOCKED`,
-        [batchSize],
+        `SELECT id, secret_hash FROM webhooks
+         WHERE secret_hash IS NOT NULL AND id > $1
+         ORDER BY id LIMIT $2 FOR UPDATE`,
+        [lastWebhookId, batchSize],
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
@@ -62,6 +72,7 @@ export async function rotateEncryptionKey(
           [reEncrypted, row.id],
         );
       }
+      lastWebhookId = batch.rows[batch.rows.length - 1].id;
       return batch.rows.length;
     });
     webhookCount += count;

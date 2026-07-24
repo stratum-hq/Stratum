@@ -6,6 +6,7 @@ import * as permissionService from "./services/permission-service.js";
 import * as apiKeyService from "./services/api-key-service.js";
 import * as webhookService from "./services/webhook-service.js";
 import * as eventService from "./services/event-service.js";
+import { signWebhookPayload } from "./webhook-signature.js";
 import * as auditService from "./services/audit-service.js";
 import * as consentService from "./services/consent-service.js";
 import * as retentionService from "./services/retention-service.js";
@@ -566,10 +567,8 @@ export class Stratum {
 
     // Sign with the actual secret (decrypted)
     const rawSecret = webhookService.decryptSecret(webhook.secret_hash);
-    const signature =
-      "sha256=" +
-      crypto.createHmac("sha256", rawSecret).update(testPayload).digest("hex");
     const timestamp = new Date().toISOString();
+    const signature = signWebhookPayload(rawSecret, timestamp, testPayload);
 
     try {
       const response = await globalThis.fetch(webhook.url, {
