@@ -7,11 +7,14 @@
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint lint:root",
+    "lint:root": "eslint . --ignore-pattern \"packages/**\"",
     "lint:secrets": "node scripts/check-secrets.mjs",
     "lint:secrets:staged": "node scripts/check-secrets.mjs --staged",
     "lint:deps": "node scripts/check-deps.mjs",
     "lint:deps:write": "node scripts/check-deps.mjs --write",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "clean": "turbo clean",
     "dev": "turbo dev",
@@ -23,11 +26,15 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
+    "@eslint/js": "^9.39.5",
     "@types/node": "^20.11.0",
     "esbuild": "^0.21.5",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
     "prettier": "^3.2.0",
     "turbo": "^2.0.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^1.6.0"
   },
   "engines": {

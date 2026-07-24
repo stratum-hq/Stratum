@@ -38,12 +38,22 @@ jobs:
 
       - run: npm ci
 
-      # Build publishable packages only (skip demo which has Vite dep issues in CI)
-      - name: Build packages
-        run: |
-          npx turbo build --filter=@stratum-hq/core --filter=@stratum-hq/lib --filter=@stratum-hq/sdk --filter=@stratum-hq/db-adapters --filter=@stratum-hq/cli --filter=@stratum-hq/control-plane --filter=@stratum-hq/react
+      # Lint and typecheck run here too, not only in the pre-push hook, so a
+      # `--no-verify` push or a fork PR cannot skip them. This mirrors what
+      # `npm run verify` does locally, keeping CI and the hook in agreement.
+      - name: Lint
+        run: npm run lint
 
-      # Run tests (passWithNoTests handles packages without test files)
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build packages
+        run: npm run build
+
+      # Every workspace package. The `test` task is unit-only: mysql and mongodb
+      # exclude src/__tests__/integration/** from their vitest config, and
+      # integration-tests only runs under `test:integration`. Those DB-backed suites
+      # keep their own workflows (ci-integration.yml, ci-mongo-integration.yml), so
+      # nothing here needs a service container.
       - name: Test
-        run: |
-          npx turbo test --filter=@stratum-hq/core --filter=@stratum-hq/lib --filter=@stratum-hq/sdk --filter=@stratum-hq/db-adapters --filter=@stratum-hq/cli --filter=@stratum-hq/react
+        run: npm test

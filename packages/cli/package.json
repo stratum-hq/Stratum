@@ -28,7 +28,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run --passWithNoTests",
-    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "publishConfig": {

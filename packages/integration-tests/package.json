@@ -2,7 +2,10 @@
   "name": "@stratum-hq/integration-tests",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "echo 'Integration tests require DATABASE_URL. Use: npm run test:integration'",
     "test:integration": "vitest run --config vitest.config.ts"
   },
