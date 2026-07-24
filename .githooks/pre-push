@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# Stratum verification gate.
+#
+# Runs `npm run verify` (lint, typecheck, test, build) before every push and
+# blocks the push if anything fails.
+#
+# Installed automatically by the root `prepare` script on `npm install`, which
+# points core.hooksPath at this directory.
+#
+# Emergency bypass:
+#
+#   git push --no-verify
+#
+# Use it when the failure is unrelated to your change (a flaky environment, an
+# already-broken base branch) and you need the branch pushed anyway. CI still
+# runs, so a bypassed push does not skip verification, it only defers it.
+
+echo "pre-push: running npm run verify"
+
+if npm run verify; then
+	exit 0
+fi
+
+cat >&2 <<'EOF'
+
+pre-push: verification failed, push blocked.
+
+Fix the failures above and push again, or bypass the gate with:
+
+  git push --no-verify
+
+EOF
+
+exit 1

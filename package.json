@@ -10,6 +10,8 @@
     "typecheck": "turbo typecheck",
     "lint": "turbo lint lint:root",
     "lint:root": "eslint . --ignore-pattern \"packages/**\"",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
+    "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "clean": "turbo clean",
     "dev": "turbo dev",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
