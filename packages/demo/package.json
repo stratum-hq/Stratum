@@ -13,6 +13,7 @@
     "dev": "concurrently \"tsx watch api/src/index.ts\" \"vite --config web/vite.config.ts\"",
     "seed": "tsx api/src/seed.ts",
     "test": "vitest run",
+    "typecheck": "tsc -p api/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
     "lint": "tsc -p api/tsconfig.json --noEmit",
     "clean": "rm -rf api/dist web/dist"
   },

@@ -36,6 +36,7 @@
   "scripts": {
     "build": "tsc && cp -r src/migrations dist/migrations",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
