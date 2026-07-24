@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# Stratum pre-commit gate. Refuses commits made directly on main.
+#
+# Installed automatically by the root `prepare` script on `npm install`, which
+# points core.hooksPath at this directory.
+#
+# See .githooks/forbidden-actions.sh for the guard and CONTRIBUTING.md,
+# "Forbidden actions", for the escape hatch.
+
+hooks_dir=$(dirname "$0")
+
+exec "$hooks_dir/forbidden-actions.sh" pre-commit
