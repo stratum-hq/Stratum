@@ -35,6 +35,7 @@
     "build": "tsc",
     "postbuild": "cp -r src/styles dist/styles",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist",
     "storybook": "storybook dev -p 6006",
