@@ -20,16 +20,20 @@ declare module "fastify" {
 }
 
 /**
- * Core tenant-scope check.
+ * Core tenant-scope check for a single, already-resolved tenant id.
  *
  * Ensures that tenant-scoped API keys can only access data belonging to their
  * own tenant or its descendants in the hierarchy. Global keys (tenant_id ===
- * null) have unrestricted access.
+ * null) have unrestricted access. A null `tenantId` means there is no tenant to
+ * check (for example a global role, or an omitted optional filter) and passes.
+ *
+ * Exported for routes whose target tenant is not present in the request and
+ * must be resolved first (for example a role's owning tenant, looked up by id).
  */
-async function checkTenantScope(
+export async function assertTenantInScope(
   stratum: Stratum,
   request: FastifyRequest,
-  extractTenantId: TenantIdExtractor,
+  tenantId: string | null,
 ): Promise<void> {
   const apiKey = request.apiKey;
   if (!apiKey) return;
@@ -42,15 +46,14 @@ async function checkTenantScope(
     throw new ForbiddenError("JWT authentication requires a tenant scope");
   }
 
-  const targetTenantId = extractTenantId(request);
-  if (!targetTenantId) return;
+  if (!tenantId) return;
 
   // Fast path: exact match
-  if (apiKey.tenant_id === targetTenantId) return;
+  if (apiKey.tenant_id === tenantId) return;
 
   // Hierarchy check: target must be a descendant of the key's tenant
   try {
-    const target = await stratum.getTenant(targetTenantId);
+    const target = await stratum.getTenant(tenantId);
     const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
     if (ancestorIds.includes(apiKey.tenant_id)) return;
   } catch {
@@ -63,6 +66,17 @@ async function checkTenantScope(
   throw new ForbiddenError(
     "API key tenant scope does not grant access to this tenant",
   );
+}
+
+/**
+ * Core tenant-scope check for a tenant id read from the request by `extractTenantId`.
+ */
+async function checkTenantScope(
+  stratum: Stratum,
+  request: FastifyRequest,
+  extractTenantId: TenantIdExtractor,
+): Promise<void> {
+  await assertTenantInScope(stratum, request, extractTenantId(request));
 }
 
 /**
@@ -210,6 +224,16 @@ export function fromParamTenantId(req: FastifyRequest): string | null {
 /** Extract tenant_id from query string */
 export function fromQueryTenantId(req: FastifyRequest): string | null {
   return (req.query as Record<string, string>).tenant_id ?? null;
+}
+
+/** Extract tenant_a from query string (config diff, first operand) */
+export function fromQueryTenantA(req: FastifyRequest): string | null {
+  return (req.query as Record<string, string>).tenant_a ?? null;
+}
+
+/** Extract tenant_b from query string (config diff, second operand) */
+export function fromQueryTenantB(req: FastifyRequest): string | null {
+  return (req.query as Record<string, string>).tenant_b ?? null;
 }
 
 /** Extract tenant_id from request body */

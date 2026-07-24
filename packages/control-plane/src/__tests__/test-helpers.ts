@@ -10,6 +10,7 @@ import { createTenantRoutes } from "../routes/tenants.js";
 import { createConfigRoutes } from "../routes/config.js";
 import { createApiKeyRoutes } from "../routes/api-keys.js";
 import { createConfigDiffRoutes } from "../routes/config-diff.js";
+import { createRoleRoutes } from "../routes/roles.js";
 import type { Stratum } from "@stratum-hq/lib";
 
 // Must match the JWT_SECRET env var set in vitest.config.ts
@@ -53,7 +54,17 @@ export function createMockStratum(): Stratum {
     revokeApiKey: vi.fn(),
     rotateApiKey: vi.fn(),
     listApiKeys: vi.fn(),
+    getApiKey: vi.fn(),
     listDormantKeys: vi.fn(),
+
+    // Role methods
+    createRole: vi.fn(),
+    getRole: vi.fn(),
+    listRoles: vi.fn(),
+    updateRole: vi.fn(),
+    deleteRole: vi.fn(),
+    assignRoleToKey: vi.fn(),
+    removeRoleFromKey: vi.fn(),
   } as unknown as Stratum;
 }
 
@@ -80,6 +91,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   await app.register(createConfigRoutes(stratum), { prefix: "/api/v1/tenants/:id/config" });
   await app.register(createApiKeyRoutes(stratum), { prefix: "/api/v1/api-keys" });
   await app.register(createConfigDiffRoutes(stratum), { prefix: "/api/v1/config" });
+  await app.register(createRoleRoutes(stratum), { prefix: "/api/v1/roles" });
 
   await app.ready();
   return app;

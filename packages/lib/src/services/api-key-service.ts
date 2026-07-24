@@ -243,6 +243,25 @@ export async function listApiKeys(
   });
 }
 
+/**
+ * Look up a single API key by id, including its owning tenant. Returns null when
+ * no key has that id. Used to authorize operations that target a key by id (for
+ * example role assignment), whose owning tenant is not otherwise in the request.
+ */
+export async function getApiKey(
+  pool: pg.Pool,
+  id: string,
+): Promise<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null } | null> {
+  return withClient(pool, async (client) => {
+    const res = await client.query(
+      `SELECT id, tenant_id, name, created_at, last_used_at, revoked_at, expires_at
+       FROM api_keys WHERE id = $1`,
+      [id],
+    );
+    return res.rows[0] ?? null;
+  });
+}
+
 export async function listDormantKeys(
   pool: pg.Pool,
   dormantDays: number = 90,

@@ -498,6 +498,9 @@ export class Stratum {
   listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null }>> {
     return apiKeyService.listApiKeys(this.pool, tenantId);
   }
+  getApiKey(id: string): Promise<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null } | null> {
+    return apiKeyService.getApiKey(this.pool, id);
+  }
   listDormantKeys(dormantDays?: number): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; last_used_at: Date | null; created_at: Date }>> {
     return apiKeyService.listDormantKeys(this.pool, dormantDays);
   }
