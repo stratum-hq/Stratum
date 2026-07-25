@@ -42,6 +42,7 @@ import type {
   AuditContext,
   AuditEntry,
   AuditLogQuery,
+  RecordAuditEventInput,
   ConsentRecord,
   GrantConsentInput,
   Region,
@@ -697,6 +698,15 @@ export class Stratum {
   }
   getAuditEntry(id: string): Promise<AuditEntry | null> {
     return auditService.getAuditEntry(this.pool, id);
+  }
+  /**
+   * Append a custom audit event to Stratum's audit_logs through the public
+   * surface. The row is stamped for `input.tenantId` (and no other tenant) and
+   * is immediately queryable via {@link queryAuditLogs}. See
+   * {@link auditService.recordAuditEvent}.
+   */
+  recordAuditEvent(input: RecordAuditEventInput): Promise<AuditEntry> {
+    return auditService.recordAuditEvent(this.pool, input);
   }
 
   // Consent operations
