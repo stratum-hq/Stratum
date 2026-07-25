@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { UnauthorizedError, ForbiddenError } from "@stratum-hq/core";
+import { UnauthorizedError, ForbiddenError, scopeSatisfies } from "@stratum-hq/core";
 
 type ScopeRequirement = "read" | "write" | "admin";
 
@@ -60,7 +60,9 @@ export function createAuthorizeMiddleware() {
     const requiredScope = getRequiredScope(request.method, request.url);
     const scopes = request.apiKey.scopes ?? ["read"];
 
-    if (!scopes.includes(requiredScope)) {
+    // Hierarchical scopes: admin implies write implies read. A granted scope
+    // satisfies any required scope of equal-or-lower rank.
+    if (!scopeSatisfies(scopes, requiredScope)) {
       throw new ForbiddenError("Insufficient permissions for this operation");
     }
   };

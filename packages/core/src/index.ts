@@ -13,6 +13,7 @@ export {
   ApiKeyScopeSchema,
   type ApiKeyScope,
 } from "./types/api-key.js";
+export { scopeSatisfies } from "./utils/scopes.js";
 
 // Audit types
 export {

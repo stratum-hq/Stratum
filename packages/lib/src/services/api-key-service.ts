@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
+import { resolveEffectiveScopes } from "./role-service.js";
 
 export interface ApiKeyRecord {
   id: string;
@@ -158,7 +159,9 @@ export async function validateApiKey(
       return {
         tenant_id: row.tenant_id,
         key_id: row.id,
-        scopes: row.scopes ?? ["read"],
+        // Resolve through the single source so an assigned role governs the
+        // key's scopes at the auth boundary, exactly as resolveKeyScopes does.
+        scopes: await resolveEffectiveScopes(pool, row.id),
         rate_limit_max: row.rate_limit_max,
         rate_limit_window: row.rate_limit_window,
       };
