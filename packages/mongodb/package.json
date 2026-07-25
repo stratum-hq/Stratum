@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "mongodb": "^6.12.0",
-    "mongoose": "^8.0.0",
+    "mongoose": "^8.24.1",
     "typescript": "^5.9.0",
     "vitest": "^1.6.0"
   },
