@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0 (2026-07-24)
+
+### Added
+- **Postgres row-level security for the `SHARED_RLS` strategy**: migration `019_rls_policies.sql` enables `ROW LEVEL SECURITY` (with `FORCE`) and a tenant-isolation policy on every tenant-scoped shared-schema table, so isolation is enforced by the database as a second layer independent of the application's `WHERE tenant_id` filters. Context is set per transaction with `SET LOCAL` (`app.current_tenant_id`), and a new `withRlsBypass` helper provides the audited system path for control-plane cross-tenant operations. See `docs/adr/0001-postgres-rls-defense-in-depth.md`. (`@stratum-hq/lib` 0.7.0, `@stratum-hq/db-adapters` 0.4.0) (#201)
+
+## 0.6.0 (2026-07-24)
+
+### Security
+- **M1 authorization and tenant-isolation hardening release (GHSA-93wm-g5vg-8j6q)**: default-deny authorization on the control plane so a route without a declared tenant scope fails closed, subtree-scoped config diff and role administration, tenant-creation scoping to the caller key's subtree, CASCADE permission and policy revocation matched by stable tenant id, hardened webhook egress validation with delivery replay protection, active-scoped subtree listing in `getDescendants`, corrected encryption key rotation, schema search-path slug validation, and a JWT-authoritative NestJS guard. Per-package release notes carry the detail. (`@stratum-hq/lib` 0.6.0, `@stratum-hq/control-plane` 0.4.0, `@stratum-hq/db-adapters` 0.3.1, `@stratum-hq/nestjs` 0.3.1)
+
+## @stratum-hq/lib 0.5.1 (2026-07-06)
+
+### Fixed
+- **Optional tenant scoping for principal role assignment**: `assignRole` and `resolvePrincipalScopes` accept an optional `tenantId`; when set, a role owned by a different tenant is refused on assign and ignored on resolve, while global roles remain allowed. Backward compatible.
+
+## @stratum-hq/lib 0.5.0 (2026-07-06)
+
+### Added
+- **Principal-agnostic role assignment**: `assignRole`, `removeRole`, and `resolvePrincipalScopes` let any principal (an application user or a service account) hold a Stratum role and resolve its effective scopes, not only API keys. New `principal_roles` table (migration 018); one role per principal; `resolvePrincipalScopes` fails closed when a principal is unassigned.
+
+## @stratum-hq/lib 0.4.0 (2026-07-06)
+
+### Added
+- **`getRoot(id)`**: resolves a tenant's root ancestor (the top-most ancestor, or the tenant itself when already a root) using single-row lookups rather than walking the full ancestry chain.
+
 ## @stratum-hq/react 0.3.1 (2026-07-05)
 
 ### Fixed

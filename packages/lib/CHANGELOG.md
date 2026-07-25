@@ -35,6 +35,24 @@
 
   Validate the tenant slug in `setSchemaSearchPath` before it is used to build the schema identifier, matching the other schema-isolation adapters. Identifiers outside the canonical slug charset are now rejected rather than interpolated into the search-path statement.
 
+## 0.5.1
+
+### Patch Changes
+
+- f6b38fa: `assignRole` and `resolvePrincipalScopes` accept an optional `tenantId`. When set, a role owned by a different tenant is refused on assign and ignored on resolve, while global roles remain allowed. Closes the cross-tenant assignment and resolution gap in principal role scoping. Backward compatible.
+
+## 0.5.0
+
+### Minor Changes
+
+- 949194a: Add principal-agnostic role assignment. `assignRole`, `removeRole`, and `resolvePrincipalScopes` let any principal (an application user or a service account) hold a Stratum role and resolve its effective scopes, not only API keys. Adds the `principal_roles` table (migration 018); one role per principal; `resolvePrincipalScopes` fails closed, returning an empty scope set when the principal is unassigned.
+
+## 0.4.0
+
+### Minor Changes
+
+- 875f234: Add `getRoot(id)` to resolve a tenant's root ancestor: the top-most ancestor, or the tenant itself when it is already a root. Uses single-row lookups rather than walking the full ancestry chain.
+
 ## 0.3.1
 
 ### Patch Changes
