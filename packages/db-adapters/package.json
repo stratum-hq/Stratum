@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/db-adapters",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Stratum PostgreSQL adapters for tenant-scoped query isolation",
   "keywords": [
     "multi-tenancy",
