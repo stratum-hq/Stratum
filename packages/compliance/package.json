@@ -1,0 +1,56 @@
+{
+  "name": "@stratum-hq/compliance",
+  "version": "0.1.0",
+  "description": "Content-free compliance kernel for Stratum: baseline coverage scoring, a finding state machine, and a control type vocabulary",
+  "keywords": [
+    "compliance",
+    "coverage",
+    "posture",
+    "drift",
+    "state-machine",
+    "control",
+    "audit",
+    "typescript",
+    "stratum"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "clean": "rm -rf dist"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "license": "MIT",
+  "author": "Christian Crank",
+  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/compliance#readme",
+  "bugs": "https://github.com/stratum-hq/Stratum/issues",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stratum-hq/Stratum.git",
+    "directory": "packages/compliance"
+  }
+}
