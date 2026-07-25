@@ -28,7 +28,7 @@
     "@changesets/cli": "^2.30.0",
     "@eslint/js": "^9.39.5",
     "@types/node": "^20.11.0",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
     "globals": "^15.15.0",
     "prettier": "^3.2.0",
