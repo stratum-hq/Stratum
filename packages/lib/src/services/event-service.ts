@@ -2,7 +2,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { TenantEvent } from "@stratum-hq/core";
+import { WebhookUrlValidationError, type TenantEvent } from "@stratum-hq/core";
 import { getWebhooksForEvent, decryptSecret } from "./webhook-service.js";
 import { signWebhookPayload } from "../webhook-signature.js";
 
@@ -57,24 +57,24 @@ export function validateWebhookUrl(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`Invalid webhook URL: ${url}`);
+    throw new WebhookUrlValidationError(`Invalid webhook URL: ${url}`);
   }
 
   // Only allow http/https
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`Webhook URL must use http or https: ${url}`);
+    throw new WebhookUrlValidationError(`Webhook URL must use http or https: ${url}`);
   }
 
   const hostname = parsed.hostname.toLowerCase();
 
   // Block known internal hostnames
   if (BLOCKED_HOSTNAMES.has(hostname)) {
-    throw new Error(`Webhook URL targets a blocked host: ${hostname}`);
+    throw new WebhookUrlValidationError(`Webhook URL targets a blocked host: ${hostname}`);
   }
 
   // Block private IP ranges
   if (isBlockedIp(hostname)) {
-    throw new Error(`Webhook URL targets a private/reserved IP range: ${hostname}`);
+    throw new WebhookUrlValidationError(`Webhook URL targets a private/reserved IP range: ${hostname}`);
   }
 }
 
@@ -110,12 +110,12 @@ export async function validateWebhookUrlWithDns(url: string): Promise<void> {
     }
   } catch {
     // DNS resolution failed — fail closed to prevent SSRF via DNS rebinding
-    throw new Error(`DNS resolution failed for webhook host: ${hostname}`);
+    throw new WebhookUrlValidationError(`DNS resolution failed for webhook host: ${hostname}`);
   }
 
   for (const ip of addresses) {
     if (isBlockedIp(ip)) {
-      throw new Error(
+      throw new WebhookUrlValidationError(
         `Webhook URL hostname ${hostname} resolves to blocked IP ${ip}`,
       );
     }

@@ -19,9 +19,11 @@ export { scopeSatisfies } from "./utils/scopes.js";
 export {
   AuditEntrySchema,
   AuditLogQuerySchema,
+  RecordAuditEventInputSchema,
   type AuditContext,
   type AuditEntry,
   type AuditLogQuery,
+  type RecordAuditEventInput,
 } from "./types/audit.js";
 
 // Usage metering types
@@ -49,6 +51,7 @@ export {
   type UpdateWebhookInput,
   type WebhookEvent,
   type WebhookDelivery,
+  type ListWebhookEventsQuery,
 } from "./types/webhook.js";
 
 // Region types
@@ -178,6 +181,7 @@ export {
   ForbiddenError,
   WebhookNotFoundError,
   WebhookDeliveryError,
+  WebhookUrlValidationError,
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,

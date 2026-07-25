@@ -45,6 +45,7 @@ export {
   ForbiddenError,
   WebhookNotFoundError,
   WebhookDeliveryError,
+  WebhookUrlValidationError,
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
@@ -86,7 +87,7 @@ export type { DeliveryStats } from "./services/event-service.js";
 export type { Role, CreateRoleInput, UpdateRoleInput } from "./services/role-service.js";
 
 // Re-export audit types for convenience
-export type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum-hq/core";
+export type { AuditContext, AuditEntry, AuditLogQuery, RecordAuditEventInput } from "@stratum-hq/core";
 
 // Re-export usage-metering types for convenience
 export type {

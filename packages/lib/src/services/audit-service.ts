@@ -1,6 +1,12 @@
 import pg from "pg";
 import { withClient } from "../pool-helpers.js";
-import type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum-hq/core";
+import { RecordAuditEventInputSchema } from "@stratum-hq/core";
+import type {
+  AuditContext,
+  AuditEntry,
+  AuditLogQuery,
+  RecordAuditEventInput,
+} from "@stratum-hq/core";
 
 export async function createAuditEntry(
   pool: pg.Pool,
@@ -36,6 +42,36 @@ export async function createAuditEntry(
     );
     return res.rows[0];
   });
+}
+
+/**
+ * Append a custom audit event through the public surface. Validates the
+ * consumer-facing input and maps it onto the same createAuditEntry write path
+ * the internal services use, so a recorded event is indistinguishable from one
+ * Stratum writes itself and is queryable via queryAuditLogs. The row is stamped
+ * for input.tenantId and no other tenant.
+ */
+export async function recordAuditEvent(
+  pool: pg.Pool,
+  input: RecordAuditEventInput,
+): Promise<AuditEntry> {
+  const parsed = RecordAuditEventInputSchema.parse(input);
+  const context: AuditContext = {
+    actor_id: parsed.actorId,
+    actor_type: parsed.actorType,
+    source_ip: parsed.sourceIp ?? undefined,
+  };
+  return createAuditEntry(
+    pool,
+    context,
+    parsed.action,
+    parsed.resourceType,
+    parsed.resourceId,
+    parsed.tenantId,
+    parsed.before ?? null,
+    parsed.after ?? null,
+    parsed.metadata,
+  );
 }
 
 export async function queryAuditLogs(

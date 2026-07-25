@@ -129,6 +129,42 @@ export async function getTenant(
   });
 }
 
+/**
+ * Resolve a tenant by its globally-unique slug in a single indexed lookup
+ * (idx_tenant_slug), the slug-keyed counterpart to {@link getTenant}. Consumers
+ * that hold a slug can skip scanning the unindexed listTenants/listOrganizations
+ * pages. Slug is globally unique, so this returns exactly the one matching row.
+ *
+ * Mirrors getTenant's not-found and state contract: throws TenantNotFoundError
+ * when no row matches, and — unless `includeArchived` is set — TenantArchivedError
+ * / TenantSuspendedError for a non-active row. `includeArchived` is the "give me
+ * the row whatever its state" escape hatch and bypasses both non-active states.
+ */
+export async function getTenantBySlug(
+  pool: pg.Pool,
+  slug: string,
+  includeArchived = false,
+): Promise<TenantNode> {
+  return withClient(pool, async (client) => {
+    // Single indexed lookup on the unique slug column; check state in app logic.
+    const res = await client.query<TenantNode>(
+      `SELECT * FROM tenants WHERE slug = $1`,
+      [slug],
+    );
+    if (res.rows.length === 0) {
+      throw new TenantNotFoundError(slug);
+    }
+    const tenant = res.rows[0];
+    if (!includeArchived && tenant.status === "archived") {
+      throw new TenantArchivedError(tenant.id);
+    }
+    if (!includeArchived && tenant.status === "suspended") {
+      throw new TenantSuspendedError(tenant.id);
+    }
+    return tenant;
+  });
+}
+
 export async function listTenants(
   pool: pg.Pool,
   pagination: PaginationInput,

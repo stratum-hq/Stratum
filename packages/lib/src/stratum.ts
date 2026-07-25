@@ -36,9 +36,13 @@ import type {
   Webhook,
   CreateWebhookInput,
   UpdateWebhookInput,
+  WebhookEvent,
+  WebhookDelivery,
+  ListWebhookEventsQuery,
   AuditContext,
   AuditEntry,
   AuditLogQuery,
+  RecordAuditEventInput,
   ConsentRecord,
   GrantConsentInput,
   Region,
@@ -190,6 +194,16 @@ export class Stratum {
   getTenant(id: string, includeArchived?: boolean): Promise<TenantNode> {
     return traced("tenant.get", { tenant_id: id }, async () => {
       return tenantService.getTenant(this.pool, id, includeArchived);
+    });
+  }
+  /**
+   * Resolve a tenant by its globally-unique slug in one indexed lookup — the
+   * slug-keyed counterpart to {@link getTenant}, mirroring its archived /
+   * suspended handling. See {@link tenantService.getTenantBySlug}.
+   */
+  getTenantBySlug(slug: string, includeArchived?: boolean): Promise<TenantNode> {
+    return traced("tenant.get_by_slug", { slug }, async () => {
+      return tenantService.getTenantBySlug(this.pool, slug, includeArchived);
     });
   }
   listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
@@ -613,6 +627,14 @@ export class Stratum {
   listWebhookDeliveries(webhookId: string): Promise<Record<string, unknown>[]> {
     return webhookService.listWebhookDeliveries(this.pool, webhookId);
   }
+  /** List a tenant's webhook events, newest first (tenant-scoped, paginated). */
+  listWebhookEvents(query: ListWebhookEventsQuery): Promise<WebhookEvent[]> {
+    return webhookService.listWebhookEvents(this.pool, query);
+  }
+  /** List every delivery recorded for a single webhook event. */
+  listDeliveriesByEvent(eventId: string): Promise<WebhookDelivery[]> {
+    return webhookService.listDeliveriesByEvent(this.pool, eventId);
+  }
   async testWebhook(id: string): Promise<{ success: boolean; response_code: number | null; error?: string }> {
     const webhook = await webhookService.getWebhook(this.pool, id);
 
@@ -676,6 +698,15 @@ export class Stratum {
   }
   getAuditEntry(id: string): Promise<AuditEntry | null> {
     return auditService.getAuditEntry(this.pool, id);
+  }
+  /**
+   * Append a custom audit event to Stratum's audit_logs through the public
+   * surface. The row is stamped for `input.tenantId` (and no other tenant) and
+   * is immediately queryable via {@link queryAuditLogs}. See
+   * {@link auditService.recordAuditEvent}.
+   */
+  recordAuditEvent(input: RecordAuditEventInput): Promise<AuditEntry> {
+    return auditService.recordAuditEvent(this.pool, input);
   }
 
   // Consent operations
