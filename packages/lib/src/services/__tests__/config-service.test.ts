@@ -241,17 +241,17 @@ describe("resolveConfig", () => {
       rows: [{ ancestry_path: "/" }],
     });
 
-    // Sensitive entry: value is stored as JSON-stringified encrypted string
-    // The code does: JSON.parse(decrypt(JSON.parse(entry.value as string)))
-    // entry.value is stored as: JSON.stringify(encrypt(JSON.stringify(actualValue)))
-    // So entry.value = JSON.stringify("encrypted:\"my-secret\"") = '"encrypted:\\"my-secret\\""'
+    // Sensitive entry. setConfig stores JSON.stringify(encrypt(JSON.stringify(value)))
+    // and the pg driver parses the JSONB back on read, so entry.value as the
+    // resolver sees it is the single encrypted string: encrypt(JSON.stringify(value)).
+    // The code then does: JSON.parse(decrypt(entry.value as string)).
     const encryptedPayload = `encrypted:${JSON.stringify("my-secret")}`;
     mockQuery.mockResolvedValueOnce({
       rows: [
         {
           tenant_id: "root-id",
           key: "api_key",
-          value: JSON.stringify(encryptedPayload),
+          value: encryptedPayload,
           locked: false,
           sensitive: true,
           source_tenant_id: "root-id",
