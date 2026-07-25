@@ -46,6 +46,7 @@ The `Stratum` instance covers the full tenant lifecycle:
 - **API keys & roles** — `createApiKey`, `validateApiKey`, `rotateApiKey`, `createRole`, `assignRoleToKey`
 - **Webhooks & audit** — `createWebhook`, `testWebhook`, `queryAuditLogs`, `listFailedDeliveries`
 - **GDPR & regions** — `exportTenantData`, `purgeTenant`, `grantConsent`, `createRegion`, `migrateRegion`
+- **Usage metering** — `recordUsage`, `aggregateUsage` (see [docs/usage-metering.md](../../docs/usage-metering.md))
 
 Low-level pool helpers are also exported:
 
