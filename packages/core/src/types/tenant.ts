@@ -12,6 +12,7 @@ export type IsolationStrategy =
 
 export const TenantStatus = {
   ACTIVE: "active",
+  SUSPENDED: "suspended",
   ARCHIVED: "archived",
 } as const;
 

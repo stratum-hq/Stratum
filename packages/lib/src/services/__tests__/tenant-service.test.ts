@@ -347,8 +347,9 @@ describe("deleteTenant", () => {
     mockQuery.mockResolvedValueOnce({ rows: [tenant] });
     // Query 2: COUNT children
     mockQuery.mockResolvedValueOnce({ rows: [{ count: "0" }] });
-    // Query 3: UPDATE to archived
-    mockQuery.mockResolvedValueOnce({ rowCount: 1 });
+    // Query 3: UPDATE to archived (RETURNING * — deleteTenant now delegates to
+    // archiveTenant, which reads the updated row back)
+    mockQuery.mockResolvedValueOnce({ rows: [{ ...tenant, status: "archived" }], rowCount: 1 });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;

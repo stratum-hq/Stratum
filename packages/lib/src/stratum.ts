@@ -219,6 +219,58 @@ export class Stratum {
       }
     });
   }
+  /**
+   * Suspend an active tenant: a reversible block on access. Rejects if the
+   * tenant is not active or has active children (suspend leaf-first). Reverse
+   * with {@link resumeTenant}.
+   */
+  async suspendTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.suspend", { tenant_id: id }, async (span) => {
+      const tenant = await tenantService.suspendTenant(this.pool, id);
+      this.emitEvent(TenantEvent.TENANT_SUSPENDED, id, { tenant }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.suspended", "tenant", id, id,
+        );
+      }
+      return tenant;
+    });
+  }
+  /**
+   * Resume a suspended or archived tenant back to active, reversing suspend and
+   * archive. Rejects if the tenant is already active or its parent is not
+   * active (resume top-down).
+   */
+  async resumeTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.resume", { tenant_id: id }, async (span) => {
+      const tenant = await tenantService.resumeTenant(this.pool, id);
+      this.emitEvent(TenantEvent.TENANT_RESUMED, id, { tenant }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.resumed", "tenant", id, id,
+        );
+      }
+      return tenant;
+    });
+  }
+  /**
+   * Archive a tenant: a reversible soft delete. Accepts an active or suspended
+   * tenant; rejects if already archived or it has active children. Reverse with
+   * {@link resumeTenant}. This is the canonical name for what {@link deleteTenant}
+   * does.
+   */
+  async archiveTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.archive", { tenant_id: id }, async (span) => {
+      const tenant = await tenantService.archiveTenant(this.pool, id);
+      this.emitEvent(TenantEvent.TENANT_ARCHIVED, id, { tenant }, span);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.archived", "tenant", id, id,
+        );
+      }
+      return tenant;
+    });
+  }
   async moveTenant(id: string, newParentId: string, audit?: AuditContext): Promise<TenantNode> {
     return traced("tenant.move", { tenant_id: id, new_parent_id: newParentId }, async (span) => {
       const tenant = await tenantService.moveTenant(this.pool, id, newParentId);

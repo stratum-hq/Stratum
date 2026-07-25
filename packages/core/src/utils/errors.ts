@@ -7,6 +7,8 @@ export enum ErrorCode {
   TENANT_HAS_CHILDREN = "TENANT_HAS_CHILDREN",
   TENANT_CYCLE_DETECTED = "TENANT_CYCLE_DETECTED",
   TENANT_ARCHIVED = "TENANT_ARCHIVED",
+  TENANT_SUSPENDED = "TENANT_SUSPENDED",
+  TENANT_INVALID_STATE = "TENANT_INVALID_STATE",
   TENANT_CONTEXT_NOT_FOUND = "TENANT_CONTEXT_NOT_FOUND",
   ISOLATION_VIOLATION = "ISOLATION_VIOLATION",
   ISOLATION_STRATEGY_UNSUPPORTED = "ISOLATION_STRATEGY_UNSUPPORTED",
@@ -103,6 +105,36 @@ export class TenantArchivedError extends StratumError {
       410,
     );
     this.name = "TenantArchivedError";
+  }
+}
+
+export class TenantSuspendedError extends StratumError {
+  constructor(tenantId: string) {
+    super(
+      ErrorCode.TENANT_SUSPENDED,
+      `Tenant ${tenantId} is suspended`,
+      403,
+      { tenant_id: tenantId },
+    );
+    this.name = "TenantSuspendedError";
+  }
+}
+
+/**
+ * Raised when a lifecycle transition is not allowed from a tenant's current
+ * state, for example suspending a tenant that is not active or resuming one
+ * that is already active. The state machine is strict rather than idempotent so
+ * callers see an explicit rejection instead of a silent no-op.
+ */
+export class InvalidTenantStateError extends StratumError {
+  constructor(tenantId: string, from: string, operation: string, allowedFrom: string[]) {
+    super(
+      ErrorCode.TENANT_INVALID_STATE,
+      `Cannot ${operation} tenant ${tenantId}: current state is '${from}', expected one of [${allowedFrom.join(", ")}]`,
+      409,
+      { tenant_id: tenantId, from, operation, allowed_from: allowedFrom },
+    );
+    this.name = "InvalidTenantStateError";
   }
 }
 
