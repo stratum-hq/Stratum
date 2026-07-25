@@ -7,6 +7,11 @@ export {
 } from "./migrate-schemas.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
+  runScopedJob,
+  type ScopedJobFn,
+  type RunScopedJobOptions,
+} from "./scoped-job.js";
+export {
   verifyWebhookSignature,
   signWebhookPayload,
   DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
