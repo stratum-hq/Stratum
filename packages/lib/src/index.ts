@@ -7,6 +7,11 @@ export {
 } from "./migrate-schemas.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
+  runScopedJob,
+  type ScopedJobFn,
+  type RunScopedJobOptions,
+} from "./scoped-job.js";
+export {
   verifyWebhookSignature,
   signWebhookPayload,
   DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
@@ -61,6 +66,16 @@ export type {
   UpdatePermissionInput,
   ResolvedPermission,
 } from "@stratum-hq/core";
+
+export { RateLimiter, MemoryRateLimitStore } from "./services/rate-limit-service.js";
+export type {
+  RateLimit,
+  RateLimitResult,
+  RateLimitState,
+  RateLimitStore,
+  RateLimitResolver,
+  RateLimiterOptions,
+} from "./services/rate-limit-service.js";
 
 export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
