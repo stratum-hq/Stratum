@@ -131,11 +131,16 @@ export async function removeRoleFromKey(pool: pg.Pool, keyId: string): Promise<b
 }
 
 /**
- * Resolve effective scopes for an API key.
- * If the key has a role, the role's scopes take precedence.
- * Otherwise, falls back to the key's own scopes.
+ * Resolve the effective scopes for an API key — the single source of truth for
+ * what a key is authorized to do. When a role is assigned to the key, the role's
+ * scopes govern; otherwise the key's own column scopes apply; a key with neither
+ * (or no such key) defaults to ["read"].
+ *
+ * Both the auth boundary (`validateApiKey`) and `resolveKeyScopes` resolve scopes
+ * through this function so a key authorizes identically no matter which path
+ * asks. Assigning a role therefore governs authorization everywhere.
  */
-export async function resolveKeyScopes(pool: pg.Pool, keyId: string): Promise<string[]> {
+export async function resolveEffectiveScopes(pool: pg.Pool, keyId: string): Promise<string[]> {
   return withClient(pool, async (client) => {
     const res = await client.query<{ scopes: string[] | null; role_scopes: string[] | null }>(
       `SELECT ak.scopes, r.scopes as role_scopes
@@ -146,9 +151,17 @@ export async function resolveKeyScopes(pool: pg.Pool, keyId: string): Promise<st
     );
     if (res.rows.length === 0) return ["read"];
     const row = res.rows[0];
-    // Role scopes override key scopes when a role is assigned
+    // Role scopes override key scopes when a role is assigned.
     return row.role_scopes ?? row.scopes ?? ["read"];
   });
+}
+
+/**
+ * Resolve effective scopes for an API key. Thin alias over
+ * {@link resolveEffectiveScopes}, kept as the public facade name.
+ */
+export function resolveKeyScopes(pool: pg.Pool, keyId: string): Promise<string[]> {
+  return resolveEffectiveScopes(pool, keyId);
 }
 
 /**

@@ -296,17 +296,39 @@ describe("API key service (integration)", () => {
       expect(await stratum.assignRoleToKey(created.id, role.id)).toBe(false);
     });
 
-    it("validateApiKey ignores the assigned role; resolveKeyScopes honors it (current behavior)", async () => {
-      const tenant = await makeTenant("scope_divergent");
+    it("validateApiKey and resolveKeyScopes resolve an assigned role identically (single source)", async () => {
+      const tenant = await makeTenant("scope_unified");
       const created = await stratum.createApiKey(tenant.id, "k");
       const role = await stratum.createRole({ name: "elevated", scopes: ["admin"], tenant_id: tenant.id });
       await stratum.assignRoleToKey(created.id, role.id);
 
-      // validateApiKey reads the api_keys.scopes column, not the role.
+      // The role now governs at the auth boundary too, not just resolveKeyScopes.
+      const validated = await stratum.validateApiKey(created.plaintext_key);
+      expect(validated!.scopes).toEqual(["admin"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["admin"]);
+    });
+
+    it("a narrow role narrows a key with broader column scopes at both call sites", async () => {
+      const tenant = await makeTenant("scope_narrow");
+      // Column scopes are read+write; the assigned role is read-only.
+      const created = await stratum.createApiKey(tenant.id, "k");
+      expect((await rawKeyRow(created.id)).scopes).toEqual(["read", "write"]);
+      const role = await stratum.createRole({ name: "readers", scopes: ["read"], tenant_id: tenant.id });
+      await stratum.assignRoleToKey(created.id, role.id);
+
+      // The role wins even though it is NARROWER than the key's own column.
+      const validated = await stratum.validateApiKey(created.plaintext_key);
+      expect(validated!.scopes).toEqual(["read"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["read"]);
+    });
+
+    it("a key with no role authorizes by its column scopes at both call sites", async () => {
+      const tenant = await makeTenant("scope_norole_unified");
+      const created = await stratum.createApiKey(tenant.id, "k");
+
       const validated = await stratum.validateApiKey(created.plaintext_key);
       expect(validated!.scopes).toEqual(["read", "write"]);
-      // resolveKeyScopes reads the role.
-      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["admin"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["read", "write"]);
     });
   });
 
