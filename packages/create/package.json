@@ -42,6 +42,12 @@
     "registry": "https://registry.npmjs.org/"
   },
   "license": "MIT",
+  "author": "Christian Crank",
+  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/create#readme",
+  "bugs": "https://github.com/stratum-hq/Stratum/issues",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/stratum-hq/Stratum.git",
