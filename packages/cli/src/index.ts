@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "./utils/args.js";
 import { printHelp } from "./commands/help.js";
 import { init } from "./commands/init.js";
@@ -11,12 +13,20 @@ import { doctor } from "./commands/doctor.js";
 import { scan } from "./commands/scan.js";
 import { playground } from "./commands/playground.js";
 
+function getVersion(): string {
+  // package.json sits one level up from the compiled dist/index.js at runtime.
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, "..", "package.json"), "utf8"),
+  ) as { version: string };
+  return pkg.version;
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
   // Handle top-level flags before parsing
   if (argv.includes("--version") || argv.includes("-v")) {
-    console.log("@stratum-hq/cli v0.2.1");
+    console.log(`@stratum-hq/cli v${getVersion()}`);
     return;
   }
   if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
@@ -66,7 +76,7 @@ async function main(): Promise<void> {
       case "version":
       case "--version":
       case "-v":
-        console.log("@stratum-hq/cli v0.2.1");
+        console.log(`@stratum-hq/cli v${getVersion()}`);
         break;
       default:
         if (command) {

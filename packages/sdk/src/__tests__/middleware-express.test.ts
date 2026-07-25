@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { expressMiddleware } from "../middleware/express.js";
-import type { TenantContextLegacy } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { TenantNotFoundError } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeTenantContextLegacy(tenantId: string): TenantContextLegacy {
+function makeResolvedTenantContext(tenantId: string): ResolvedTenantContext {
   return {
     tenant_id: tenantId,
     ancestry_path: `/${tenantId}`,
@@ -23,7 +23,7 @@ function makeReq(headers: Record<string, string> = {}) {
     headers: {
       ...headers,
     },
-    tenant: undefined as TenantContextLegacy | undefined,
+    tenant: undefined as ResolvedTenantContext | undefined,
   };
 }
 
@@ -37,7 +37,7 @@ function makeRes() {
 function makeClient(overrides: Partial<{ resolveTenant: ReturnType<typeof vi.fn> }> = {}) {
   return {
     resolveTenant:
-      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeTenantContextLegacy("default-tenant")),
+      overrides.resolveTenant ?? vi.fn().mockResolvedValue(makeResolvedTenantContext("default-tenant")),
   } as unknown as import("../client.js").StratumClient;
 }
 
@@ -54,7 +54,7 @@ describe("expressMiddleware", () => {
 
   describe("tenant resolution from header", () => {
     it("sets req.tenant from X-Tenant-ID header", async () => {
-      const ctx = makeTenantContextLegacy("tenant-from-header");
+      const ctx = makeResolvedTenantContext("tenant-from-header");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -69,7 +69,7 @@ describe("expressMiddleware", () => {
     });
 
     it("calls next() on successful resolution", async () => {
-      const ctx = makeTenantContextLegacy("t-1");
+      const ctx = makeResolvedTenantContext("t-1");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -184,7 +184,7 @@ describe("expressMiddleware", () => {
 
   describe("custom resolvers", () => {
     it("uses custom resolver when header resolution fails", async () => {
-      const ctx = makeTenantContextLegacy("custom-resolved");
+      const ctx = makeResolvedTenantContext("custom-resolved");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -205,7 +205,7 @@ describe("expressMiddleware", () => {
     });
 
     it("stops at the first resolver that returns a value", async () => {
-      const ctx = makeTenantContextLegacy("first-resolved");
+      const ctx = makeResolvedTenantContext("first-resolved");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -230,8 +230,8 @@ describe("expressMiddleware", () => {
 
   describe("tenant impersonation", () => {
     it("impersonates when authorized and header is present", async () => {
-      const callerCtx = makeTenantContextLegacy("caller-tenant");
-      const targetCtx = makeTenantContextLegacy("target-tenant");
+      const callerCtx = makeResolvedTenantContext("caller-tenant");
+      const targetCtx = makeResolvedTenantContext("target-tenant");
       const client = makeClient({
         resolveTenant: vi
           .fn()
@@ -264,7 +264,7 @@ describe("expressMiddleware", () => {
     });
 
     it("returns 403 when impersonation is denied", async () => {
-      const callerCtx = makeTenantContextLegacy("caller-tenant");
+      const callerCtx = makeResolvedTenantContext("caller-tenant");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(callerCtx),
       });
@@ -295,7 +295,7 @@ describe("expressMiddleware", () => {
     });
 
     it("skips impersonation when header matches own tenant", async () => {
-      const ctx = makeTenantContextLegacy("same-tenant");
+      const ctx = makeResolvedTenantContext("same-tenant");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -322,7 +322,7 @@ describe("expressMiddleware", () => {
     });
 
     it("skips impersonation when not enabled", async () => {
-      const ctx = makeTenantContextLegacy("caller");
+      const ctx = makeResolvedTenantContext("caller");
       const client = makeClient({
         resolveTenant: vi.fn().mockResolvedValue(ctx),
       });
@@ -342,8 +342,8 @@ describe("expressMiddleware", () => {
     });
 
     it("supports custom impersonation header name", async () => {
-      const callerCtx = makeTenantContextLegacy("caller");
-      const targetCtx = makeTenantContextLegacy("target");
+      const callerCtx = makeResolvedTenantContext("caller");
+      const targetCtx = makeResolvedTenantContext("target");
       const client = makeClient({
         resolveTenant: vi
           .fn()
@@ -370,8 +370,8 @@ describe("expressMiddleware", () => {
     });
 
     it("supports async authorize function", async () => {
-      const callerCtx = makeTenantContextLegacy("caller");
-      const targetCtx = makeTenantContextLegacy("target");
+      const callerCtx = makeResolvedTenantContext("caller");
+      const targetCtx = makeResolvedTenantContext("target");
       const client = makeClient({
         resolveTenant: vi
           .fn()

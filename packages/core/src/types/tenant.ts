@@ -72,8 +72,12 @@ export const MoveTenantInputSchema = z.object({
 
 export type MoveTenantInput = z.infer<typeof MoveTenantInputSchema>;
 
-/** Legacy shape used by the inline /:id/context endpoint. */
-export interface TenantContextLegacy {
+/**
+ * Flat, resolved per-request tenant context: the shape served by the
+ * /:id/context endpoint and stored in the SDK's request-scoped context.
+ * Distinct from the richer object-graph {@link TenantContext}.
+ */
+export interface ResolvedTenantContext {
   tenant_id: string;
   ancestry_path: string;
   depth: number;

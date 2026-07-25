@@ -435,6 +435,12 @@ export async function batchCreateTenants(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     errors.push({ index: created.length, slug: inputs[created.length]?.slug ?? "unknown", error: message });
+    // The batch runs in one transaction, so a mid-batch failure rolls the whole
+    // thing back (see withTransaction). `created` was pushed to in-memory before
+    // the throw, so it still lists rolled-back tenants. Clear it so the return
+    // reflects what actually persisted -- nothing -- and callers do not emit
+    // TENANT_CREATED events or audit entries for rows that never committed (#213).
+    created.length = 0;
   }
 
   return { created, errors };

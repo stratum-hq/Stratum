@@ -84,6 +84,66 @@ describe("removeRole", () => {
   });
 });
 
+describe("resolveEffectiveScopes", () => {
+  it("returns the role's scopes when a role is assigned (role wins over column)", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ scopes: ["read", "write"], role_scopes: ["admin"] }] });
+    withMockQuery(mockQuery);
+
+    const scopes = await roleService.resolveEffectiveScopes(pool, "key-1");
+
+    expect(scopes).toEqual(["admin"]);
+    const [sql, params] = mockQuery.mock.calls[0];
+    // Single source LEFT JOINs roles so an assigned role governs.
+    expect(sql).toContain("LEFT JOIN roles r ON r.id = ak.role_id");
+    expect(sql).toContain("ak.revoked_at IS NULL");
+    expect(params).toEqual(["key-1"]);
+  });
+
+  it("falls back to the key's column scopes when no role is assigned", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ scopes: ["read", "write"], role_scopes: null }] });
+    withMockQuery(mockQuery);
+
+    expect(await roleService.resolveEffectiveScopes(pool, "key-1")).toEqual(["read", "write"]);
+  });
+
+  it("defaults to [read] when the key has neither a role nor column scopes", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [{ scopes: null, role_scopes: null }] });
+    withMockQuery(mockQuery);
+
+    expect(await roleService.resolveEffectiveScopes(pool, "key-1")).toEqual(["read"]);
+  });
+
+  it("fails closed with [read] when the key does not exist", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [] });
+    withMockQuery(mockQuery);
+
+    expect(await roleService.resolveEffectiveScopes(pool, "ghost")).toEqual(["read"]);
+  });
+});
+
+describe("resolveKeyScopes", () => {
+  it("delegates to resolveEffectiveScopes (same single source)", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ scopes: ["read"], role_scopes: ["admin"] }] });
+    withMockQuery(mockQuery);
+
+    const scopes = await roleService.resolveKeyScopes(pool, "key-1");
+
+    expect(scopes).toEqual(["admin"]);
+    expect(mockQuery.mock.calls[0][0]).toContain("LEFT JOIN roles r ON r.id = ak.role_id");
+  });
+});
+
 describe("resolvePrincipalScopes", () => {
   it("returns the assigned role's scopes", async () => {
     const pool = makeMockPool();

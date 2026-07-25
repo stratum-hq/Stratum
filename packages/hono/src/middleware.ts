@@ -1,6 +1,6 @@
 import type { Context, Next, MiddlewareHandler } from "hono";
 import { runWithTenantContext } from "@stratum-hq/sdk";
-import type { TenantContextLegacy } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { IsolationStrategy } from "@stratum-hq/core";
 
 export interface StratumMiddlewareOptions {
@@ -15,7 +15,7 @@ export interface StratumMiddlewareOptions {
    * When provided, the middleware will call this to obtain ancestry, config,
    * and permissions instead of using placeholder values.
    */
-  resolve?: (tenantId: string) => Promise<TenantContextLegacy> | TenantContextLegacy;
+  resolve?: (tenantId: string) => Promise<ResolvedTenantContext> | ResolvedTenantContext;
 }
 
 function extractFromHeader(c: Context, header: string): string | undefined {
@@ -60,7 +60,7 @@ export function stratumMiddleware(
 
     c.set("tenantId", tenantId);
 
-    const ctx: TenantContextLegacy = options.resolve
+    const ctx: ResolvedTenantContext = options.resolve
       ? await options.resolve(tenantId)
       : /**
          * @warning Placeholder context — ancestry_path, resolved_config, and

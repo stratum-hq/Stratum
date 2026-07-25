@@ -118,7 +118,7 @@ describe("config-service against real Postgres (integration)", () => {
     expect(resolved.tier.inherited).toBe(true);
   });
 
-  it("stores a sensitive value encrypted at rest, but resolveConfig cannot yet read it back", async () => {
+  it("stores a sensitive value encrypted at rest and resolveConfig decrypts it back", async () => {
     const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("sens") }));
     await set(t.id, "api_token", "s3cr3t-value", /* locked */ false, /* sensitive */ true);
 
@@ -130,14 +130,38 @@ describe("config-service against real Postgres (integration)", () => {
     expect(raw.rows[0].value).not.toContain("s3cr3t-value");
     expect(raw.rows[0].value).toContain("v1:");
 
-    // Characterization of a real bug this real-DB test surfaces: setConfig
-    // stores the ciphertext single-JSON-encoded, the pg driver already parses
-    // the JSONB back to that string, yet the resolver JSON.parses it a second
-    // time before decrypt — so resolving any sensitive key throws instead of
-    // returning the plaintext. (Twin of the same double-parse in
-    // key-rotation-service.) No mocked unit test exercises this read path.
-    // When the resolver is fixed this expectation should flip to assert the
-    // decrypted value.
-    await expect(stratum.resolveConfig(t.id)).rejects.toThrow(/not valid JSON/);
+    // setConfig stores the ciphertext single-JSON-encoded and the pg driver
+    // parses the JSONB back to that string on read, so resolveConfig decrypts
+    // it once and returns the original plaintext. (Regression guard for the
+    // double-parse that used to throw here and in key-rotation-service.)
+    const resolved = await stratum.resolveConfig(t.id);
+    expect(resolved.api_token.value).toBe("s3cr3t-value");
+  });
+
+  it("rotates the encryption key for a sensitive value and still resolves the original plaintext", async () => {
+    const originalKey = process.env.STRATUM_ENCRYPTION_KEY as string;
+    const newKey = "rotated-encryption-key-32chars!!";
+    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("rot") }));
+    await set(t.id, "api_token", "s3cr3t-value", /* locked */ false, /* sensitive */ true);
+
+    try {
+      const result = await stratum.rotateEncryptionKey(originalKey, newKey);
+      expect(result.config_entries_rotated).toBe(1);
+
+      // Re-encrypted at rest under the new key — still ciphertext, never plaintext.
+      const raw = await getPool().query<{ value: string }>(
+        `SELECT value::text AS value FROM config_entries WHERE tenant_id = $1 AND key = 'api_token'`,
+        [t.id],
+      );
+      expect(raw.rows[0].value).not.toContain("s3cr3t-value");
+      expect(raw.rows[0].value).toContain("v1:");
+
+      // resolveConfig, now using the rotated key, decrypts back to the original.
+      process.env.STRATUM_ENCRYPTION_KEY = newKey;
+      const resolved = await stratum.resolveConfig(t.id);
+      expect(resolved.api_token.value).toBe("s3cr3t-value");
+    } finally {
+      process.env.STRATUM_ENCRYPTION_KEY = originalKey;
+    }
   });
 });

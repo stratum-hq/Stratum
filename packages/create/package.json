@@ -20,14 +20,11 @@
   },
   "exports": {
     ".": "./dist/index.js",
-    "./matrix": {
-      "import": "./src/matrix.ts",
-      "types": "./src/matrix.ts"
-    }
+    "./matrix": "./dist/matrix.js"
   },
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@stratum-hq/*",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@stratum-hq/* && esbuild src/matrix.ts --bundle --platform=node --format=esm --outfile=dist/matrix.js --external:@stratum-hq/*",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run"

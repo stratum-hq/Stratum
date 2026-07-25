@@ -40,7 +40,7 @@ export async function rotateEncryptionKey(
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
-        const encryptedBlob = JSON.parse(row.value) as string;
+        const encryptedBlob = row.value;
         const reEncrypted = reEncrypt(encryptedBlob, oldKeyMaterial, newKeyMaterial);
         await client.query(
           `UPDATE config_entries SET value = $1, updated_at = now() WHERE id = $2`,

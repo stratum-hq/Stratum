@@ -1,5 +1,5 @@
 import { TenantNotFoundError } from "@stratum-hq/core";
-import type { TenantContextLegacy } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
@@ -46,7 +46,7 @@ export function fastifyPlugin(
         return;
       }
 
-      let context: TenantContextLegacy;
+      let context: ResolvedTenantContext;
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
