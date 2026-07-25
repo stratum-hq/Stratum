@@ -309,11 +309,15 @@ export async function moveTenant(
       ? `/${id}`
       : `${newAncestryPath}/${id}`;
 
+    // Match every descendant: the direct children have ancestry_path exactly
+    // equal to oldPrefix (their ancestor chain ends at the moved tenant), while
+    // deeper descendants have it as a "oldPrefix/..." prefix. The LIKE alone
+    // misses the direct children.
     const descendantsRes = await client.query<TenantNode>(
       `SELECT * FROM tenants
-       WHERE ancestry_path LIKE $1
+       WHERE ancestry_path = $1 OR ancestry_path LIKE $2
        ORDER BY depth ASC`,
-      [`${oldPrefix}/%`],
+      [oldPrefix, `${oldPrefix}/%`],
     );
 
     for (const desc of descendantsRes.rows) {
