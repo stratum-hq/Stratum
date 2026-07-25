@@ -67,6 +67,16 @@ export type {
   ResolvedPermission,
 } from "@stratum-hq/core";
 
+export { RateLimiter, MemoryRateLimitStore } from "./services/rate-limit-service.js";
+export type {
+  RateLimit,
+  RateLimitResult,
+  RateLimitState,
+  RateLimitStore,
+  RateLimitResolver,
+  RateLimiterOptions,
+} from "./services/rate-limit-service.js";
+
 export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
 export type { KeyRotationResult } from "./services/key-rotation-service.js";
