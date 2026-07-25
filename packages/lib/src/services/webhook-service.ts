@@ -4,6 +4,9 @@ import type {
   Webhook,
   CreateWebhookInput,
   UpdateWebhookInput,
+  WebhookEvent,
+  WebhookDelivery,
+  ListWebhookEventsQuery,
 } from "@stratum-hq/core";
 import { WebhookNotFoundError } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
@@ -163,6 +166,77 @@ export async function listWebhookDeliveries(
       `SELECT id, webhook_id, event_id, status, attempts, next_retry_at, last_error, response_code, created_at, completed_at
        FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY created_at DESC LIMIT 100`,
       [webhookId],
+    );
+    return res.rows;
+  });
+}
+
+/** Columns of a webhook_events row, in WebhookEvent shape. */
+const WEBHOOK_EVENT_COLS = "id, type, tenant_id, data, created_at";
+
+/** Columns of a webhook_deliveries row, in WebhookDelivery shape. */
+const WEBHOOK_DELIVERY_COLS =
+  "id, webhook_id, event_id, status, attempts, next_retry_at, last_error, response_code, created_at, completed_at";
+
+const DEFAULT_EVENT_LIMIT = 50;
+const MAX_EVENT_LIMIT = 100;
+
+/**
+ * List a tenant's webhook events, newest first. Always scoped to
+ * query.tenantId so a caller can never page another tenant's events;
+ * optionally narrowed by type and a created_at window, and paginated.
+ */
+export async function listWebhookEvents(
+  pool: pg.Pool,
+  query: ListWebhookEventsQuery,
+): Promise<WebhookEvent[]> {
+  const limit = Math.min(
+    Math.max(query.limit ?? DEFAULT_EVENT_LIMIT, 1),
+    MAX_EVENT_LIMIT,
+  );
+  const offset = Math.max(query.offset ?? 0, 0);
+
+  const conditions = ["tenant_id = $1"];
+  const params: unknown[] = [query.tenantId];
+  let idx = 2;
+
+  if (query.type !== undefined) {
+    conditions.push(`type = $${idx++}`);
+    params.push(query.type);
+  }
+  if (query.from !== undefined) {
+    conditions.push(`created_at >= $${idx++}`);
+    params.push(query.from);
+  }
+  if (query.to !== undefined) {
+    conditions.push(`created_at <= $${idx++}`);
+    params.push(query.to);
+  }
+
+  params.push(limit, offset);
+
+  return withClient(pool, async (client) => {
+    const res = await client.query<WebhookEvent>(
+      `SELECT ${WEBHOOK_EVENT_COLS} FROM webhook_events
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY created_at DESC
+       LIMIT $${idx++} OFFSET $${idx}`,
+      params,
+    );
+    return res.rows;
+  });
+}
+
+/** List every delivery for a single event, newest first. */
+export async function listDeliveriesByEvent(
+  pool: pg.Pool,
+  eventId: string,
+): Promise<WebhookDelivery[]> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<WebhookDelivery>(
+      `SELECT ${WEBHOOK_DELIVERY_COLS} FROM webhook_deliveries
+       WHERE event_id = $1 ORDER BY created_at DESC`,
+      [eventId],
     );
     return res.rows;
   });

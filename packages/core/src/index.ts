@@ -49,6 +49,7 @@ export {
   type UpdateWebhookInput,
   type WebhookEvent,
   type WebhookDelivery,
+  type ListWebhookEventsQuery,
 } from "./types/webhook.js";
 
 // Region types
