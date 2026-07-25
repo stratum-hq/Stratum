@@ -7,6 +7,11 @@ export {
 } from "./migrate-schemas.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
+  runScopedJob,
+  type ScopedJobFn,
+  type RunScopedJobOptions,
+} from "./scoped-job.js";
+export {
   verifyWebhookSignature,
   signWebhookPayload,
   DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
@@ -25,6 +30,8 @@ export {
   TenantHasChildrenError,
   TenantCycleDetectedError,
   TenantArchivedError,
+  TenantSuspendedError,
+  InvalidTenantStateError,
   TenantContextNotFoundError,
   IsolationViolationError,
   IsolationStrategyUnsupportedError,
@@ -62,6 +69,16 @@ export type {
   ResolvedPermission,
 } from "@stratum-hq/core";
 
+export { RateLimiter, MemoryRateLimitStore } from "./services/rate-limit-service.js";
+export type {
+  RateLimit,
+  RateLimitResult,
+  RateLimitState,
+  RateLimitStore,
+  RateLimitResolver,
+  RateLimiterOptions,
+} from "./services/rate-limit-service.js";
+
 export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
 export type { KeyRotationResult } from "./services/key-rotation-service.js";
@@ -70,6 +87,14 @@ export type { Role, CreateRoleInput, UpdateRoleInput } from "./services/role-ser
 
 // Re-export audit types for convenience
 export type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum-hq/core";
+
+// Re-export usage-metering types for convenience
+export type {
+  RecordUsageInput,
+  UsageEvent,
+  UsageAggregate,
+  UsageAggregateQuery,
+} from "@stratum-hq/core";
 
 export { defaultLogger, noopLogger } from "./logger.js";
 export type { StratumLogger } from "./logger.js";

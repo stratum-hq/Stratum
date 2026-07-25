@@ -1,0 +1,119 @@
+---
+title: Tenant Lifecycle
+description: Create, suspend, resume, archive, and purge tenants as explicit lifecycle operations, with defined behaviour for a tenant's subtree.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Every tenant moves through a small, explicit set of states. Stratum models the
+lifecycle as a strict state machine so each transition is a named operation with
+predictable behaviour, both for the tenant itself and for its descendants.
+
+## States
+
+| State | Meaning | Reversible |
+|---|---|---|
+| `active` | Normal, fully usable tenant. | n/a |
+| `suspended` | Access is blocked, but the tenant and its data are intact. | Yes, via `resumeTenant` |
+| `archived` | Soft-deleted: hidden from listings, `deleted_at` set, data retained. | Yes, via `resumeTenant` |
+| _(purged)_ | Hard-deleted for GDPR erasure. The row and all related data are gone. | **No** |
+
+## Transitions
+
+```
+                 createTenant
+                      │
+                      ▼
+   suspendTenant  ┌────────┐  archiveTenant
+        ┌─────────│ active │─────────┐
+        ▼         └────────┘         ▼
+  ┌───────────┐       ▲        ┌──────────┐
+  │ suspended │       │        │ archived │
+  └───────────┘   resumeTenant └──────────┘
+        │              │              │
+        └──────────────┴──────────────┘
+                       │
+                  purgeTenant  ──▶  (row gone, irreversible)
+```
+
+| Operation | From | To | Notes |
+|---|---|---|---|
+| `createTenant` | none | `active` | Parent must be `active`. |
+| `suspendTenant` | `active` | `suspended` | Blocks access; reversible. |
+| `resumeTenant` | `suspended`, `archived` | `active` | Reverses suspend and archive; clears `deleted_at`. |
+| `archiveTenant` | `active`, `suspended` | `archived` | Soft delete; reversible. |
+| `purgeTenant` | any | _(gone)_ | GDPR Article 17 hard delete; irreversible. |
+
+`deleteTenant` is retained as a deprecated alias of `archiveTenant`: soft
+deleting a tenant is archiving it.
+
+<Aside type="note">
+The state machine is strict, not idempotent. Suspending a tenant that is not
+active, resuming one that is already active, or archiving one that is already
+archived throws `InvalidTenantStateError` (HTTP 409) rather than silently doing
+nothing.
+</Aside>
+
+## Blocked access
+
+A `suspended` or `archived` tenant is excluded from `listTenants`,
+`getChildren`, and `getDescendants`, and `getTenant` throws:
+
+- `TenantSuspendedError` (403) for a suspended tenant
+- `TenantArchivedError` (410) for an archived tenant
+
+Pass `includeArchived: true` to `getTenant` or `getDescendants` when you
+genuinely need the row regardless of state (for lifecycle or retention passes):
+
+```ts
+await stratum.suspendTenant(tenant.id);
+
+await stratum.getTenant(tenant.id);        // throws TenantSuspendedError
+await stratum.getTenant(tenant.id, true);  // returns the suspended row
+
+await stratum.resumeTenant(tenant.id);     // back to active
+```
+
+## Descendant rules
+
+The interesting cases are transitions on a tenant that has a subtree. The rules
+keep one invariant true at all times: **an active tenant's parent is always
+active.**
+
+- **Downward transitions block, they do not cascade.** `suspendTenant` and
+  `archiveTenant` reject with `TenantHasChildrenError` (409) if the tenant has
+  any `active` child. Work leaf-first: suspend or archive the children before
+  the parent.
+- **Upward transitions are top-down.** `resumeTenant` and `createTenant` require
+  the parent to be `active`. You cannot resume a tenant whose parent is still
+  suspended or archived, nor create a child under a non-active parent. Resume
+  the parent first.
+- **Purge requires an empty subtree.** `purgeTenant` rejects while the tenant has
+  any child of _any_ status. Purge from the leaves up.
+
+<Aside type="caution">
+Blocking is the deliberate, safe default: no operation ever silently changes the
+state of tenants you did not name. If you need to suspend or archive a whole
+subtree, walk it leaf-first yourself (see `getDescendants(id, true)`).
+</Aside>
+
+```ts
+// Blocked: root still has an active child.
+await stratum.suspendTenant(root.id); // throws TenantHasChildrenError
+
+// Leaf-first works.
+await stratum.suspendTenant(child.id);
+await stratum.suspendTenant(root.id); // ok
+
+// Resume is top-down.
+await stratum.resumeTenant(child.id); // throws while root is suspended
+await stratum.resumeTenant(root.id);
+await stratum.resumeTenant(child.id); // ok
+```
+
+## Webhook events
+
+Each lifecycle transition emits an event you can subscribe a webhook to:
+`tenant.suspended`, `tenant.resumed`, `tenant.archived`, and `tenant.purged`
+(plus `tenant.deleted` from the `deleteTenant` alias). See
+[Webhooks](/guides/webhooks/).

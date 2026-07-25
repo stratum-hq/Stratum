@@ -11,6 +11,8 @@ import {
   TenantHasChildrenError,
   TenantCycleDetectedError,
   TenantArchivedError,
+  TenantSuspendedError,
+  InvalidTenantStateError,
   appendToPath,
   parseAncestryPath,
   getAncestorIds,
@@ -36,6 +38,11 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
       }
       if (parentRes.rows[0].status === "archived") {
         throw new TenantArchivedError(input.parent_id);
+      }
+      // A suspended or archived subtree must not grow: an active tenant always
+      // has an active parent. See suspendTenant/resumeTenant for the inverse.
+      if (parentRes.rows[0].status === "suspended") {
+        throw new TenantSuspendedError(input.parent_id);
       }
 
       const parent = parentRes.rows[0];
@@ -111,6 +118,12 @@ export async function getTenant(
     const tenant = res.rows[0];
     if (!includeArchived && tenant.status === "archived") {
       throw new TenantArchivedError(id);
+    }
+    // Suspended tenants are blocked from normal access too. `includeArchived`
+    // is the "give me the row whatever its state" escape hatch and bypasses
+    // both non-active states.
+    if (!includeArchived && tenant.status === "suspended") {
+      throw new TenantSuspendedError(id);
     }
     return tenant;
   });
@@ -211,30 +224,138 @@ export async function updateTenant(
   });
 }
 
-export async function deleteTenant(pool: pg.Pool, id: string): Promise<void> {
+// ---------------------------------------------------------------------------
+// Tenant lifecycle
+//
+// States: active -> {suspended, archived} -> (purged). Transitions:
+//   createTenant   (none)               -> active
+//   suspendTenant  active               -> suspended  (reversible, blocks access)
+//   resumeTenant   suspended | archived -> active      (reverses suspend/archive)
+//   archiveTenant  active | suspended   -> archived    (soft delete, reversible)
+//   purgeTenant    any                  -> (row gone)  (GDPR, irreversible;
+//                                                       retention-service.ts)
+//
+// The state machine is strict: a transition from an unexpected state throws
+// InvalidTenantStateError rather than silently no-op'ing.
+//
+// Descendant rules, tested against real Postgres in packages/integration-tests:
+//   * suspend / archive block when the tenant has an ACTIVE child
+//     (TenantHasChildrenError). They act leaf-first and never cascade.
+//   * resume / create require the parent to be ACTIVE, so the invariant "an
+//     active tenant's parent is active" always holds.
+//   * purge requires an empty subtree (no children of ANY status).
+// ---------------------------------------------------------------------------
+
+/**
+ * Load a tenant row of any status for a lifecycle transition, or throw
+ * TenantNotFoundError. Unlike updateTenant this does not filter out archived /
+ * suspended rows, because lifecycle operations act on exactly those states.
+ */
+async function loadForTransition(client: pg.PoolClient, id: string): Promise<TenantNode> {
+  const res = await client.query<TenantNode>(
+    `SELECT * FROM tenants WHERE id = $1`,
+    [id],
+  );
+  if (res.rows.length === 0) {
+    throw new TenantNotFoundError(id);
+  }
+  return res.rows[0];
+}
+
+/**
+ * Guard for downward transitions (suspend, archive): reject if the tenant has
+ * any ACTIVE direct child. Matches the existing TenantHasChildrenError contract
+ * and forces a leaf-first walk so no active tenant is ever left under a
+ * non-active parent.
+ */
+async function assertNoActiveChildren(client: pg.PoolClient, id: string): Promise<void> {
+  const childrenRes = await client.query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM tenants WHERE parent_id = $1 AND status = 'active'`,
+    [id],
+  );
+  if (parseInt(childrenRes.rows[0].count, 10) > 0) {
+    throw new TenantHasChildrenError(id);
+  }
+}
+
+/**
+ * Suspend an active tenant: reversible block on access. Rejects if the tenant
+ * is not active, or if it has active children (suspend leaf-first).
+ */
+export async function suspendTenant(pool: pg.Pool, id: string): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
-    const existing = await client.query<TenantNode>(
-      `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
-      [id],
-    );
-    if (existing.rows.length === 0) {
-      throw new TenantNotFoundError(id);
+    const tenant = await loadForTransition(client, id);
+    if (tenant.status !== "active") {
+      throw new InvalidTenantStateError(id, tenant.status, "suspend", ["active"]);
     }
-
-    // Check for active children
-    const childrenRes = await client.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM tenants WHERE parent_id = $1 AND status = 'active'`,
+    await assertNoActiveChildren(client, id);
+    const res = await client.query<TenantNode>(
+      `UPDATE tenants SET status = 'suspended', updated_at = now() WHERE id = $1 RETURNING *`,
       [id],
     );
-    if (parseInt(childrenRes.rows[0].count, 10) > 0) {
-      throw new TenantHasChildrenError(id);
-    }
-
-    await client.query(
-      `UPDATE tenants SET status = 'archived', deleted_at = now(), updated_at = now() WHERE id = $1`,
-      [id],
-    );
+    return res.rows[0];
   });
+}
+
+/**
+ * Archive a tenant: reversible soft delete. Accepts an active or suspended
+ * tenant. Rejects if already archived, or if it has active children.
+ */
+export async function archiveTenant(pool: pg.Pool, id: string): Promise<TenantNode> {
+  return withTransaction(pool, async (client) => {
+    const tenant = await loadForTransition(client, id);
+    if (tenant.status !== "active" && tenant.status !== "suspended") {
+      throw new InvalidTenantStateError(id, tenant.status, "archive", ["active", "suspended"]);
+    }
+    await assertNoActiveChildren(client, id);
+    const res = await client.query<TenantNode>(
+      `UPDATE tenants SET status = 'archived', deleted_at = now(), updated_at = now() WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return res.rows[0];
+  });
+}
+
+/**
+ * Resume a suspended or archived tenant back to active, reversing suspend and
+ * archive (clearing deleted_at). Rejects if the tenant is already active, or if
+ * its parent is not active. Resuming is top-down.
+ */
+export async function resumeTenant(pool: pg.Pool, id: string): Promise<TenantNode> {
+  return withTransaction(pool, async (client) => {
+    const tenant = await loadForTransition(client, id);
+    if (tenant.status !== "suspended" && tenant.status !== "archived") {
+      throw new InvalidTenantStateError(id, tenant.status, "resume", ["suspended", "archived"]);
+    }
+    if (tenant.parent_id) {
+      const parentRes = await client.query<{ status: string }>(
+        `SELECT status FROM tenants WHERE id = $1`,
+        [tenant.parent_id],
+      );
+      const parentStatus = parentRes.rows[0]?.status;
+      if (parentStatus === "archived") {
+        throw new TenantArchivedError(tenant.parent_id);
+      }
+      if (parentStatus === "suspended") {
+        throw new TenantSuspendedError(tenant.parent_id);
+      }
+    }
+    const res = await client.query<TenantNode>(
+      `UPDATE tenants SET status = 'active', deleted_at = NULL, updated_at = now() WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return res.rows[0];
+  });
+}
+
+/**
+ * Soft-delete a tenant.
+ *
+ * @deprecated Prefer {@link archiveTenant}; soft-deleting a tenant is archiving
+ * it. Retained as an alias so existing callers keep working.
+ */
+export async function deleteTenant(pool: pg.Pool, id: string): Promise<void> {
+  await archiveTenant(pool, id);
 }
 
 export async function moveTenant(

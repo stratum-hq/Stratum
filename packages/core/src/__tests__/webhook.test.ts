@@ -14,6 +14,10 @@ describe("TenantEvent", () => {
     expect(TenantEvent.TENANT_UPDATED).toBe("tenant.updated");
     expect(TenantEvent.TENANT_DELETED).toBe("tenant.deleted");
     expect(TenantEvent.TENANT_MOVED).toBe("tenant.moved");
+    expect(TenantEvent.TENANT_SUSPENDED).toBe("tenant.suspended");
+    expect(TenantEvent.TENANT_RESUMED).toBe("tenant.resumed");
+    expect(TenantEvent.TENANT_ARCHIVED).toBe("tenant.archived");
+    expect(TenantEvent.TENANT_PURGED).toBe("tenant.purged");
     expect(TenantEvent.CONFIG_UPDATED).toBe("config.updated");
     expect(TenantEvent.CONFIG_DELETED).toBe("config.deleted");
     expect(TenantEvent.PERMISSION_CREATED).toBe("permission.created");
@@ -21,8 +25,8 @@ describe("TenantEvent", () => {
     expect(TenantEvent.PERMISSION_DELETED).toBe("permission.deleted");
   });
 
-  it("has 9 event types", () => {
-    expect(Object.keys(TenantEvent)).toHaveLength(9);
+  it("has 13 event types", () => {
+    expect(Object.keys(TenantEvent)).toHaveLength(13);
   });
 });
 

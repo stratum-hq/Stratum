@@ -113,6 +113,7 @@ export async function cleanTestData(): Promise<void> {
     "permission_policies",
     "config_entries",
     "consent_records",
+    "usage_events",
     "audit_logs",
     "api_key_roles",
     "api_keys",

@@ -47,6 +47,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "@stratum-hq/core": "*",
+    "@stratum-hq/db-adapters": "*",
     "@stratum-hq/sdk": "*",
     "pg": "^8.11.0"
   },
