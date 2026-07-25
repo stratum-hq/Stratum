@@ -78,7 +78,7 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
 
         const isCurrentTenant = currentTenantId === tenantId;
         const resolvedValue = entry.sensitive
-          ? JSON.parse(decrypt(JSON.parse(entry.value as string) as string))
+          ? JSON.parse(decrypt(entry.value as string))
           : entry.value;
         resolved.set(entry.key, {
           key: entry.key,
@@ -326,7 +326,7 @@ export async function getConfigWithInheritance(
 
     const decryptEntryValue = (entry: ConfigEntry): unknown =>
       entry.sensitive
-        ? JSON.parse(decrypt(JSON.parse(entry.value as string) as string))
+        ? JSON.parse(decrypt(entry.value as string))
         : entry.value;
 
     const result: ResolvedConfig = {};

@@ -68,7 +68,11 @@ function makeFakePool(store: Store): pg.Pool {
       if (/UPDATE config_entries SET value/.test(s)) {
         const [value, id] = params as [string, string];
         const row = store.config.find((r) => r.id === id);
-        if (row) row.value = value;
+        // value is a JSONB column: the service passes JSON.stringify(blob) and
+        // Postgres parses that JSON text on the way in, so the column holds the
+        // decoded string. Mirror that here (SELECT then returns it decoded, as
+        // the pg driver does) rather than storing the raw JSON text.
+        if (row) row.value = JSON.parse(value) as string;
         return { rows: [], rowCount: row ? 1 : 0 };
       }
       if (/SELECT id, secret_hash FROM webhooks/.test(s)) {
@@ -125,7 +129,10 @@ describe("rotateEncryptionKey batching", () => {
       plaintexts.push(pt);
       config.push({
         id: seedId(i),
-        value: JSON.stringify(encrypt(pt)),
+        // The JSONB value column holds the single-encoded ciphertext string, as
+        // the pg driver hands it back to the service (setConfig stores it via
+        // JSON.stringify, which the driver parses away on read).
+        value: encrypt(pt),
         sensitive: true,
       });
     }
@@ -140,7 +147,7 @@ describe("rotateEncryptionKey batching", () => {
     // plaintext — i.e. rotated exactly once, none skipped or double-encrypted.
     process.env.STRATUM_ENCRYPTION_KEY = NEW_KEY;
     for (let i = 0; i < total; i++) {
-      const blob = JSON.parse(store.config[i].value) as string;
+      const blob = store.config[i].value;
       expect(decrypt(blob)).toBe(plaintexts[i]);
     }
   });
