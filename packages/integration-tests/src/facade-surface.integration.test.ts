@@ -82,43 +82,79 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
   });
 
   describe("batchCreateTenants", () => {
-    it("creates every tenant in a valid batch and persists them", async () => {
-      const result = await stratum.batchCreateTenants([
-        tenantInput({ name: "A", slug: uniqueSlug("bca") }),
-        tenantInput({ name: "B", slug: uniqueSlug("bcb") }),
-      ]);
+    // A TENANT_CREATED event is a row in webhook_events (type 'tenant.created').
+    // emitEvent is fire-and-forget, so give any in-flight insert a moment to land
+    // before asserting on its presence -- or its absence.
+    const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 250));
+
+    it("creates every tenant in a valid batch, persists them, and emits one event per tenant plus one batch audit", async () => {
+      const slugA = uniqueSlug("bca");
+      const slugB = uniqueSlug("bcb");
+      const result = await stratum.batchCreateTenants(
+        [tenantInput({ name: "A", slug: slugA }), tenantInput({ name: "B", slug: slugB })],
+        actor,
+      );
       expect(result.created).toHaveLength(2);
       expect(result.errors).toHaveLength(0);
 
       for (const t of result.created) {
         expect((await stratum.getTenant(t.id)).id).toBe(t.id); // really in the DB
       }
+
+      await settle();
+      const events = await getPool().query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM webhook_events
+         WHERE type = 'tenant.created' AND data->'tenant'->>'slug' = ANY($1)`,
+        [[slugA, slugB]],
+      );
+      expect(events.rows[0].n).toBe("2"); // one TENANT_CREATED per persisted tenant
+
+      const audit = await getPool().query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM audit_logs WHERE action = 'tenant.batch_created'`,
+      );
+      expect(audit.rows[0].n).toBe("1"); // a single batch audit entry for the commit
     });
 
-    it("CHARACTERIZATION: a mid-batch failure rolls back the whole transaction, yet created[] still lists the rolled-back tenants", async () => {
+    it("all-or-nothing: a mid-batch failure commits nothing and emits no event or audit for any tenant in the batch", async () => {
       const taken = uniqueSlug("dupe");
       await stratum.createTenant(tenantInput({ name: "Existing", slug: taken }));
 
       const survivor = uniqueSlug("bcsurv");
-      const result = await stratum.batchCreateTenants([
-        tenantInput({ name: "Survivor", slug: survivor }), // inserted first
-        tenantInput({ name: "Clash", slug: taken }), // duplicate -> aborts the txn
-      ]);
+      const result = await stratum.batchCreateTenants(
+        [
+          tenantInput({ name: "Survivor", slug: survivor }), // inserted first
+          tenantInput({ name: "Clash", slug: taken }), // duplicate -> aborts the txn
+        ],
+        actor,
+      );
 
-      // The batch runs in a single transaction, so the unique-violation on the
-      // second row rolls back the first insert too. But `created` is an in-memory
-      // array populated before the throw, so it still reports the first tenant as
-      // created -- and the facade emits TENANT_CREATED + audit for it. This is a
-      // real bug: the reported "created" tenant was never persisted. When fixed,
-      // created should be empty here and this expectation should flip.
+      // The batch is a single transaction: the unique-violation on the second row
+      // rolls the first insert back too. `created` must reflect that nothing
+      // persisted, and the facade must emit no TENANT_CREATED event and write no
+      // audit entry for the rolled-back tenant. (Issue #213: previously created[]
+      // still listed the survivor, so the facade emitted a phantom webhook + audit
+      // for a row that never committed.)
       expect(result.errors).toHaveLength(1);
-      expect(result.created.map((t) => t.slug)).toContain(survivor);
+      expect(result.created).toHaveLength(0);
 
       const persisted = await getPool().query<{ n: string }>(
         `SELECT count(*)::text AS n FROM tenants WHERE slug = $1`,
         [survivor],
       );
       expect(persisted.rows[0].n).toBe("0"); // rolled back: not actually in the DB
+
+      await settle(); // let any (buggy) fire-and-forget emission land before asserting absence
+      const events = await getPool().query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM webhook_events
+         WHERE type = 'tenant.created' AND data->'tenant'->>'slug' = $1`,
+        [survivor],
+      );
+      expect(events.rows[0].n).toBe("0"); // no phantom webhook for the rolled-back tenant
+
+      const audit = await getPool().query<{ n: string }>(
+        `SELECT count(*)::text AS n FROM audit_logs WHERE action = 'tenant.batch_created'`,
+      );
+      expect(audit.rows[0].n).toBe("0"); // no phantom audit for a batch that committed nothing
     });
   });
 
