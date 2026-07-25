@@ -71,6 +71,15 @@ describe("webhook event listing (integration)", () => {
     );
     return r.rows[0].id;
   }
+  /** Insert an event at an exact created_at so several rows can share a timestamp. */
+  async function rawEventAtExact(tenantId: string, createdAt: string): Promise<string> {
+    const r = await getPool().query<{ id: string }>(
+      `INSERT INTO webhook_events (type, tenant_id, data, created_at)
+       VALUES ('tenant.created',$1,'{}',$2::timestamptz) RETURNING id`,
+      [tenantId, createdAt],
+    );
+    return r.rows[0].id;
+  }
   async function rawWebhook(tenantId: string): Promise<string> {
     const r = await getPool().query<{ id: string }>(
       `INSERT INTO webhooks (tenant_id, url, secret_hash, events) VALUES ($1,'https://example.com/h','h',$2) RETURNING id`,
@@ -107,6 +116,8 @@ describe("webhook event listing (integration)", () => {
 
     const events = await stratum.listWebhookEvents({ tenantId: a });
     expect(events.map((e) => e.id)).toEqual([newest, middle, oldest]);
+    // Contract: created_at is returned as a string (::text), not a Date.
+    expect(typeof events[0].created_at).toBe("string");
   });
 
   it("paginates with limit and offset over the newest-first order", async () => {
@@ -168,9 +179,33 @@ describe("webhook event listing (integration)", () => {
     expect(deliveries.map((d) => d.id).sort()).toEqual([d1, d2].sort());
     for (const d of deliveries) expect(d.event_id).toBe(event);
     expect(deliveries.map((d) => d.status).sort()).toEqual(["failed", "success"]);
+    // Contract: delivery timestamps are returned as strings (::text), not Dates.
+    expect(typeof deliveries[0].created_at).toBe("string");
+    expect(typeof deliveries[0].completed_at).toBe("string"); // success/failed rows are completed
 
     // An event with no deliveries (or an unknown id) yields an empty list.
     expect(await stratum.listDeliveriesByEvent("00000000-0000-0000-0000-000000000000")).toEqual([]);
+  });
+
+  it("paginates deterministically when rows share a created_at (id tiebreaker)", async () => {
+    const a = await rawTenant(uniqueSlug("evt_tie"));
+    const ts = new Date(Date.now() - 60 * 1000).toISOString();
+    const ids = new Set<string>();
+    for (let i = 0; i < 4; i++) ids.add(await rawEventAtExact(a, ts));
+
+    // With only created_at DESC these rows would order arbitrarily; the id
+    // tiebreaker makes the order total, so it is stable across calls...
+    const full1 = (await stratum.listWebhookEvents({ tenantId: a, limit: 100 })).map((e) => e.id);
+    const full2 = (await stratum.listWebhookEvents({ tenantId: a, limit: 100 })).map((e) => e.id);
+    expect(full1).toHaveLength(4);
+    expect(full2).toEqual(full1);
+
+    // ...and paging it covers every row exactly once, no overlap or gap.
+    const page1 = (await stratum.listWebhookEvents({ tenantId: a, limit: 2, offset: 0 })).map((e) => e.id);
+    const page2 = (await stratum.listWebhookEvents({ tenantId: a, limit: 2, offset: 2 })).map((e) => e.id);
+    expect(page1).toEqual(full1.slice(0, 2));
+    expect(page2).toEqual(full1.slice(2, 4));
+    expect(new Set([...page1, ...page2])).toEqual(ids);
   });
 
   it("hides another tenant's events from a non-superuser role bound to tenant A", async () => {

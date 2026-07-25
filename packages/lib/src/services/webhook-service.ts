@@ -171,12 +171,16 @@ export async function listWebhookDeliveries(
   });
 }
 
+// Timestamps are cast ::text so the returned rows honor the string contract of
+// WebhookEvent / WebhookDelivery (pg otherwise hands back Date objects), the
+// same convention queryAuditLogs and usage-service use for their typed rows.
 /** Columns of a webhook_events row, in WebhookEvent shape. */
-const WEBHOOK_EVENT_COLS = "id, type, tenant_id, data, created_at";
+const WEBHOOK_EVENT_COLS =
+  "id, type, tenant_id, data, created_at::text as created_at";
 
 /** Columns of a webhook_deliveries row, in WebhookDelivery shape. */
 const WEBHOOK_DELIVERY_COLS =
-  "id, webhook_id, event_id, status, attempts, next_retry_at, last_error, response_code, created_at, completed_at";
+  "id, webhook_id, event_id, status, attempts, next_retry_at::text as next_retry_at, last_error, response_code, created_at::text as created_at, completed_at::text as completed_at";
 
 const DEFAULT_EVENT_LIMIT = 50;
 const MAX_EVENT_LIMIT = 100;
@@ -219,7 +223,7 @@ export async function listWebhookEvents(
     const res = await client.query<WebhookEvent>(
       `SELECT ${WEBHOOK_EVENT_COLS} FROM webhook_events
        WHERE ${conditions.join(" AND ")}
-       ORDER BY created_at DESC
+       ORDER BY created_at DESC, id DESC
        LIMIT $${idx++} OFFSET $${idx}`,
       params,
     );
@@ -235,7 +239,7 @@ export async function listDeliveriesByEvent(
   return withClient(pool, async (client) => {
     const res = await client.query<WebhookDelivery>(
       `SELECT ${WEBHOOK_DELIVERY_COLS} FROM webhook_deliveries
-       WHERE event_id = $1 ORDER BY created_at DESC`,
+       WHERE event_id = $1 ORDER BY created_at DESC, id DESC`,
       [eventId],
     );
     return res.rows;
