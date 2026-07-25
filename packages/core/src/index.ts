@@ -19,9 +19,11 @@ export { scopeSatisfies } from "./utils/scopes.js";
 export {
   AuditEntrySchema,
   AuditLogQuerySchema,
+  RecordAuditEventInputSchema,
   type AuditContext,
   type AuditEntry,
   type AuditLogQuery,
+  type RecordAuditEventInput,
 } from "./types/audit.js";
 
 // Usage metering types

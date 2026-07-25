@@ -8,7 +8,7 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as auditService from "../audit-service.js";
-import type { AuditContext, AuditEntry } from "@stratum-hq/core";
+import type { AuditContext, AuditEntry, RecordAuditEventInput } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -206,6 +206,89 @@ describe("queryAuditLogs", () => {
     expect(sql).toContain("created_at <= $2");
     expect(params[0]).toBe("2024-01-01T00:00:00.000Z");
     expect(params[1]).toBe("2024-12-31T23:59:59.000Z");
+  });
+});
+
+describe("recordAuditEvent", () => {
+  it("maps camelCase input to the insert and applies defaults", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [mockEntry] });
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await auditService.recordAuditEvent(pool, {
+      tenantId: "550e8400-e29b-41d4-a716-446655440000",
+      actorId: "user-1",
+      action: "invoice.sent",
+      resourceType: "invoice",
+      resourceId: "inv-9",
+    });
+
+    expect(result).toEqual(mockEntry);
+    const [sql, params] = mockQuery.mock.calls[0];
+    expect(sql).toContain("INSERT INTO audit_logs");
+    expect(params[0]).toBe("user-1"); // actor_id
+    expect(params[1]).toBe("system"); // actor_type default
+    expect(params[2]).toBe("invoice.sent"); // action
+    expect(params[3]).toBe("invoice"); // resource_type
+    expect(params[4]).toBe("inv-9"); // resource_id
+    expect(params[5]).toBe("550e8400-e29b-41d4-a716-446655440000"); // tenant_id
+    expect(params[6]).toBeNull(); // source_ip default
+    expect(params[8]).toBeNull(); // before_state
+    expect(params[9]).toBeNull(); // after_state
+    expect(params[10]).toBe("{}"); // metadata default
+  });
+
+  it("passes before/after, sourceIp, metadata and actorType through", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [mockEntry] });
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await auditService.recordAuditEvent(pool, {
+      tenantId: "550e8400-e29b-41d4-a716-446655440000",
+      actorId: "svc",
+      actorType: "api_key",
+      action: "record.updated",
+      resourceType: "record",
+      resourceId: "r-1",
+      before: { status: "open" },
+      after: { status: "closed" },
+      metadata: { via: "tenantry" },
+      sourceIp: "203.0.113.7",
+    });
+
+    const params = mockQuery.mock.calls[0][1];
+    expect(params[1]).toBe("api_key"); // actor_type
+    expect(params[6]).toBe("203.0.113.7"); // source_ip
+    expect(params[8]).toBe(JSON.stringify({ status: "open" })); // before_state
+    expect(params[9]).toBe(JSON.stringify({ status: "closed" })); // after_state
+    expect(params[10]).toBe(JSON.stringify({ via: "tenantry" })); // metadata
+  });
+
+  it("rejects an invalid actorType before touching the database", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const bad = {
+      tenantId: "550e8400-e29b-41d4-a716-446655440000",
+      actorId: "u",
+      actorType: "robot",
+      action: "x",
+      resourceType: "y",
+      resourceId: null,
+    } as unknown as RecordAuditEventInput;
+
+    await expect(auditService.recordAuditEvent(pool, bad)).rejects.toThrow();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 });
 
