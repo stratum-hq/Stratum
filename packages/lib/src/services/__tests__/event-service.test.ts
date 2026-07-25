@@ -16,7 +16,7 @@ vi.mock("../webhook-service.js", () => ({
 import * as poolHelpers from "../../pool-helpers.js";
 import * as webhookServiceMock from "../webhook-service.js";
 import * as eventService from "../event-service.js";
-import { TenantEvent } from "@stratum-hq/core";
+import { TenantEvent, WebhookUrlValidationError, StratumError } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -89,6 +89,44 @@ describe("webhook egress filter (SSRF protection)", () => {
 
   it("fails closed on an unparseable URL", () => {
     expect(() => eventService.validateWebhookUrl("http://[not-an-ip/hook")).toThrow();
+  });
+});
+
+describe("webhook URL validation throws a typed error", () => {
+  // All entries are IP literals or blocked hostnames, so both the sync and the
+  // DNS-aware validator reject them without any network lookup (pure logic).
+  const blocked: [string, string][] = [
+    ["IPv4 loopback", "http://127.0.0.1/hook"],
+    ["IPv6 loopback", "http://[::1]/hook"],
+    ["cloud metadata address", "http://169.254.169.254/hook"],
+    ["blocked hostname", "http://localhost/hook"],
+    ["non-http scheme", "ftp://example.com/hook"],
+    ["unparseable URL", "http://[not-an-ip/hook"],
+  ];
+
+  for (const [label, url] of blocked) {
+    it(`validateWebhookUrl rejects ${label} with WebhookUrlValidationError`, () => {
+      expect(() => eventService.validateWebhookUrl(url)).toThrow(WebhookUrlValidationError);
+    });
+
+    it(`validateWebhookUrlWithDns rejects ${label} with a StratumError-typed error`, async () => {
+      await expect(eventService.validateWebhookUrlWithDns(url)).rejects.toBeInstanceOf(
+        WebhookUrlValidationError,
+      );
+      await expect(eventService.validateWebhookUrlWithDns(url)).rejects.toBeInstanceOf(
+        StratumError,
+      );
+    });
+  }
+
+  it("does not throw for a valid public URL (sync)", () => {
+    expect(() => eventService.validateWebhookUrl("https://example.com/hook")).not.toThrow();
+  });
+
+  it("does not throw for a valid public IP literal (async, returns before DNS)", async () => {
+    await expect(
+      eventService.validateWebhookUrlWithDns("https://1.1.1.1/hook"),
+    ).resolves.toBeUndefined();
   });
 });
 
