@@ -57,6 +57,22 @@ export const WebhookEventSchema = z.object({
 });
 export type WebhookEvent = z.infer<typeof WebhookEventSchema>;
 
+/** Filter for listing a tenant's webhook events (newest first, paginated). */
+export interface ListWebhookEventsQuery {
+  /** Tenant whose events to page. Required: a caller never pages another tenant. */
+  tenantId: string;
+  /** Restrict to a single event type. */
+  type?: TenantEvent;
+  /** Only events created at or after this ISO-8601 timestamp. */
+  from?: string;
+  /** Only events created at or before this ISO-8601 timestamp. */
+  to?: string;
+  /** Page size, 1-100. Defaults to 50. */
+  limit?: number;
+  /** Rows to skip for pagination. Defaults to 0. */
+  offset?: number;
+}
+
 export const WebhookDeliveryStatus = {
   PENDING: "pending",
   SUCCESS: "success",

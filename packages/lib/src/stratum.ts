@@ -36,6 +36,9 @@ import type {
   Webhook,
   CreateWebhookInput,
   UpdateWebhookInput,
+  WebhookEvent,
+  WebhookDelivery,
+  ListWebhookEventsQuery,
   AuditContext,
   AuditEntry,
   AuditLogQuery,
@@ -622,6 +625,14 @@ export class Stratum {
   }
   listWebhookDeliveries(webhookId: string): Promise<Record<string, unknown>[]> {
     return webhookService.listWebhookDeliveries(this.pool, webhookId);
+  }
+  /** List a tenant's webhook events, newest first (tenant-scoped, paginated). */
+  listWebhookEvents(query: ListWebhookEventsQuery): Promise<WebhookEvent[]> {
+    return webhookService.listWebhookEvents(this.pool, query);
+  }
+  /** List every delivery recorded for a single webhook event. */
+  listDeliveriesByEvent(eventId: string): Promise<WebhookDelivery[]> {
+    return webhookService.listDeliveriesByEvent(this.pool, eventId);
   }
   async testWebhook(id: string): Promise<{ success: boolean; response_code: number | null; error?: string }> {
     const webhook = await webhookService.getWebhook(this.pool, id);
