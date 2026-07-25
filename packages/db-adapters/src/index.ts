@@ -22,6 +22,8 @@ export {
 export {
   setTenantContext,
   resetTenantContext,
+  withTenantContext,
+  withRlsBypass,
   getCurrentTenantId,
 } from "./rls/session.js";
 
