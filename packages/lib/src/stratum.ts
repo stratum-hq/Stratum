@@ -14,6 +14,7 @@ import * as regionService from "./services/region-service.js";
 import * as keyRotationService from "./services/key-rotation-service.js";
 import * as roleService from "./services/role-service.js";
 import * as abacService from "./services/abac-service.js";
+import * as usageService from "./services/usage-service.js";
 import { traced } from "./telemetry.js";
 import { defaultLogger, type StratumLogger } from "./logger.js";
 import { getTenantContext, runWithTenantContext } from "@stratum-hq/sdk";
@@ -57,6 +58,10 @@ import type {
   AbacEvaluationRequest,
   AbacEvaluationResult,
   ResolvedAbacPolicy,
+  RecordUsageInput,
+  UsageEvent,
+  UsageAggregate,
+  UsageAggregateQuery,
 } from "@stratum-hq/core";
 import { TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
@@ -852,6 +857,27 @@ export class Stratum {
   deleteAbacPolicy(tenantId: string, policyId: string): Promise<void> {
     return traced("abac.delete_policy", { tenant_id: tenantId, policy_id: policyId }, async () => {
       return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+    });
+  }
+
+  // Usage metering operations (FR-58)
+  /**
+   * Record a countable usage event for a tenant. Pass `idempotency_key` to make
+   * the write safe to retry — a duplicate key is a no-op that returns the
+   * original event. See {@link usageService.recordUsage}.
+   */
+  recordUsage(tenantId: string, input: RecordUsageInput): Promise<UsageEvent> {
+    return traced("usage.record", { tenant_id: tenantId, metric: input.metric }, async () => {
+      return usageService.recordUsage(this.pool, tenantId, input);
+    });
+  }
+  /**
+   * Aggregate one tenant's usage per metric over an optional half-open window
+   * [from, to) on occurred_at. See {@link usageService.aggregateUsage}.
+   */
+  aggregateUsage(query: UsageAggregateQuery): Promise<UsageAggregate[]> {
+    return traced("usage.aggregate", { tenant_id: query.tenant_id }, async () => {
+      return usageService.aggregateUsage(this.pool, query);
     });
   }
 

@@ -24,6 +24,17 @@ export {
   type AuditLogQuery,
 } from "./types/audit.js";
 
+// Usage metering types
+export {
+  RecordUsageInputSchema,
+  UsageEventSchema,
+  UsageAggregateQuerySchema,
+  type RecordUsageInput,
+  type UsageEvent,
+  type UsageAggregate,
+  type UsageAggregateQuery,
+} from "./types/usage.js";
+
 // Webhook types
 export {
   TenantEvent,
