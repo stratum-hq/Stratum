@@ -1,5 +1,104 @@
 # @stratum-hq/lib
 
+## 1.0.0
+
+### Major Changes
+
+- 5e87692: Unify API-key scope resolution and make scope checks hierarchical (FR-53, #132).
+
+  Two authorization-semantics changes land together:
+  - **Hierarchical scopes.** Scope requirements are now checked with a rank
+    comparison (`read` < `write` < `admin`) instead of flat set membership, so
+    `admin` implies `write` implies `read`. A key minted as `["admin"]` or
+    `["write"]` now satisfies the lower-scope routes it previously failed. A new
+    `scopeSatisfies(granted, required)` helper in `@stratum-hq/core` is the single
+    scope-check primitive; the control-plane authorize middleware uses it. This
+    changes same-tenant behavior by scope level only and does not alter any
+    cross-tenant boundary.
+  - **Single scope source.** `validateApiKey` (the auth boundary) and
+    `resolveKeyScopes` now resolve scopes through one `resolveEffectiveScopes`
+    function: an assigned role's scopes govern; otherwise the key's own column
+    scopes apply; a key with neither defaults to `["read"]`. Previously
+    `validateApiKey` read the `api_keys.scopes` column and ignored an assigned
+    role, so assigning a role had no effect on control-plane authorization.
+    Assigning a role now governs the key's authorization everywhere, which can
+    narrow a key whose role is narrower than its column scopes. Keys without a role
+    are unaffected.
+
+  Both are breaking changes to authorization behavior; audit any key that carries a
+  role alongside column scopes, and mint keys with the scopes the caller actually
+  needs. See the migration guide sections 5.2 and 5.3 in `docs/v1.0-api-surface.md`.
+
+- c17b1a5: Rename the `TenantContextLegacy` type to `ResolvedTenantContext` (#219, from the #133 v1.0 surface review).
+
+  The 1.0 public surface should carry no "Legacy" name. The flat, resolved per-request tenant context (fields `tenant_id`, `ancestry_path`, `depth`, `resolved_config`, `resolved_permissions`, `isolation_strategy`) is now `ResolvedTenantContext`, which sits with the existing `Resolved*` family and is clearly distinct from the richer object-graph `TenantContext`. The type is renamed at its definition in `@stratum-hq/core`, in the `@stratum-hq/sdk` re-export, and in every internal use. No deprecated alias is kept.
+
+  If you import `TenantContextLegacy` from `@stratum-hq/core` or `@stratum-hq/sdk`, or annotate values from `Stratum.currentTenantContext()` / `Stratum.runWithTenant()` or the SDK/Hono middleware with it, switch to `ResolvedTenantContext`. The shape is unchanged.
+
+### Minor Changes
+
+- f071f49: Re-export Stratum's typed error classes as runtime values from the `@stratum-hq/lib` public entry (FR-52).
+
+  `@stratum-hq/lib` previously re-exported core's error types only via `export type`, so the error classes were not available as runtime values and could not be used with `instanceof`. Consumers had to import them from `@stratum-hq/core` directly (or match error-message substrings). Every error class in the hierarchy (`StratumError` and its subclasses, plus the `ErrorCode` enum) is now importable as a value:
+
+  ```ts
+  import { StratumError, TenantNotFoundError } from "@stratum-hq/lib";
+
+  try {
+    await stratum.tenants.get(id);
+  } catch (err) {
+    if (err instanceof TenantNotFoundError) {
+      // ...
+    }
+  }
+  ```
+
+### Patch Changes
+
+- b55ae70: Correct and complete package metadata for the npm registry listing.
+
+  Every published package now declares `license` (MIT), `author`, `homepage`, and
+  `bugs`. Runtime packages declare `engines` (Node >=20) to match the project's
+  support policy; this fixes `@stratum-hq/cli`, which previously declared Node >=18.
+  `@stratum-hq/mysql` and `@stratum-hq/mongodb` gain the `keywords` array they were
+  missing. No runtime code changes.
+
+- 4eb1c52: Fix batchCreateTenants to honor its all-or-nothing transaction contract. The
+  batch runs in a single transaction, so a mid-batch failure (such as a duplicate
+  slug) rolls every insert back. The returned `created` array was populated in
+  memory before the failure and still listed the rolled-back tenants, which caused
+  the facade to emit TENANT_CREATED events and write audit entries for tenants that
+  were never persisted. `created` is now cleared on failure, so it reflects only
+  what actually committed and no phantom events or audit entries are emitted.
+- 3fa212b: Fix moveTenant leaving the moved node's direct children with a stale
+  ancestry_path, depth, and ancestry_ltree. The descendant rewrite matched only
+  paths with a segment after the moved tenant (a `LIKE 'prefix/%'`), so immediate
+  children — whose ancestry_path equals the prefix exactly — were skipped, leaving
+  the subtree inconsistent and hiding those children from getDescendants (which
+  queries the ltree). The rewrite now also matches the exact prefix. Surfaced by a
+  new real-database integration test; the existing unit tests mock the pool and
+  never exercised the descendant rows.
+- 86dfbe1: Fix reading back a sensitive (encrypted) config value.
+
+  `resolveConfig` and `getConfigWithInheritance` parsed the pg-decoded JSONB value a
+  second time before decrypting it. The pg driver already parses the JSONB column, so
+  the extra `JSON.parse` ran against an already-decoded string and threw, meaning any
+  config key written with `sensitive: true` could not be read back. The same redundant
+  parse in `rotateEncryptionKey` broke rotating a sensitive config row. Removing the
+  redundant parse lets sensitive values decrypt and round-trip correctly, including
+  across a key rotation.
+
+- 4adcbb5: Stop shipping test files in published tarballs. tsc-built packages now exclude **tests** directories and .test/.spec files from compilation, so dist and the tarball contain only real package output. The create package, which ships source for its ./matrix export, excludes tests via .npmignore instead. The vitest runner is unaffected and still runs tests from src.
+- Updated dependencies [b55ae70]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [5e87692]
+- Updated dependencies [4adcbb5]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [c17b1a5]
+  - @stratum-hq/core@1.0.0
+  - @stratum-hq/sdk@1.0.0
+
 ## 0.7.0
 
 ### Minor Changes

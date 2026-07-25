@@ -1,5 +1,35 @@
 # @stratum-hq/hono
 
+## 1.0.0
+
+### Minor Changes
+
+- c17b1a5: Rename the `TenantContextLegacy` type to `ResolvedTenantContext` (#219, from the #133 v1.0 surface review).
+
+  The 1.0 public surface should carry no "Legacy" name. The flat, resolved per-request tenant context (fields `tenant_id`, `ancestry_path`, `depth`, `resolved_config`, `resolved_permissions`, `isolation_strategy`) is now `ResolvedTenantContext`, which sits with the existing `Resolved*` family and is clearly distinct from the richer object-graph `TenantContext`. The type is renamed at its definition in `@stratum-hq/core`, in the `@stratum-hq/sdk` re-export, and in every internal use. No deprecated alias is kept.
+
+  If you import `TenantContextLegacy` from `@stratum-hq/core` or `@stratum-hq/sdk`, or annotate values from `Stratum.currentTenantContext()` / `Stratum.runWithTenant()` or the SDK/Hono middleware with it, switch to `ResolvedTenantContext`. The shape is unchanged.
+
+### Patch Changes
+
+- b55ae70: Correct and complete package metadata for the npm registry listing.
+
+  Every published package now declares `license` (MIT), `author`, `homepage`, and
+  `bugs`. Runtime packages declare `engines` (Node >=20) to match the project's
+  support policy; this fixes `@stratum-hq/cli`, which previously declared Node >=18.
+  `@stratum-hq/mysql` and `@stratum-hq/mongodb` gain the `keywords` array they were
+  missing. No runtime code changes.
+
+- Updated dependencies [b55ae70]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [5e87692]
+- Updated dependencies [4adcbb5]
+- Updated dependencies [c17b1a5]
+- Updated dependencies [c17b1a5]
+  - @stratum-hq/core@1.0.0
+  - @stratum-hq/sdk@1.0.0
+
 ## 0.2.0
 
 ### Minor Changes

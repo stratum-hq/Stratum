@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/test-utils",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Cross-tenant isolation test helpers for Stratum — assertIsolation and assertConfigInheritance",
   "keywords": [
     "multi-tenancy",
