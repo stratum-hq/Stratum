@@ -117,8 +117,11 @@ export async function cleanTestData(): Promise<void> {
     "api_key_roles",
     "api_keys",
     "roles",
-    "regions",
+    // tenants.region_id REFERENCES regions(id) (RESTRICT), so tenants (the
+    // child) must be deleted before regions (the parent). Any test that assigns
+    // a region via migrateRegion would otherwise leave an undeletable region.
     "tenants",
+    "regions",
   ];
   for (const table of tables) {
     await p.query(`DELETE FROM "${table}" WHERE 1=1`).catch(() => {
