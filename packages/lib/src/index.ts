@@ -25,6 +25,8 @@ export {
   TenantHasChildrenError,
   TenantCycleDetectedError,
   TenantArchivedError,
+  TenantSuspendedError,
+  InvalidTenantStateError,
   TenantContextNotFoundError,
   IsolationViolationError,
   IsolationStrategyUnsupportedError,
