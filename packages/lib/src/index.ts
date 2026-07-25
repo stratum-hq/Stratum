@@ -71,5 +71,13 @@ export type { Role, CreateRoleInput, UpdateRoleInput } from "./services/role-ser
 // Re-export audit types for convenience
 export type { AuditContext, AuditEntry, AuditLogQuery } from "@stratum-hq/core";
 
+// Re-export usage-metering types for convenience
+export type {
+  RecordUsageInput,
+  UsageEvent,
+  UsageAggregate,
+  UsageAggregateQuery,
+} from "@stratum-hq/core";
+
 export { defaultLogger, noopLogger } from "./logger.js";
 export type { StratumLogger } from "./logger.js";
