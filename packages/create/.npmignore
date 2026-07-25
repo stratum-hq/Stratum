@@ -1,0 +1,7 @@
+# Keep test files out of the published tarball. src is still shipped for the
+# ./matrix subpath export; only tests are excluded.
+__tests__
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx

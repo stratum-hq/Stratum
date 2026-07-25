@@ -2,6 +2,19 @@
   "name": "@stratum-hq/mysql",
   "version": "0.2.0",
   "description": "MySQL tenant isolation for Stratum — shared table, table-per-tenant, and database-per-tenant strategies",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "tenant-isolation",
+    "mysql",
+    "database",
+    "typeorm",
+    "knex",
+    "sequelize",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -51,6 +64,12 @@
     "access": "public"
   },
   "license": "MIT",
+  "author": "Christian Crank",
+  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/mysql#readme",
+  "bugs": "https://github.com/stratum-hq/Stratum/issues",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/stratum-hq/Stratum.git",

@@ -2,6 +2,17 @@
   "name": "@stratum-hq/mongodb",
   "version": "0.2.0",
   "description": "MongoDB tenant isolation for Stratum — shared collection, collection-per-tenant, and database-per-tenant strategies",
+  "keywords": [
+    "multi-tenancy",
+    "multi-tenant",
+    "saas",
+    "tenant",
+    "tenant-isolation",
+    "mongodb",
+    "mongoose",
+    "database",
+    "stratum"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -46,6 +57,12 @@
     "access": "public"
   },
   "license": "MIT",
+  "author": "Christian Crank",
+  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/mongodb#readme",
+  "bugs": "https://github.com/stratum-hq/Stratum/issues",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/stratum-hq/Stratum.git",
