@@ -45,6 +45,7 @@ export {
   ForbiddenError,
   WebhookNotFoundError,
   WebhookDeliveryError,
+  WebhookUrlValidationError,
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,

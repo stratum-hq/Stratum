@@ -22,6 +22,7 @@ export enum ErrorCode {
   FORBIDDEN = "FORBIDDEN",
   WEBHOOK_NOT_FOUND = "WEBHOOK_NOT_FOUND",
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
+  WEBHOOK_URL_INVALID = "WEBHOOK_URL_INVALID",
 }
 
 export class StratumError extends Error {
@@ -260,6 +261,20 @@ export class WebhookDeliveryError extends StratumError {
       500,
     );
     this.name = "WebhookDeliveryError";
+  }
+}
+
+/**
+ * Raised when a webhook URL fails registration/delivery-time validation:
+ * unparseable, a non-http(s) scheme, or a target in a private/reserved/blocked
+ * range (SSRF protection). Typed so a consumer can turn a rejected URL into a
+ * 400 with `instanceof WebhookUrlValidationError` instead of matching the
+ * human-readable message.
+ */
+export class WebhookUrlValidationError extends StratumError {
+  constructor(message: string) {
+    super(ErrorCode.WEBHOOK_URL_INVALID, message, 400);
+    this.name = "WebhookUrlValidationError";
   }
 }
 
