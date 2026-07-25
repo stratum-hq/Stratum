@@ -9,7 +9,7 @@ import type { ExecutionContext } from "@nestjs/common";
  * ```ts
  * @Get('me')
  * @UseGuards(StratumGuard)
- * getProfile(@Tenant() tenant: TenantContextLegacy) {
+ * getProfile(@Tenant() tenant: ResolvedTenantContext) {
  *   return tenant;
  * }
  * ```

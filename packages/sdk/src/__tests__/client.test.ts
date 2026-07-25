@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StratumClient } from "../client.js";
-import type { TenantContextLegacy, TenantNode } from "@stratum-hq/core";
+import type { ResolvedTenantContext, TenantNode } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,7 +19,7 @@ function makeClient(options?: {
   });
 }
 
-function makeTenantContextLegacy(tenantId: string): TenantContextLegacy {
+function makeResolvedTenantContext(tenantId: string): ResolvedTenantContext {
   return {
     tenant_id: tenantId,
     ancestry_path: `/${tenantId}`,
@@ -79,7 +79,7 @@ describe("StratumClient", () => {
   describe("authentication", () => {
     it("sends X-API-Key header with every request", async () => {
       const client = makeClient();
-      const ctx = makeTenantContextLegacy("t-1");
+      const ctx = makeResolvedTenantContext("t-1");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -94,7 +94,7 @@ describe("StratumClient", () => {
 
     it("sends Content-Type application/json header", async () => {
       const client = makeClient();
-      const ctx = makeTenantContextLegacy("t-1");
+      const ctx = makeResolvedTenantContext("t-1");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -115,7 +115,7 @@ describe("StratumClient", () => {
   describe("resolveTenant", () => {
     it("calls the correct API endpoint", async () => {
       const client = makeClient();
-      const ctx = makeTenantContextLegacy("tenant-123");
+      const ctx = makeResolvedTenantContext("tenant-123");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -132,7 +132,7 @@ describe("StratumClient", () => {
 
     it("returns the tenant context from the API", async () => {
       const client = makeClient();
-      const ctx = makeTenantContextLegacy("tenant-123");
+      const ctx = makeResolvedTenantContext("tenant-123");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -232,7 +232,7 @@ describe("StratumClient", () => {
   describe("caching", () => {
     it("cache hit returns cached result without API call", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("cached-tenant");
+      const ctx = makeResolvedTenantContext("cached-tenant");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -251,8 +251,8 @@ describe("StratumClient", () => {
 
     it("cache miss fetches from API", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx1 = makeTenantContextLegacy("tenant-a");
-      const ctx2 = makeTenantContextLegacy("tenant-b");
+      const ctx1 = makeResolvedTenantContext("tenant-a");
+      const ctx2 = makeResolvedTenantContext("tenant-b");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctx1))
@@ -267,7 +267,7 @@ describe("StratumClient", () => {
 
     it("cache is enabled by default", async () => {
       const client = makeClient(); // No explicit cache config
-      const ctx = makeTenantContextLegacy("t-default");
+      const ctx = makeResolvedTenantContext("t-default");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),
@@ -281,7 +281,7 @@ describe("StratumClient", () => {
 
     it("cache can be disabled", async () => {
       const client = makeClient({ cache: { enabled: false } });
-      const ctx = makeTenantContextLegacy("t-nocache");
+      const ctx = makeResolvedTenantContext("t-nocache");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctx))
@@ -301,7 +301,7 @@ describe("StratumClient", () => {
   describe("cache invalidation on mutations", () => {
     it("updateTenant invalidates the cache for that tenant", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("t-update");
+      const ctx = makeResolvedTenantContext("t-update");
       const updatedNode = makeTenantNode("t-update");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
@@ -323,7 +323,7 @@ describe("StratumClient", () => {
 
     it("moveTenant invalidates the cache for that tenant", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("t-move");
+      const ctx = makeResolvedTenantContext("t-move");
       const movedNode = makeTenantNode("t-move");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
@@ -340,7 +340,7 @@ describe("StratumClient", () => {
 
     it("archiveTenant invalidates the cache for that tenant", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("t-archive");
+      const ctx = makeResolvedTenantContext("t-archive");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctx))
@@ -356,7 +356,7 @@ describe("StratumClient", () => {
 
     it("deleteTenant invalidates the cache for that tenant", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("t-delete");
+      const ctx = makeResolvedTenantContext("t-delete");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctx))
@@ -372,7 +372,7 @@ describe("StratumClient", () => {
 
     it("invalidateCache manually removes a cached entry", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctx = makeTenantContextLegacy("t-manual");
+      const ctx = makeResolvedTenantContext("t-manual");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctx))
@@ -389,8 +389,8 @@ describe("StratumClient", () => {
 
     it("clearCache removes all cached entries", async () => {
       const client = makeClient({ cache: { enabled: true } });
-      const ctxA = makeTenantContextLegacy("t-a");
-      const ctxB = makeTenantContextLegacy("t-b");
+      const ctxA = makeResolvedTenantContext("t-a");
+      const ctxB = makeResolvedTenantContext("t-b");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(mockFetchResponse(ctxA))
@@ -420,7 +420,7 @@ describe("StratumClient", () => {
         controlPlaneUrl: "https://api.stratum.test/",
         apiKey: API_KEY,
       });
-      const ctx = makeTenantContextLegacy("t-1");
+      const ctx = makeResolvedTenantContext("t-1");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(ctx),

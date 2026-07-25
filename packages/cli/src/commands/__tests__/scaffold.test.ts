@@ -67,7 +67,7 @@ describe("scaffold", () => {
   it("prisma template writes a tenant-scoped client", async () => {
     await scaffold(["prisma"], { out: tmpDir });
     expect(exists("stratum-prisma.ts")).toBe(true);
-    expect(read("stratum-prisma.ts")).toContain("withTenant");
+    expect(read("stratum-prisma.ts")).toContain("prismaWithTenant");
   });
 
   it("docker template writes a compose file pinned to postgres 16", async () => {

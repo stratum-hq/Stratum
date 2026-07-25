@@ -1,7 +1,7 @@
 export { BaseAdapter } from "./base-adapter.js";
 
 export { RawAdapter, createTenantPool } from "./adapters/raw.js";
-export { PrismaAdapter, withTenant } from "./adapters/prisma.js";
+export { PrismaAdapter, withTenant as prismaWithTenant } from "./adapters/prisma.js";
 export {
   SchemaRawAdapter,
   createSchemaTenantPool,
@@ -44,7 +44,7 @@ export {
 
 export {
   addTenantColumn,
-  enableRLS as enableRLSMigration,
+  enableRLS as enableRLSForMigration,
   createIsolationPolicy,
   migrateTable,
 } from "./migration-helpers.js";
@@ -62,10 +62,10 @@ export type { DatabasePoolManagerOptions } from "./database/pool-manager.js";
 
 export { DatabaseRawAdapter } from "./adapters/database-raw.js";
 export { DatabasePrismaAdapter } from "./adapters/database-prisma.js";
-export { SequelizeAdapter, withTenantScope } from "./adapters/sequelize.js";
+export { SequelizeAdapter, withTenantScope as sequelizeWithTenantScope } from "./adapters/sequelize.js";
 export {
   DrizzleAdapter,
-  withTenant as withDrizzleTenant,
-  withTenantScope as withDrizzleTenantScope,
+  withTenant as drizzleWithTenant,
+  withTenantScope as drizzleWithTenantScope,
 } from "./adapters/drizzle.js";
 export type { DrizzleLike } from "./adapters/drizzle.js";

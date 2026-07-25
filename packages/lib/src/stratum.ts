@@ -44,7 +44,7 @@ import type {
   CreateRegionInput,
   UpdateRegionInput,
   TenantContext,
-  TenantContextLegacy,
+  ResolvedTenantContext,
   ConfigDiff,
   ConfigDiffItem,
   ConfigDiffEntry,
@@ -874,10 +874,10 @@ export class Stratum {
   }
 
   /**
-   * Returns the full TenantContextLegacy object from the AsyncLocalStorage
+   * Returns the full ResolvedTenantContext object from the AsyncLocalStorage
    * context, or undefined if called outside an active tenant context.
    */
-  static currentTenantContext(): TenantContextLegacy | undefined {
+  static currentTenantContext(): ResolvedTenantContext | undefined {
     try {
       return getTenantContext();
     } catch {
@@ -889,7 +889,7 @@ export class Stratum {
    * Executes a function within a tenant context backed by AsyncLocalStorage.
    * Wraps runWithTenantContext from @stratum-hq/sdk.
    */
-  static runWithTenant<T>(ctx: TenantContextLegacy, fn: () => T): T {
+  static runWithTenant<T>(ctx: ResolvedTenantContext, fn: () => T): T {
     return runWithTenantContext(ctx, fn);
   }
 }

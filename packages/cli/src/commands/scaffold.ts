@@ -296,14 +296,14 @@ function scaffoldPrisma(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "stratum-prisma.ts"), `// Tenant-scoped Prisma client
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 import { getTenantContext } from "@stratum-hq/sdk";
 
 const prisma = new PrismaClient();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // All queries through tenantPrisma are automatically filtered by RLS
-export const tenantPrisma = withTenant(
+export const tenantPrisma = prismaWithTenant(
   prisma,
   () => getTenantContext().tenant_id,
   pool,

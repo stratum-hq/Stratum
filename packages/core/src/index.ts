@@ -66,7 +66,7 @@ export {
   type UpdateTenantInput,
   type MoveTenantInput,
   type TenantContext,
-  type TenantContextLegacy,
+  type ResolvedTenantContext,
   type ResolvedPermission,
 } from "./types/tenant.js";
 
@@ -101,6 +101,7 @@ export {
 } from "./types/config.js";
 
 export {
+  SUPPORTED_ISOLATION_STRATEGIES,
   SUPPORTED_ISOLATION_STRATEGIES_V1,
   isSupportedIsolationStrategy,
 } from "./types/isolation.js";
@@ -171,7 +172,6 @@ export {
 
 // Constants
 export {
-  MAX_TREE_DEPTH,
   MAX_SLUG_LENGTH,
   DEFAULT_CACHE_TTL_MS,
   DEFAULT_PAGE_SIZE,

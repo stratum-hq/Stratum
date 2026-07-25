@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Stratum } from "../stratum.js";
-import type { TenantContextLegacy } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 
-const mockContext: TenantContextLegacy = {
+const mockContext: ResolvedTenantContext = {
   tenant_id: "t_abc-123",
   ancestry_path: "/t_abc-123",
   depth: 0,
@@ -40,7 +40,7 @@ describe("Stratum ALS convenience methods", () => {
   });
 
   it("nested runWithTenant() uses innermost context", () => {
-    const inner: TenantContextLegacy = {
+    const inner: ResolvedTenantContext = {
       ...mockContext,
       tenant_id: "t_inner-456",
     };

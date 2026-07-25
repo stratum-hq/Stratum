@@ -21,7 +21,7 @@ export function stratum(options: StratumClientOptions) {
 // Named exports for direct usage
 export { StratumClient } from "./client.js";
 export type { StratumClientOptions } from "./client.js";
-export { getTenantContext, runWithTenantContext, setTenantContext, tenantStorage } from "./context.js";
+export { getTenantContext, runWithTenantContext, setTenantContext } from "./context.js";
 export { expressMiddleware } from "./middleware/express.js";
 export { fastifyPlugin } from "./middleware/fastify.js";
 export { resolveFromHeader } from "./resolvers/header.js";
@@ -31,7 +31,7 @@ export type { MiddlewareOptions } from "./types.js";
 
 // Re-export core types for convenience
 export type {
-  TenantContextLegacy,
+  ResolvedTenantContext,
   TenantNode,
   CreateTenantInput,
   UpdateTenantInput,
