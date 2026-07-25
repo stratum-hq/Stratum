@@ -13,6 +13,7 @@ import type { CreateTenantInput } from "@stratum-hq/core";
 import {
   TenantNotFoundError,
   TenantArchivedError,
+  TenantSuspendedError,
   TenantCycleDetectedError,
   TenantHasChildrenError,
 } from "@stratum-hq/core";
@@ -654,5 +655,99 @@ describe("getDescendants", () => {
     await expect(tenantService.getDescendants(pool, "nonexistent")).rejects.toThrow(
       TenantNotFoundError,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getTenantBySlug
+//
+// SQL-string assertions per this repo's testing contract: the mock client does
+// not run Postgres. What these prove is that the lookup is a single query keyed
+// on the (indexed, unique) slug column, and that the archived / suspended /
+// not-found contract mirrors getTenant. The real archived / suspended behavior
+// against a database lives in
+// packages/integration-tests/src/tenant-by-slug.integration.test.ts.
+// ---------------------------------------------------------------------------
+describe("getTenantBySlug", () => {
+  it("resolves an active tenant with a single indexed slug lookup", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    const tenant = makeTenant({ id: "tenant-9", slug: "acme" });
+    mockQuery.mockResolvedValueOnce({ rows: [tenant] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await tenantService.getTenantBySlug(pool, "acme");
+
+    expect(result.id).toBe("tenant-9");
+    // Exactly one query, filtering on slug (the indexed unique column).
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery.mock.calls[0][0]).toContain("WHERE slug = $1");
+    expect(mockQuery.mock.calls[0][1]).toEqual(["acme"]);
+  });
+
+  it("throws TenantNotFoundError for an unknown slug", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(tenantService.getTenantBySlug(pool, "ghost")).rejects.toThrow(
+      TenantNotFoundError,
+    );
+  });
+
+  it("throws TenantArchivedError for an archived slug by default", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({
+      rows: [makeTenant({ id: "tenant-9", slug: "acme", status: "archived" })],
+    });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(tenantService.getTenantBySlug(pool, "acme")).rejects.toThrow(
+      TenantArchivedError,
+    );
+  });
+
+  it("throws TenantSuspendedError for a suspended slug by default", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn().mockResolvedValueOnce({
+      rows: [makeTenant({ id: "tenant-9", slug: "acme", status: "suspended" })],
+    });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(tenantService.getTenantBySlug(pool, "acme")).rejects.toThrow(
+      TenantSuspendedError,
+    );
+  });
+
+  it("returns an archived tenant when includeArchived is true", async () => {
+    const pool = makeMockPool();
+    const archived = makeTenant({ id: "tenant-9", slug: "acme", status: "archived" });
+    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [archived] });
+
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await tenantService.getTenantBySlug(pool, "acme", true);
+
+    expect(result.id).toBe("tenant-9");
+    expect(result.status).toBe("archived");
   });
 });

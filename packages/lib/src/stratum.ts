@@ -192,6 +192,16 @@ export class Stratum {
       return tenantService.getTenant(this.pool, id, includeArchived);
     });
   }
+  /**
+   * Resolve a tenant by its globally-unique slug in one indexed lookup — the
+   * slug-keyed counterpart to {@link getTenant}, mirroring its archived /
+   * suspended handling. See {@link tenantService.getTenantBySlug}.
+   */
+  getTenantBySlug(slug: string, includeArchived?: boolean): Promise<TenantNode> {
+    return traced("tenant.get_by_slug", { slug }, async () => {
+      return tenantService.getTenantBySlug(this.pool, slug, includeArchived);
+    });
+  }
   listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
     return tenantService.listTenants(this.pool, pagination);
   }
