@@ -14,6 +14,35 @@ export {
 } from "./webhook-signature.js";
 export { traced, getTracer, isTracingEnabled } from "./telemetry.js";
 
+// Re-export core error classes as runtime VALUES (not `export type`) so consumers
+// can branch with `instanceof` instead of matching error-message substrings. A
+// type-only re-export would erase these at compile time and break instanceof.
+export {
+  ErrorCode,
+  StratumError,
+  TenantNotFoundError,
+  TenantAlreadyExistsError,
+  TenantHasChildrenError,
+  TenantCycleDetectedError,
+  TenantArchivedError,
+  TenantContextNotFoundError,
+  IsolationViolationError,
+  IsolationStrategyUnsupportedError,
+  PermissionLockedError,
+  PermissionNotFoundError,
+  PermissionRevocationDeniedError,
+  ConfigLockedError,
+  ConfigNotFoundError,
+  ValidationError,
+  UnauthorizedError,
+  ForbiddenError,
+  WebhookNotFoundError,
+  WebhookDeliveryError,
+  AbacPolicyNotFoundError,
+  InvalidAbacOperatorError,
+  AbacPolicyLockedError,
+} from "@stratum-hq/core";
+
 // Re-export core types for convenience
 export type {
   TenantNode,
