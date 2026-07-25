@@ -141,7 +141,7 @@ cannot be bypassed locally at all.
 
 ## Monorepo Structure
 
-This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 15 packages:
+This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces) + [Turbo](https://turbo.build/) monorepo with 16 packages:
 
 | Package | Description |
 |---|---|
@@ -151,9 +151,10 @@ This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
 | `packages/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
 | `packages/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
 | `packages/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
+| `packages/mysql` | MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize |
 | `packages/nestjs` | NestJS integration — guard, `@Tenant()` decorator, DI module |
 | `packages/hono` | Hono middleware — tenant extraction, ALS context |
-| `packages/react-ui` | React components — tenant tree, config editor, permission editor |
+| `packages/react-ui` | React components (published as `@stratum-hq/react`) — tenant tree, config editor, permission editor |
 | `packages/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
 | `packages/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
 | `packages/test-utils` | Cross-tenant isolation test helpers |

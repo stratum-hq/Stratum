@@ -46,8 +46,12 @@
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
+  "license": "MIT",
+  "author": "Christian Crank",
+  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "repository": {
     "type": "git",
