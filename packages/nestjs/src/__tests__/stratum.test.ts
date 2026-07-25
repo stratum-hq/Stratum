@@ -13,7 +13,7 @@ interface ExecutionContext {
   switchToHttp(): HttpArgumentsHost;
 }
 
-// ── Minimal TenantContextLegacy stub ────────────────────────────────────────
+// ── Minimal ResolvedTenantContext stub ────────────────────────────────────────
 interface MockTenantContext {
   id: string;
   slug: string;

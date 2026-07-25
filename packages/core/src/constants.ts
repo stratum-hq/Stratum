@@ -1,4 +1,3 @@
-export const MAX_TREE_DEPTH = 20;
 export const MAX_SLUG_LENGTH = 63;
 export const DEFAULT_CACHE_TTL_MS = 60_000;
 export const DEFAULT_PAGE_SIZE = 50;

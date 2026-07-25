@@ -58,7 +58,7 @@ model Tenant {
       content: `// Prisma client with Stratum tenant-scoped queries
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 
 const prisma = new PrismaClient();
 const pool = new Pool({
@@ -68,7 +68,7 @@ const pool = new Pool({
 // Create a tenant-scoped Prisma client.
 // All queries through this client are automatically filtered by RLS.
 export function createTenantPrisma(getTenantId: () => string) {
-  return withTenant(prisma, getTenantId, pool);
+  return prismaWithTenant(prisma, getTenantId, pool);
 }
 
 // Usage:

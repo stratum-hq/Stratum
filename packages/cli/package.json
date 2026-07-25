@@ -20,6 +20,12 @@
   "bin": {
     "stratum": "./dist/index.js"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
     "README.md",

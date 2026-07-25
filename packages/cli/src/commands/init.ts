@@ -547,7 +547,7 @@ function generateDbSetup(outDir: string, info: ProjectInfo, force: boolean): voi
 
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 ${info.integrationPath === "sdk"
   ? `import { getTenantContext } from "@stratum-hq/sdk";`
   : ``}
@@ -560,7 +560,7 @@ const pool = new Pool({
 // Create a tenant-scoped Prisma client
 // All queries through this client are automatically filtered by RLS
 export function createTenantPrisma(getTenantId: () => string) {
-  return withTenant(prisma, getTenantId, pool);
+  return prismaWithTenant(prisma, getTenantId, pool);
 }
 
 ${info.integrationPath === "sdk"

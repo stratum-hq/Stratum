@@ -5,10 +5,10 @@ import {
   runWithTenantContext,
   setTenantContext,
 } from "../context.js";
-import type { TenantContextLegacy } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { TenantContextNotFoundError } from "@stratum-hq/core";
 
-const makeContext = (tenantId: string): TenantContextLegacy => ({
+const makeContext = (tenantId: string): ResolvedTenantContext => ({
   tenant_id: tenantId,
   ancestry_path: `/${tenantId}`,
   depth: 1,
@@ -29,7 +29,7 @@ describe("tenant context utilities", () => {
           // Deliberately do NOT set up a context — just call getTenantContext
           // We can't guarantee the outer scope has no context, so use a nested
           // storage run with undefined to simulate absence.
-          return tenantStorage.run(undefined as unknown as TenantContextLegacy, () =>
+          return tenantStorage.run(undefined as unknown as ResolvedTenantContext, () =>
             getTenantContext(),
           );
         };
@@ -60,7 +60,7 @@ describe("tenant context utilities", () => {
       // The outer scope has its own store value — either undefined or a prior context.
       // We verify by running a fresh undefined context.
       const outsideCtx = tenantStorage.run(
-        undefined as unknown as TenantContextLegacy,
+        undefined as unknown as ResolvedTenantContext,
         () => tenantStorage.getStore(),
       );
       expect(outsideCtx).toBeUndefined();
@@ -117,7 +117,7 @@ describe("tenant context utilities", () => {
   describe("tenantStorage (AsyncLocalStorage)", () => {
     it("getStore returns undefined outside a run", () => {
       const val = tenantStorage.run(
-        undefined as unknown as TenantContextLegacy,
+        undefined as unknown as ResolvedTenantContext,
         () => tenantStorage.getStore(),
       );
       expect(val).toBeUndefined();
@@ -136,7 +136,7 @@ describe("tenant context utilities", () => {
 
       // setTenantContext uses enterWith — affects the current async context.
       // We isolate this via tenantStorage.run to avoid polluting other tests.
-      tenantStorage.run(undefined as unknown as TenantContextLegacy, () => {
+      tenantStorage.run(undefined as unknown as ResolvedTenantContext, () => {
         setTenantContext(ctx);
         const stored = getTenantContext();
         expect(stored.tenant_id).toBe("entered-tenant");
