@@ -8,11 +8,12 @@ import { Code } from 'astro:components';
 const setupCode = `import { Pool } from "pg";
 import { Stratum } from "@stratum-hq/lib";
 
-const stratum = new Stratum({ pool: new Pool() });
+const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+await stratum.initialize();
 
 // Create a hierarchy
 const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
-const msp  = await stratum.createTenant({ name: "NorthStar", parent_id: root.id });
+const msp  = await stratum.createTenant({ name: "NorthStar", slug: "northstar", parent_id: root.id });
 
 // Config resolves up the ancestry chain
 await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false });
