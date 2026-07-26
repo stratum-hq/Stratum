@@ -696,12 +696,15 @@ export async function getDescendants(
       throw new TenantNotFoundError(id);
     }
 
-    // Use ltree <@ operator for efficient subtree query. Filter to active rows
-    // unless the caller opts into the full subtree.
+    // Match descendants by the stable, ID-based ancestry_path (this tenant's id
+    // appears as a path segment of every descendant) so the subtree query reaches
+    // all current descendants regardless of any slug rename. ancestry_ltree is
+    // derived from slugs and must not scope this isolation boundary. Filter to
+    // active rows unless the caller opts into the full subtree.
     const res = await client.query<TenantNode>(
       `SELECT * FROM tenants
-       WHERE ancestry_ltree <@ (SELECT ancestry_ltree FROM tenants WHERE id = $1)
-         AND id != $1${includeArchived ? "" : "\n         AND status = 'active'"}
+       WHERE id != $1
+         AND (ancestry_path LIKE '%/' || $1 || '/%' OR ancestry_path LIKE '%/' || $1)${includeArchived ? "" : "\n         AND status = 'active'"}
        ORDER BY depth ASC`,
       [id],
     );
