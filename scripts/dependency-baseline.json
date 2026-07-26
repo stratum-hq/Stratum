@@ -13,20 +13,20 @@
     "Regenerating after a count rises is not remediation. It is raising the ceiling,",
     "and it needs a reviewer to agree in the pull request."
   ],
-  "generated": "2026-07-25",
+  "generated": "2026-07-26",
   "scopes": {
     "runtime": {
       "critical": 0,
-      "high": 4,
+      "high": 1,
       "moderate": 1,
-      "low": 1,
+      "low": 0,
       "info": 0
     },
     "all": {
       "critical": 1,
-      "high": 13,
-      "moderate": 11,
-      "low": 1,
+      "high": 10,
+      "moderate": 10,
+      "low": 0,
       "info": 0
     }
   }
