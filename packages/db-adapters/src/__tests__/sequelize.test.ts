@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SequelizeAdapter, withTenantScope } from "../adapters/sequelize.js";
 import { BaseAdapter } from "../base-adapter.js";
+import type { Pool } from "pg";
 
 // ---------------------------------------------------------------------------
 // Mock pg
@@ -47,7 +48,7 @@ describe("SequelizeAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pool = new MockPool();
-    adapter = new SequelizeAdapter(pool as any);
+    adapter = new SequelizeAdapter(pool as unknown as Pool);
   });
 
   it("extends BaseAdapter", () => {
@@ -175,7 +176,7 @@ describe("withTenantScope (convenience function)", () => {
   it("returns a new wrapped object, not the original instance", () => {
     const mock = createMockSequelize();
     const pool = new MockPool();
-    const result = withTenantScope(mock, () => "tenant-1", pool as any);
+    const result = withTenantScope(mock, () => "tenant-1", pool as unknown as Pool);
     expect(result).not.toBe(mock);
   });
 
@@ -183,7 +184,7 @@ describe("withTenantScope (convenience function)", () => {
     const mock = createMockSequelize();
     const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
-    const wrapped = withTenantScope(mock, () => "fn-tenant", pool as any);
+    const wrapped = withTenantScope(mock, () => "fn-tenant", pool as unknown as Pool);
 
     await wrapped.query("SELECT 1");
 
@@ -194,7 +195,7 @@ describe("withTenantScope (convenience function)", () => {
   it("throws when contextFn returns empty string", async () => {
     const mock = createMockSequelize();
     const pool = new MockPool();
-    const wrapped = withTenantScope(mock, () => "", pool as any);
+    const wrapped = withTenantScope(mock, () => "", pool as unknown as Pool);
 
     await expect(wrapped.query("SELECT 1")).rejects.toThrow(
       "Tenant context is required for database operations.",

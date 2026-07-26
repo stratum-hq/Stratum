@@ -224,7 +224,7 @@ export function DraggableTenantTree({
 
   // Find siblings of a node (nodes with same parent_id)
   const findSiblings = useCallback(
-    (parentId: string | null, nodes: TenantTreeNode[] = tree): TenantTreeNode[] => {
+    (parentId: string | null, _nodes: TenantTreeNode[] = tree): TenantTreeNode[] => {
       if (!parentId) return tree; // root-level siblings
       const parent = findNode(parentId);
       return parent ? parent.children : [];

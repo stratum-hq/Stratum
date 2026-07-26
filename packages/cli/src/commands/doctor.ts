@@ -439,7 +439,6 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
     // b. Schema exists
     const schemaResult = await checkSchema(pool);
     results.push(schemaResult);
-    const schemaExists = schemaResult.status !== "fail" || schemaResult.summary.includes("/");
 
     // Only run table-dependent checks if we have at least the core tables
     const hasCoreSchema =

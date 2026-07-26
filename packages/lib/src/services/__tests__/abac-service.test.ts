@@ -85,7 +85,7 @@ describe("evaluateCondition", () => {
   });
 
   it("throws for unknown operator", () => {
-    const c = { attribute: "x", operator: "nope" as any, value: "y" };
+    const c = { attribute: "x", operator: "nope" as unknown as AbacCondition["operator"], value: "y" };
     expect(() => evaluateCondition(c, { x: "y" })).toThrow();
   });
 });

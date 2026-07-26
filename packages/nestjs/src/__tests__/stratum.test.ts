@@ -36,10 +36,10 @@ function makeExecutionContext(req: Record<string, unknown>): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => req,
-      getResponse: () => ({}) as any,
-      getNext: () => ({}) as any,
+      getResponse: () => ({}),
+      getNext: () => ({}),
     }),
-  } as ExecutionContext;
+  } as unknown as ExecutionContext;
 }
 
 // ── Stubs for NestJS exceptions ──────────────────────────────────────────────

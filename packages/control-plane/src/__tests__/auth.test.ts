@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { FastifyInstance } from "fastify";
 import jwt from "jsonwebtoken";
 import {
@@ -32,7 +33,7 @@ describe("Auth Middleware", () => {
   describe("API Key Authentication", () => {
     it("valid API key authenticates successfully", async () => {
       setupAdminApiKey(stratum);
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "GET",
@@ -45,7 +46,7 @@ describe("Auth Middleware", () => {
     });
 
     it("invalid API key returns 401", async () => {
-      (stratum.validateApiKey as any).mockResolvedValue(null);
+      (stratum.validateApiKey as Mock).mockResolvedValue(null);
 
       const response = await app.inject({
         method: "GET",
@@ -61,7 +62,7 @@ describe("Auth Middleware", () => {
 
     it("expired API key returns 401 (validateApiKey returns null)", async () => {
       // An expired key causes validateApiKey to return null
-      (stratum.validateApiKey as any).mockResolvedValue(null);
+      (stratum.validateApiKey as Mock).mockResolvedValue(null);
 
       const response = await app.inject({
         method: "GET",
@@ -77,7 +78,7 @@ describe("Auth Middleware", () => {
 
   describe("JWT Authentication", () => {
     it("valid JWT authenticates successfully", async () => {
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "GET",
@@ -222,9 +223,9 @@ describe("Auth Middleware", () => {
 
     it("admin-scope key can access all endpoints", async () => {
       setupAdminApiKey(stratum);
-      (stratum.createTenant as any).mockResolvedValue(SAMPLE_TENANT);
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
-      (stratum.listApiKeys as any).mockResolvedValue([]);
+      (stratum.createTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.listApiKeys as Mock).mockResolvedValue([]);
 
       // Test write endpoint
       const postResponse = await app.inject({
@@ -266,7 +267,7 @@ describe("Auth Middleware", () => {
     });
 
     it("JWT with read-only scopes cannot POST", async () => {
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "POST",
@@ -279,8 +280,8 @@ describe("Auth Middleware", () => {
     });
 
     it("JWT with admin scopes can access admin-only endpoints", async () => {
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
-      (stratum.listApiKeys as any).mockResolvedValue([]);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.listApiKeys as Mock).mockResolvedValue([]);
 
       const response = await app.inject({
         method: "GET",

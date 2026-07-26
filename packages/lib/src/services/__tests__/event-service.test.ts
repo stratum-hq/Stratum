@@ -17,6 +17,7 @@ import * as poolHelpers from "../../pool-helpers.js";
 import * as webhookServiceMock from "../webhook-service.js";
 import * as eventService from "../event-service.js";
 import { TenantEvent, WebhookUrlValidationError, StratumError } from "@stratum-hq/core";
+import type { Webhook } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -184,7 +185,7 @@ describe("emitEvent", () => {
         return fn(client);
       });
 
-    vi.mocked(webhookServiceMock.getWebhooksForEvent).mockResolvedValue([mockWebhook as any]);
+    vi.mocked(webhookServiceMock.getWebhooksForEvent).mockResolvedValue([mockWebhook as unknown as Webhook]);
 
     await eventService.emitEvent(pool, TenantEvent.TENANT_CREATED, "tenant-id-1", { tenant: {} });
 

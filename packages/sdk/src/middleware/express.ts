@@ -5,8 +5,23 @@ import { runWithTenantContext } from "../context.js";
 import { resolveFromJwt } from "../resolvers/jwt.js";
 import { resolveFromHeader } from "../resolvers/header.js";
 
+// Minimal structural types for the Express surface this middleware touches, so
+// the SDK does not take a hard dependency on `express` types in its published API.
+type NextFn = (err?: unknown) => void;
+
+type ExpressRequestLike = {
+  headers?: Record<string, string | string[] | undefined>;
+  tenant?: unknown;
+  impersonating?: boolean;
+  originalTenantId?: string | null;
+};
+
+type ExpressResponseLike = {
+  status(code: number): { json(body: unknown): void };
+};
+
 export function expressMiddleware(client: StratumClient, options?: MiddlewareOptions) {
-  return async (req: any, res: any, next: any): Promise<void> => {
+  return async (req: ExpressRequestLike, res: ExpressResponseLike, next: NextFn): Promise<void> => {
     try {
       // Resolve tenant ID: JWT → header → custom resolvers
       let tenantId: string | null = null;

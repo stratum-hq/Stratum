@@ -24,9 +24,6 @@ export function generateDbSetup(preset: StackPreset): DbSetupFile[] {
 
 function generatePrismaSetup(preset: StackPreset): DbSetupFile[] {
   const provider = preset.database === "mysql" ? "mysql" : "postgresql";
-  const envUrl = preset.database === "mysql"
-    ? "mysql://user:password@localhost:3306/dbname"
-    : "postgres://user:password@localhost:5432/dbname";
 
   return [
     {

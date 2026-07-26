@@ -3,7 +3,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 
 export async function registerOpenApi(app: FastifyInstance): Promise<void> {
-  await app.register(swagger as any, {
+  await app.register(swagger, {
     openapi: {
       info: {
         title: "Stratum Control Plane API",
@@ -28,7 +28,7 @@ export async function registerOpenApi(app: FastifyInstance): Promise<void> {
     },
   });
 
-  await app.register(swaggerUi as any, {
+  await app.register(swaggerUi, {
     routePrefix: "/api/docs",
     uiConfig: {
       docExpansion: "list",

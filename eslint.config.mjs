@@ -31,7 +31,7 @@ export default tseslint.config(
       // Codify the `_` prefix the codebase already uses for deliberately unused
       // bindings (_reply, _tenantSlug, _preset, _msg).
       "@typescript-eslint/no-unused-vars": [
-        "warn",
+        "error",
         {
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
@@ -40,17 +40,14 @@ export default tseslint.config(
         },
       ],
 
-      // BASELINE DOWNGRADES. Tracked by issue #164.
-      // ESLint arrived after ~300 source files did, so these rules already have
-      // violations on the current tree. They are warnings so the gate can go
-      // green without a mass rewrite; #164 clears the backlog and promotes them
-      // back to error. Counts are as of the baseline run on 2026-07-24. Every
-      // other rule sits at its upstream severity and fires zero times today, so
-      // new code is gated.
-      "@typescript-eslint/no-explicit-any": "warn", // 108 hits
-      "@typescript-eslint/ban-ts-comment": "warn", // 1 hit
-      "no-useless-escape": "warn", // 1 hit
-      "prefer-const": "warn", // 1 hit
+      // Promoted back to error by issue #164 once the baseline backlog was
+      // cleared. `prefer-const` is not enabled by the recommended presets, so it
+      // is set here explicitly; the others restate their upstream error severity
+      // so the intent is visible at the rule site.
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
+      "no-useless-escape": "error",
+      "prefer-const": "error",
     },
   },
   {

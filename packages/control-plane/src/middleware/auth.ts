@@ -25,7 +25,7 @@ declare module "fastify" {
 export function createAuthMiddleware(stratum: Stratum) {
   return async function authMiddleware(
     request: FastifyRequest,
-    reply: FastifyReply,
+    _reply: FastifyReply,
   ): Promise<void> {
     // Skip auth for health and documentation endpoints
     if (

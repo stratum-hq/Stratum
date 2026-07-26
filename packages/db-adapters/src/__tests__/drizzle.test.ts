@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DrizzleAdapter, withTenant, withTenantScope } from "../adapters/drizzle.js";
 import type { DrizzleLike } from "../adapters/drizzle.js";
 import { BaseAdapter } from "../base-adapter.js";
+import type { Pool } from "pg";
 
 // ---------------------------------------------------------------------------
 // Mock pg
@@ -20,6 +21,9 @@ vi.mock("pg", () => {
 type DrizzleMock = DrizzleLike & {
   executions: { query: unknown }[];
 };
+
+// Shape of the query objects the adapter and tests push into `executions`.
+type ExecutedQuery = { sql: string; params?: unknown[] };
 
 function createMockDrizzle(): DrizzleMock {
   const executions: { query: unknown }[] = [];
@@ -55,7 +59,7 @@ describe("DrizzleAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pool = new MockPool();
-    adapter = new DrizzleAdapter(pool as any);
+    adapter = new DrizzleAdapter(pool as unknown as Pool);
   });
 
   it("extends BaseAdapter", () => {
@@ -85,9 +89,9 @@ describe("DrizzleAdapter", () => {
 
       expect(transactionSpy).toHaveBeenCalledTimes(1);
       expect(mock.executions).toHaveLength(2);
-      expect((mock.executions[0].query as any).sql).toContain("set_config");
-      expect((mock.executions[0].query as any).sql).toContain("app.current_tenant_id");
-      expect((mock.executions[1].query as any).sql).toBe("SELECT 1");
+      expect((mock.executions[0].query as ExecutedQuery).sql).toContain("set_config");
+      expect((mock.executions[0].query as ExecutedQuery).sql).toContain("app.current_tenant_id");
+      expect((mock.executions[1].query as ExecutedQuery).sql).toBe("SELECT 1");
     });
 
     it("set_config receives tenant ID as params", async () => {
@@ -96,7 +100,7 @@ describe("DrizzleAdapter", () => {
 
       await wrapped.execute({ sql: "SELECT 1" });
 
-      expect((mock.executions[0].query as any).params).toEqual(["tenant-xyz"]);
+      expect((mock.executions[0].query as ExecutedQuery).params).toEqual(["tenant-xyz"]);
     });
 
     it("wrapped transaction injects set_config before user callback", async () => {
@@ -110,8 +114,8 @@ describe("DrizzleAdapter", () => {
 
       expect(transactionSpy).toHaveBeenCalledTimes(1);
       expect(mock.executions).toHaveLength(2);
-      expect((mock.executions[0].query as any).sql).toContain("set_config");
-      expect((mock.executions[1].query as any).sql).toBe("INSERT INTO foo VALUES (1)");
+      expect((mock.executions[0].query as ExecutedQuery).sql).toContain("set_config");
+      expect((mock.executions[1].query as ExecutedQuery).sql).toBe("INSERT INTO foo VALUES (1)");
     });
 
     it("reads tenant ID lazily from contextFn on each call", async () => {
@@ -120,12 +124,12 @@ describe("DrizzleAdapter", () => {
       const wrapped = adapter.withTenant(mock, () => currentTenant);
 
       await wrapped.execute({ sql: "SELECT 1" });
-      expect((mock.executions[0].query as any).params).toEqual(["tenant-1"]);
+      expect((mock.executions[0].query as ExecutedQuery).params).toEqual(["tenant-1"]);
 
       currentTenant = "tenant-2";
       mock.executions.length = 0;
       await wrapped.execute({ sql: "SELECT 2" });
-      expect((mock.executions[0].query as any).params).toEqual(["tenant-2"]);
+      expect((mock.executions[0].query as ExecutedQuery).params).toEqual(["tenant-2"]);
     });
 
     it("throws when contextFn returns empty string (execute)", async () => {
@@ -199,7 +203,7 @@ describe("withTenant (convenience function)", () => {
   it("returns a new wrapped object, not the original instance", () => {
     const mock = createMockDrizzle();
     const pool = new MockPool();
-    const result = withTenant(mock, () => "tenant-1", pool as any);
+    const result = withTenant(mock, () => "tenant-1", pool as unknown as Pool);
     expect(result).not.toBe(mock);
   });
 
@@ -207,18 +211,18 @@ describe("withTenant (convenience function)", () => {
     const mock = createMockDrizzle();
     const transactionSpy = vi.spyOn(mock, "transaction");
     const pool = new MockPool();
-    const wrapped = withTenant(mock, () => "fn-tenant", pool as any);
+    const wrapped = withTenant(mock, () => "fn-tenant", pool as unknown as Pool);
 
     await wrapped.execute({ sql: "SELECT 1" });
 
     expect(transactionSpy).toHaveBeenCalledTimes(1);
-    expect((mock.executions[0].query as any).params).toEqual(["fn-tenant"]);
+    expect((mock.executions[0].query as ExecutedQuery).params).toEqual(["fn-tenant"]);
   });
 
   it("throws when contextFn returns empty string", async () => {
     const mock = createMockDrizzle();
     const pool = new MockPool();
-    const wrapped = withTenant(mock, () => "", pool as any);
+    const wrapped = withTenant(mock, () => "", pool as unknown as Pool);
 
     await expect(wrapped.execute({ sql: "SELECT 1" })).rejects.toThrow(
       "Tenant context is required for database operations.",

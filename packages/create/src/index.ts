@@ -5,7 +5,7 @@ import * as path from "path";
 import crypto from "node:crypto";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
-import { parsePresetString, isValidPreset, formatPresetString } from "./matrix.js";
+import { parsePresetString, isValidPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

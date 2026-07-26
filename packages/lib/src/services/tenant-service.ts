@@ -16,7 +16,6 @@ import {
   appendToPath,
   parseAncestryPath,
   getAncestorIds,
-  isDescendantOf,
 } from "@stratum-hq/core";
 
 export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Promise<TenantNode> {
@@ -519,7 +518,7 @@ export async function batchCreateTenants(
       for (let i = 0; i < inputs.length; i++) {
         const input = inputs[i];
 
-        let parentId = input.parent_id ?? null;
+        const parentId = input.parent_id ?? null;
         let parentNode: TenantNode | null = null;
 
         if (parentId) {

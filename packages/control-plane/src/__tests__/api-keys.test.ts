@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { FastifyInstance } from "fastify";
 import {
   createMockStratum,
@@ -35,7 +36,7 @@ describe("API Key Routes", () => {
         name: "My API Key",
         created_at: new Date().toISOString(),
       };
-      (stratum.createApiKey as any).mockResolvedValue(createdKey);
+      (stratum.createApiKey as Mock).mockResolvedValue(createdKey);
 
       const response = await app.inject({
         method: "POST",
@@ -49,7 +50,7 @@ describe("API Key Routes", () => {
       expect(body.id).toBe("key-uuid-1");
       expect(body.plaintext).toBe("sk_test_abc123def456");
       expect(stratum.createApiKey).toHaveBeenCalledOnce();
-      expect((stratum.createApiKey as any).mock.calls[0][0]).toBe("550e8400-e29b-41d4-a716-446655440000");
+      expect((stratum.createApiKey as Mock).mock.calls[0][0]).toBe("550e8400-e29b-41d4-a716-446655440000");
     });
 
     it("returns 400 for missing tenant_id", async () => {
@@ -84,7 +85,7 @@ describe("API Key Routes", () => {
         name: "Rate Limited Key",
         created_at: new Date().toISOString(),
       };
-      (stratum.createApiKey as any).mockResolvedValue(createdKey);
+      (stratum.createApiKey as Mock).mockResolvedValue(createdKey);
 
       const response = await app.inject({
         method: "POST",
@@ -131,7 +132,7 @@ describe("API Key Routes", () => {
           expires_at: null,
         },
       ];
-      (stratum.listApiKeys as any).mockResolvedValue(keys);
+      (stratum.listApiKeys as Mock).mockResolvedValue(keys);
 
       const response = await app.inject({
         method: "GET",
@@ -149,7 +150,7 @@ describe("API Key Routes", () => {
     });
 
     it("lists keys filtered by tenant_id query param", async () => {
-      (stratum.listApiKeys as any).mockResolvedValue([]);
+      (stratum.listApiKeys as Mock).mockResolvedValue([]);
 
       const response = await app.inject({
         method: "GET",
@@ -167,7 +168,7 @@ describe("API Key Routes", () => {
 
   describe("DELETE /api/v1/api-keys/:id", () => {
     it("revokes a key and returns 204", async () => {
-      (stratum.revokeApiKey as any).mockResolvedValue(true);
+      (stratum.revokeApiKey as Mock).mockResolvedValue(true);
 
       const response = await app.inject({
         method: "DELETE",
@@ -181,7 +182,7 @@ describe("API Key Routes", () => {
     });
 
     it("returns 404 when key does not exist", async () => {
-      (stratum.revokeApiKey as any).mockResolvedValue(false);
+      (stratum.revokeApiKey as Mock).mockResolvedValue(false);
 
       const response = await app.inject({
         method: "DELETE",
@@ -206,7 +207,7 @@ describe("API Key Routes", () => {
         name: "Rotated Key",
         created_at: new Date().toISOString(),
       };
-      (stratum.rotateApiKey as any).mockResolvedValue(rotatedKey);
+      (stratum.rotateApiKey as Mock).mockResolvedValue(rotatedKey);
 
       const response = await app.inject({
         method: "POST",
@@ -229,7 +230,7 @@ describe("API Key Routes", () => {
         name: "New Name",
         created_at: new Date().toISOString(),
       };
-      (stratum.rotateApiKey as any).mockResolvedValue(rotatedKey);
+      (stratum.rotateApiKey as Mock).mockResolvedValue(rotatedKey);
 
       const response = await app.inject({
         method: "POST",
