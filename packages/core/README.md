@@ -19,7 +19,6 @@ import {
   SlugSchema,
   buildAncestryPath,
   TenantNotFoundError,
-  MAX_TREE_DEPTH,
   type TenantNode,
   type TenantContext,
 } from "@stratum-hq/core";
@@ -50,7 +49,7 @@ try {
 - **Zod schemas** — `SlugSchema`, `UUIDSchema`, `PaginationSchema`, `CreateTenantInputSchema`, `SetConfigInputSchema`, `CreatePermissionInputSchema`, `AuditLogQuerySchema`, and their input types.
 - **Ancestry utilities** — `buildAncestryPath`, `parseAncestryPath`, `getDepth`, `isAncestorOf`, `isDescendantOf`, `getAncestorIds`.
 - **Errors** — `StratumError` plus `TenantNotFoundError`, `ConfigLockedError`, `PermissionRevocationDeniedError`, `IsolationViolationError`, `UnauthorizedError`, `ForbiddenError`, and others.
-- **Constants** — `MAX_TREE_DEPTH` (20), `MAX_SLUG_LENGTH` (63), `DEFAULT_CACHE_TTL_MS`, `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `API_KEY_PREFIX`, `TENANT_HEADER`.
+- **Constants** — `MAX_SLUG_LENGTH` (63), `DEFAULT_CACHE_TTL_MS`, `DEFAULT_PAGE_SIZE`, `MAX_PAGE_SIZE`, `API_KEY_PREFIX`, `TENANT_HEADER`.
 
 ## Links
 

@@ -31,12 +31,12 @@ Every query is wrapped in a transaction that sets `app.current_tenant_id` via a 
 ## ORM Adapters
 
 ```typescript
-import { withTenant } from "@stratum-hq/db-adapters";        // Prisma
-import { withDrizzleTenant } from "@stratum-hq/db-adapters";  // Drizzle
-import { SequelizeAdapter, withTenantScope } from "@stratum-hq/db-adapters"; // Sequelize
+import { prismaWithTenant } from "@stratum-hq/db-adapters";        // Prisma
+import { drizzleWithTenant } from "@stratum-hq/db-adapters";  // Drizzle
+import { SequelizeAdapter, sequelizeWithTenantScope } from "@stratum-hq/db-adapters"; // Sequelize
 
 // Prisma — all queries scoped to the current tenant
-const tenantPrisma = withTenant(prisma, () => getTenantContext().tenant_id, pool);
+const tenantPrisma = prismaWithTenant(prisma, () => getTenantContext().tenant_id, pool);
 const orders = await tenantPrisma.order.findMany();
 ```
 

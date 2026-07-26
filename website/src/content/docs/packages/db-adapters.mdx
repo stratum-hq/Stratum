@@ -52,13 +52,13 @@ For applications using Prisma ORM:
 ```typescript
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 import { getTenantContext } from "@stratum-hq/sdk";
 
 const prisma = new PrismaClient();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-const tenantPrisma = withTenant(
+const tenantPrisma = prismaWithTenant(
   prisma,
   () => getTenantContext().tenant_id,
   pool,
@@ -157,13 +157,13 @@ For applications using Drizzle ORM:
 ```typescript
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { withDrizzleTenant } from "@stratum-hq/db-adapters";
+import { drizzleWithTenant } from "@stratum-hq/db-adapters";
 import { getTenantContext } from "@stratum-hq/sdk";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
-const tenantDb = withDrizzleTenant(
+const tenantDb = drizzleWithTenant(
   db,
   () => getTenantContext().tenant_id,
   pool,
@@ -179,13 +179,13 @@ For applications using Sequelize ORM:
 
 ```typescript
 import { Pool } from "pg";
-import { SequelizeAdapter, withTenantScope } from "@stratum-hq/db-adapters";
+import { SequelizeAdapter, sequelizeWithTenantScope } from "@stratum-hq/db-adapters";
 import { getTenantContext } from "@stratum-hq/sdk";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Option 1: Convenience function — wraps every query in a tenant-scoped transaction
-const tenantSequelize = withTenantScope(
+const tenantSequelize = sequelizeWithTenantScope(
   sequelize,
   () => getTenantContext().tenant_id,
   pool,

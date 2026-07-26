@@ -1,13 +1,13 @@
 ---
 title: Multi-Tenancy with Prisma and PostgreSQL RLS
-description: Add automatic Row-Level Security to Prisma using Stratum's withTenant wrapper so every query is tenant-scoped without manual WHERE clauses.
+description: Add automatic Row-Level Security to Prisma using Stratum's prismaWithTenant wrapper so every query is tenant-scoped without manual WHERE clauses.
 ---
 
 import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 Prisma has no built-in support for PostgreSQL Row-Level Security. Most tutorials tell you to add `WHERE tenant_id = ?` to every query, or to use Prisma middleware to inject filters. Both approaches are fragile: they miss raw queries, aggregations, and nested relations.
 
-Stratum's `withTenant()` wrapper takes a different approach. Instead of filtering at the application layer, it sets a PostgreSQL session variable (`app.current_tenant_id`) inside a transaction before every query. Combined with RLS policies on your tables, the database itself enforces tenant isolation. No middleware hacks, no missed queries.
+Stratum's `prismaWithTenant()` wrapper takes a different approach. Instead of filtering at the application layer, it sets a PostgreSQL session variable (`app.current_tenant_id`) inside a transaction before every query. Combined with RLS policies on your tables, the database itself enforces tenant isolation. No middleware hacks, no missed queries.
 
 ## The Problem
 
@@ -39,13 +39,13 @@ Stratum's Prisma adapter is a thin wrapper (under 40 lines) that uses `prisma.$e
 ```typescript
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 
 const prisma = new PrismaClient();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // All queries through tenantPrisma are automatically scoped by RLS
-const tenantPrisma = withTenant(prisma, () => currentTenantId, pool);
+const tenantPrisma = prismaWithTenant(prisma, () => currentTenantId, pool);
 const orders = await tenantPrisma.order.findMany(); // Only this tenant's orders
 ```
 
@@ -182,7 +182,7 @@ import express from "express";
 import { Pool } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { Stratum } from "@stratum-hq/lib";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 
 const app = express();
 app.use(express.json());
@@ -204,7 +204,7 @@ app.use(async (req, res, next) => {
   }
 
   // Create a tenant-scoped Prisma client for this request
-  req.tenantPrisma = withTenant(prisma, () => tenantId, pool);
+  req.tenantPrisma = prismaWithTenant(prisma, () => tenantId, pool);
   req.tenantId = tenantId;
   next();
 });
