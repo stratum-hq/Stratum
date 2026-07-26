@@ -43,7 +43,10 @@ export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
  * tenant and no other. `actorType` matches the actor_type CHECK
  * ('api_key' | 'jwt' | 'system') and defaults to 'system'. `sourceIp` lands in
  * the INET column, so it must be a valid IP; Postgres normalizes it (a bare IPv4
- * round-trips as `x/32`). The recorded row is queryable via queryAuditLogs.
+ * round-trips as `x/32`). `occurredAt` sets the row's `created_at`, so a consumer
+ * can seed historical / backdated events; omit it and the row is stamped now().
+ * It accepts an ISO 8601 datetime string or a `Date`. The recorded row is
+ * queryable via queryAuditLogs.
  */
 export const RecordAuditEventInputSchema = z.object({
   tenantId: z.string().uuid(),
@@ -56,6 +59,9 @@ export const RecordAuditEventInputSchema = z.object({
   after: z.record(z.unknown()).nullable().optional(),
   metadata: z.record(z.unknown()).default({}),
   sourceIp: z.string().nullable().optional(),
+  occurredAt: z
+    .union([z.string().datetime({ offset: true }), z.date()])
+    .optional(),
 });
 // The INPUT type (pre-defaults): `actorType` and `metadata` carry Zod defaults,
 // so they are optional on the caller side. `z.infer` (the output type) would

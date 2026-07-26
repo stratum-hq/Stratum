@@ -18,11 +18,12 @@ export async function createAuditEntry(
   beforeState?: Record<string, unknown> | null,
   afterState?: Record<string, unknown> | null,
   metadata?: Record<string, unknown>,
+  createdAt?: string | Date | null,
 ): Promise<AuditEntry> {
   return withClient(pool, async (client) => {
     const res = await client.query<AuditEntry>(
-      `INSERT INTO audit_logs (actor_id, actor_type, action, resource_type, resource_id, tenant_id, source_ip, request_id, before_state, after_state, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO audit_logs (actor_id, actor_type, action, resource_type, resource_id, tenant_id, source_ip, request_id, before_state, after_state, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12::timestamptz, now()))
        RETURNING id, actor_id, actor_type, action, resource_type, resource_id, tenant_id,
                  source_ip::text as source_ip, request_id, before_state, after_state, metadata,
                  created_at::text as created_at`,
@@ -38,6 +39,7 @@ export async function createAuditEntry(
         beforeState ? JSON.stringify(beforeState) : null,
         afterState ? JSON.stringify(afterState) : null,
         JSON.stringify(metadata ?? {}),
+        createdAt ?? null,
       ],
     );
     return res.rows[0];
@@ -71,6 +73,7 @@ export async function recordAuditEvent(
     parsed.before ?? null,
     parsed.after ?? null,
     parsed.metadata,
+    parsed.occurredAt ?? null,
   );
 }
 
