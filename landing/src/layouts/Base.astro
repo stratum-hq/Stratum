@@ -10,6 +10,23 @@ const { title, description } = Astro.props;
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Theme, resolved before first paint so there is no post paint flash and the
+       landing agrees with the docs site: an explicit choice in localStorage wins,
+       otherwise the OS preference decides. Mirrors Starlight's pre paint behavior
+       (website/, Epic 18). Kept as is:inline so it runs synchronously in <head>. -->
+  <script is:inline>
+    (() => {
+      try {
+        const saved = localStorage.getItem('stratum-theme');
+        const theme = saved === 'light' || saved === 'dark'
+          ? saved
+          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <title>{title}</title>
   <meta name="description" content={description} />
   <meta property="og:title" content={title} />
@@ -65,7 +82,22 @@ const { title, description } = Astro.props;
   <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- Stratigraphy identity fonts (Archivo / IBM Plex Sans / IBM Plex Mono),
+       loaded non-blocking so first paint is never held on a font stylesheet.
+       The render-blocking @import that assets/tokens.css carries for website/ is
+       stripped from the landing bundle at build (see astro.config.mjs). -->
+  <link
+    rel="preload"
+    as="style"
+    href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,600;125,700;125,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    onload="this.onload=null;this.rel='stylesheet'"
+  />
+  <noscript>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,600;125,700;125,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    />
+  </noscript>
 </head>
 <body>
   <slot />

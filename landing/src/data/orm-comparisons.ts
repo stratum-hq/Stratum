@@ -15,10 +15,10 @@ export const prisma: ORMComparison = {
   slug: "prisma",
   name: "Prisma",
   tagline: "Type-safe ORM with declarative schema",
-  description: `Prisma is the most popular TypeScript ORM, known for its type-safe client and declarative schema language. Stratum works alongside Prisma — it does not replace it. Prisma handles your application's data modeling and queries. Stratum handles tenant hierarchy, config inheritance, isolation strategy, and compliance operations on the same PostgreSQL database.`,
+  description: `Prisma is the most popular TypeScript ORM, known for its type-safe client and declarative schema language. Stratum works alongside Prisma. It does not replace it. Prisma handles your application's data modeling and queries. Stratum handles tenant hierarchy, config inheritance, isolation strategy, and compliance operations on the same PostgreSQL database.`,
   features: [
     { capability: "Schema management", orm: "Prisma Migrate (declarative)", stratum: "Stratum manages tenant tables only", verdict: "good" },
-    { capability: "RLS isolation", orm: "Manual — raw SQL in migrations", stratum: "Automatic policy generation per tenant", verdict: "good" },
+    { capability: "RLS isolation", orm: "Manual: raw SQL in migrations", stratum: "Automatic policy generation per tenant", verdict: "good" },
     { capability: "Schema-per-tenant", orm: "Multiple PrismaClient instances", stratum: "Single connection, search_path switching", verdict: "good" },
     { capability: "Tenant context in queries", orm: "Manual where: { tenantId } on every query", stratum: "Automatic via RLS or search_path", verdict: "good" },
     { capability: "Config inheritance", orm: "Not available", stratum: "Built-in, root-to-leaf resolution", verdict: "good" },
@@ -47,9 +47,9 @@ export const prisma: ORMComparison = {
 });`,
   },
   gotchas: [
-    "Prisma Migrate and Stratum migrations are independent — run both during deployment.",
+    "Prisma Migrate and Stratum migrations are independent. Run both during deployment.",
     "When using schema-per-tenant isolation, Prisma needs a separate client per schema or use $executeRaw to SET search_path.",
-    "Prisma's connection pool and Stratum's pool are separate — configure both for your connection limit.",
+    "Prisma's connection pool and Stratum's pool are separate. Configure both for your connection limit.",
   ],
 };
 
@@ -57,16 +57,16 @@ export const drizzle: ORMComparison = {
   slug: "drizzle",
   name: "Drizzle",
   tagline: "Lightweight TypeScript ORM with SQL-like syntax",
-  description: `Drizzle ORM is a lightweight, SQL-first TypeScript ORM. Its thin abstraction over SQL makes it a natural fit for Stratum's PostgreSQL-native features. Drizzle handles your schema and queries. Stratum handles tenant hierarchy, config, isolation, and compliance — both operating on the same database without conflicts.`,
+  description: `Drizzle ORM is a lightweight, SQL-first TypeScript ORM. Its thin abstraction over SQL makes it a natural fit for Stratum's PostgreSQL-native features. Drizzle handles your schema and queries. Stratum handles tenant hierarchy, config, isolation, and compliance, both operating on the same database without conflicts.`,
   features: [
     { capability: "Schema management", orm: "Drizzle Kit (push/migrate)", stratum: "Stratum manages tenant tables only", verdict: "good" },
     { capability: "RLS isolation", orm: "Manual via sql`` template", stratum: "Automatic policy generation", verdict: "good" },
     { capability: "Schema-per-tenant", orm: "Schema parameter in table definitions", stratum: "Automatic search_path switching", verdict: "good" },
-    { capability: "Raw SQL access", orm: "First-class — sql`` tagged templates", stratum: "Uses pg Pool directly", verdict: "good" },
+    { capability: "Raw SQL access", orm: "First-class: sql`` tagged templates", stratum: "Uses pg Pool directly", verdict: "good" },
     { capability: "Config inheritance", orm: "Not available", stratum: "Built-in, root-to-leaf resolution", verdict: "good" },
     { capability: "Audit logging", orm: "Build it yourself", stratum: "Every mutation, actor-attributed", verdict: "good" },
     { capability: "Connection overhead", orm: "Shares pg Pool", stratum: "Shares pg Pool", verdict: "good" },
-    { capability: "Bundle size", orm: "Minimal (~30KB)", stratum: "Minimal — no heavy dependencies", verdict: "good" },
+    { capability: "Bundle size", orm: "Minimal (~30KB)", stratum: "Minimal, no heavy dependencies", verdict: "good" },
   ],
   codeExample: {
     filename: "drizzle-with-stratum.ts",
@@ -80,7 +80,7 @@ export const drizzle: ORMComparison = {
 <span class="cm">// Drizzle for app queries</span>
 <span class="kw">const</span> db = <span class="fn">drizzle</span>(pool);
 
-<span class="cm">// Stratum for tenancy — same pool</span>
+<span class="cm">// Stratum for tenancy, same pool</span>
 <span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
 <span class="kw">await</span> stratum.<span class="fn">initialize</span>();
 
@@ -90,7 +90,7 @@ export const drizzle: ORMComparison = {
 });`,
   },
   gotchas: [
-    "Drizzle and Stratum share a pg Pool — set pool max connections to account for both.",
+    "Drizzle and Stratum share a pg Pool. Set pool max connections to account for both.",
     "Drizzle's schema-aware table definitions work well with Stratum's schema-per-tenant mode.",
   ],
 };
@@ -99,10 +99,10 @@ export const sequelize: ORMComparison = {
   slug: "sequelize",
   name: "Sequelize",
   tagline: "Established Node.js ORM with Active Record pattern",
-  description: `Sequelize is one of the oldest and most established Node.js ORMs, used in thousands of production applications. Stratum works alongside Sequelize — handling the multi-tenancy infrastructure that Sequelize does not provide. Sequelize manages your models and queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
+  description: `Sequelize is one of the oldest and most established Node.js ORMs, used in thousands of production applications. Stratum works alongside Sequelize, handling the multi-tenancy infrastructure that Sequelize does not provide. Sequelize manages your models and queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
   features: [
     { capability: "Schema management", orm: "Sequelize CLI migrations", stratum: "Stratum manages tenant tables only", verdict: "good" },
-    { capability: "RLS isolation", orm: "Manual — raw queries only", stratum: "Automatic policy generation", verdict: "good" },
+    { capability: "RLS isolation", orm: "Manual: raw queries only", stratum: "Automatic policy generation", verdict: "good" },
     { capability: "Schema-per-tenant", orm: "Manual schema option per model", stratum: "Automatic search_path switching", verdict: "good" },
     { capability: "Default scopes", orm: "defaultScope for tenant filtering", stratum: "Database-level enforcement via RLS", verdict: "good" },
     { capability: "Config inheritance", orm: "Not available", stratum: "Built-in, root-to-leaf resolution", verdict: "good" },
@@ -134,7 +134,7 @@ export const sequelize: ORMComparison = {
   },
   gotchas: [
     "Sequelize manages its own connection pool separate from Stratum's pg Pool.",
-    "Sequelize's defaultScope tenant filtering is application-level only — Stratum's RLS enforces at the database level.",
+    "Sequelize's defaultScope tenant filtering is application-level only. Stratum's RLS enforces at the database level.",
     "When using schema-per-tenant, set Sequelize's schema option per model to match Stratum's tenant schema.",
   ],
 };
@@ -143,12 +143,12 @@ export const knex: ORMComparison = {
   slug: "knex",
   name: "Knex",
   tagline: "SQL query builder for Node.js",
-  description: `Knex is a SQL query builder — not a full ORM — giving you direct control over your queries while handling connection pooling, migrations, and schema building. Stratum pairs naturally with Knex because both operate close to PostgreSQL. Knex builds your queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
+  description: `Knex is a SQL query builder, not a full ORM, giving you direct control over your queries while handling connection pooling, migrations, and schema building. Stratum pairs naturally with Knex because both operate close to PostgreSQL. Knex builds your queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
   features: [
     { capability: "Schema management", orm: "Knex migrations (imperative)", stratum: "Stratum manages tenant tables only", verdict: "good" },
     { capability: "RLS isolation", orm: "Manual via knex.raw()", stratum: "Automatic policy generation", verdict: "good" },
     { capability: "Schema-per-tenant", orm: "knex.withSchema() per query", stratum: "Automatic search_path switching", verdict: "good" },
-    { capability: "Raw SQL access", orm: "knex.raw() — first-class", stratum: "Uses pg Pool directly", verdict: "good" },
+    { capability: "Raw SQL access", orm: "knex.raw(): first-class", stratum: "Uses pg Pool directly", verdict: "good" },
     { capability: "Config inheritance", orm: "Not available", stratum: "Built-in, root-to-leaf resolution", verdict: "good" },
     { capability: "Transaction support", orm: "knex.transaction()", stratum: "Tenant-scoped transactions", verdict: "good" },
     { capability: "GDPR export/purge", orm: "Build it yourself", stratum: "Built-in per-tenant operations", verdict: "good" },
@@ -177,7 +177,7 @@ export const knex: ORMComparison = {
   .<span class="fn">select</span>(<span class="str">"*"</span>);`,
   },
   gotchas: [
-    "Knex and Stratum use separate connection pools — budget your PostgreSQL max_connections accordingly.",
+    "Knex and Stratum use separate connection pools. Budget your PostgreSQL max_connections accordingly.",
     "Knex's withSchema() works well with Stratum's schema-per-tenant mode.",
     "Run Knex migrations and Stratum initialization in sequence during deployment.",
   ],
@@ -190,7 +190,7 @@ export const mongodb: ORMComparison = {
   description: `MongoDB is the most widely used document database in Node.js applications. @stratum-hq/mongodb is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB -- giving teams running Mongoose or the native driver first-class tenant isolation. The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MongoDB carries your application documents, scoped per tenant through a Mongoose plugin or adapter.`,
   features: [
     { capability: "Isolation strategies", orm: "Manual where: { tenantId } on every query", stratum: "3 strategies: shared collection, collection-per-tenant, database-per-tenant", verdict: "good" },
-    { capability: "Tenant scoping", orm: "Application-level only — no RLS equivalent", stratum: "Mongoose plugin auto-scopes all queries", verdict: "good" },
+    { capability: "Tenant scoping", orm: "Application-level only, no RLS equivalent", stratum: "Mongoose plugin auto-scopes all queries", verdict: "good" },
     { capability: "Config inheritance", orm: "Not available", stratum: "Built-in via PostgreSQL control plane", verdict: "good" },
     { capability: "GDPR purge", orm: "Build it yourself", stratum: "purgeTenantData() for all 3 strategies", verdict: "good" },
     { capability: "Audit logging", orm: "Manual hooks", stratum: "Every mutation, actor-attributed (via PG control plane)", verdict: "good" },

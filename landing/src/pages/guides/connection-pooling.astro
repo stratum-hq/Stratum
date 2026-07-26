@@ -5,7 +5,7 @@ import Nav from '../../components/Nav.astro';
 import Footer from '../../components/Footer.astro';
 ---
 
-<Base title="Connection Pooling with Stratum — PgBouncer and Supavisor Guide" description="When you need a connection pooler with Stratum, how to configure PgBouncer and Supavisor, transaction-mode pooling compatibility, and a production checklist.">
+<Base title="Connection Pooling with Stratum: PgBouncer and Supavisor Guide" description="When you need a connection pooler with Stratum, how to configure PgBouncer and Supavisor, transaction-mode pooling compatibility, and a production checklist.">
 
 <Nav />
 
@@ -84,7 +84,7 @@ listen_port = 6432
 auth_type = md5
 auth_file = /etc/pgbouncer/userlist.txt
 
-<span class="cm">;; Transaction mode — required for Stratum's set_config</span>
+<span class="cm">;; Transaction mode, required for Stratum's set_config</span>
 pool_mode = transaction
 
 <span class="cm">;; Pool sizing</span>

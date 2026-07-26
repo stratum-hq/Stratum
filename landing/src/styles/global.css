@@ -157,35 +157,18 @@ a {
   color: var(--text-primary);
 }
 
-/* ===== HERO ===== */
-.hero {
-  padding: 128px var(--space-6) var(--space-16);
-  max-width: 1200px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-16);
-  align-items: center;
+/* ===== HERO ACTIONS + ACCENT (shared across pages) ===== */
+/* Global accent class: works on all pages, overrides Astro scoped styles */
+.accent {
+  color: var(--accent) !important;
 }
-@media (max-width: 900px) {
-  .hero {
-    grid-template-columns: 1fr;
-    gap: var(--space-12);
-    padding-top: 96px;
-  }
+.hero-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-8);
 }
 @media (max-width: 480px) {
-  .hero {
-    padding-top: 80px;
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .hero h1 {
-    font-size: 2rem;
-  }
-  .hero-subtext {
-    font-size: 0.9375rem;
-  }
   .hero-actions {
     flex-direction: column;
     gap: var(--space-2);
@@ -198,39 +181,6 @@ a {
   .install-box {
     max-width: 100%;
   }
-}
-.hero-content {
-  max-width: 560px;
-}
-.hero h1 {
-  font-family: var(--font-display);
-  font-size: clamp(2.5rem, 5vw, 3.25rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin-bottom: var(--space-6);
-  text-wrap: balance;
-}
-/* Global accent class — works on all pages, overrides Astro scoped styles */
-.accent {
-  color: var(--accent) !important;
-}
-
-.hero h1 .accent {
-  color: var(--accent);
-}
-.hero-subtext {
-  font-size: 1.0625rem;
-  color: var(--text-secondary);
-  line-height: 1.65;
-  margin-bottom: var(--space-8);
-  max-width: 52ch;
-}
-.hero-actions {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-8);
 }
 
 /* ===== INSTALL BOX ===== */
@@ -275,54 +225,99 @@ a {
   color: var(--text-primary);
 }
 
-/* ===== HERO DIAGRAM ===== */
-.hero-diagram {
+/* ===== HERO: INHERITANCE FLOW PANEL =====
+   The signature graphic. A config value resolves down the strata in Signal teal;
+   a sealed key sits in amber. One accent, one warm color, each with one meaning. */
+.inherit-panel {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-8);
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.8;
-  color: var(--text-tertiary);
   overflow-x: auto;
-  overflow-y: hidden;
 }
 @media (max-width: 480px) {
-  .hero-diagram {
-    padding: var(--space-4);
-    font-size: 0.6875rem;
-    line-height: 1.6;
-  }
+  .inherit-panel { padding: var(--space-6); }
 }
-.hero-diagram .diagram-label {
+.inherit-label {
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
 }
-.hero-diagram .tree-root {
-  color: var(--sandstone);
-  font-weight: 600;
+.inherit-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
-.hero-diagram .tree-mid {
-  color: var(--text-secondary);
+.itrow {
+  display: grid;
+  grid-template-columns: 2ch 1fr auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  white-space: nowrap;
 }
-.hero-diagram .tree-leaf {
+.idepth {
   color: var(--text-tertiary);
+  font-size: 0.6875rem;
 }
-.hero-diagram .tree-meta {
+.inode { color: var(--text-secondary); }
+.inode-root { color: var(--text-primary); font-weight: 600; }
+.imeta {
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-style: italic;
 }
-.hero-diagram .tree-accent {
-  color: var(--accent-text);
+.inherit-config {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
-.hero-diagram .tree-dim {
-  opacity: 0.4;
+.icfg {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--border);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.8125rem;
+}
+.icfg-resolved {
+  border-left-color: var(--accent);
+  background: var(--accent-muted);
+}
+.icfg-locked {
+  border-left-color: var(--lock);
+  background: var(--lock-muted);
+}
+.ikey { color: var(--text-secondary); }
+.ival { color: var(--accent-text); font-weight: 600; }
+.ilock { color: var(--lock); font-weight: 600; letter-spacing: 0.04em; }
+.itag {
+  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+
+/* ===== HERO: BADGE ROW ===== */
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  flex-wrap: wrap;
+}
+.badge-link { display: inline-flex; }
+.badge-row img {
+  height: 20px;
+  display: block;
+  border-radius: var(--radius-sm);
 }
 
 /* ===== FEATURES ===== */
@@ -367,22 +362,16 @@ a {
   border-radius: var(--radius-md);
   padding: var(--space-8);
 }
-.feature-block-large {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-8);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
 .feature-icon {
   width: 36px;
   height: 36px;
-  color: var(--sandstone);
+  color: var(--text-secondary);
   margin-bottom: var(--space-4);
 }
-.feature-block h3 {
+/* Type scale: a card heading is always at least body size (16px), so hierarchy
+   never inverts. Body copy inside a card may be smaller; the heading may not. */
+.feature-block h3,
+.feature-diagram-block h3 {
   font-family: var(--font-display);
   font-size: 1.125rem;
   font-weight: 600;
@@ -396,22 +385,6 @@ a {
   line-height: 1.65;
   max-width: 48ch;
 }
-.feature-code {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-6);
-  font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  overflow-x: auto;
-}
-.feature-code .kw { color: var(--syntax-keyword); }
-.feature-code .fn { color: var(--syntax-function); }
-.feature-code .str { color: var(--syntax-string); }
-.feature-code .cm { color: var(--syntax-comment); }
-.feature-code .num { color: var(--syntax-number); }
 
 /* Row 2: full-width diagram */
 .features-row-diagram {
@@ -439,6 +412,14 @@ a {
   flex-direction: column;
   gap: var(--space-3);
 }
+.iso-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--space-2);
+}
 .isolation-row {
   display: flex;
   align-items: center;
@@ -448,12 +429,17 @@ a {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-tertiary);
-  min-width: 80px;
+  min-width: 88px;
 }
+/* Every strategy reads as a neutral instrument readout. Exactly one, the active
+   strategy, carries the Signal accent. All the boldness is spent there. */
 .isolation-bar {
-  height: 28px;
+  flex: 1;
+  height: 30px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   padding: 0 var(--space-3);
@@ -463,24 +449,21 @@ a {
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
-.isolation-bar.shared {
-  background: var(--sandstone-muted);
-  border-color: var(--sandstone);
-  color: var(--sandstone);
-  flex: 3;
-}
-.isolation-bar.schema {
-  background: var(--accent-muted);
+.isolation-bar.is-active {
   border-color: var(--accent);
-  color: var(--accent);
-  flex: 2;
+  background: var(--accent-muted);
+  color: var(--accent-text);
 }
-.isolation-bar.db {
-  background: color-mix(in srgb, var(--info) 15%, transparent);
-  border-color: var(--info);
-  color: var(--info);
-  flex: 1;
+.iso-code {
+  margin-top: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
 }
+.iso-fn { color: var(--syntax-function); }
+.iso-accent { color: var(--accent-text); }
+.iso-cm { color: var(--syntax-comment); }
 
 /* Row 3: 3 compact items */
 .features-row-compact {
@@ -506,7 +489,7 @@ a {
 }
 .feature-compact h3 {
   font-family: var(--font-display);
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   margin-bottom: var(--space-2);
@@ -576,19 +559,48 @@ a {
   margin-left: auto;
 }
 .code-block pre {
+  margin: 0;
   padding: var(--space-6);
   font-family: var(--font-mono);
   font-size: 0.8125rem;
   line-height: 1.75;
-  color: var(--text-secondary);
   overflow-x: auto;
 }
-.code-block .kw { color: var(--syntax-keyword); }
-.code-block .fn { color: var(--syntax-function); }
-.code-block .str { color: var(--syntax-string); }
-.code-block .cm { color: var(--syntax-comment); }
-.code-block .acc { color: var(--syntax-accent); }
-.code-block .num { color: var(--syntax-number); }
+/* Real syntax highlighting. Shiki's css-variables theme emits token colors as
+   --astro-code-* properties; map them onto the Core Sample --syntax-* tokens so
+   the code well is theme-independent and no hex is hardcoded in the markup. */
+.code-block .astro-code {
+  --astro-code-color-text: var(--code-text);
+  --astro-code-color-background: var(--code-bg);
+  --astro-code-token-constant: var(--syntax-number);
+  --astro-code-token-string: var(--syntax-string);
+  --astro-code-token-string-expression: var(--syntax-string);
+  --astro-code-token-comment: var(--syntax-comment);
+  --astro-code-token-keyword: var(--syntax-keyword);
+  --astro-code-token-parameter: var(--code-text);
+  --astro-code-token-function: var(--syntax-function);
+  --astro-code-token-punctuation: var(--code-text);
+  --astro-code-token-link: var(--syntax-accent);
+  color: var(--code-text);
+}
+/* Resolved output: the one value that glows, in Signal teal. Ties the code well
+   to the inheritance thesis. */
+.code-output {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-6);
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+.co-arrow { color: var(--accent); }
+.co-text { color: var(--text-secondary); }
+.co-val { color: var(--accent-text); font-weight: 600; }
+.co-src { color: var(--syntax-string); }
+.co-tag { margin-left: auto; color: var(--text-tertiary); }
 
 /* ===== PACKAGES ===== */
 .packages {
@@ -612,6 +624,11 @@ a {
 }
 .packages-heading p {
   font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+.pkg-scope {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
   color: var(--text-secondary);
 }
 .packages-table {
@@ -698,8 +715,7 @@ a {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
   }
-  .feature-block,
-  .feature-block-large {
+  .feature-block {
     padding: var(--space-6);
   }
   .code-block pre {
@@ -794,20 +810,81 @@ a {
 .features-row-compact .fade-in:nth-child(2) { transition-delay: 100ms; }
 .features-row-compact .fade-in:nth-child(3) { transition-delay: 200ms; }
 
-/* Hero diagram subtle entrance */
-.hero-diagram {
-  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+/* ===== DEPTH RAIL (persistent stratigraphic signature) =====
+   A thin left axis marked with tenant depth d0..d3. The teal cursor tracks scroll
+   position; marks light up as the active depth resolves downward. Desktop only,
+   decorative, and sits in the left gutter so it never overlaps content. */
+.depth-rail {
+  position: fixed;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 50;
+  display: none;
+  width: 44px;
+  height: 320px;
+  font-family: var(--font-mono);
+  pointer-events: none;
 }
-.hero-diagram.fade-in {
-  transform: translateY(12px);
+@media (min-width: 1320px) {
+  .depth-rail { display: block; }
 }
-.hero-diagram.fade-in.visible {
-  transform: translateY(0);
+.depth-rail-track {
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--border);
 }
+.depth-rail-cursor {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-muted);
+  transition: top var(--duration-normal) var(--ease-out);
+}
+.depth-rail-marks {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+.dm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dm-dot {
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  border-radius: var(--radius-full);
+  background: var(--border-hover);
+  flex-shrink: 0;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.dm-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.dm.active .dm-dot { background: var(--accent); }
+.dm.active .dm-label { color: var(--accent-text); }
 
 /* Feature blocks hover lift */
 .feature-block:hover,
-.feature-block-large:hover,
 .feature-compact:hover {
   border-color: var(--border-hover);
   transform: translateY(-2px);
@@ -833,15 +910,29 @@ a {
    are needed here. The hero diagram is a structural panel, not a code well, so
    it follows --surface-1 and adapts with the theme on its own. */
 
+/* ===== ACCESSIBILITY ===== */
+/* Keyboard focus: a 2px Signal ring with a 3px offset on every interactive
+   element. Signal clears the 3:1 UI contrast floor on both canvases (12.1:1 on
+   Basalt, 3.9:1 on drafting paper). Matches the docs site's focus treatment
+   (website/src/styles/custom.css) so the two surfaces agree. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
   html {
     scroll-behavior: auto;
   }
+  /* The scroll-triggered fade-ins resolve to their final state so no content is
+     gated behind motion; the one shot inheritance-flow reveal is skipped. */
   .fade-in {
     opacity: 1 !important;
     transform: none !important;

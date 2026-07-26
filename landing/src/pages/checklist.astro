@@ -5,7 +5,7 @@ import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 ---
 
-<Base title="Multi-Tenancy Checklist — What Does Your SaaS Need? | Stratum" description="Interactive multi-tenancy requirements checklist. Select your needs across tenant model, data isolation, compliance, and enterprise features. See which Stratum features match.">
+<Base title="Multi-Tenancy Checklist: What Does Your SaaS Need? | Stratum" description="Interactive multi-tenancy requirements checklist. Select your needs across tenant model, data isolation, compliance, and enterprise features. See which Stratum features match.">
 
 <Nav />
 
@@ -164,7 +164,7 @@ import Footer from '../components/Footer.astro';
     color: var(--text-secondary);
   }
 
-  /* Layout — 2 column desktop */
+  /* Layout: 2 column desktop */
   .cl-layout {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -382,13 +382,13 @@ import Footer from '../components/Footer.astro';
 <script>
   const featureMap: Record<string, { name: string; desc: string }> = {
     "hierarchy": { name: "Tenant Hierarchy", desc: "Tree-structured tenants via PostgreSQL ltree, up to 20 levels deep." },
-    "flat-orgs": { name: "Flat Organizations", desc: "Single-level tenant model — create tenants without parent references." },
+    "flat-orgs": { name: "Flat Organizations", desc: "Single-level tenant model. Create tenants without parent references." },
     "reseller": { name: "Reseller / MSP Support", desc: "Nested partner hierarchies with delegated permissions and config inheritance." },
     "rls": { name: "Row-Level Security", desc: "Shared tables with automatic RLS policy generation per tenant." },
     "schema-isolation": { name: "Schema-per-Tenant", desc: "Dedicated PostgreSQL schema per tenant with search_path switching." },
     "db-isolation": { name: "Database-per-Tenant", desc: "Separate PostgreSQL instance per tenant for maximum isolation." },
-    "gdpr-export": { name: "GDPR Data Export", desc: "Article 20 compliant data export per tenant — all tenant data in one call." },
-    "gdpr-purge": { name: "GDPR Hard Purge", desc: "Article 17 right to erasure — complete tenant data deletion with audit trail." },
+    "gdpr-export": { name: "GDPR Data Export", desc: "Article 20 compliant data export per tenant: all tenant data in one call." },
+    "gdpr-purge": { name: "GDPR Hard Purge", desc: "Article 17 right to erasure: complete tenant data deletion with audit trail." },
     "audit": { name: "Audit Logging", desc: "Every mutation logged with actor identity, timestamp, and change payload." },
     "retention": { name: "Data Retention", desc: "Configurable retention policies per tenant with automatic cleanup." },
     "webhooks": { name: "Webhook Delivery", desc: "Event-driven webhooks with retry logic and dead-letter queue." },

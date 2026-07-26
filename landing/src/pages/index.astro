@@ -3,56 +3,105 @@ import Base from '../layouts/Base.astro';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import { Code } from 'astro:components';
+
+const setupCode = `import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+await stratum.initialize();
+
+// Create a hierarchy
+const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
+const msp  = await stratum.createTenant({ name: "NorthStar", slug: "northstar", parent_id: root.id });
+
+// Config resolves up the ancestry chain
+await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false });
+const config = await stratum.resolveConfig(msp.id);`;
+
+// Published, installable packages under @stratum-hq/*. The private demo and
+// integration-tests packages are not on npm, and @stratum-hq/stratum is an empty
+// name reservation with no source, so none of them belong in a "published to npm"
+// table. See CLAUDE.md section 2.
+const packages = [
+  { name: '@stratum-hq/core', desc: 'Shared types, Zod schemas, error classes. Everything depends on it.', tag: 'foundation' },
+  { name: '@stratum-hq/lib', desc: 'The core library: tenants, config, ABAC, permissions, audit, GDPR, webhooks, crypto.', tag: 'start here' },
+  { name: '@stratum-hq/control-plane', desc: 'Fastify v5 REST API with auth, scopes, OpenTelemetry, and Redis rate limiting.' },
+  { name: '@stratum-hq/sdk', desc: 'HTTP client for the control plane, LRU cache, Express and Fastify middleware.' },
+  { name: '@stratum-hq/db-adapters', desc: 'PostgreSQL: raw pg, Prisma, Sequelize, Drizzle, plus RLS and schema isolation.' },
+  { name: '@stratum-hq/mongodb', desc: 'MongoDB tenant isolation with a Mongoose plugin.' },
+  { name: '@stratum-hq/mysql', desc: 'MySQL isolation with TypeORM, Knex, and Sequelize helpers.', tag: 'new' },
+  { name: '@stratum-hq/nestjs', desc: 'NestJS guard, @Tenant() decorator, DI module.' },
+  { name: '@stratum-hq/hono', desc: 'Hono middleware with AsyncLocalStorage context.' },
+  { name: '@stratum-hq/test-utils', desc: 'Cross-tenant isolation test assertions.' },
+  { name: '@stratum-hq/react', desc: 'React admin components: tenant tree, config editor, permission editor.' },
+  { name: '@stratum-hq/cli', desc: 'Project init, migrate, scaffold, doctor.' },
+  { name: '@stratum-hq/create', desc: 'Project scaffolding: npx @stratum-hq/create my-app.' },
+];
 ---
 
-<Base title="Stratum — Multi-Tenancy for Node.js | Tenant Hierarchy, Config Inheritance, Isolation" description="Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies (RLS, schema, database), GDPR compliance. Open source, MIT licensed.">
+<Base title="Stratum: Multi-Tenancy for Node.js | Tenant Hierarchy, Config Inheritance, Isolation" description="Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies (RLS, schema, database), GDPR compliance. Open source, MIT licensed.">
 
 <Nav />
 
-<!-- Hero — bold typographic, full-bleed with geological texture -->
-<section class="idx-hero">
+<!-- Depth rail: the persistent stratigraphic signature. A thin left axis marked
+     with tenant depth (d0..d3); the teal cursor tracks scroll, and marks light up
+     as the active depth resolves downward. Desktop only, decorative. -->
+<div class="depth-rail" aria-hidden="true">
+  <div class="depth-rail-track"><span class="depth-rail-cursor" id="rail-cursor"></span></div>
+  <ol class="depth-rail-marks">
+    <li class="dm active" data-mark="0"><span class="dm-dot"></span><span class="dm-label">d0</span></li>
+    <li class="dm" data-mark="1"><span class="dm-dot"></span><span class="dm-label">d1</span></li>
+    <li class="dm" data-mark="2"><span class="dm-dot"></span><span class="dm-label">d2</span></li>
+    <li class="dm" data-mark="3"><span class="dm-dot"></span><span class="dm-label">d3</span></li>
+  </ol>
+</div>
+
+<!-- Hero -->
+<section class="idx-hero" data-depth="0">
   <div class="idx-hero-inner">
     <div class="idx-hero-content">
       <h1 class="idx-display">Multi-tenancy<br/>for <span class="accent">Node.js</span></h1>
       <p class="idx-hero-sub">
-        When customers need tenants <em>inside</em> tenants — resellers, agencies,
-        enterprise org trees — a <code>tenant_id</code> column stops working.
+        When customers need tenants <em>inside</em> tenants, resellers, agencies,
+        enterprise org trees, a <code>tenant_id</code> column stops working.
         Stratum is the full tenant layer: hierarchy, config inheritance,
         isolation strategies, and compliance. Start flat, grow deep.
       </p>
       <div class="hero-actions">
         <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
-        <a href="https://docs.stratum-hq.org/start/" class="btn-secondary">Start Building →</a>
-        <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+        <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
       </div>
       <div class="install-box">
-        <code>npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
-        <button class="install-copy" id="copy-btn" aria-label="Copy install command">copy</button>
+        <code id="install-cmd">npm install <span class="pkg">@stratum-hq/lib</span> <span class="pkg">@stratum-hq/core</span> pg</code>
+        <button class="install-copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
+      </div>
+      <div class="badge-row">
+        <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml" class="badge-link" aria-label="CI status">
+          <img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy" />
+        </a>
+        <img class="badge-img" src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 100 percent" height="20" loading="lazy" />
       </div>
     </div>
 
-    <!-- ASCII-style tenant tree diagram -->
-    <div class="hero-diagram fade-in" aria-hidden="true">
-      <div class="diagram-label">tenant hierarchy</div>
-<pre>
-<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">&larr; root tenant</span>
-<span class="tree-dim">&boxvr;&boxh;&boxh;</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">&larr; reseller</span>
-<span class="tree-dim">&boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-alpha</span>
-<span class="tree-dim">&boxv;   &boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">team-eng</span>
-<span class="tree-dim">&boxv;   &boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">team-ops</span>
-<span class="tree-dim">&boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-beta</span>
-<span class="tree-dim">&boxur;&boxh;&boxh;</span> <span class="tree-mid">Apex Partners</span>
-<span class="tree-dim">    &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-gamma</span>
-<span class="tree-dim">    &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-delta</span>
-</pre>
-      <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.375rem;">
-        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
-          <span style="color: var(--sandstone); font-family: var(--font-mono);">max_users: 1000</span>
-          <span style="color: var(--text-tertiary);">inherited root &#8594; all children</span>
+    <!-- Inheritance flow: values resolve down the strata unless a parent seals a
+         key. The resolved value glows in Signal teal; the sealed key is amber. -->
+    <div class="inherit-panel fade-in" aria-hidden="true">
+      <div class="inherit-label">tenant hierarchy</div>
+      <div class="inherit-tree">
+        <div class="itrow"><span class="idepth">d0</span><span class="inode inode-root">AcmeSec</span><span class="imeta">root tenant</span></div>
+        <div class="itrow"><span class="idepth">d1</span><span class="inode">├─ NorthStar MSP</span><span class="imeta">reseller</span></div>
+        <div class="itrow"><span class="idepth">d2</span><span class="inode">│&nbsp;&nbsp;└─ client-alpha</span></div>
+        <div class="itrow"><span class="idepth">d3</span><span class="inode">│&nbsp;&nbsp;&nbsp;&nbsp;└─ team-eng</span></div>
+      </div>
+      <div class="inherit-config">
+        <div class="icfg icfg-resolved">
+          <span class="ikey">max_users: <span class="ival">1000</span></span>
+          <span class="itag">resolved from d0</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem;">
-          <span style="color: var(--accent); font-family: var(--font-mono);">data_region: locked</span>
-          <span style="color: var(--text-tertiary);">children cannot override</span>
+        <div class="icfg icfg-locked">
+          <span class="ikey">data_region: <span class="ilock">LOCKED</span></span>
+          <span class="itag">children cannot override</span>
         </div>
       </div>
     </div>
@@ -60,13 +109,12 @@ import Footer from '../components/Footer.astro';
 </section>
 
 <!-- Features -->
-<section class="features">
+<section class="features" data-depth="1">
   <div class="features-heading fade-in">
     <h2>Built for hierarchical tenant architectures</h2>
-    <p>Every feature maps to a real problem in multi-tenant SaaS — not a marketing checklist.</p>
+    <p>Every feature maps to a real problem in multi-tenant SaaS, not a marketing checklist.</p>
   </div>
 
-  <!-- Row 1: feature block + code snippet -->
   <div class="features-row-primary">
     <div class="feature-block fade-in">
       <div class="feature-icon">
@@ -83,9 +131,9 @@ import Footer from '../components/Footer.astro';
         </svg>
       </div>
       <h3>Tenant Hierarchy</h3>
-      <p>Tree-structured tenants backed by PostgreSQL ltree. Advisory locks prevent race conditions during concurrent writes. Supports up to 20 levels deep with O(1) ancestor lookups.</p>
+      <p>Tree-structured tenants backed by a PostgreSQL ltree materialized path. Advisory locks serialize create and move so concurrent writes cannot corrupt the tree. Ancestor and subtree queries resolve from the path, not recursive joins.</p>
     </div>
-    <div class="feature-block fade-in" style="background: var(--surface-0);">
+    <div class="feature-block fade-in">
       <div class="feature-icon">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="21" x2="4" y2="14"/>
@@ -100,15 +148,14 @@ import Footer from '../components/Footer.astro';
         </svg>
       </div>
       <h3>Config Inheritance</h3>
-      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by locked keys. Batch updates with partial success — one bad key doesn't abort the whole transaction.</p>
+      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by a locked key. Batch updates apply with partial success, so one bad key does not abort the whole transaction.</p>
     </div>
   </div>
 
-  <!-- Row 2: isolation diagram -->
   <div class="features-row-diagram">
     <div class="feature-diagram-block fade-in">
       <div>
-        <div class="feature-icon" style="width: 36px; height: 36px;">
+        <div class="feature-icon">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <ellipse cx="12" cy="5" rx="9" ry="3"/>
             <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
@@ -116,31 +163,30 @@ import Footer from '../components/Footer.astro';
           </svg>
         </div>
         <h3>Three Isolation Strategies</h3>
-        <p>Shared tables with RLS, schema-per-tenant, or database-per-tenant. Choose per tenant. Mix strategies in a single deployment as your compliance requirements evolve.</p>
+        <p>Shared tables with RLS, schema-per-tenant, or database-per-tenant. Choose per tenant, and mix strategies in a single deployment as compliance requirements evolve.</p>
       </div>
       <div class="isolation-diagram" aria-label="Isolation strategy comparison">
-        <div style="font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem;">isolation model</div>
+        <div class="iso-eyebrow">isolation model</div>
         <div class="isolation-row">
           <span class="isolation-label">shared RLS</span>
-          <span class="isolation-bar shared">row_security = on &middot; lowest cost</span>
+          <span class="isolation-bar">row_security = on · lowest cost</span>
         </div>
         <div class="isolation-row">
           <span class="isolation-label">schema</span>
-          <span class="isolation-bar schema">search_path = tenant_slug</span>
+          <span class="isolation-bar is-active">search_path = tenant_slug</span>
         </div>
         <div class="isolation-row">
           <span class="isolation-label">database</span>
-          <span class="isolation-bar db">separate PG instance</span>
+          <span class="isolation-bar">separate PG instance · strongest</span>
         </div>
-        <div style="margin-top: 1rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); line-height: 1.6;">
-          <span style="color: var(--text-secondary);">stratum.setIsolation(tenantId, "schema")</span><br/>
-          <span>// switch strategies without data migration</span>
+        <div class="iso-code">
+          <span class="iso-fn">stratum.setIsolation</span>(tenantId, <span class="iso-accent">"schema"</span>)<br/>
+          <span class="iso-cm">// switch strategies without a data migration</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Row 3: 3 compact items -->
   <div class="features-row-compact">
     <div class="feature-compact fade-in">
       <div class="feature-compact-icon">
@@ -160,7 +206,7 @@ import Footer from '../components/Footer.astro';
         </svg>
       </div>
       <h3>Field Encryption + GDPR</h3>
-      <p>AES-256-GCM for sensitive values at rest. Data export (Article 20) and hard purge (Article 17). Consent tracking with audit trail.</p>
+      <p>AES-256-GCM for sensitive values at rest. Data export (Article 20) and hard purge (Article 17). Consent tracking with an audit trail.</p>
     </div>
     <div class="feature-compact fade-in">
       <div class="feature-compact-icon">
@@ -169,20 +215,20 @@ import Footer from '../components/Footer.astro';
         </svg>
       </div>
       <h3>Audit + Observability</h3>
-      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting and webhook delivery with dead-letter queue.</p>
+      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting and webhook delivery with a dead-letter queue.</p>
     </div>
   </div>
 </section>
 
 <!-- Code Example -->
-<section class="code-section">
+<section class="code-section" data-depth="2">
   <div class="code-section-inner fade-in">
     <div class="code-section-text">
       <h2>Five lines to a working hierarchy</h2>
       <p>
-        Connect a Postgres pool, create tenants with parent references,
-        and config resolves automatically up the tree. No migrations to
-        hand-write, no join tables to manage.
+        Connect a Postgres pool, create tenants with parent references, and config
+        resolves automatically up the tree. No migrations to hand-write, no join
+        tables to manage.
       </p>
     </div>
     <div class="code-block">
@@ -192,97 +238,32 @@ import Footer from '../components/Footer.astro';
         <span class="code-block-dot"></span>
         <span class="code-block-filename">setup.ts</span>
       </div>
-      <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
-<span class="kw">import</span> &#123; Stratum &#125; <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
-
-<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>(&#123; pool: <span class="kw">new</span> <span class="fn">Pool</span>() &#125;);
-
-<span class="cm">// Create a hierarchy</span>
-<span class="kw">const</span> root = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>(&#123; name: <span class="str">"AcmeSec"</span>, slug: <span class="str">"acmesec"</span> &#125;);
-<span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>(&#123; name: <span class="str">"NorthStar"</span>, parent_id: root.id &#125;);
-
-<span class="cm">// Config inherits automatically</span>
-<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">1000</span>, locked: <span class="num">false</span> &#125;);
-<span class="kw">const</span> config = <span class="kw">await</span> stratum.<span class="fn">resolveConfig</span>(msp.id);
-<span class="cm">// &#8594; max_users: 1000, inherited: true, source: "acmesec"</span>`} />
+      <Code code={setupCode} lang="ts" theme="css-variables" />
+      <div class="code-output">
+        <span class="co-arrow">→</span>
+        <span class="co-text">max_users: <span class="co-val">1000</span>, inherited: <span class="co-val">true</span>, source: <span class="co-src">"acmesec"</span></span>
+        <span class="co-tag">resolved from d0</span>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- Packages -->
-<section class="packages">
+<section class="packages" data-depth="3">
   <div class="packages-inner">
     <div class="packages-heading fade-in">
-      <h2>12 packages. Pick what you need.</h2>
-      <p>All published to npm under <code style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--sandstone);">@stratum-hq/*</code></p>
+      <h2>{packages.length} packages. Pick what you need.</h2>
+      <p>All published to npm under <code class="pkg-scope">@stratum-hq/*</code></p>
     </div>
     <table class="packages-table" aria-label="Stratum packages">
       <tbody>
-        <tr>
-          <td class="pkg-name">@stratum-hq/core</td>
-          <td class="pkg-desc">Types, Zod schemas, error classes <span class="pkg-tag">peer dep</span></td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/core" class="pkg-link" aria-label="@stratum-hq/core on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/lib</td>
-          <td class="pkg-desc">Direct library — tenants, config, permissions, audit, GDPR <span class="pkg-tag">start here</span></td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/lib" class="pkg-link" aria-label="@stratum-hq/lib on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/control-plane</td>
-          <td class="pkg-desc">Fastify v5 REST API with auth, scopes, OpenTelemetry</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/control-plane" class="pkg-link" aria-label="@stratum-hq/control-plane on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/sdk</td>
-          <td class="pkg-desc">HTTP client, LRU cache, Express/Fastify middleware, tenant impersonation</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/sdk" class="pkg-link" aria-label="@stratum-hq/sdk on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/db-adapters</td>
-          <td class="pkg-desc">PostgreSQL — raw pg, Prisma, Sequelize, Drizzle, RLS, schema isolation</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/db-adapters" class="pkg-link" aria-label="@stratum-hq/db-adapters on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/mongodb</td>
-          <td class="pkg-desc">MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/mongodb" class="pkg-link" aria-label="@stratum-hq/mongodb on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/mysql</td>
-          <td class="pkg-desc">MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant + TypeORM, Knex, Sequelize <span class="pkg-tag">new</span></td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/mysql" class="pkg-link" aria-label="@stratum-hq/mysql on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/nestjs</td>
-          <td class="pkg-desc">NestJS integration — guard, @Tenant() decorator, DI module</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/nestjs" class="pkg-link" aria-label="@stratum-hq/nestjs on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/hono</td>
-          <td class="pkg-desc">Hono middleware — tenant extraction, ALS context</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/hono" class="pkg-link" aria-label="@stratum-hq/hono on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/test-utils</td>
-          <td class="pkg-desc">Cross-tenant isolation test helpers</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/test-utils" class="pkg-link" aria-label="@stratum-hq/test-utils on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/react</td>
-          <td class="pkg-desc">Tenant tree, config editor, inheritance visualizer, permission editor</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/react" class="pkg-link" aria-label="@stratum-hq/react on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/cli</td>
-          <td class="pkg-desc">Project init, migrate, scaffold, doctor</td>
-          <td class="pkg-actions"><a href="https://www.npmjs.com/package/@stratum-hq/cli" class="pkg-link" aria-label="@stratum-hq/cli on npm">npm &rarr;</a></td>
-        </tr>
-        <tr>
-          <td class="pkg-name">@stratum-hq/demo</td>
-          <td class="pkg-desc">Full MSSP dashboard — dark mode, CRUD, webhooks, RLS isolation</td>
-          <td class="pkg-actions"><a href="https://github.com/stratum-hq/Stratum" class="pkg-link" aria-label="@stratum-hq/demo on GitHub">gh &rarr;</a></td>
-        </tr>
+        {packages.map((p) => (
+          <tr>
+            <td class="pkg-name">{p.name}</td>
+            <td class="pkg-desc">{p.desc}{p.tag && <span class="pkg-tag">{p.tag}</span>}</td>
+            <td class="pkg-actions"><a href={`https://www.npmjs.com/package/${p.name}`} class="pkg-link" aria-label={`${p.name} on npm`}>npm →</a></td>
+          </tr>
+        ))}
       </tbody>
     </table>
   </div>
@@ -299,24 +280,20 @@ import Footer from '../components/Footer.astro';
 <Footer />
 
 <style>
-  /* Index hero — bold typographic, full-bleed with geological gradient */
+  /* Index hero. Bold typographic, full bleed, one faint teal glow in the ground. */
   .idx-hero {
     position: relative;
-    background: linear-gradient(175deg, var(--surface-0) 0%, var(--surface-1) 45%, var(--surface-2) 100%);
+    background: linear-gradient(175deg, var(--surface-0) 0%, var(--surface-1) 55%, var(--surface-2) 100%);
     border-bottom: 1px solid var(--border);
     overflow: hidden;
   }
-
   .idx-hero::before {
     content: '';
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(ellipse 80% 50% at 20% 80%, var(--accent-muted), transparent),
-      radial-gradient(ellipse 60% 40% at 80% 20%, var(--sandstone-muted), transparent);
+    background: radial-gradient(ellipse 70% 45% at 18% 82%, var(--accent-muted), transparent);
     pointer-events: none;
   }
-
   .idx-hero-inner {
     position: relative;
     max-width: 1200px;
@@ -327,7 +304,6 @@ import Footer from '../components/Footer.astro';
     gap: var(--space-16);
     align-items: center;
   }
-
   .idx-display {
     font-family: var(--font-display);
     font-size: clamp(2.75rem, 6vw, 3.5rem);
@@ -338,13 +314,20 @@ import Footer from '../components/Footer.astro';
     text-wrap: balance;
     color: var(--text-primary);
   }
-
   .idx-hero-sub {
     font-size: 1.0625rem;
     color: var(--text-secondary);
     line-height: 1.65;
     margin-bottom: var(--space-8);
     max-width: 52ch;
+  }
+  .idx-hero-sub code {
+    font-family: var(--font-mono);
+    font-size: 0.9375em;
+    color: var(--accent-text);
+    background: var(--accent-muted);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
   }
 
   @media (max-width: 900px) {
@@ -354,46 +337,68 @@ import Footer from '../components/Footer.astro';
       padding-top: 96px;
     }
   }
-
   @media (max-width: 480px) {
     .idx-hero-inner {
       padding-top: 80px;
       padding-left: var(--space-4);
       padding-right: var(--space-4);
     }
-    .idx-display {
-      font-size: 2.25rem;
-    }
-    .idx-hero-sub {
-      font-size: 0.9375rem;
-    }
-    .hero-actions {
-      flex-direction: column;
-      gap: var(--space-2);
-    }
+    .idx-display { font-size: 2.25rem; }
+    .idx-hero-sub { font-size: 0.9375rem; }
+    .hero-actions { flex-direction: column; gap: var(--space-2); }
     .hero-actions .btn-primary,
-    .hero-actions .btn-secondary {
-      width: 100%;
-      justify-content: center;
-    }
-    .install-box {
-      max-width: 100%;
-    }
+    .hero-actions .btn-secondary { width: 100%; justify-content: center; }
+    .install-box { max-width: 100%; }
   }
 </style>
 
 <script>
-  // Copy install command
-  document.getElementById('copy-btn')?.addEventListener('click', () => {
-    navigator.clipboard.writeText('npm install @stratum-hq/lib @stratum-hq/core pg');
-    const btn = document.getElementById('copy-btn') as HTMLButtonElement;
-    if (btn) {
-      btn.textContent = 'copied';
-      setTimeout(() => { btn.textContent = 'copy'; }, 2000);
+  // Copy the install command. The copied text is read from the DISPLAYED command
+  // element, so what lands on the clipboard can never drift from what is shown.
+  const copyBtn = document.getElementById('copy-btn');
+  const cmdEl = document.getElementById('install-cmd');
+  copyBtn?.addEventListener('click', async () => {
+    const text = (cmdEl?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      copyBtn.textContent = 'copied';
+      copyBtn.classList.add('copied');
+    } catch {
+      copyBtn.textContent = 'copy failed';
     }
+    setTimeout(() => {
+      copyBtn.textContent = 'copy';
+      copyBtn.classList.remove('copied');
+    }, 2000);
   });
 
-  // Scroll animations — IntersectionObserver
+  // Depth rail: move the teal cursor with scroll progress and light up marks up
+  // to the depth of the section currently in view.
+  const rail = document.querySelector('.depth-rail');
+  if (rail) {
+    const cursor = document.getElementById('rail-cursor');
+    const marks = Array.from(rail.querySelectorAll<HTMLElement>('.dm'));
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-depth]'));
+    const update = () => {
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - window.innerHeight;
+      const progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+      if (cursor) cursor.style.top = `${progress * 100}%`;
+      const mid = window.scrollY + window.innerHeight * 0.5;
+      let active = 0;
+      for (const s of sections) {
+        if (s.offsetTop <= mid) active = Number(s.getAttribute('data-depth'));
+      }
+      for (const m of marks) {
+        m.classList.toggle('active', Number(m.dataset.mark) <= active);
+      }
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+  }
+
+  // Scroll animations.
   const fadeEls = document.querySelectorAll('.fade-in');
   if (fadeEls.length > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const observer = new IntersectionObserver(
@@ -409,7 +414,6 @@ import Footer from '../components/Footer.astro';
     );
     fadeEls.forEach((el) => observer.observe(el));
   } else {
-    // Reduced motion or no elements — show everything immediately
     fadeEls.forEach((el) => el.classList.add('visible'));
   }
 </script>

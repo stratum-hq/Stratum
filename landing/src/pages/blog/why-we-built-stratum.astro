@@ -5,7 +5,7 @@ import Nav from '../../components/Nav.astro';
 import Footer from '../../components/Footer.astro';
 ---
 
-<Base title="Why We Built Stratum — Multi-Tenancy for Node.js | Stratum Blog" description="Every B2B SaaS team reinvents multi-tenancy from scratch. We built Stratum so they never have to again. Open-source, MIT licensed.">
+<Base title="Why We Built Stratum: Multi-Tenancy for Node.js | Stratum Blog" description="Every B2B SaaS team reinvents multi-tenancy from scratch. We built Stratum so they never have to again. Open-source, MIT licensed.">
 
 <Nav />
 
@@ -128,7 +128,7 @@ import Footer from '../../components/Footer.astro';
 <span class="cm">// Create a tenant</span>
 <span class="kw">const</span> org = <span class="kw">await</span> stratum.<span class="fn">createOrganization</span>(&#123; name: <span class="str">"Acme Corp"</span>, slug: <span class="str">"acme"</span> &#125;);
 
-<span class="cm">// Set config — children inherit automatically</span>
+<span class="cm">// Set config, children inherit automatically</span>
 <span class="kw">await</span> stratum.<span class="fn">setConfig</span>(org.id, <span class="str">"max_users"</span>, &#123; value: <span class="num">100</span> &#125;);`} />
     </div>
 
