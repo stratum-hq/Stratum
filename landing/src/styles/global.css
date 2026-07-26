@@ -1,106 +1,8 @@
-/* ===== GOOGLE FONTS ===== */
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
-
-/* ===== DESIGN TOKENS (DESIGN.md) ===== */
-:root {
-  /* Surfaces */
-  --surface-0: #0F0E0C;
-  --surface-1: #1A1815;
-  --surface-2: #252220;
-  --surface-3: #302D2A;
-
-  /* Text */
-  --text-primary: #E8E2D9;
-  --text-secondary: #A39E95;
-  --text-tertiary: #6B6560;
-
-  /* Accent — terracotta */
-  --accent: #C05746;
-  --accent-hover: #D4654E;
-  --accent-muted: #C0574620;
-
-  /* Sandstone */
-  --sandstone: #C4A882;
-  --sandstone-muted: #C4A88240;
-
-  /* Semantic */
-  --success: #5B8C5A;
-  --warning: #C4A244;
-  --error: #C05746;
-  --info: #7A8B9A;
-
-  /* Borders */
-  --border: #2A2725;
-  --border-hover: #3D3935;
-
-  /* Code */
-  --code-bg: #161412;
-  --code-text: #C4A882;
-
-  /* Typography */
-  --font-display: "Instrument Sans", system-ui, sans-serif;
-  --font-body: "Instrument Sans", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-
-  /* Spacing */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --space-16: 64px;
-  --space-24: 96px;
-  --space-32: 128px;
-
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
-
-  /* Motion */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
-  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
-}
-
-/* Light mode */
-[data-theme="light"] {
-  --surface-0: #FAF8F5;
-  --surface-1: #F0EDE8;
-  --surface-2: #E5E0DA;
-  --surface-3: #D6D0C8;
-
-  --text-primary: #1A1815;
-  --text-secondary: #5C5650;
-  --text-tertiary: #8A847D;
-
-  --accent: #A84535;
-  --accent-hover: #C05746;
-  --accent-muted: #A8453520;
-
-  --sandstone: #8C6D4F;
-  --sandstone-muted: #8C6D4F30;
-
-  --border: #D6D0C8;
-  --border-hover: #C4BDB4;
-
-  --code-bg: #1A1815;
-  --code-text: #D4C4A8;
-
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.12);
-}
+/* ===== DESIGN TOKENS =====
+   Single source of truth: assets/tokens.css (documented in DESIGN.md).
+   Every token used below now resolves from that shared file, so landing/ and
+   website/ cannot drift. Do not hardcode hex here; edit the shared file. */
+@import url('../../../assets/tokens.css');
 
 /* ===== RESET ===== */
 *, *::before, *::after {
@@ -213,7 +115,7 @@ a {
 /* ===== BUTTONS ===== */
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   padding: 11px 22px;
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
@@ -417,7 +319,7 @@ a {
   font-style: italic;
 }
 .hero-diagram .tree-accent {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .hero-diagram .tree-dim {
   opacity: 0.4;
@@ -505,11 +407,11 @@ a {
   color: var(--text-secondary);
   overflow-x: auto;
 }
-.feature-code .kw { color: #9B8AC4; }
-.feature-code .fn { color: var(--sandstone); }
-.feature-code .str { color: #7BA887; }
-.feature-code .cm { color: var(--text-tertiary); }
-.feature-code .num { color: var(--accent); }
+.feature-code .kw { color: var(--syntax-keyword); }
+.feature-code .fn { color: var(--syntax-function); }
+.feature-code .str { color: var(--syntax-string); }
+.feature-code .cm { color: var(--syntax-comment); }
+.feature-code .num { color: var(--syntax-number); }
 
 /* Row 2: full-width diagram */
 .features-row-diagram {
@@ -681,12 +583,12 @@ a {
   color: var(--text-secondary);
   overflow-x: auto;
 }
-.code-block .kw { color: #9B8AC4; }
-.code-block .fn { color: var(--sandstone); }
-.code-block .str { color: #7BA887; }
-.code-block .cm { color: var(--text-tertiary); }
-.code-block .acc { color: var(--accent); }
-.code-block .num { color: var(--accent); }
+.code-block .kw { color: var(--syntax-keyword); }
+.code-block .fn { color: var(--syntax-function); }
+.code-block .str { color: var(--syntax-string); }
+.code-block .cm { color: var(--syntax-comment); }
+.code-block .acc { color: var(--syntax-accent); }
+.code-block .num { color: var(--syntax-number); }
 
 /* ===== PACKAGES ===== */
 .packages {
@@ -926,32 +828,10 @@ a {
 [data-theme="light"] .install-box code {
   color: var(--text-primary);
 }
-[data-theme="light"] .code-block,
-[data-theme="light"] .feature-code {
-  background: #1A1815;
-  border-color: #302D2A;
-}
-[data-theme="light"] .code-block pre,
-[data-theme="light"] .feature-code {
-  color: #A39E95;
-}
-[data-theme="light"] .code-block .kw { color: #B8A4D8; }
-[data-theme="light"] .code-block .fn { color: #D4C4A8; }
-[data-theme="light"] .code-block .str { color: #8FBF9A; }
-[data-theme="light"] .code-block .cm { color: #6B6560; }
-[data-theme="light"] .feature-code .kw { color: #B8A4D8; }
-[data-theme="light"] .feature-code .fn { color: #D4C4A8; }
-[data-theme="light"] .feature-code .str { color: #8FBF9A; }
-[data-theme="light"] .feature-code .cm { color: #6B6560; }
-
-[data-theme="light"] .hero-diagram {
-  background: var(--surface-1);
-  border-color: var(--border);
-}
-
-[data-theme="light"] .code-block-header {
-  border-color: #302D2A;
-}
+/* The code well and its syntax tokens are theme independent (see
+   assets/tokens.css): the well stays dark in light mode, so no light overrides
+   are needed here. The hero diagram is a structural panel, not a code well, so
+   it follows --surface-1 and adapts with the theme on its own. */
 
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion: reduce) {

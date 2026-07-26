@@ -52,7 +52,6 @@ scripts/generated/
 
 # Internal planning (kept locally, not in repo)
 PUBLISHING.md
-DESIGN.md
 TODOS.md
 .claude/
 
