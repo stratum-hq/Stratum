@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.2.0 (2026-07-25)
+
+Additive release on `@stratum-hq/core` and `@stratum-hq/lib`.
+
+### Added
+- **`recordAuditEvent` accepts an optional `occurredAt`** (ISO 8601 string or `Date`) that sets the row's `created_at`, so a consumer can seed historical or backdated audit events; when omitted the row is stamped `now()` exactly as before and existing callers are unaffected. The value is Zod-validated and an invalid timestamp is rejected before the write. (`@stratum-hq/core` 1.2.0, `@stratum-hq/lib` 1.2.0)
+
+### Fixed
+- **`getDescendants` is scoped by stable tenant id, not the slug-derived ltree** — the subtree match previously ran against the slug-derived materialized path, so renaming a tenant's slug could silently drop descendants that still carried the old label. It now matches on the ID-based `ancestry_path`, the same approach used for permission and ABAC cascade revocation. The `status = 'active'` default and the `includeArchived` opt-in are unchanged. (#189)
+
+## 1.1.0 (2026-07-25)
+
+Additive release on `@stratum-hq/core` and `@stratum-hq/lib`.
+
+### Added
+- **First-class tenant lifecycle** — `suspendTenant`, `resumeTenant`, and `archiveTenant` on the `Stratum` facade (and as tenant-service functions) consolidate the tenant lifecycle into an explicit state machine: active to suspended/archived, and either back to active or on to a purge. Suspend and archive block when a tenant has active children (leaf-first); resume and create require an active parent (top-down); purge requires an empty subtree. `deleteTenant` is retained as a deprecated alias of `archiveTenant`. Adds the `suspended` tenant status, the `TenantSuspendedError` (403) and `InvalidTenantStateError` (409) error classes, and the `tenant.suspended` / `tenant.resumed` / `tenant.archived` / `tenant.purged` webhook event types. A migration widens the `tenants.status` CHECK to allow `suspended`.
+- **App-facing audit write** — `recordAuditEvent(input)` appends a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and previously exposed only `queryAuditLogs`); the event is validated, written on the same path the internal services use, and immediately queryable via `queryAuditLogs`. New `RecordAuditEventInput` type and `RecordAuditEventInputSchema`.
+- **`getTenantBySlug(slug, includeArchived?)`** — resolve a tenant by its globally unique slug in one indexed lookup, the slug-keyed counterpart to `getTenant` with the same archived/suspended handling.
+- **`runScopedJob(pool, tenantId, fn)`** — run a background job bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down on completion or error, so a job cannot read or write another tenant's rows and the context does not leak onto the next job on a pooled connection.
+- **Per-tenant usage metering (FR-58)** — `recordUsage` and `aggregateUsage` record countable per-tenant usage events with per-metric aggregation over a half-open `[from, to)` window. Events persist to a new `usage_events` table (migration 020) with optional idempotency keys and the same fail-closed RLS isolation as migration 019. New types `RecordUsageInput`, `UsageEvent`, `UsageAggregate`, `UsageAggregateQuery`.
+- **Typed webhook event-stream listing** — `listWebhookEvents({ tenantId, type?, from?, to?, limit?, offset? })` returns a tenant's `WebhookEvent[]` (always scoped to `tenantId`, newest first, `limit` 1-100 default 50), and `listDeliveriesByEvent(eventId)` returns a single event's `WebhookDelivery[]`. New `ListWebhookEventsQuery` type; existing delivery methods unchanged.
+- **`RateLimiter`** — a standalone, storage-agnostic per-tenant fixed-window limiter for library consumers, distinct from the control plane's HTTP rate limiting, with a pluggable `RateLimitStore` and a process-local `MemoryRateLimitStore` default.
+- **`WebhookUrlValidationError`** — webhook-URL validation now throws a typed error (extends `StratumError`, code `WEBHOOK_URL_INVALID`, status 400) instead of a plain `Error`; validation logic and messages are unchanged.
+
+### Fixed
+- Webhook-listing timestamps (`created_at`, `next_retry_at`, `completed_at`) are returned as strings to match the declared `WebhookEvent` / `WebhookDelivery` types, and both listings order deterministically with an `id` tiebreaker (`ORDER BY created_at DESC, id DESC`).
+
+## 1.0.0 (2026-07-24)
+
+The first stable release. `@stratum-hq/core`, `@stratum-hq/lib`, `@stratum-hq/sdk`, `@stratum-hq/db-adapters`, `@stratum-hq/control-plane`, `@stratum-hq/hono`, and `@stratum-hq/nestjs` are versioned to 1.0.0. See `docs/v1.0-api-surface.md` for the frozen public surface and the v1.0 migration guide (`/guides/v1-migration` on docs.stratum-hq.org) for consumer-facing upgrade steps.
+
+### Security
+- **Hierarchical API-key scopes and single-source scope resolution (FR-53, #132).** Scope requirements are now checked with a rank comparison (`read` < `write` < `admin`) via a new `scopeSatisfies(granted, required)` helper in `@stratum-hq/core` instead of flat set membership, so `admin` implies `write` implies `read` and a key minted as `["admin"]` or `["write"]` satisfies the lower-scope routes it previously failed. `validateApiKey` (the auth boundary) and `resolveKeyScopes` now resolve scopes through one `resolveEffectiveScopes` function — an assigned role's scopes govern, otherwise the key's own column scopes, otherwise `["read"]` — where previously `validateApiKey` read the `api_keys.scopes` column and ignored an assigned role. Both are breaking changes to authorization behavior: audit any key that carries a role alongside column scopes (the role now wins and can narrow the key), and mint keys with the scopes the caller actually needs. This changes same-tenant behavior by scope level only and does not alter any cross-tenant boundary. (`@stratum-hq/lib`, `@stratum-hq/control-plane`, `@stratum-hq/core`)
+
+### Changed (breaking — #219 pre-1.0 public-surface cleanup)
+- **`TenantContextLegacy` renamed to `ResolvedTenantContext`** at its definition in `@stratum-hq/core`, in the `@stratum-hq/sdk` re-export, and in every internal use, so the 1.0 surface carries no "Legacy" name. No deprecated alias is kept; the shape is unchanged.
+- **`@stratum-hq/sdk` no longer exports the raw `tenantStorage`** `AsyncLocalStorage` instance. Use `getTenantContext`, `runWithTenantContext`, and `setTenantContext`, which remain public.
+- **`@stratum-hq/db-adapters` tenant-context helpers use one `<orm>`-prefixed scheme** instead of `as`-aliased name collisions: `withTenant` (Prisma) → `prismaWithTenant`, `withDrizzleTenant` → `drizzleWithTenant`, `withTenantScope` (Sequelize) → `sequelizeWithTenantScope`, `withDrizzleTenantScope` → `drizzleWithTenantScope`, and the migration helper `enableRLSMigration` → `enableRLSForMigration` (distinct from the runtime `enableRLS`). Behavior is identical; update imports.
+- **`SUPPORTED_ISOLATION_STRATEGIES` is the canonical export** from `@stratum-hq/core` (`SUPPORTED_ISOLATION_STRATEGIES_V1` is kept one more minor as a deprecated alias), and **`MAX_TREE_DEPTH` was removed** because no depth limit is enforced anywhere in `lib` or `core`.
+
+### Added
+- **`@stratum-hq/lib` re-exports the typed error classes as runtime values (FR-52)**, so a lib consumer can `instanceof TenantNotFoundError` while importing only `@stratum-hq/lib`. The classes are the same objects re-exported from `@stratum-hq/core`, never redefined, so `instanceof` matches across import paths.
+
+### Fixed
+- **`batchCreateTenants` honors its all-or-nothing transaction contract** — a mid-batch failure rolls the whole batch back and `created` is now cleared, so the facade no longer emits `TENANT_CREATED` events or writes audit entries for tenants that never committed.
+- **`moveTenant` rewrites the moved node's direct children** — the descendant path/depth/`ancestry_ltree` rewrite previously matched only deeper descendants and skipped immediate children, leaving the subtree inconsistent and hiding those children from `getDescendants`.
+- **Sensitive (encrypted) config round-trips again** — `resolveConfig`, `getConfigWithInheritance`, and `rotateEncryptionKey` no longer double-parse the pg-decoded JSONB, which had made any `sensitive: true` config key unreadable and broke rotating a sensitive row.
+- Published tarballs no longer ship test files, and package metadata (`license` MIT, `author`, `homepage`, `bugs`, and `engines` Node >=20) is now complete and correct across the scope.
+
 ## 0.7.0 (2026-07-24)
 
 ### Added
