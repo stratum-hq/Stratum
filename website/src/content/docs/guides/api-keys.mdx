@@ -62,7 +62,7 @@ const { plaintext_key, id } = await stratum.createApiKey(
   "tenant-uuid",
   { name: "my-service" }
 );
-// Save plaintext_key — it is only returned once
+// Save plaintext_key: it is only returned once
 ```
 
 Via the API:
@@ -76,7 +76,7 @@ curl -X POST http://localhost:3001/api/v1/api-keys \
 
 <Aside type="caution">
   The `plaintext_key` is only returned in the creation response. Store it
-  securely — it cannot be retrieved again.
+  securely, it cannot be retrieved again.
 </Aside>
 
 ## Tenant-Scoped vs Global Keys
@@ -84,7 +84,7 @@ curl -X POST http://localhost:3001/api/v1/api-keys \
 - **Tenant-scoped** (`tenant_id` set): Can only access data for that tenant and its descendants
 - **Global** (`tenant_id` null): Unrestricted access to all tenants
 
-Tenant scope enforcement checks the ancestry path on every request — a key scoped to tenant A cannot access tenant B's data, even via list endpoints.
+Tenant scope enforcement checks the ancestry path on every request, a key scoped to tenant A cannot access tenant B's data, even via list endpoints.
 
 ## Per-Key Rate Limiting
 
@@ -217,7 +217,7 @@ curl -X POST http://localhost:3001/api/v1/maintenance/rotate-encryption-key \
   -d '{"old_key": "current-key", "new_key": "new-key"}'
 ```
 
-The rotation is atomic — either all values are re-encrypted or none are. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
+The rotation is atomic: either all values are re-encrypted or none are. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
 
 ## Best Practices
 

@@ -98,7 +98,7 @@ await stratum.createAbacPolicy(rootId, {
   priority: 100,
 });
 
-// MSP A tries to override — this throws AbacPolicyLockedError
+// MSP A tries to override: this throws AbacPolicyLockedError
 await stratum.createAbacPolicy(mspAId, {
   name: "no-delete-archived",
   resource_type: "user",

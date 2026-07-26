@@ -62,7 +62,7 @@ Returns all tenants from root down to the direct parent, ordered by depth:
 
 ```typescript
 const ancestors = await stratum.getAncestors(client.id);
-// [root, msp] — ordered root-first
+// [root, msp]: ordered root-first
 ```
 
 Via the API:
@@ -78,7 +78,7 @@ Returns the entire subtree below a tenant (uses `ltree` for efficiency):
 
 ```typescript
 const descendants = await stratum.getDescendants(root.id);
-// [msp, client] — all tenants below root
+// [msp, client]: all tenants below root
 ```
 
 ### Get Children
@@ -87,7 +87,7 @@ Returns only direct children (one level deep):
 
 ```typescript
 const children = await stratum.getChildren(msp.id);
-// [client] — only immediate children
+// [client]: only immediate children
 ```
 
 ## Moving Tenants
@@ -111,9 +111,9 @@ curl -X POST http://localhost:3001/api/v1/tenants/MSP_UUID/move \
 
 The move operation performs several validations:
 
-- **Cycle detection** — prevents moving a tenant under one of its own descendants
-- **Advisory locks** — acquires locks on both the old and new parent UUIDs to prevent concurrent modifications
-- **Path recalculation** — updates `ancestry_path` and `ancestry_ltree` for the moved tenant and all its descendants
+- **Cycle detection**: prevents moving a tenant under one of its own descendants
+- **Advisory locks**: acquires locks on both the old and new parent UUIDs to prevent concurrent modifications
+- **Path recalculation**: updates `ancestry_path` and `ancestry_ltree` for the moved tenant and all its descendants
 
 <Aside type="caution">
   Moving a tenant changes its ancestry path, which affects config inheritance
