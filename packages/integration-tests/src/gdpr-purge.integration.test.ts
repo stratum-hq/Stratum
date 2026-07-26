@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 describe("GDPR Purge (integration)", () => {
   let stratum: Stratum;
@@ -20,9 +24,10 @@ describe("GDPR Purge (integration)", () => {
   });
 
   it("purges a tenant and all its data", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "Purge Me", slug: "purge_me" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "Purge Me",
+      slug: "purge_me",
+    });
     await stratum.setConfig(tenant.id, "some_key", {
       value: "some_value",
       locked: false,
@@ -35,20 +40,24 @@ describe("GDPR Purge (integration)", () => {
   });
 
   it("rejects purging tenant with children", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Parent", slug: "purge_parent" }),
-    );
-    await stratum.createTenant(
-      tenantInput({ name: "Child", slug: "purge_child", parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Parent",
+      slug: "purge_parent",
+    });
+    await stratum.createTenant({
+      name: "Child",
+      slug: "purge_child",
+      parent_id: root.id,
+    });
 
     await expect(stratum.purgeTenant(root.id)).rejects.toThrow(/child/i);
   });
 
   it("exports tenant data for portability (Article 20)", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "Export Me", slug: "export_me" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "Export Me",
+      slug: "export_me",
+    });
     await stratum.setConfig(tenant.id, "key1", {
       value: "val1",
       locked: false,
@@ -61,9 +70,10 @@ describe("GDPR Purge (integration)", () => {
   });
 
   it("purge cleans up all related tables", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "Full Purge", slug: "full_purge" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "Full Purge",
+      slug: "full_purge",
+    });
 
     // Create data across multiple tables
     await stratum.setConfig(tenant.id, "cfg1", {

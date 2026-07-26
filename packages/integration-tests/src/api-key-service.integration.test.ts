@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 // Exercises the API key + role services against a REAL Postgres. These cover the
 // behavior the mocked unit tests cannot: that only a hash is persisted, that
@@ -22,7 +26,11 @@ function hmacSha256(input: string, secret: string): string {
 }
 
 /** Poll until fn() returns truthy, for fire-and-forget writes the service does not await. */
-async function waitFor<T>(fn: () => Promise<T>, tries = 40, delayMs = 25): Promise<T> {
+async function waitFor<T>(
+  fn: () => Promise<T>,
+  tries = 40,
+  delayMs = 25,
+): Promise<T> {
   let last: T = await fn();
   for (let i = 0; i < tries && !last; i++) {
     await new Promise((r) => setTimeout(r, delayMs));
@@ -68,7 +76,7 @@ describe("API key service (integration)", () => {
   });
 
   async function makeTenant(slug: string): Promise<{ id: string }> {
-    return stratum.createTenant(tenantInput({ name: slug, slug }));
+    return stratum.createTenant({ name: slug, slug });
   }
 
   describe("createApiKey — hashing & storage", () => {
@@ -116,7 +124,9 @@ describe("API key service (integration)", () => {
       const created = await stratum.createApiKey(tenant.id, "k");
       const row = await rawKeyRow(created.id);
       expect(row.hash_version).toBe(2);
-      expect(row.key_hash).toBe(hmacSha256(created.plaintext_key, "integration-hmac-secret"));
+      expect(row.key_hash).toBe(
+        hmacSha256(created.plaintext_key, "integration-hmac-secret"),
+      );
     });
 
     it("gives every key a unique hash", async () => {
@@ -150,7 +160,9 @@ describe("API key service (integration)", () => {
     it("rejects a key that is one character off from a valid one", async () => {
       const tenant = await makeTenant("apikey_tamper");
       const created = await stratum.createApiKey(tenant.id, "k");
-      const tampered = created.plaintext_key.slice(0, -1) + (created.plaintext_key.endsWith("a") ? "b" : "a");
+      const tampered =
+        created.plaintext_key.slice(0, -1) +
+        (created.plaintext_key.endsWith("a") ? "b" : "a");
       expect(await stratum.validateApiKey(tampered)).toBeNull();
     });
 
@@ -184,14 +196,19 @@ describe("API key service (integration)", () => {
 
       await stratum.validateApiKey(created.plaintext_key);
       // The update is fire-and-forget; poll for it.
-      const stamped = await waitFor(async () => (await rawKeyRow(created.id)).last_used_at);
+      const stamped = await waitFor(
+        async () => (await rawKeyRow(created.id)).last_used_at,
+      );
       expect(stamped).not.toBeNull();
     });
 
     it("returns the scopes column verbatim, including admin", async () => {
       const tenant = await makeTenant("apikey_admin");
       const created = await stratum.createApiKey(tenant.id, "k");
-      await getPool().query(`UPDATE api_keys SET scopes = $1 WHERE id = $2`, [["admin"], created.id]);
+      await getPool().query(`UPDATE api_keys SET scopes = $1 WHERE id = $2`, [
+        ["admin"],
+        created.id,
+      ]);
 
       const result = await stratum.validateApiKey(created.plaintext_key);
       expect(result!.scopes).toEqual(["admin"]);
@@ -203,8 +220,12 @@ describe("API key service (integration)", () => {
       const keyA = await stratum.createApiKey(tenantA.id, "a");
       const keyB = await stratum.createApiKey(tenantB.id, "b");
 
-      expect((await stratum.validateApiKey(keyA.plaintext_key))!.tenant_id).toBe(tenantA.id);
-      expect((await stratum.validateApiKey(keyB.plaintext_key))!.tenant_id).toBe(tenantB.id);
+      expect(
+        (await stratum.validateApiKey(keyA.plaintext_key))!.tenant_id,
+      ).toBe(tenantA.id);
+      expect(
+        (await stratum.validateApiKey(keyB.plaintext_key))!.tenant_id,
+      ).toBe(tenantB.id);
     });
   });
 
@@ -228,7 +249,9 @@ describe("API key service (integration)", () => {
       });
       expect(version).toBe(2);
       const upgraded = await rawKeyRow(created.id);
-      expect(upgraded.key_hash).toBe(hmacSha256(created.plaintext_key, "upgrade-secret"));
+      expect(upgraded.key_hash).toBe(
+        hmacSha256(created.plaintext_key, "upgrade-secret"),
+      );
     });
   });
 
@@ -265,13 +288,20 @@ describe("API key service (integration)", () => {
     it("resolveKeyScopes falls back to the key's own scopes when no role is assigned", async () => {
       const tenant = await makeTenant("scope_norole");
       const created = await stratum.createApiKey(tenant.id, "k");
-      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["read", "write"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual([
+        "read",
+        "write",
+      ]);
     });
 
     it("a role's scopes override the key's own scopes", async () => {
       const tenant = await makeTenant("scope_role");
       const created = await stratum.createApiKey(tenant.id, "k");
-      const role = await stratum.createRole({ name: "admins", scopes: ["admin"], tenant_id: tenant.id });
+      const role = await stratum.createRole({
+        name: "admins",
+        scopes: ["admin"],
+        tenant_id: tenant.id,
+      });
 
       expect(await stratum.assignRoleToKey(created.id, role.id)).toBe(true);
       expect(await stratum.resolveKeyScopes(created.id)).toEqual(["admin"]);
@@ -280,17 +310,28 @@ describe("API key service (integration)", () => {
     it("removing the role reverts to the key's own scopes", async () => {
       const tenant = await makeTenant("scope_role_remove");
       const created = await stratum.createApiKey(tenant.id, "k");
-      const role = await stratum.createRole({ name: "writers", scopes: ["read", "write"], tenant_id: tenant.id });
+      const role = await stratum.createRole({
+        name: "writers",
+        scopes: ["read", "write"],
+        tenant_id: tenant.id,
+      });
       await stratum.assignRoleToKey(created.id, role.id);
 
       expect(await stratum.removeRoleFromKey(created.id)).toBe(true);
-      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["read", "write"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual([
+        "read",
+        "write",
+      ]);
     });
 
     it("refuses to assign a role to a revoked key", async () => {
       const tenant = await makeTenant("scope_revoked");
       const created = await stratum.createApiKey(tenant.id, "k");
-      const role = await stratum.createRole({ name: "role_rev", scopes: ["admin"], tenant_id: tenant.id });
+      const role = await stratum.createRole({
+        name: "role_rev",
+        scopes: ["admin"],
+        tenant_id: tenant.id,
+      });
       await stratum.revokeApiKey(created.id);
 
       expect(await stratum.assignRoleToKey(created.id, role.id)).toBe(false);
@@ -299,7 +340,11 @@ describe("API key service (integration)", () => {
     it("validateApiKey and resolveKeyScopes resolve an assigned role identically (single source)", async () => {
       const tenant = await makeTenant("scope_unified");
       const created = await stratum.createApiKey(tenant.id, "k");
-      const role = await stratum.createRole({ name: "elevated", scopes: ["admin"], tenant_id: tenant.id });
+      const role = await stratum.createRole({
+        name: "elevated",
+        scopes: ["admin"],
+        tenant_id: tenant.id,
+      });
       await stratum.assignRoleToKey(created.id, role.id);
 
       // The role now governs at the auth boundary too, not just resolveKeyScopes.
@@ -313,7 +358,11 @@ describe("API key service (integration)", () => {
       // Column scopes are read+write; the assigned role is read-only.
       const created = await stratum.createApiKey(tenant.id, "k");
       expect((await rawKeyRow(created.id)).scopes).toEqual(["read", "write"]);
-      const role = await stratum.createRole({ name: "readers", scopes: ["read"], tenant_id: tenant.id });
+      const role = await stratum.createRole({
+        name: "readers",
+        scopes: ["read"],
+        tenant_id: tenant.id,
+      });
       await stratum.assignRoleToKey(created.id, role.id);
 
       // The role wins even though it is NARROWER than the key's own column.
@@ -328,7 +377,10 @@ describe("API key service (integration)", () => {
 
       const validated = await stratum.validateApiKey(created.plaintext_key);
       expect(validated!.scopes).toEqual(["read", "write"]);
-      expect(await stratum.resolveKeyScopes(created.id)).toEqual(["read", "write"]);
+      expect(await stratum.resolveKeyScopes(created.id)).toEqual([
+        "read",
+        "write",
+      ]);
     });
   });
 
@@ -336,28 +388,52 @@ describe("API key service (integration)", () => {
     it("refuses a foreign tenant's role but allows own-tenant and global roles", async () => {
       const tenantA = await makeTenant("prin_a");
       const tenantB = await makeTenant("prin_b");
-      const roleA = await stratum.createRole({ name: "role_a", scopes: ["admin"], tenant_id: tenantA.id });
-      const globalRole = await stratum.createRole({ name: "role_global", scopes: ["read"], tenant_id: null });
+      const roleA = await stratum.createRole({
+        name: "role_a",
+        scopes: ["admin"],
+        tenant_id: tenantA.id,
+      });
+      const globalRole = await stratum.createRole({
+        name: "role_global",
+        scopes: ["read"],
+        tenant_id: null,
+      });
 
       // tenantB cannot be granted tenantA's role.
-      expect(await stratum.assignRole("user", "u1", roleA.id, tenantB.id)).toBe(false);
+      expect(await stratum.assignRole("user", "u1", roleA.id, tenantB.id)).toBe(
+        false,
+      );
       // tenantA can grant its own role.
-      expect(await stratum.assignRole("user", "u1", roleA.id, tenantA.id)).toBe(true);
+      expect(await stratum.assignRole("user", "u1", roleA.id, tenantA.id)).toBe(
+        true,
+      );
       // Global roles are grantable regardless of the scoping tenant.
-      expect(await stratum.assignRole("user", "u2", globalRole.id, tenantB.id)).toBe(true);
+      expect(
+        await stratum.assignRole("user", "u2", globalRole.id, tenantB.id),
+      ).toBe(true);
     });
 
     it("resolvePrincipalScopes fails closed for an unassigned principal and honors tenant scoping", async () => {
       const tenantA = await makeTenant("prin_scope_a");
       const tenantB = await makeTenant("prin_scope_b");
-      const roleA = await stratum.createRole({ name: "role_scope_a", scopes: ["admin"], tenant_id: tenantA.id });
+      const roleA = await stratum.createRole({
+        name: "role_scope_a",
+        scopes: ["admin"],
+        tenant_id: tenantA.id,
+      });
       await stratum.assignRole("user", "u1", roleA.id, tenantA.id);
 
-      expect(await stratum.resolvePrincipalScopes("user", "u1", tenantA.id)).toEqual(["admin"]);
+      expect(
+        await stratum.resolvePrincipalScopes("user", "u1", tenantA.id),
+      ).toEqual(["admin"]);
       // No assignment -> empty (fail closed), not null.
-      expect(await stratum.resolvePrincipalScopes("user", "nobody", tenantA.id)).toEqual([]);
+      expect(
+        await stratum.resolvePrincipalScopes("user", "nobody", tenantA.id),
+      ).toEqual([]);
       // Same principal, but resolved under a foreign tenant -> role filtered out.
-      expect(await stratum.resolvePrincipalScopes("user", "u1", tenantB.id)).toEqual([]);
+      expect(
+        await stratum.resolvePrincipalScopes("user", "u1", tenantB.id),
+      ).toEqual([]);
     });
   });
 });

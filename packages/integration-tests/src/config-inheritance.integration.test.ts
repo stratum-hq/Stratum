@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 describe("Config Inheritance (integration)", () => {
   let stratum: Stratum;
@@ -20,12 +24,12 @@ describe("Config Inheritance (integration)", () => {
   });
 
   it("child inherits config from parent", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: "cfg_root" }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: "cfg_child", parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({ name: "Root", slug: "cfg_root" });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: "cfg_child",
+      parent_id: root.id,
+    });
 
     await stratum.setConfig(root.id, "max_users", {
       value: 100,
@@ -41,12 +45,12 @@ describe("Config Inheritance (integration)", () => {
   });
 
   it("child can override parent config", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: "ovr_root" }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: "ovr_child", parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({ name: "Root", slug: "ovr_root" });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: "ovr_child",
+      parent_id: root.id,
+    });
 
     await stratum.setConfig(root.id, "max_users", {
       value: 100,
@@ -65,12 +69,15 @@ describe("Config Inheritance (integration)", () => {
   });
 
   it("locked config cannot be overridden by child", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: "lock_root" }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: "lock_child", parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: "lock_root",
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: "lock_child",
+      parent_id: root.id,
+    });
 
     await stratum.setConfig(root.id, "max_users", {
       value: 100,
@@ -88,9 +95,10 @@ describe("Config Inheritance (integration)", () => {
   });
 
   it("handles falsy config values correctly", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: "falsy_root" }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: "falsy_root",
+    });
 
     await stratum.setConfig(root.id, "feature_enabled", {
       value: false,

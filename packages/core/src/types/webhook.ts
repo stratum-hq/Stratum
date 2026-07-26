@@ -37,7 +37,10 @@ export const CreateWebhookInputSchema = z.object({
   events: z.array(z.nativeEnum(TenantEvent)).min(1),
   description: z.string().max(255).optional(),
 });
-export type CreateWebhookInput = z.infer<typeof CreateWebhookInputSchema>;
+// The INPUT type (pre-defaults): `tenant_id` carries a Zod default, so it is
+// optional on the caller side. `z.infer` (the output type) would make it
+// required.
+export type CreateWebhookInput = z.input<typeof CreateWebhookInputSchema>;
 
 export const UpdateWebhookInputSchema = z.object({
   url: z.string().url().optional(),
@@ -46,7 +49,7 @@ export const UpdateWebhookInputSchema = z.object({
   active: z.boolean().optional(),
   description: z.string().max(255).optional(),
 });
-export type UpdateWebhookInput = z.infer<typeof UpdateWebhookInputSchema>;
+export type UpdateWebhookInput = z.input<typeof UpdateWebhookInputSchema>;
 
 export const WebhookEventSchema = z.object({
   id: z.string().uuid(),

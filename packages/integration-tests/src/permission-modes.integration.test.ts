@@ -6,8 +6,13 @@ import {
   PermissionLockedError,
   PermissionRevocationDeniedError,
 } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * Permission delegation and revocation semantics against real Postgres:
@@ -33,15 +38,20 @@ describe("permission modes + revocation (integration)", () => {
   });
 
   async function tree(prefix: string) {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: uniqueSlug(`${prefix}r`) }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug(`${prefix}c`), parent_id: root.id }),
-    );
-    const grand = await stratum.createTenant(
-      tenantInput({ name: "Grand", slug: uniqueSlug(`${prefix}g`), parent_id: child.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug(`${prefix}r`),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug(`${prefix}c`),
+      parent_id: root.id,
+    });
+    const grand = await stratum.createTenant({
+      name: "Grand",
+      slug: uniqueSlug(`${prefix}g`),
+      parent_id: child.id,
+    });
     return { root, child, grand };
   }
 
@@ -81,16 +91,28 @@ describe("permission modes + revocation (integration)", () => {
   });
 
   it("resolves LOCKED / DELEGATED / INHERITED into the right flags", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("flag") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("flag"),
+    });
 
     await stratum.createPermission(t.id, {
-      key: "k:locked", value: true, mode: PermissionMode.LOCKED, revocation_mode: RevocationMode.CASCADE,
+      key: "k:locked",
+      value: true,
+      mode: PermissionMode.LOCKED,
+      revocation_mode: RevocationMode.CASCADE,
     });
     await stratum.createPermission(t.id, {
-      key: "k:delegated", value: true, mode: PermissionMode.DELEGATED, revocation_mode: RevocationMode.CASCADE,
+      key: "k:delegated",
+      value: true,
+      mode: PermissionMode.DELEGATED,
+      revocation_mode: RevocationMode.CASCADE,
     });
     await stratum.createPermission(t.id, {
-      key: "k:inherited", value: true, mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+      key: "k:inherited",
+      value: true,
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
     });
 
     const r = await stratum.resolvePermissions(t.id);
@@ -102,7 +124,10 @@ describe("permission modes + revocation (integration)", () => {
   it("propagates a root LOCKED permission down to a grandchild in resolution", async () => {
     const { root, grand } = await tree("prop");
     await stratum.createPermission(root.id, {
-      key: "billing:admin", value: true, mode: PermissionMode.LOCKED, revocation_mode: RevocationMode.CASCADE,
+      key: "billing:admin",
+      value: true,
+      mode: PermissionMode.LOCKED,
+      revocation_mode: RevocationMode.CASCADE,
     });
 
     const resolved = await stratum.resolvePermissions(grand.id);
@@ -115,10 +140,16 @@ describe("permission modes + revocation (integration)", () => {
   it("nearest ancestor wins when the same INHERITED key is set at two levels", async () => {
     const { root, child, grand } = await tree("near");
     await stratum.createPermission(root.id, {
-      key: "k", value: "root", mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+      key: "k",
+      value: "root",
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
     });
     await stratum.createPermission(child.id, {
-      key: "k", value: "child", mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+      key: "k",
+      value: "child",
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
     });
 
     const resolved = await stratum.resolvePermissions(grand.id);
@@ -127,13 +158,22 @@ describe("permission modes + revocation (integration)", () => {
   });
 
   it("rejects a duplicate key on the same tenant (UNIQUE tenant_id, key)", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("dup") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("dup"),
+    });
     await stratum.createPermission(t.id, {
-      key: "k", value: true, mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+      key: "k",
+      value: true,
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
     });
     await expect(
       stratum.createPermission(t.id, {
-        key: "k", value: true, mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+        key: "k",
+        value: true,
+        mode: PermissionMode.INHERITED,
+        revocation_mode: RevocationMode.CASCADE,
       }),
     ).rejects.toThrow();
     const count = await getPool().query<{ n: string }>(
@@ -144,26 +184,40 @@ describe("permission modes + revocation (integration)", () => {
   });
 
   it("refuses to revoke a PERMANENT permission and leaves it in place", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("perm") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("perm"),
+    });
     const policy = await stratum.createPermission(t.id, {
-      key: "audit:immutable", value: true, mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.PERMANENT,
+      key: "audit:immutable",
+      value: true,
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.PERMANENT,
     });
 
     await expect(stratum.deletePermission(t.id, policy.id)).rejects.toThrow(
       PermissionRevocationDeniedError,
     );
     // Still present.
-    expect((await stratum.resolvePermissions(t.id))["audit:immutable"]).toBeDefined();
+    expect(
+      (await stratum.resolvePermissions(t.id))["audit:immutable"],
+    ).toBeDefined();
   });
 
   it("SOFT revocation drops only the target policy, leaving a descendant's own copy intact", async () => {
     const { root, child } = await tree("soft");
 
     const rootPolicy = await stratum.createPermission(root.id, {
-      key: "k", value: "root", mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.SOFT,
+      key: "k",
+      value: "root",
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.SOFT,
     });
     await stratum.createPermission(child.id, {
-      key: "k", value: "child", mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+      key: "k",
+      value: "child",
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
     });
 
     await stratum.deletePermission(root.id, rootPolicy.id);

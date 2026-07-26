@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 /**
  * getDescendants scoping across the three tenant states — active, archived
@@ -35,21 +39,27 @@ describe("getDescendants states (integration)", () => {
    *   └─ soft_deleted  (status='archived', deleted_at set, via deleteTenant)
    */
   async function seedTree() {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: "root_d" }),
-    );
-    const active = await stratum.createTenant(
-      tenantInput({ name: "Active", slug: "active_d", parent_id: root.id }),
-    );
-    const grandchild = await stratum.createTenant(
-      tenantInput({ name: "Grandchild", slug: "grand_d", parent_id: active.id }),
-    );
-    const archived = await stratum.createTenant(
-      tenantInput({ name: "Archived", slug: "archived_d", parent_id: root.id }),
-    );
-    const softDeleted = await stratum.createTenant(
-      tenantInput({ name: "Soft", slug: "soft_d", parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({ name: "Root", slug: "root_d" });
+    const active = await stratum.createTenant({
+      name: "Active",
+      slug: "active_d",
+      parent_id: root.id,
+    });
+    const grandchild = await stratum.createTenant({
+      name: "Grandchild",
+      slug: "grand_d",
+      parent_id: active.id,
+    });
+    const archived = await stratum.createTenant({
+      name: "Archived",
+      slug: "archived_d",
+      parent_id: root.id,
+    });
+    const softDeleted = await stratum.createTenant({
+      name: "Soft",
+      slug: "soft_d",
+      parent_id: root.id,
+    });
 
     // Archived-but-not-deleted: no app method sets this, so drive it directly.
     await getPool().query(
@@ -73,7 +83,8 @@ describe("getDescendants states (integration)", () => {
   });
 
   it("includes every state when includeArchived is true", async () => {
-    const { active, grandchild, archived, softDeleted, root } = await seedTree();
+    const { active, grandchild, archived, softDeleted, root } =
+      await seedTree();
 
     const all = await stratum.getDescendants(root.id, true);
     const ids = all.map((d) => d.id).sort();

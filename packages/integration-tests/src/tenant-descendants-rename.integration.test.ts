@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 /**
  * getDescendants is the subtree-scoping primitive (GDPR purge, billing,
@@ -31,18 +35,25 @@ describe("getDescendants after slug rename (integration)", () => {
   });
 
   async function buildTree(prefix: string) {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: `${prefix}_root` }),
-    );
-    const mid = await stratum.createTenant(
-      tenantInput({ name: "Mid", slug: `${prefix}_mid`, parent_id: root.id }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: `${prefix}_child`, parent_id: mid.id }),
-    );
-    const grand = await stratum.createTenant(
-      tenantInput({ name: "Grand", slug: `${prefix}_grand`, parent_id: child.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: `${prefix}_root`,
+    });
+    const mid = await stratum.createTenant({
+      name: "Mid",
+      slug: `${prefix}_mid`,
+      parent_id: root.id,
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: `${prefix}_child`,
+      parent_id: mid.id,
+    });
+    const grand = await stratum.createTenant({
+      name: "Grand",
+      slug: `${prefix}_grand`,
+      parent_id: child.id,
+    });
     return { root, mid, child, grand };
   }
 

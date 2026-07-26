@@ -7,8 +7,13 @@ import {
   TenantHasChildrenError,
   TenantNotFoundError,
 } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * First-class tenant lifecycle against a real database (FR-58, #142):
@@ -40,11 +45,13 @@ describe("Tenant lifecycle transitions (integration)", () => {
   });
 
   const root = (slug?: string) =>
-    stratum.createTenant(tenantInput({ name: "Root", slug: slug ?? uniqueSlug("root") }));
+    stratum.createTenant({ name: "Root", slug: slug ?? uniqueSlug("root") });
   const child = (parentId: string, slug?: string) =>
-    stratum.createTenant(
-      tenantInput({ name: "Child", slug: slug ?? uniqueSlug("child"), parent_id: parentId }),
-    );
+    stratum.createTenant({
+      name: "Child",
+      slug: slug ?? uniqueSlug("child"),
+      parent_id: parentId,
+    });
 
   // Read status/deleted_at straight from the row, bypassing getTenant's guards.
   async function statusOf(id: string): Promise<string | null> {
@@ -113,18 +120,26 @@ describe("Tenant lifecycle transitions (integration)", () => {
     const t = await root();
 
     // resume an active tenant
-    await expect(stratum.resumeTenant(t.id)).rejects.toThrow(InvalidTenantStateError);
+    await expect(stratum.resumeTenant(t.id)).rejects.toThrow(
+      InvalidTenantStateError,
+    );
 
     await stratum.suspendTenant(t.id);
     // suspend an already-suspended tenant
-    await expect(stratum.suspendTenant(t.id)).rejects.toThrow(InvalidTenantStateError);
+    await expect(stratum.suspendTenant(t.id)).rejects.toThrow(
+      InvalidTenantStateError,
+    );
 
     await stratum.resumeTenant(t.id);
     await stratum.archiveTenant(t.id);
     // archive an already-archived tenant
-    await expect(stratum.archiveTenant(t.id)).rejects.toThrow(InvalidTenantStateError);
+    await expect(stratum.archiveTenant(t.id)).rejects.toThrow(
+      InvalidTenantStateError,
+    );
     // suspend an archived tenant
-    await expect(stratum.suspendTenant(t.id)).rejects.toThrow(InvalidTenantStateError);
+    await expect(stratum.suspendTenant(t.id)).rejects.toThrow(
+      InvalidTenantStateError,
+    );
   });
 
   // --- Descendant semantics: destructive ops block, they never cascade. ------
@@ -133,7 +148,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
     const r = await root();
     const c = await child(r.id);
 
-    await expect(stratum.suspendTenant(r.id)).rejects.toThrow(TenantHasChildrenError);
+    await expect(stratum.suspendTenant(r.id)).rejects.toThrow(
+      TenantHasChildrenError,
+    );
     expect(await statusOf(r.id)).toBe("active"); // parent untouched, no cascade
 
     // Leaf-first succeeds and does not touch the ancestor's state.
@@ -146,7 +163,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
   it("archive is blocked when the tenant has active children", async () => {
     const r = await root();
     await child(r.id);
-    await expect(stratum.archiveTenant(r.id)).rejects.toThrow(TenantHasChildrenError);
+    await expect(stratum.archiveTenant(r.id)).rejects.toThrow(
+      TenantHasChildrenError,
+    );
     expect(await statusOf(r.id)).toBe("active");
   });
 
@@ -158,7 +177,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
     await stratum.archiveTenant(r.id);
 
     // Child cannot come back while its parent is archived.
-    await expect(stratum.resumeTenant(c.id)).rejects.toThrow(TenantArchivedError);
+    await expect(stratum.resumeTenant(c.id)).rejects.toThrow(
+      TenantArchivedError,
+    );
 
     // Parent first, then child.
     await stratum.resumeTenant(r.id);
@@ -173,7 +194,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
     await stratum.archiveTenant(c.id); // clear the parent's active children
     await stratum.suspendTenant(r.id);
 
-    await expect(stratum.resumeTenant(c.id)).rejects.toThrow(TenantSuspendedError);
+    await expect(stratum.resumeTenant(c.id)).rejects.toThrow(
+      TenantSuspendedError,
+    );
   });
 
   it("cannot create a child under a non-active parent", async () => {
@@ -204,6 +227,8 @@ describe("Tenant lifecycle transitions (integration)", () => {
     expect(await statusOf(r.id)).toBeNull();
 
     // Irreversible: nothing left to resume.
-    await expect(stratum.resumeTenant(r.id)).rejects.toThrow(TenantNotFoundError);
+    await expect(stratum.resumeTenant(r.id)).rejects.toThrow(
+      TenantNotFoundError,
+    );
   });
 });

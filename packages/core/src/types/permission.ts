@@ -43,7 +43,10 @@ export const CreatePermissionInputSchema = z.object({
     .default(RevocationMode.CASCADE),
 });
 
-export type CreatePermissionInput = z.infer<typeof CreatePermissionInputSchema>;
+// The INPUT type (pre-defaults): `value`, `mode`, and `revocation_mode` carry
+// Zod defaults, so they are optional on the caller side. `z.infer` (the output
+// type) would make them required.
+export type CreatePermissionInput = z.input<typeof CreatePermissionInputSchema>;
 
 export const UpdatePermissionInputSchema = z.object({
   value: z.unknown().optional(),
@@ -51,4 +54,4 @@ export const UpdatePermissionInputSchema = z.object({
   revocation_mode: z.nativeEnum(RevocationMode).optional(),
 });
 
-export type UpdatePermissionInput = z.infer<typeof UpdatePermissionInputSchema>;
+export type UpdatePermissionInput = z.input<typeof UpdatePermissionInputSchema>;

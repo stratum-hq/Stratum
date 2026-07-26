@@ -48,7 +48,7 @@ export const UsageAggregateQuerySchema = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
 });
-export type UsageAggregateQuery = z.infer<typeof UsageAggregateQuerySchema>;
+export type UsageAggregateQuery = z.input<typeof UsageAggregateQuerySchema>;
 
 export interface UsageAggregate {
   metric: string;

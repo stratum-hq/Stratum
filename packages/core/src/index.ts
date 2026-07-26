@@ -100,6 +100,7 @@ export {
   SetConfigInputSchema,
   type ConfigEntry,
   type SetConfigInput,
+  type BatchSetConfigEntry,
   type ResolvedConfigEntry,
   type ResolvedConfig,
   type BatchSetConfigKeyResult,

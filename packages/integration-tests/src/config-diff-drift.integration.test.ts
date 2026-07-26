@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * diffConfig / computeDrift / batchComputeDrift / getConfigWithInheritance are
@@ -32,10 +37,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
   // --- getConfigWithInheritance ---
 
   it("getConfigWithInheritance resolves the nearest ancestor value and marks it inherited", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("gcr") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug("gcc"), parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("gcr"),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug("gcc"),
+      parent_id: root.id,
+    });
     await set(root.id, "theme", "dark");
     await set(child.id, "own", "x");
 
@@ -48,10 +58,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
   });
 
   it("getConfigWithInheritance shows the ancestor's locked value over a child's own row", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("glr") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug("glc"), parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("glr"),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug("glc"),
+      parent_id: root.id,
+    });
     await set(child.id, "rate", 5); // child sets it first...
     await set(root.id, "rate", 10, /* locked */ true); // ...then the parent locks it
 
@@ -63,8 +78,8 @@ describe("config diff & drift against real Postgres (integration)", () => {
   // --- diffConfig ---
 
   it("diffConfig reports a key present on only one side and sorts keys", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("da") }));
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: uniqueSlug("db") }));
+    const a = await stratum.createTenant({ name: "A", slug: uniqueSlug("da") });
+    const b = await stratum.createTenant({ name: "B", slug: uniqueSlug("db") });
     await set(a.id, "zebra", 1);
     await set(a.id, "alpha", 2);
     await set(b.id, "alpha", 3);
@@ -87,10 +102,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
   });
 
   it("diffConfig labels an inherited value 'inherited' and a locked one 'locked'", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("dir") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug("dic"), parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("dir"),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug("dic"),
+      parent_id: root.id,
+    });
     await set(root.id, "inherited_key", "v");
     await set(root.id, "locked_key", "L", /* locked */ true);
 
@@ -105,10 +125,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
   // --- computeDrift ---
 
   it("reports 'ok' with no overrides when the child inherits everything", async () => {
-    const parent = await stratum.createTenant(tenantInput({ name: "P", slug: uniqueSlug("dokp") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "C", slug: uniqueSlug("dokc"), parent_id: parent.id }),
-    );
+    const parent = await stratum.createTenant({
+      name: "P",
+      slug: uniqueSlug("dokp"),
+    });
+    const child = await stratum.createTenant({
+      name: "C",
+      slug: uniqueSlug("dokc"),
+      parent_id: parent.id,
+    });
     await set(parent.id, "a", 1);
     await set(parent.id, "b", 2);
 
@@ -121,10 +146,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
   });
 
   it("reports 'override' when the child sets its own differing value for an unlocked key", async () => {
-    const parent = await stratum.createTenant(tenantInput({ name: "P", slug: uniqueSlug("dovp") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "C", slug: uniqueSlug("dovc"), parent_id: parent.id }),
-    );
+    const parent = await stratum.createTenant({
+      name: "P",
+      slug: uniqueSlug("dovp"),
+    });
+    const child = await stratum.createTenant({
+      name: "C",
+      slug: uniqueSlug("dovc"),
+      parent_id: parent.id,
+    });
     await set(parent.id, "tier", "gold");
     await set(parent.id, "shared", "same");
     await set(child.id, "tier", "platinum"); // override
@@ -144,8 +174,14 @@ describe("config diff & drift against real Postgres (integration)", () => {
     // computeDrift accepts any two tenants. For two unrelated roots the child
     // does not inherit the parent's keys, so a parent-only key shows as missing
     // and a child-only key as override. missing (rank 2) outranks override.
-    const parent = await stratum.createTenant(tenantInput({ name: "P", slug: uniqueSlug("dmp") }));
-    const other = await stratum.createTenant(tenantInput({ name: "O", slug: uniqueSlug("dmo") }));
+    const parent = await stratum.createTenant({
+      name: "P",
+      slug: uniqueSlug("dmp"),
+    });
+    const other = await stratum.createTenant({
+      name: "O",
+      slug: uniqueSlug("dmo"),
+    });
     await set(parent.id, "only_parent", 1);
     await set(other.id, "only_child", 2);
 
@@ -161,10 +197,15 @@ describe("config diff & drift against real Postgres (integration)", () => {
     // the child never presents a differing own value while the parent is locked.
     // The 'conflict' drift status is therefore not reachable through the public
     // API; a locked key surfaces as 'ok' with details[].locked === true.
-    const parent = await stratum.createTenant(tenantInput({ name: "P", slug: uniqueSlug("dlp") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "C", slug: uniqueSlug("dlc"), parent_id: parent.id }),
-    );
+    const parent = await stratum.createTenant({
+      name: "P",
+      slug: uniqueSlug("dlp"),
+    });
+    const child = await stratum.createTenant({
+      name: "C",
+      slug: uniqueSlug("dlc"),
+      parent_id: parent.id,
+    });
     await set(parent.id, "policy", "strict", /* locked */ true);
 
     const drift = await stratum.computeDrift(parent.id, child.id);
@@ -176,22 +217,34 @@ describe("config diff & drift against real Postgres (integration)", () => {
   // --- batchComputeDrift ---
 
   it("batchComputeDrift aggregates per-child drift into a summary", async () => {
-    const parent = await stratum.createTenant(tenantInput({ name: "P", slug: uniqueSlug("bdp") }));
-    const clean = await stratum.createTenant(
-      tenantInput({ name: "Clean", slug: uniqueSlug("bdclean"), parent_id: parent.id }),
-    );
-    const drifted = await stratum.createTenant(
-      tenantInput({ name: "Drift", slug: uniqueSlug("bddrift"), parent_id: parent.id }),
-    );
+    const parent = await stratum.createTenant({
+      name: "P",
+      slug: uniqueSlug("bdp"),
+    });
+    const clean = await stratum.createTenant({
+      name: "Clean",
+      slug: uniqueSlug("bdclean"),
+      parent_id: parent.id,
+    });
+    const drifted = await stratum.createTenant({
+      name: "Drift",
+      slug: uniqueSlug("bddrift"),
+      parent_id: parent.id,
+    });
     await set(parent.id, "flag", "on");
     await set(drifted.id, "flag", "off"); // this child overrides
 
-    const batch = await stratum.batchComputeDrift(parent.id, [clean.id, drifted.id]);
+    const batch = await stratum.batchComputeDrift(parent.id, [
+      clean.id,
+      drifted.id,
+    ]);
 
     expect(batch.parent_id).toBe(parent.id);
     expect(batch.results).toHaveLength(2);
     expect(batch.summary.ok).toBe(1);
     expect(batch.summary.override).toBe(1);
-    expect(batch.results.find((r) => r.tenant_id === drifted.id)!.status).toBe("override");
+    expect(batch.results.find((r) => r.tenant_id === drifted.id)!.status).toBe(
+      "override",
+    );
   });
 });

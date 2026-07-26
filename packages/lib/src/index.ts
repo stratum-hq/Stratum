@@ -62,6 +62,7 @@ export type {
   PaginatedResult,
   ConfigEntry,
   SetConfigInput,
+  BatchSetConfigEntry,
   ResolvedConfigEntry,
   ResolvedConfig,
   PermissionPolicy,
