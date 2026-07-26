@@ -96,6 +96,77 @@ describe("audit-write API against real Postgres (integration)", () => {
     expect(row.metadata).toEqual({});
   });
 
+  it("stamps created_at from an explicit occurredAt (backdated / historical seed)", async () => {
+    const tenant = await stratum.createTenant(
+      tenantInput({ name: "Backdate", slug: uniqueSlug("awbd") }),
+      actor,
+    );
+
+    const occurredAt = "2020-03-15T12:34:56.000Z";
+    const entry = await stratum.recordAuditEvent({
+      tenantId: tenant.id,
+      actorId: "importer",
+      action: "legacy.imported",
+      resourceType: "record",
+      resourceId: "old-1",
+      occurredAt,
+    });
+
+    // Returned row carries the backdated stamp, not now().
+    expect(new Date(entry.created_at).getTime()).toBe(
+      new Date(occurredAt).getTime(),
+    );
+
+    const [row] = await stratum.queryAuditLogs({
+      tenant_id: tenant.id,
+      action: "legacy.imported",
+      limit: 10,
+    });
+    expect(new Date(row.created_at).getTime()).toBe(
+      new Date(occurredAt).getTime(),
+    );
+  });
+
+  it("defaults created_at to ~now when occurredAt is omitted (backward compatible)", async () => {
+    const tenant = await stratum.createTenant(
+      tenantInput({ name: "NowDefault", slug: uniqueSlug("awn") }),
+      actor,
+    );
+
+    const before = Date.now();
+    const entry = await stratum.recordAuditEvent({
+      tenantId: tenant.id,
+      actorId: "svc",
+      action: "thing.now",
+      resourceType: "thing",
+      resourceId: null,
+    });
+    const after = Date.now();
+
+    const stamped = new Date(entry.created_at).getTime();
+    // now() lands within the call window (allow small clock skew each side).
+    expect(stamped).toBeGreaterThanOrEqual(before - 1000);
+    expect(stamped).toBeLessThanOrEqual(after + 1000);
+  });
+
+  it("rejects an invalid occurredAt before touching the database", async () => {
+    const tenant = await stratum.createTenant(
+      tenantInput({ name: "BadTs", slug: uniqueSlug("awt") }),
+      actor,
+    );
+
+    await expect(
+      stratum.recordAuditEvent({
+        tenantId: tenant.id,
+        actorId: "user-1",
+        action: "x",
+        resourceType: "y",
+        resourceId: null,
+        occurredAt: "not-a-timestamp",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("rejects an invalid source_ip via the INET column type", async () => {
     const tenant = await stratum.createTenant(
       tenantInput({ name: "BadIp", slug: uniqueSlug("awi") }),

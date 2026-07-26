@@ -1,13 +1,13 @@
 ---
 title: Multi-Tenancy with Drizzle ORM
-description: Add automatic tenant isolation to Drizzle ORM using PostgreSQL Row-Level Security and Stratum's withTenant wrapper.
+description: Add automatic tenant isolation to Drizzle ORM using PostgreSQL Row-Level Security and Stratum's drizzleWithTenant wrapper.
 ---
 
 import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 Drizzle ORM does not have built-in multi-tenancy support. The standard approach is to add `.where(eq(orders.tenantId, currentTenantId))` to every query. This is error-prone: miss one query and you have a cross-tenant data leak.
 
-Stratum's `withTenant()` wrapper for Drizzle takes a different approach. It wraps every `execute()` and `transaction()` call so that PostgreSQL's Row-Level Security handles tenant isolation at the database level. No manual `.where()` filters needed.
+Stratum's `drizzleWithTenant()` wrapper for Drizzle takes a different approach. It wraps every `execute()` and `transaction()` call so that PostgreSQL's Row-Level Security handles tenant isolation at the database level. No manual `.where()` filters needed.
 
 ## The Problem
 
@@ -47,13 +47,13 @@ Stratum's Drizzle adapter wraps `execute()` and `transaction()` to inject a `set
 ```typescript
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { drizzleWithTenant } from "@stratum-hq/db-adapters";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool);
 
 // Wrap the Drizzle instance for tenant-scoped queries
-const tenantDb = withTenant(db, () => currentTenantId, pool);
+const tenantDb = drizzleWithTenant(db, () => currentTenantId, pool);
 
 // No .where() needed -- RLS handles isolation
 const orders = await tenantDb.execute(
@@ -62,9 +62,9 @@ const orders = await tenantDb.execute(
 ```
 
 <Aside type="note">
-  The `withTenant` function was previously named `withTenantScope`. The old name
-  still works as a deprecated alias, but new code should use `withTenant` for
-  consistency with the Prisma adapter.
+  The `drizzleWithTenant` function was previously named `drizzleWithTenantScope`.
+  The old name still works as a deprecated alias, but new code should use
+  `drizzleWithTenant` for consistency with the Prisma adapter (`prismaWithTenant`).
 </Aside>
 
 ## Full Walkthrough
@@ -163,7 +163,7 @@ import express from "express";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Stratum } from "@stratum-hq/lib";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { drizzleWithTenant } from "@stratum-hq/db-adapters";
 import { orders } from "./schema.js";
 
 const app = express();
@@ -185,7 +185,7 @@ app.use(async (req, res, next) => {
     return;
   }
 
-  req.tenantDb = withTenant(db, () => tenantId, pool);
+  req.tenantDb = drizzleWithTenant(db, () => tenantId, pool);
   req.tenantId = tenantId;
   next();
 });
@@ -282,7 +282,7 @@ When `contextFn` returns an empty string, the adapter throws an error rather tha
 The adapter throws a clear error if no tenant context is available:
 
 ```typescript
-const tenantDb = withTenant(db, () => "", pool);
+const tenantDb = drizzleWithTenant(db, () => "", pool);
 
 // Throws: "Tenant context is required for database operations.
 //          Use the unwrapped instance for system/admin operations."

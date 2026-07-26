@@ -172,9 +172,9 @@ Tenant slugs must match the pattern `^[a-z][a-z0-9_]{0,62}$`:
 
 Slugs must be unique across the entire system. They form part of the `ancestry_ltree` path and are used in PostgreSQL subtree queries.
 
-## Tree Depth Limit
+## Tree Depth
 
-The maximum tree depth is 20 levels (configurable via `MAX_TREE_DEPTH` in `@stratum-hq/core`). Attempting to create a tenant that would exceed this depth returns a validation error.
+Stratum does not enforce a maximum tree depth; tenants can nest as deeply as your data requires. Ancestry and subtree queries walk the full `ancestry_ltree` path, so very deep hierarchies cost more per query; keep nesting reasonable for your workload.
 
 ## Concurrency Safety
 
