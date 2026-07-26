@@ -48,7 +48,7 @@ await stratum.createPermission(rootId, {
   mode: "LOCKED",
 });
 
-// Child tries to override — blocked
+// Child tries to override: blocked
 // The child resolves manage_billing = true, locked = true
 ```
 
@@ -100,7 +100,7 @@ The revocation mode controls what happens when a permission is deleted:
 |------|----------|
 | `CASCADE` | Deleting the permission removes it from the creating tenant **and all descendants** |
 | `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
-| `PERMANENT` | The permission cannot be deleted — returns `403 PERMISSION_REVOCATION_DENIED` |
+| `PERMANENT` | The permission cannot be deleted. Returns `403 PERMISSION_REVOCATION_DENIED` |
 
 ### CASCADE Example
 
@@ -112,7 +112,7 @@ await stratum.createPermission(rootId, {
   revocation_mode: "CASCADE",
 });
 
-// Later, revoke it — removed from root AND all descendants
+// Later, revoke it: removed from root AND all descendants
 await stratum.deletePermission(rootId, policyId);
 ```
 

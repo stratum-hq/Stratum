@@ -1,5 +1,5 @@
 ---
-// Playground.astro — browser-based Stratum playground
+// Playground.astro: browser-based Stratum playground
 // Uses PGlite (WASM Postgres) + CodeMirror, no server required
 ---
 
@@ -29,8 +29,8 @@
 <style>
   .playground {
     width: 100%;
-    background: var(--surface-1, #1A1815);
-    border: 1px solid var(--border, #2A2725);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
     overflow: hidden;
     display: flex;
@@ -45,8 +45,8 @@
     display: flex;
     align-items: stretch;
     gap: 0;
-    background: var(--surface-0, #0F0E0C);
-    border-bottom: 1px solid var(--border, #2A2725);
+    background: var(--surface-0);
+    border-bottom: 1px solid var(--border);
     overflow-x: auto;
     scrollbar-width: none;
     flex-shrink: 0;
@@ -65,7 +65,7 @@
     padding: 10px 18px !important;
     border: none !important;
     border-bottom: 2px solid transparent !important;
-    color: var(--text-secondary, #A39E95);
+    color: var(--text-secondary);
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
     font-size: 0.8125rem;
     font-weight: 500;
@@ -77,17 +77,17 @@
   }
 
   .tab:hover {
-    color: var(--text-primary, #E8E2D9);
+    color: var(--text-primary);
   }
 
   .tab.active {
-    color: var(--accent, #C05746);
-    border-bottom: 2px solid var(--accent, #C05746) !important;
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent) !important;
     font-weight: 600;
   }
 
   .tab:focus-visible {
-    outline: 2px solid var(--accent, #C05746);
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
     border-radius: var(--radius-sm, 4px);
   }
@@ -102,9 +102,9 @@
 
   .playground-editor {
     width: 55%;
-    border-right: 1px solid var(--border, #2A2725);
+    border-right: 1px solid var(--border);
     overflow: hidden;
-    background: var(--code-bg, #161412);
+    background: var(--code-bg);
   }
 
   /* CodeMirror overrides */
@@ -122,7 +122,7 @@
     width: 45%;
     display: flex;
     flex-direction: column;
-    background: var(--surface-0, #0F0E0C);
+    background: var(--surface-0);
     overflow: hidden;
   }
 
@@ -131,8 +131,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 16px;
-    border-bottom: 1px solid var(--border, #2A2725);
-    background: var(--surface-1, #1A1815);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
     flex-shrink: 0;
   }
 
@@ -141,7 +141,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: var(--text-secondary, #A39E95);
+    color: var(--text-secondary);
   }
 
   .playground-actions {
@@ -173,17 +173,17 @@
   }
 
   .run-btn {
-    background: var(--accent, #C05746) !important;
-    color: #fff !important;
+    background: var(--accent) !important;
+    color: var(--on-accent) !important;
     border: 1px solid transparent !important;
   }
 
   .run-btn:hover {
-    background: var(--accent-hover, #D4654E) !important;
+    background: var(--accent-hover) !important;
   }
 
   .run-btn:active {
-    background: #A84535 !important;
+    background: var(--accent) !important;
   }
 
   .run-btn:disabled {
@@ -193,19 +193,19 @@
 
   .run-btn:focus-visible,
   .reset-btn:focus-visible {
-    outline: 2px solid var(--accent, #C05746);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
   .reset-btn {
     background: transparent !important;
-    color: var(--text-secondary, #A39E95) !important;
-    border: 1px solid var(--border-hover, #3D3935) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-hover) !important;
   }
 
   .reset-btn:hover {
-    color: var(--text-primary, #E8E2D9) !important;
-    border-color: var(--text-tertiary, #6B6560) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--text-tertiary) !important;
     outline-offset: 2px;
   }
 
@@ -217,39 +217,39 @@
     font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
     font-size: 0.8125rem;
     line-height: 1.6;
-    color: var(--sandstone, #C4A882);
+    color: var(--sandstone);
     white-space: pre-wrap;
     word-break: break-word;
-    background: var(--surface-0, #0F0E0C);
+    background: var(--surface-0);
   }
 
   .output-pre .output-error {
-    color: #E07060;
+    color: var(--error);
   }
 
   .output-pre .output-dim {
-    color: var(--text-tertiary, #6B6560);
+    color: var(--text-tertiary);
   }
 
   .playground-status {
     padding: 10px 24px;
     font-size: 0.75rem;
-    color: var(--text-tertiary, #6B6560);
-    background: var(--surface-0, #0F0E0C);
-    border-top: 1px solid var(--border, #2A2725);
+    color: var(--text-tertiary);
+    background: var(--surface-0);
+    border-top: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   .playground-status.status-ready {
-    color: #5B8C5A;
+    color: var(--success);
   }
 
   .playground-status.status-error {
-    color: #E07060;
+    color: var(--error);
   }
 
   .playground-status.status-running {
-    color: var(--sandstone, #C4A882);
+    color: var(--sandstone);
   }
 
   /* Loading overlay */
@@ -258,7 +258,7 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: var(--text-tertiary, #6B6560);
+    color: var(--text-tertiary);
     font-size: 0.875rem;
   }
 
@@ -271,7 +271,7 @@
     .playground-editor {
       width: 100%;
       border-right: none;
-      border-bottom: 1px solid var(--border, #2A2725);
+      border-bottom: 1px solid var(--border);
       min-height: 320px;
     }
 
@@ -379,7 +379,7 @@ console.log("Tenant after purge:", check ? "STILL EXISTS (error!)" : "Gone (corr
 };
 
 // ---------------------------------------------------------------------------
-// Patched migrations — all 17, with patches applied:
+// Patched migrations, all 17, with patches applied:
 //   1. uuid-ossp DO block removed
 //   2. ltree DO block replaced with direct CREATE EXTENSION
 //   3. BYPASSRLS warning DO block removed
@@ -642,7 +642,7 @@ CREATE INDEX IF NOT EXISTS idx_regions_status ON regions(status);
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES regions(id);
 CREATE INDEX IF NOT EXISTS idx_tenants_region ON tenants(region_id);`,
 
-  // 011_demo_bootstrap.sql — no-op (demo data seeded separately)
+  // 011_demo_bootstrap.sql: no-op (demo data seeded separately)
   `-- 011_demo_bootstrap: no-op in playground`,
 
   // 012_roles.sql
@@ -671,7 +671,7 @@ CREATE INDEX IF NOT EXISTS idx_tenant_sort_order ON tenants(parent_id, sort_orde
   // 015_region_url_encryption.sql
   `ALTER TABLE regions RENAME COLUMN database_url TO database_url_encrypted;`,
 
-  // 016_migration_alias.sql — needs _migrations table
+  // 016_migration_alias.sql: needs _migrations table
   `CREATE TABLE IF NOT EXISTS _migrations (
   name TEXT PRIMARY KEY,
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -703,7 +703,7 @@ CREATE INDEX IF NOT EXISTS idx_abac_policies_resource_action ON abac_policies(re
 ];
 
 // ---------------------------------------------------------------------------
-// Stratum helpers — mirror the Stratum API surface over raw PGlite SQL
+// Stratum helpers: mirror the Stratum API surface over raw PGlite SQL
 // ---------------------------------------------------------------------------
 
 function createStratumHelpers(db) {
@@ -837,7 +837,7 @@ function createEditor(parent, initialCode) {
       EditorView.theme({
         '&': {
           height: '100%',
-          backgroundColor: 'var(--code-bg, #161412)',
+          backgroundColor: 'var(--code-bg)',
         },
         '.cm-scroller': {
           fontFamily: 'var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace)',
@@ -848,12 +848,12 @@ function createEditor(parent, initialCode) {
           padding: '16px 0',
         },
         '.cm-gutters': {
-          backgroundColor: 'var(--code-bg, #161412)',
-          borderRight: '1px solid var(--border, #2A2725)',
-          color: 'var(--text-tertiary, #6B6560)',
+          backgroundColor: 'var(--code-bg)',
+          borderRight: '1px solid var(--border)',
+          color: 'var(--text-tertiary)',
         },
         '.cm-activeLineGutter': {
-          backgroundColor: 'var(--surface-2, #252220)',
+          backgroundColor: 'var(--surface-2)',
         },
         '.cm-activeLine': {
           backgroundColor: 'rgba(255,255,255,0.03)',
