@@ -21,8 +21,8 @@ COPY packages/db-adapters/ packages/db-adapters/
 COPY packages/control-plane/ packages/control-plane/
 COPY tsconfig.base.json ./
 RUN npm run build --workspace=@stratum-hq/core && \
-    npm run build --workspace=@stratum-hq/lib && \
     npm run build --workspace=@stratum-hq/db-adapters && \
+    npm run build --workspace=@stratum-hq/lib && \
     npm run build --workspace=@stratum-hq/control-plane
 
 FROM node:20-alpine AS runner
@@ -49,7 +49,6 @@ COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/lib/dist ./packages/lib/dist
 COPY --from=builder /app/packages/db-adapters/dist ./packages/db-adapters/dist
 COPY --from=builder /app/packages/control-plane/dist ./packages/control-plane/dist
-COPY --from=builder /app/packages/control-plane/src/db/migrations ./packages/control-plane/dist/db/migrations
 
 RUN addgroup -g 1001 stratum && adduser -u 1001 -G stratum -s /bin/sh -D stratum
 USER 1001
