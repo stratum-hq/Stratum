@@ -1,0 +1,155 @@
+/* ==========================================================================
+   Stratum design tokens: THE single source of truth.
+
+   Consumed by both surfaces:
+     landing/src/styles/global.css   (Astro marketing site)
+     website/src/styles/custom.css   (Starlight docs)
+
+   Documented in DESIGN.md at the repo root. Do not hardcode a hex value in
+   either stylesheet. Add or change a value here so the two surfaces resolve
+   the same palette and cannot drift.
+
+   Palette: Core Sample (cool, dark first, one live accent).
+   Type: Archivo (display) / IBM Plex Sans (body) / IBM Plex Mono (structural).
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,600;125,700;125,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* --------------------------------------------------------------------------
+   Dark theme (default). Core Sample.
+   -------------------------------------------------------------------------- */
+:root {
+  /* Core Sample primitives */
+  --basalt: #0B0E13;   /* page canvas: the viewport of an instrument */
+  --core: #141A22;     /* raised surface: cards, code wells, readout panels */
+  --seam: #26313D;     /* the boundary line between two strata */
+  --chalk: #E7EDF4;    /* primary text: chalk on a blueprint */
+  --graphite: #8A97A6; /* secondary text, captions, inactive markers */
+  --signal: #4FE3C1;   /* the one accent: phosphor teal, the live value only */
+  --signal-strong: #6BEBCD;
+  --lock: #E0A64F;     /* functional amber: "sealed / cannot override" only */
+
+  /* Surfaces */
+  --surface-0: var(--basalt);
+  --surface-1: var(--core);
+  --surface-2: #1B222C;
+  --surface-3: #222C38;
+
+  /* Text */
+  --text-primary: var(--chalk);
+  --text-secondary: var(--graphite);
+  --text-tertiary: #5F6B78;
+
+  /* Accent: Signal teal. --accent for UI / large / non text, --accent-text for
+     small accent text and inline links. They diverge only in light mode where
+     Signal must darken to hold the contrast floor. --on-accent is the ink that
+     sits on a Signal fill (teal is a light color, so its label must be dark). */
+  --accent: var(--signal);
+  --accent-hover: var(--signal-strong);
+  --accent-text: var(--signal);
+  --accent-muted: color-mix(in srgb, var(--accent) 14%, transparent);
+  --on-accent: var(--basalt);
+
+  /* Secondary structural tone. Was "sandstone" in the retired warm palette;
+     Core Sample has no second brand hue, so this resolves to neutral graphite. */
+  --sandstone: var(--graphite);
+  --sandstone-muted: color-mix(in srgb, var(--sandstone) 22%, transparent);
+
+  /* Lock: amber. Never a heading color, never decoration. */
+  --lock-muted: color-mix(in srgb, var(--lock) 16%, transparent);
+
+  /* Boundaries */
+  --border: var(--seam);
+  --border-hover: #34414F;
+
+  /* Code well. Stays dark in both themes: the instrument surface is constant,
+     so a snippet reads the same on the landing page and in a guide. */
+  --code-bg: #0E141B;
+  --code-text: #8A97A6;
+
+  /* Syntax. Theme independent (the well is always dark). Restrained so exactly
+     one thing glows: the resolved value, in Signal teal. */
+  --syntax-keyword: #9B8AC4;   /* muted violet */
+  --syntax-function: #86A0BE;  /* muted slate blue */
+  --syntax-string: #6FB0A0;    /* muted teal green */
+  --syntax-number: #E0A64F;    /* amber */
+  --syntax-comment: #5F6B78;
+  --syntax-accent: #4FE3C1;    /* the resolved value */
+
+  /* Functional status (cool compatible, sparingly used) */
+  --success: #5FB98D;
+  --warning: var(--lock);
+  --error: #E06C79;
+  --info: #6E8CA8;
+
+  /* Type roles */
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* --------------------------------------------------------------------------
+   Light theme: cool "drafting paper", not warm cream. The muted, syntax, code
+   well, warning, and on-accent tokens reference the values above via var(), so
+   they adapt here without being restated.
+   -------------------------------------------------------------------------- */
+[data-theme="light"] {
+  --surface-0: #F4F7FA;
+  --surface-1: #FFFFFF;
+  --surface-2: #E9EEF4;
+  --surface-3: #DCE4EC;
+
+  --text-primary: #0B0E13;
+  --text-secondary: #48555F;
+  --text-tertiary: #6B7784;
+
+  /* Signal darkens on paper. Two tokens hold the WCAG floor:
+     --accent (about 3.8:1) for large / bold / non text UI and buttons,
+     --accent-text (about 5.6:1, AA at body size) for small accent text. */
+  --accent: #0E8C77;
+  --accent-hover: #0A6E5B;
+  --accent-text: #0A6E5B;
+
+  --sandstone: #48555F;
+
+  --lock: #8A5A0F;
+
+  --border: #D2DBE4;
+  --border-hover: #B9C6D2;
+
+  --info: #4E6B87;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
+}

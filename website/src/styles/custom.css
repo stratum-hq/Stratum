@@ -1,123 +1,53 @@
 /* ==========================================================================
-   Stratum Docs — Custom Starlight Theme
-   Design tokens from DESIGN.md — geological warmth palette
+   Stratum Docs: custom Starlight theme.
+
+   Design tokens come from the shared source of truth at assets/tokens.css,
+   documented in DESIGN.md. This file only maps Starlight's --sl-* variables
+   onto those shared tokens and styles docs specific surfaces. Do not hardcode
+   hex here; change or add a token in the shared file so this site and the
+   landing site cannot drift.
+   Palette: Core Sample. Type: Archivo / IBM Plex Sans / IBM Plex Mono.
    ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   Google Fonts — Instrument Sans + JetBrains Mono
-   -------------------------------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('../../../assets/tokens.css');
 
 /* --------------------------------------------------------------------------
-   Starlight CSS variable overrides — dark mode (default)
+   Map Starlight's --sl-* variables onto the shared tokens. Both selectors are
+   listed so this wins over Starlight's own light defaults; the referenced
+   tokens already carry the correct dark and light values, so one set of
+   expressions covers both themes.
    -------------------------------------------------------------------------- */
-:root {
-  /* Accent — terracotta */
-  --sl-color-accent-low: #2A1F1C;
-  --sl-color-accent: #C05746;
-  --sl-color-accent-high: #E8E2D9;
+:root,
+:root[data-theme="light"] {
+  /* Accent: Signal */
+  --sl-color-accent-low: var(--surface-2);
+  --sl-color-accent: var(--accent);
+  --sl-color-accent-high: var(--text-primary);
 
-  /* Surface grays — warm earth, not cool slate */
-  --sl-color-white: #E8E2D9;
-  --sl-color-gray-1: #A39E95;
-  --sl-color-gray-2: #6B6560;
-
-  /* Starlight maps --sl-color-text to gray-2 by default, which is our
-     tertiary (#6B6560) — too dark. Override to gray-1 (#A39E95) to match
-     the landing page body text color (--text-secondary). */
+  /* Gray ramp remapped onto the Basalt / Core / Seam / Chalk / Graphite scale */
+  --sl-color-white: var(--text-primary);
+  --sl-color-gray-1: var(--text-secondary);
+  --sl-color-gray-2: var(--text-tertiary);
   --sl-color-text: var(--sl-color-gray-1);
-  --sl-color-gray-3: #3D3935;
-  --sl-color-gray-4: #2A2725;
-  --sl-color-gray-5: #1A1815;
-  --sl-color-gray-6: #0F0E0C;
-  --sl-color-black: #0F0E0C;
+  --sl-color-gray-3: var(--border-hover);
+  --sl-color-gray-4: var(--border);
+  --sl-color-gray-5: var(--surface-1);
+  --sl-color-gray-6: var(--surface-0);
+  --sl-color-black: var(--surface-0);
 
-  /* Typography */
-  --sl-font: "Instrument Sans", system-ui, sans-serif;
-  --sl-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* Type roles */
+  --sl-font: var(--font-body);
+  --sl-font-mono: var(--font-mono);
   /* Starlight uses --__sl-font-heading internally */
-  --__sl-font-heading: "Instrument Sans", system-ui, sans-serif;
+  --__sl-font-heading: var(--font-display);
 
   /* Body scale */
   --sl-text-body: 1rem;
   --sl-line-height: 1.6;
-
-  /* Design system tokens */
-  --surface-0: #0F0E0C;
-  --surface-1: #1A1815;
-  --surface-2: #252220;
-  --surface-3: #302D2A;
-  --text-primary: #E8E2D9;
-  --text-secondary: #A39E95;
-  --text-tertiary: #6B6560;
-  --accent: #C05746;
-  --accent-hover: #D4654E;
-  --accent-muted: rgba(192, 87, 70, 0.12);
-  --sandstone: #C4A882;
-  --sandstone-muted: rgba(196, 168, 130, 0.25);
-  --border: #2A2725;
-  --border-hover: #3D3935;
-  --code-bg: #161412;
-  --code-text: #C4A882;
-
-  /* Spacing scale */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-6: 24px;
-  --space-8: 32px;
-  --space-12: 48px;
-  --space-16: 64px;
-  --space-24: 96px;
-  --space-32: 128px;
-
-  /* Border radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
-
-  /* Motion */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
-  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
 }
 
-/* --------------------------------------------------------------------------
-   Light mode overrides
-   -------------------------------------------------------------------------- */
-:root[data-theme="light"] {
-  --sl-color-accent-low: #F0EDE8;
-  --sl-color-accent: #A84535;
-  --sl-color-accent-high: #1A1815;
-  --sl-color-white: #1A1815;
-  --sl-color-gray-1: #5C5650;
-  --sl-color-gray-2: #8A847D;
-  --sl-color-text: var(--sl-color-gray-1);
-  --sl-color-gray-3: #C4BDB4;
-  --sl-color-gray-4: #D6D0C8;
-  --sl-color-gray-5: #E5E0DA;
-  --sl-color-gray-6: #FAF8F5;
-  --sl-color-black: #FAF8F5;
-
-  --surface-0: #FAF8F5;
-  --surface-1: #F0EDE8;
-  --surface-2: #E5E0DA;
-  --surface-3: #D6D0C8;
-  --text-primary: #1A1815;
-  --text-secondary: #5C5650;
-  --text-tertiary: #8A847D;
-  --accent: #A84535;
-  --accent-hover: #C05746;
-  --border: #D6D0C8;
-  --border-hover: #C4BDB4;
-  --code-bg: #EDE9E3;
-  --code-text: #7A5C3A;
-}
+/* Light mode values live in the shared token file (assets/tokens.css); the
+   --sl-* map above adapts to them automatically through var(). */
 
 /* --------------------------------------------------------------------------
    Typography — Instrument Sans
@@ -244,9 +174,9 @@ pre code {
 }
 
 /* --------------------------------------------------------------------------
-   Sidebar — compact, warm
-   Starlight sidebar links default to --sl-color-gray-2 (#6B6560, tertiary).
-   Override to gray-1 (#A39E95) to match landing page nav link color.
+   Sidebar: compact.
+   Starlight sidebar links default to --sl-color-gray-2 (tertiary text).
+   Override to gray-1 (secondary text) to match the landing nav link color.
    -------------------------------------------------------------------------- */
 .sidebar-content {
   font-size: 0.875rem;
@@ -290,8 +220,8 @@ nav a[aria-current="page"]:hover {
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 500;
-  background: var(--sandstone-muted);
-  color: var(--sandstone);
+  background: var(--accent-muted);
+  color: var(--accent-text);
 }
 
 .badge-locked {
@@ -302,8 +232,8 @@ nav a[aria-current="page"]:hover {
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 500;
-  background: rgba(196, 162, 68, 0.15);
-  color: #C4A244;
+  background: var(--lock-muted);
+  color: var(--lock);
 }
 
 .badge-own {
@@ -355,14 +285,14 @@ nav a[aria-current="page"]:hover {
    Card icon overrides — dark background, terracotta border + icon
    -------------------------------------------------------------------------- */
 .card .icon {
-  color: #C05746 !important;
-  background: #2A1F1C !important;
-  border: 1px solid #C05746 !important;
+  color: var(--accent) !important;
+  background: var(--accent-muted) !important;
+  border: 1px solid var(--accent) !important;
 }
 .card .icon svg,
 .card svg {
-  fill: #C05746 !important;
-  color: #C05746 !important;
+  fill: var(--accent) !important;
+  color: var(--accent) !important;
 }
 /* Override card border to match design system */
 .card {
@@ -371,6 +301,6 @@ nav a[aria-current="page"]:hover {
 
 /* Hero action buttons */
 [data-theme="light"] .hero .action.primary {
-  background: #C05746;
-  border-color: #C05746;
+  background: var(--accent);
+  border-color: var(--accent);
 }
