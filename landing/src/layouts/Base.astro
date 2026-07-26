@@ -17,9 +17,13 @@ const { title, description } = Astro.props;
   <meta property="og:type" content="website" />
   <meta property="og:url" content={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
   <meta property="og:site_name" content="Stratum" />
+  <meta property="og:image" content="https://stratum-hq.org/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
+  <meta name="twitter:image" content="https://stratum-hq.org/og.png" />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="Stratum HQ" />
   <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
@@ -45,7 +49,7 @@ const { title, description } = Astro.props;
         "@type": "Organization",
         "name": "Stratum HQ",
         "url": "https://stratum-hq.org",
-        "logo": "https://stratum-hq.org/favicon.png",
+        "logo": "https://stratum-hq.org/icon-512.png",
         "sameAs": [
           "https://github.com/stratum-hq",
           "https://www.npmjs.com/org/stratum-hq"
@@ -55,7 +59,10 @@ const { title, description } = Astro.props;
   }
   </script>
   <script defer data-domain="stratum-hq.org" src="https://plausible.io/js/script.js"></script>
-  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
