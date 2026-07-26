@@ -1,8 +1,16 @@
 import { Pool } from "pg";
+import { randomBytes, createHash } from "node:crypto";
+import { writeFileSync } from "node:fs";
 
 const API_BASE =
   process.env.CONTROL_PLANE_URL || "http://localhost:3001/api/v1";
-const API_KEY = process.env.API_KEY || "sk_live_demo_key";
+
+// Mint a random demo bootstrap key at seed time. Never committed: the plaintext
+// is generated here, printed once to stdout, and (in Docker) written to
+// DEMO_KEY_FILE for the web container to read. Set API_KEY to pin a specific key.
+const KEY_PREFIX = "sk_live_";
+const API_KEY =
+  process.env.API_KEY || `${KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
 
 async function api(path: string, body?: unknown, method?: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -23,26 +31,32 @@ async function api(path: string, body?: unknown, method?: string): Promise<Recor
 async function seed() {
   console.log("Seeding Stratum demo data...\n");
 
-  // WARNING: Demo-only key — never use in production
   // Insert the demo bootstrap API key so subsequent API calls can authenticate.
-  // This was previously seeded via migration 011 which ran in production deployments.
+  // Previously seeded via migration 011 (which ran in production deployments); the
+  // key is now minted per-seed rather than shipping a committed global-admin key.
+  // The control plane hashes keys with SHA-256 unless STRATUM_API_KEY_HMAC_SECRET
+  // is set, which the demo stack does not set, so store the SHA-256 hash here.
+  const keyHash = createHash("sha256").update(API_KEY).digest("hex");
   const bootstrapPool = new Pool({
     connectionString:
       process.env.DATABASE_URL ||
       "postgresql://stratum:stratum@localhost:5432/stratum",
   });
-  await bootstrapPool.query(`
+  await bootstrapPool.query(
+    `
     INSERT INTO api_keys (id, tenant_id, key_hash, key_prefix, name, scopes)
     VALUES (
       'a0000000-0000-0000-0000-000000000001',
       NULL,
-      '4ce0f9725485398b04b656849919e252167d33adb12b8f0addd7d8b1a7f43e48',
-      'sk_live_demo_',
+      $1,
+      $2,
       'Demo Bootstrap Key',
       '{read,write,admin}'
     )
-    ON CONFLICT DO NOTHING
-  `);
+    ON CONFLICT (id) DO UPDATE SET key_hash = EXCLUDED.key_hash, key_prefix = EXCLUDED.key_prefix
+  `,
+    [keyHash, KEY_PREFIX],
+  );
   await bootstrapPool.end();
 
   // 1. Create tenant hierarchy
@@ -279,6 +293,15 @@ async function seed() {
   console.log(`  Inserted ${events.length} events\n`);
 
   await pool.end();
+
+  // Surface the freshly minted key: print it once, and in Docker hand it to the
+  // web container through DEMO_KEY_FILE on the shared volume.
+  const keyFile = process.env.DEMO_KEY_FILE;
+  if (keyFile) {
+    writeFileSync(keyFile, API_KEY, { mode: 0o644 });
+    console.log(`Wrote demo API key to ${keyFile}`);
+  }
+  console.log(`\nDemo bootstrap API key (send as X-API-Key): ${API_KEY}`);
   console.log("Seed complete!");
 }
 

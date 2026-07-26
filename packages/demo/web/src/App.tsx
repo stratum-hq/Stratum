@@ -3,6 +3,16 @@ import { StratumProvider } from "@stratum-hq/react";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Sidebar } from "./components/Sidebar.js";
 
+declare global {
+  interface Window {
+    /**
+     * Demo bootstrap API key, injected at container start by the web entrypoint
+     * from the key the seed mints. Empty in local dev (see public/config.js).
+     */
+    __DEMO_API_KEY__?: string;
+  }
+}
+
 // ── Responsive layout styles ─────────────────────────────────────────────────
 
 const appStyles = `
@@ -199,7 +209,7 @@ export function App() {
   const sidebarCollapsed = breakpoint === "tablet" && !sidebarOpen;
 
   return (
-    <StratumProvider controlPlaneUrl="" apiKey="sk_live_demo_key">
+    <StratumProvider controlPlaneUrl="" apiKey={window.__DEMO_API_KEY__ ?? ""}>
       <style>{appStyles}</style>
       <div className="stratum-app">
         <header className="stratum-app-header">

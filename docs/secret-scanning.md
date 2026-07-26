@@ -72,23 +72,15 @@ Every one of these is a real line in this repository, and each is covered by a f
 
 `docker compose --profile demo up --build` is the headline command in the README. It seeds
 an `api_keys` row with `tenant_id NULL` and scopes `{read,write,admin}`, a global admin
-grant, and the plaintext of that key is committed in five files.
+grant. That key used to be a committed constant, allowlisted rather than flagged.
 
-**It is allowlisted, not flagged.** The reasoning, recorded in full in the allowlist file:
-
-- It is not a credential to anything real. It exists only in a database that the same commit
-  creates, and it cannot be rotated because there is nothing to rotate it at.
-- It is published on purpose, in the README, in `docker-compose.yml` and in the seed script.
-  A string that is public by design is not a secret, whatever its shape.
-- Flagging it would fail the check on every single run, forever. That is the failure mode
-  this whole design is built to avoid.
-
-What the allowlist buys instead is **pinning**. Entries key on path plus a hash of the
-matched text, so those seven occurrences are the entire known-good set. Change the key, or
-use it in an eighth file, and the check fails. Migration `011_demo_bootstrap.sql` already
-removed this key from the schema migrations for the same reason. The residual exposure is a
-demo stack reachable from a network, which is a deployment concern tracked separately, not
-a secret-scanning one.
+**It is no longer committed.** The seed now mints a random key at seed time, prints it once
+to stdout, and hands it to the web container out of band (a shared volume the compose file
+wires up), so no plaintext lives in the tree and there is nothing to allowlist for it. See
+issue #169 and `packages/demo/api/src/seed.ts`. Migration `011_demo_bootstrap.sql` removed
+the same key from the schema migrations earlier, for the same reason; this finished that
+job. A minted key never appears in a committed file, so if one ever does, the scanner's
+`stratum-api-key` rule fails hard and is never allowlisted.
 
 ## Adding an allowlist entry
 
@@ -99,10 +91,10 @@ Copy the `path` and `id` the check printed, and add a `reason` a reviewer can ch
 
 ```json
 {
-  "path": "packages/demo/api/src/seed.ts",
-  "id": "4ce0f9725485398b",
+  "path": "packages/react-ui/src/components/storybook-helpers.tsx",
+  "id": "6f887261bb27bfe9",
   "rule": "hardcoded-key-literal",
-  "reason": "demo profile bootstrap key, default for API_KEY"
+  "reason": "Storybook fixture for a sensitive config value, shown truncated and redacted"
 }
 ```
 
