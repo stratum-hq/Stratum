@@ -48,10 +48,19 @@ const permissions = await stratum.resolvePermissions(tenant.id);
 const stratum = new Stratum({
   pool: pgPool,              // Required: pg.Pool instance
   keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
+  logger: myLogger,          // Optional: StratumLogger (default: defaultLogger)
+  autoMigrate: false,        // Optional: run migrations on initialize() (default: false)
+  enforceRls: false,         // Optional: hard-fail migration if the PG role has BYPASSRLS (default: false)
 });
 ```
 
 The pool is **borrowed, not owned** -- Stratum never creates or closes the pool. You manage the pool lifecycle.
+
+```typescript
+stratum.initialize(): Promise<void>
+```
+
+Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently -- every caller awaits the same promise. Set `enforceRls: true` in production so migrations refuse to run under a `BYPASSRLS` role.
 
 ## API Reference
 
@@ -60,16 +69,50 @@ The pool is **borrowed, not owned** -- Stratum never creates or closes the pool.
 ```typescript
 stratum.createTenant(input, audit?): Promise<TenantNode>
 stratum.getTenant(id, includeArchived?): Promise<TenantNode>
+stratum.getTenantBySlug(slug, includeArchived?): Promise<TenantNode>
 stratum.listTenants(pagination): Promise<PaginatedResult<TenantNode>>
 stratum.updateTenant(id, patch, audit?): Promise<TenantNode>
 stratum.deleteTenant(id, audit?): Promise<void>
 stratum.moveTenant(id, newParentId, audit?): Promise<TenantNode>
 stratum.getAncestors(id): Promise<TenantNode[]>
-stratum.getDescendants(id): Promise<TenantNode[]>
+stratum.getRoot(id): Promise<TenantNode>
+stratum.getDescendants(id, includeArchived?): Promise<TenantNode[]>
 stratum.getChildren(id): Promise<TenantNode[]>
 stratum.reorderTenant(id, position, audit?): Promise<TenantNode>
 stratum.batchCreateTenants(inputs, audit?): Promise<BatchCreateResult>
 stratum.getTenantContext(tenantId): Promise<TenantContext>
+```
+
+- `getTenantBySlug(slug, includeArchived?)` -- resolve a tenant by its globally unique slug in one indexed lookup, the slug-keyed counterpart to `getTenant`. Throws `TenantNotFoundError` when no row matches, and (unless `includeArchived` is set) `TenantArchivedError` / `TenantSuspendedError` for a non-active row.
+- `getRoot(id)` -- the root ancestor of any tenant (the tenant itself when it is already a root), resolved with single-row lookups rather than by walking the full ancestry chain.
+- `getDescendants(id, includeArchived?)` -- the descendant subtree, shallowest first. Excludes archived and soft-deleted tenants by default; pass `includeArchived` for the full historical subtree.
+- `batchCreateTenants(inputs, audit?)` -- creates every tenant in a single transaction (all-or-nothing). On any failure nothing persists and the result is `{ created: [], errors: [<first failure>] }`; wrap per-tenant `createTenant` calls yourself if you need partial success.
+
+### Tenant lifecycle
+
+Tenants move through an explicit state machine -- active to suspended or archived, and either back to active or on to a purge.
+
+```typescript
+stratum.suspendTenant(id, audit?): Promise<TenantNode>
+stratum.resumeTenant(id, audit?): Promise<TenantNode>
+stratum.archiveTenant(id, audit?): Promise<TenantNode>
+```
+
+- `suspendTenant` -- a reversible block on access. Rejects if the tenant is not active or has active children (suspend leaf-first). Reverse with `resumeTenant`.
+- `archiveTenant` -- a reversible soft delete. Accepts an active or suspended tenant; rejects if already archived or it has active children. Reverse with `resumeTenant`. This is the canonical name for what `deleteTenant` does.
+- `resumeTenant` -- returns a suspended or archived tenant to active. Rejects if the tenant is already active or its parent is not active (resume top-down).
+- `deleteTenant(id, audit?)` is retained as a **deprecated alias of `archiveTenant`**; prefer `archiveTenant`.
+
+See the [tenant lifecycle guide](/guides/tenant-lifecycle/) for the full state machine and descendant rules.
+
+### Flat-tenancy convenience
+
+Thin aliases for simple, single-level SaaS that never needs the hierarchy.
+
+```typescript
+stratum.createOrganization(input, audit?): Promise<TenantNode>   // createTenant with parent_id: null
+stratum.listOrganizations(pagination): Promise<PaginatedResult<TenantNode>>  // root-level only
+stratum.getOrganization(id): Promise<TenantNode>                 // alias for getTenant
 ```
 
 ### Config
@@ -81,7 +124,12 @@ stratum.deleteConfig(tenantId, key, audit?): Promise<void>
 stratum.getConfigWithInheritance(tenantId): Promise<ResolvedConfig>
 stratum.batchSetConfig(tenantId, entries, audit?): Promise<BatchSetConfigResult>
 stratum.diffConfig(tenantIdA, tenantIdB): Promise<ConfigDiff>
+stratum.computeDrift(parentId, childId): Promise<DriftResult>
+stratum.batchComputeDrift(parentId, childIds): Promise<BatchDriftResult>
 ```
+
+- `computeDrift(parentId, childId)` -- classify each resolved config key on the child against the parent as `ok` / `override` / `missing` / `conflict` (a `conflict` is a child value that diverges from a **locked** parent key), with per-key detail and a rolled-up worst status.
+- `batchComputeDrift(parentId, childIds)` -- `computeDrift` fanned out over many children, with a per-status summary count.
 
 ### Permissions
 
@@ -112,8 +160,11 @@ stratum.validateApiKey(key): Promise<ValidatedApiKey | null>
 stratum.revokeApiKey(keyId): Promise<boolean>
 stratum.rotateApiKey(keyId, newName?): Promise<CreatedApiKey>
 stratum.listApiKeys(tenantId?): Promise<ApiKeyRecord[]>
+stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
 ```
+
+- `getApiKey(id)` -- look up a single API key by id, including its owning tenant; returns `null` when no key has that id. The primitive for authorizing an operation that targets a key by id whose owning tenant is not otherwise in the request.
 
 ### Webhooks
 
@@ -124,13 +175,37 @@ stratum.listWebhooks(tenantId?): Promise<Webhook[]>
 stratum.updateWebhook(id, input, audit?): Promise<Webhook>
 stratum.deleteWebhook(id, audit?): Promise<void>
 stratum.testWebhook(id): Promise<TestResult>
+stratum.listWebhookEvents(query): Promise<WebhookEvent[]>
+stratum.listDeliveriesByEvent(eventId): Promise<WebhookDelivery[]>
 ```
+
+- `listWebhookEvents({ tenantId, type?, from?, to?, limit?, offset? })` -- page a tenant's webhook event stream, newest first. Always scoped to `tenantId` (a caller can never page another tenant's events), optionally narrowed by event `type` and a `created_at` window, paginated with `limit` (1-100, default 50) and `offset`.
+- `listDeliveriesByEvent(eventId)` -- every delivery attempt recorded for a single webhook event, newest first.
 
 ### Audit Logs
 
 ```typescript
 stratum.queryAuditLogs(query): Promise<AuditEntry[]>
 stratum.getAuditEntry(id): Promise<AuditEntry | null>
+stratum.recordAuditEvent(input): Promise<AuditEntry>
+```
+
+- `recordAuditEvent(input)` -- append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`.
+
+```typescript
+const entry = await stratum.recordAuditEvent({
+  tenantId,
+  actorId,
+  actorType: "api_key", // 'api_key' | 'jwt' | 'system'; defaults to 'system'
+  action: "invoice.sent",
+  resourceType: "invoice",
+  resourceId,
+  before,
+  after,
+  metadata,
+  sourceIp,             // stored in the INET column
+  occurredAt,           // optional: backdate created_at
+});
 ```
 
 ### Consent
@@ -172,7 +247,16 @@ stratum.deleteRole(id, audit?): Promise<boolean>
 stratum.assignRoleToKey(keyId, roleId): Promise<boolean>
 stratum.removeRoleFromKey(keyId): Promise<boolean>
 stratum.resolveKeyScopes(keyId): Promise<string[]>
+stratum.assignRole(principalType, principalId, roleId, tenantId?): Promise<boolean>
+stratum.removeRole(principalType, principalId): Promise<boolean>
+stratum.resolvePrincipalScopes(principalType, principalId, tenantId?): Promise<string[]>
 ```
+
+The `*Key` methods bind a role to an API key. The principal-agnostic trio binds a role to **any** principal -- an application user, a service account -- not only an API key:
+
+- `assignRole(principalType, principalId, roleId, tenantId?)` -- assign a role to a principal (one role per principal). Pass `tenantId` to scope the assignment to a tenant; a role owned by a different tenant is then refused, while global roles are always allowed.
+- `removeRole(principalType, principalId)` -- clear a principal's role assignment.
+- `resolvePrincipalScopes(principalType, principalId, tenantId?)` -- the principal's effective scopes via its assigned role, or `[]` when unassigned (fails closed). With `tenantId`, a role owned by another tenant is ignored while global roles still resolve.
 
 ### Webhook Deliveries (DLQ)
 
@@ -195,6 +279,48 @@ reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
 
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
+
+### Usage metering
+
+```typescript
+stratum.recordUsage(tenantId, input): Promise<UsageEvent>
+stratum.aggregateUsage(query): Promise<UsageAggregate[]>
+```
+
+- `recordUsage(tenantId, input)` -- record a countable usage event for a tenant. Pass `idempotency_key` to make the write safe to retry; a duplicate key is a no-op that returns the original event.
+- `aggregateUsage(query)` -- aggregate one tenant's usage per metric over an optional half-open window `[from, to)` on `occurred_at`.
+
+### Tenant context (AsyncLocalStorage)
+
+Static helpers that read and run within the request-scoped tenant context. They wrap the same `AsyncLocalStorage` the SDK and adapters use, so `Stratum.currentTenantId()` sees a tenant set by any middleware in the chain.
+
+```typescript
+Stratum.currentTenantId(): string | undefined
+Stratum.currentTenantContext(): ResolvedTenantContext | undefined
+Stratum.runWithTenant<T>(ctx, fn): T
+```
+
+`currentTenantId` / `currentTenantContext` return `undefined` when called outside an active context. `runWithTenant(ctx, fn)` executes `fn` with `ctx` as the active context.
+
+## Top-level exports
+
+Beyond the `Stratum` class, `@stratum-hq/lib` exports helpers you can use directly:
+
+```typescript
+import {
+  migrate,             // migrate({ pool, enforceRls? }): run the Stratum migrations
+  migrateAllSchemas,   // migrateAllSchemas(...): multi-schema migration runner
+  runScopedJob,        // runScopedJob(pool, tenantId, fn): tenant-scoped background job
+  verifyWebhookSignature,
+  signWebhookPayload,
+  DEFAULT_WEBHOOK_TOLERANCE_SECONDS,
+  RateLimiter,         // standalone per-tenant fixed-window limiter
+  MemoryRateLimitStore,
+} from "@stratum-hq/lib";
+```
+
+- `runScopedJob(pool, tenantId, fn)` runs `fn` bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down afterward, so a job cannot touch another tenant's rows and the context never leaks onto the next job on a pooled connection.
+- `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 
 ## Pool Helpers
 
