@@ -50,7 +50,7 @@
    --sl-* map above adapts to them automatically through var(). */
 
 /* --------------------------------------------------------------------------
-   Typography — Instrument Sans
+   Typography: Archivo (display) / IBM Plex Sans (body), Core Sample
    -------------------------------------------------------------------------- */
 body {
   font-family: var(--sl-font);
@@ -104,7 +104,7 @@ h4,
 }
 
 /* --------------------------------------------------------------------------
-   Body text — readable measure
+   Body text: readable measure
    -------------------------------------------------------------------------- */
 .sl-markdown-content {
   line-height: 1.6;
@@ -115,7 +115,7 @@ h4,
 }
 
 /* --------------------------------------------------------------------------
-   Code — JetBrains Mono + sandstone tones
+   Code: IBM Plex Mono, Core Sample code well
    -------------------------------------------------------------------------- */
 code,
 pre,
@@ -140,7 +140,7 @@ pre code {
 }
 
 /* --------------------------------------------------------------------------
-   Tables — data-dense, warm headers
+   Tables: data-dense, mono structural headers (Core Sample)
    -------------------------------------------------------------------------- */
 .sl-markdown-content table {
   font-size: 0.875rem;
@@ -149,7 +149,7 @@ pre code {
 }
 
 .sl-markdown-content th {
-  font-family: var(--sl-font);
+  font-family: var(--sl-font-mono);
   font-weight: 600;
   font-size: 0.6875rem;
   text-transform: uppercase;
@@ -210,7 +210,9 @@ nav a[aria-current="page"]:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Badge styles — terracotta-toned
+   Badge styles: Core Sample (Signal accent, Lock amber, neutral)
+   Mono labels so a badge reads as a structural marker, never decoration.
+   Color reinforces a word that is already there (never color alone).
    -------------------------------------------------------------------------- */
 .badge-inherited {
   display: inline-flex;
@@ -248,6 +250,30 @@ nav a[aria-current="page"]:hover {
   color: var(--text-secondary);
 }
 
+/* Per-method verification badge. Marks a documented behavioral guarantee on a
+   method or endpoint. Signal only ever lights the live/verified thing, so the
+   accent is spent here; the word "verified" carries the meaning without color. */
+.badge-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
+/* Mono labels: a badge is a structural marker, so it takes the mono face. */
+.badge-inherited,
+.badge-locked,
+.badge-own,
+.badge-verified {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
 /* --------------------------------------------------------------------------
    Accessibility
    -------------------------------------------------------------------------- */
@@ -267,7 +293,7 @@ nav a[aria-current="page"]:hover {
   }
 }
 
-/* Logo — match landing page treatment (28x28 image, 18px/700 text) */
+/* Logo: match landing page treatment (28x28 image, 18px/700 text) */
 .site-title img {
   height: 28px !important;
   width: 28px !important;
@@ -282,7 +308,7 @@ nav a[aria-current="page"]:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Card icon overrides — dark background, terracotta border + icon
+   Card icon overrides: Signal accent border + icon on a Core surface
    -------------------------------------------------------------------------- */
 .card .icon {
   color: var(--accent) !important;
@@ -303,4 +329,37 @@ nav a[aria-current="page"]:hover {
 [data-theme="light"] .hero .action.primary {
   background: var(--accent);
   border-color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   Depth gutter: the stratigraphy signature (DESIGN.md "the depth rail").
+   Two token-driven moves carry the motif into the docs without drifting from
+   the landing: page sections stack as strata separated by hairline Seam rules,
+   and the code well grows a left gutter that continues the depth rail. A seam
+   is the line between two strata, which is the product's whole job.
+   -------------------------------------------------------------------------- */
+
+/* Each section heading is a new stratum: a hairline Seam boundary above it. The
+   first heading on a page has nothing above it to divide, so it keeps no rule. */
+.sl-markdown-content h2 {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-6);
+  margin-top: var(--space-12);
+}
+.sl-markdown-content h2:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* The code well is a brand surface: a left gutter in Seam that continues the
+   depth rail, lighting to Signal on hover (the one live color). Expressive
+   Code owns the syntax theme inside; this only frames the well. */
+.sl-markdown-content .expressive-code {
+  border-left: 2px solid var(--border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  transition: border-left-color var(--duration-normal) var(--ease-out);
+}
+.sl-markdown-content .expressive-code:hover {
+  border-left-color: var(--accent);
 }

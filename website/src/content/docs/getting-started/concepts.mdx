@@ -22,8 +22,8 @@ AcmeSec (root MSSP)             depth: 0
 
 Each tenant stores two paths:
 
-- **`ancestry_path`** — UUID chain (`/uuid1/uuid2/uuid3`) used for ancestor lookups
-- **`ancestry_ltree`** — slug-based path (`acmesec.northstar_msp.client_alpha`) used by PostgreSQL for efficient subtree queries via the `@>` operator
+- **`ancestry_path`**: UUID chain (`/uuid1/uuid2/uuid3`) used for ancestor lookups
+- **`ancestry_ltree`**: slug-based path (`acmesec.northstar_msp.client_alpha`) used by PostgreSQL for efficient subtree queries via the `@>` operator
 
 The maximum tree depth is 20 levels. Advisory locks on parent UUIDs prevent race conditions during concurrent modifications.
 
@@ -31,10 +31,20 @@ The maximum tree depth is 20 levels. Advisory locks on parent UUIDs prevent race
 
 | Operation | Description |
 |-----------|-------------|
-| `getAncestors(id)` | Returns all tenants from root down to the parent |
-| `getDescendants(id)` | Returns the entire subtree (uses `ltree` for efficiency) |
+| `getAncestors(id)` <span class="badge-verified">verified</span> | Returns every tenant from the root down to and including the direct parent |
+| `getDescendants(id)` <span class="badge-verified">verified</span> | Returns the **active-scoped** subtree: active descendants only (uses `ltree` for efficiency) |
 | `getChildren(id)` | Returns direct children only |
 | `moveTenant(id, newParentId)` | Relocates a tenant and all its descendants, with cycle detection |
+
+Methods marked <span class="badge-verified">verified</span> have a documented, behaviorally-guaranteed result scope: the exact set they return is part of the API contract, not incidental to the query.
+
+<Aside type="caution" title="getDescendants is active-scoped">
+  `getDescendants` lists the **active-scoped** subtree: active descendants only.
+  Archived and soft-deleted tenants are excluded, so the result is not
+  necessarily every row that sits beneath the tenant in the tree. Likewise
+  `getAncestors` now includes the direct parent. If you need inactive tenants
+  too, query them explicitly rather than assuming the traversal returns them.
+</Aside>
 
 ## Config Inheritance
 
@@ -51,10 +61,10 @@ Root:    max_users = 1000, theme = "dark" (locked)
 
 When you call `resolveConfig(tenantId)`, Stratum walks up the ancestry path and merges config entries. For each key, the resolved entry tells you:
 
-- **`value`** — the effective value
-- **`inherited`** — whether it came from an ancestor
-- **`source_tenant_id`** — which tenant set this value
-- **`locked`** — whether it can be overridden by descendants
+- **`value`**: the effective value
+- **`inherited`**: whether it came from an ancestor
+- **`source_tenant_id`**: which tenant set this value
+- **`locked`**: whether it can be overridden by descendants
 
 ### Locking
 
@@ -93,12 +103,12 @@ Permissions use a policy-based model where each policy has a **mode** and a **re
 
 When you call `resolvePermissions(tenantId)`, each resolved entry includes:
 
-- **`key`** — the permission key
-- **`value`** — the effective value (typically `true`/`false`)
-- **`mode`** — the delegation mode
-- **`source_tenant_id`** — which ancestor created this policy
-- **`locked`** — `true` if mode is `LOCKED`
-- **`delegated`** — `true` if mode is `DELEGATED`
+- **`key`**: the permission key
+- **`value`**: the effective value (typically `true`/`false`)
+- **`mode`**: the delegation mode
+- **`source_tenant_id`**: which ancestor created this policy
+- **`locked`**: `true` if mode is `LOCKED`
+- **`delegated`**: `true` if mode is `DELEGATED`
 
 ## Isolation Strategies
 
@@ -148,8 +158,8 @@ In the SDK, the middleware resolves the tenant context from the incoming request
 
 API keys authenticate requests to the control plane. Each key can be:
 
-- **Global** (`tenant_id` is null) — access all tenants
-- **Tenant-scoped** (`tenant_id` set) — access only that tenant and its descendants
+- **Global** (`tenant_id` is null): access all tenants
+- **Tenant-scoped** (`tenant_id` set): access only that tenant and its descendants
 
 Keys carry **scopes** that determine what operations they can perform:
 
@@ -165,15 +175,15 @@ Roles (RBAC) can override a key's default scopes by assigning a named role that 
 
 Every mutation in Stratum is recorded in the audit log with:
 
-- **Actor** — who performed the action (API key ID, JWT subject, or system)
-- **Action** — what happened (`tenant.created`, `config.updated`, etc.)
-- **Before/After state** — full snapshots for change tracking
-- **Request context** — source IP, request ID
+- **Actor**: who performed the action (API key ID, JWT subject, or system)
+- **Action**: what happened (`tenant.created`, `config.updated`, etc.)
+- **Before/After state**: full snapshots for change tracking
+- **Request context**: source IP, request ID
 
 Audit logs support cursor-based pagination and filtering by tenant, action, actor, and date range.
 
 ## Next Steps
 
-- [Tenant Hierarchy](/guides/tenant-hierarchy/) — advanced tree operations
-- [Config Inheritance](/guides/config-inheritance/) — locking, sensitive values, batch updates
-- [Permission Delegation](/guides/permission-delegation/) — modes, revocation, and use cases
+- [Tenant Hierarchy](/guides/tenant-hierarchy/): advanced tree operations
+- [Config Inheritance](/guides/config-inheritance/): locking, sensitive values, batch updates
+- [Permission Delegation](/guides/permission-delegation/): modes, revocation, and use cases
