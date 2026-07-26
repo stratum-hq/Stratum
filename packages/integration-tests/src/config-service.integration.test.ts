@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { ConfigNotFoundError } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * Config behaviors that need a real database: the ON CONFLICT upsert against the
@@ -29,11 +34,19 @@ describe("config-service against real Postgres (integration)", () => {
     await closePool();
   });
 
-  const set = (id: string, key: string, value: unknown, locked = false, sensitive = false) =>
-    stratum.setConfig(id, key, { value, locked, sensitive });
+  const set = (
+    id: string,
+    key: string,
+    value: unknown,
+    locked = false,
+    sensitive = false,
+  ) => stratum.setConfig(id, key, { value, locked, sensitive });
 
   it("upserts on the UNIQUE(tenant_id, key) constraint instead of inserting a duplicate", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("cfgu") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("cfgu"),
+    });
 
     await set(t.id, "max_users", 10);
     await set(t.id, "max_users", 25);
@@ -48,10 +61,15 @@ describe("config-service against real Postgres (integration)", () => {
   });
 
   it("commits the unlocked keys of a batch while rejecting the locked one, in one transaction", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("bsr") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug("bsc"), parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("bsr"),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug("bsc"),
+      parent_id: root.id,
+    });
     await set(root.id, "locked_key", 100, /* locked */ true);
 
     const result = await stratum.batchSetConfig(child.id, [
@@ -62,14 +80,19 @@ describe("config-service against real Postgres (integration)", () => {
 
     expect(result.succeeded).toBe(2);
     expect(result.failed).toBe(1);
-    expect(result.results.find((r) => r.key === "locked_key")?.status).toBe("error");
+    expect(result.results.find((r) => r.key === "locked_key")?.status).toBe(
+      "error",
+    );
 
     // The two unlocked keys really persisted for the child...
     const childRows = await getPool().query<{ key: string }>(
       `SELECT key FROM config_entries WHERE tenant_id = $1 ORDER BY key`,
       [child.id],
     );
-    expect(childRows.rows.map((r) => r.key)).toEqual(["free_key_a", "free_key_b"]);
+    expect(childRows.rows.map((r) => r.key)).toEqual([
+      "free_key_a",
+      "free_key_b",
+    ]);
 
     // ...and the locked key still resolves to the ancestor's locked value.
     const resolved = await stratum.resolveConfig(child.id);
@@ -79,10 +102,15 @@ describe("config-service against real Postgres (integration)", () => {
   });
 
   it("deleteConfig removes the override and re-exposes the inherited parent value", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("delr") }));
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: uniqueSlug("delc"), parent_id: root.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("delr"),
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: uniqueSlug("delc"),
+      parent_id: root.id,
+    });
     await set(root.id, "theme", "dark");
     await set(child.id, "theme", "light");
 
@@ -101,13 +129,20 @@ describe("config-service against real Postgres (integration)", () => {
   });
 
   it("resolves the nearest ancestor's value down a three-level chain", async () => {
-    const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("nar") }));
-    const mid = await stratum.createTenant(
-      tenantInput({ name: "Mid", slug: uniqueSlug("nam"), parent_id: root.id }),
-    );
-    const leaf = await stratum.createTenant(
-      tenantInput({ name: "Leaf", slug: uniqueSlug("nal"), parent_id: mid.id }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("nar"),
+    });
+    const mid = await stratum.createTenant({
+      name: "Mid",
+      slug: uniqueSlug("nam"),
+      parent_id: root.id,
+    });
+    const leaf = await stratum.createTenant({
+      name: "Leaf",
+      slug: uniqueSlug("nal"),
+      parent_id: mid.id,
+    });
 
     await set(root.id, "tier", "root");
     await set(mid.id, "tier", "mid");
@@ -119,8 +154,17 @@ describe("config-service against real Postgres (integration)", () => {
   });
 
   it("stores a sensitive value encrypted at rest and resolveConfig decrypts it back", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("sens") }));
-    await set(t.id, "api_token", "s3cr3t-value", /* locked */ false, /* sensitive */ true);
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("sens"),
+    });
+    await set(
+      t.id,
+      "api_token",
+      "s3cr3t-value",
+      /* locked */ false,
+      /* sensitive */ true,
+    );
 
     // At rest the raw column holds ciphertext, never the plaintext.
     const raw = await getPool().query<{ value: string }>(
@@ -141,8 +185,17 @@ describe("config-service against real Postgres (integration)", () => {
   it("rotates the encryption key for a sensitive value and still resolves the original plaintext", async () => {
     const originalKey = process.env.STRATUM_ENCRYPTION_KEY as string;
     const newKey = "rotated-encryption-key-32chars!!";
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("rot") }));
-    await set(t.id, "api_token", "s3cr3t-value", /* locked */ false, /* sensitive */ true);
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("rot"),
+    });
+    await set(
+      t.id,
+      "api_token",
+      "s3cr3t-value",
+      /* locked */ false,
+      /* sensitive */ true,
+    );
 
     try {
       const result = await stratum.rotateEncryptionKey(originalKey, newKey);

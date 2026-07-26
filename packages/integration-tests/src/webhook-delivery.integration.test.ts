@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 describe("Webhook Delivery (integration)", () => {
   let stratum: Stratum;
@@ -20,9 +24,10 @@ describe("Webhook Delivery (integration)", () => {
   });
 
   it("creates a webhook and retrieves it", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "WH Tenant", slug: "wh_tenant" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "WH Tenant",
+      slug: "wh_tenant",
+    });
     const webhook = await stratum.createWebhook({
       tenant_id: tenant.id,
       url: "https://example.com/webhook",
@@ -35,9 +40,10 @@ describe("Webhook Delivery (integration)", () => {
   });
 
   it("getWebhooksForEvent returns matching webhooks (secret_hash fix)", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "WH2", slug: "wh2_tenant" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "WH2",
+      slug: "wh2_tenant",
+    });
     await stratum.createWebhook({
       tenant_id: tenant.id,
       url: "https://example.com/hook",
@@ -58,9 +64,10 @@ describe("Webhook Delivery (integration)", () => {
   });
 
   it("lists webhooks for a tenant", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "WH3", slug: "wh3_tenant" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "WH3",
+      slug: "wh3_tenant",
+    });
     await stratum.createWebhook({
       tenant_id: tenant.id,
       url: "https://example.com/a",
@@ -78,9 +85,10 @@ describe("Webhook Delivery (integration)", () => {
   });
 
   it("deletes a webhook", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "WH4", slug: "wh4_tenant" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "WH4",
+      slug: "wh4_tenant",
+    });
     const wh = await stratum.createWebhook({
       tenant_id: tenant.id,
       url: "https://example.com/del",

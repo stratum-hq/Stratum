@@ -21,7 +21,17 @@ export const SetConfigInputSchema = z.object({
   sensitive: z.boolean().default(false),
 });
 
-export type SetConfigInput = z.infer<typeof SetConfigInputSchema>;
+// The INPUT type (pre-defaults): `locked` and `sensitive` carry Zod defaults,
+// so they are optional on the caller side. `z.infer` (the output type) would
+// make them required, so `setConfig(id, key, { value })` would not compile.
+export type SetConfigInput = z.input<typeof SetConfigInputSchema>;
+
+/**
+ * One entry in a {@link batchSetConfig} call: a {@link SetConfigInput} plus the
+ * `key` it targets. Deriving it from `SetConfigInput` keeps the batch and
+ * single-key surfaces from drifting apart.
+ */
+export type BatchSetConfigEntry = SetConfigInput & { key: string };
 
 export interface ResolvedConfigEntry {
   key: string;

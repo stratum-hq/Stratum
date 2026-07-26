@@ -53,7 +53,11 @@ export const CreateTenantInputSchema = z.object({
   region_id: z.string().uuid().nullable().optional(),
 });
 
-export type CreateTenantInput = z.infer<typeof CreateTenantInputSchema>;
+// The INPUT type (pre-defaults): `parent_id`, `config`, `metadata`, and
+// `isolation_strategy` carry Zod defaults, so they are optional on the caller
+// side. `z.infer` (the output type) would make them required, so the documented
+// `createTenant({ name, slug })` call would not compile.
+export type CreateTenantInput = z.input<typeof CreateTenantInputSchema>;
 
 export const UpdateTenantInputSchema = z.object({
   name: z.string().min(1).max(255).optional(),
@@ -65,13 +69,13 @@ export const UpdateTenantInputSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-export type UpdateTenantInput = z.infer<typeof UpdateTenantInputSchema>;
+export type UpdateTenantInput = z.input<typeof UpdateTenantInputSchema>;
 
 export const MoveTenantInputSchema = z.object({
   new_parent_id: z.string().uuid(),
 });
 
-export type MoveTenantInput = z.infer<typeof MoveTenantInputSchema>;
+export type MoveTenantInput = z.input<typeof MoveTenantInputSchema>;
 
 /**
  * Flat, resolved per-request tenant context: the shape served by the

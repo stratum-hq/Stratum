@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
   const salt = Buffer.alloc(32, 0);
@@ -14,8 +18,13 @@ function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
 function encryptWithKey(plaintext: string, keyMaterial: string): string {
   const key = hkdfDeriveKey(keyMaterial);
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv, { authTagLength: 16 });
-  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv, {
+    authTagLength: 16,
+  });
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
   const authTag = cipher.getAuthTag();
   return `v1:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
 }
@@ -30,7 +39,10 @@ function decryptWithKey(blob: string, keyMaterial: string): string {
     { authTagLength: 16 },
   );
   decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
-  return decipher.update(Buffer.from(ciphertextHex, "hex")).toString("utf8") + decipher.final("utf8");
+  return (
+    decipher.update(Buffer.from(ciphertextHex, "hex")).toString("utf8") +
+    decipher.final("utf8")
+  );
 }
 
 describe("Encryption & Key Rotation (integration)", () => {
@@ -52,9 +64,10 @@ describe("Encryption & Key Rotation (integration)", () => {
   });
 
   it("sensitive config values are encrypted in the database", async () => {
-    const tenant = await stratum.createTenant(
-      tenantInput({ name: "Enc Test", slug: "enc_test" }),
-    );
+    const tenant = await stratum.createTenant({
+      name: "Enc Test",
+      slug: "enc_test",
+    });
     await stratum.setConfig(tenant.id, "db_password", {
       value: "super-secret",
       locked: false,

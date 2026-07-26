@@ -30,4 +30,4 @@ export const GrantConsentInputSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-export type GrantConsentInput = z.infer<typeof GrantConsentInputSchema>;
+export type GrantConsentInput = z.input<typeof GrantConsentInputSchema>;

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * Usage metering (FR-58) against real Postgres: record + aggregate, per-tenant
@@ -25,7 +30,10 @@ describe("usage metering against real Postgres (integration)", () => {
   });
 
   it("records events and aggregates the sum + count per metric", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "Rec", slug: uniqueSlug("um") }));
+    const t = await stratum.createTenant({
+      name: "Rec",
+      slug: uniqueSlug("um"),
+    });
 
     await stratum.recordUsage(t.id, { metric: "api.calls", quantity: 3 });
     await stratum.recordUsage(t.id, { metric: "api.calls", quantity: 2 });
@@ -37,31 +45,63 @@ describe("usage metering against real Postgres (integration)", () => {
       { metric: "seats", total: 1, event_count: 1 },
     ]);
 
-    const oneMetric = await stratum.aggregateUsage({ tenant_id: t.id, metric: "api.calls" });
-    expect(oneMetric).toEqual([{ metric: "api.calls", total: 5, event_count: 2 }]);
+    const oneMetric = await stratum.aggregateUsage({
+      tenant_id: t.id,
+      metric: "api.calls",
+    });
+    expect(oneMetric).toEqual([
+      { metric: "api.calls", total: 5, event_count: 2 },
+    ]);
   });
 
   it("never counts another tenant's events in an aggregate", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("uma") }));
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: uniqueSlug("umb") }));
+    const a = await stratum.createTenant({
+      name: "A",
+      slug: uniqueSlug("uma"),
+    });
+    const b = await stratum.createTenant({
+      name: "B",
+      slug: uniqueSlug("umb"),
+    });
 
     await stratum.recordUsage(a.id, { metric: "api.calls", quantity: 10 });
     await stratum.recordUsage(b.id, { metric: "api.calls", quantity: 99 });
 
-    const forA = await stratum.aggregateUsage({ tenant_id: a.id, metric: "api.calls" });
+    const forA = await stratum.aggregateUsage({
+      tenant_id: a.id,
+      metric: "api.calls",
+    });
     expect(forA).toEqual([{ metric: "api.calls", total: 10, event_count: 1 }]);
 
-    const forB = await stratum.aggregateUsage({ tenant_id: b.id, metric: "api.calls" });
+    const forB = await stratum.aggregateUsage({
+      tenant_id: b.id,
+      metric: "api.calls",
+    });
     expect(forB).toEqual([{ metric: "api.calls", total: 99, event_count: 1 }]);
   });
 
   it("treats the aggregation window as half-open [from, to) on occurred_at", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "Win", slug: uniqueSlug("umw") }));
+    const t = await stratum.createTenant({
+      name: "Win",
+      slug: uniqueSlug("umw"),
+    });
 
     // Three events at distinct instants.
-    await stratum.recordUsage(t.id, { metric: "api.calls", quantity: 1, occurred_at: "2026-07-01T00:00:00.000Z" });
-    await stratum.recordUsage(t.id, { metric: "api.calls", quantity: 1, occurred_at: "2026-07-15T12:00:00.000Z" });
-    await stratum.recordUsage(t.id, { metric: "api.calls", quantity: 1, occurred_at: "2026-08-01T00:00:00.000Z" });
+    await stratum.recordUsage(t.id, {
+      metric: "api.calls",
+      quantity: 1,
+      occurred_at: "2026-07-01T00:00:00.000Z",
+    });
+    await stratum.recordUsage(t.id, {
+      metric: "api.calls",
+      quantity: 1,
+      occurred_at: "2026-07-15T12:00:00.000Z",
+    });
+    await stratum.recordUsage(t.id, {
+      metric: "api.calls",
+      quantity: 1,
+      occurred_at: "2026-08-01T00:00:00.000Z",
+    });
 
     // Window [Jul 1, Aug 1): includes the Jul 1 boundary (inclusive from) and
     // the mid-July event, excludes the Aug 1 boundary (exclusive to).
@@ -85,7 +125,10 @@ describe("usage metering against real Postgres (integration)", () => {
   });
 
   it("is idempotent per (tenant, metric) on idempotency_key", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "Idem", slug: uniqueSlug("umi") }));
+    const t = await stratum.createTenant({
+      name: "Idem",
+      slug: uniqueSlug("umi"),
+    });
 
     const first = await stratum.recordUsage(t.id, {
       metric: "api.calls",
@@ -103,12 +146,22 @@ describe("usage metering against real Postgres (integration)", () => {
     expect(retry.quantity).toBe(4); // original quantity wins; the retry did not apply
 
     // Only one event was stored, so the aggregate counts it once.
-    const agg = await stratum.aggregateUsage({ tenant_id: t.id, metric: "api.calls" });
+    const agg = await stratum.aggregateUsage({
+      tenant_id: t.id,
+      metric: "api.calls",
+    });
     expect(agg).toEqual([{ metric: "api.calls", total: 4, event_count: 1 }]);
 
     // The same key under a DIFFERENT metric is a distinct event (scope is per metric).
-    await stratum.recordUsage(t.id, { metric: "other", quantity: 1, idempotency_key: "req-1" });
-    const other = await stratum.aggregateUsage({ tenant_id: t.id, metric: "other" });
+    await stratum.recordUsage(t.id, {
+      metric: "other",
+      quantity: 1,
+      idempotency_key: "req-1",
+    });
+    const other = await stratum.aggregateUsage({
+      tenant_id: t.id,
+      metric: "other",
+    });
     expect(other).toEqual([{ metric: "other", total: 1, event_count: 1 }]);
   });
 
@@ -160,7 +213,9 @@ describe("usage metering against real Postgres (integration)", () => {
       const c = await pool.connect();
       try {
         // usage_events cascades from tenants (ON DELETE CASCADE).
-        await c.query(`DELETE FROM tenants WHERE id = ANY($1)`, [[tenantA, tenantB]]).catch(() => {});
+        await c
+          .query(`DELETE FROM tenants WHERE id = ANY($1)`, [[tenantA, tenantB]])
+          .catch(() => {});
       } finally {
         c.release();
       }
@@ -171,10 +226,14 @@ describe("usage metering against real Postgres (integration)", () => {
       try {
         await c.query("BEGIN");
         await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
-        await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantA]);
+        await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [
+          tenantA,
+        ]);
 
         // No WHERE tenant_id filter: RLS alone must scope this to tenant A.
-        const res = await c.query<{ tenant_id: string }>("SELECT tenant_id FROM usage_events");
+        const res = await c.query<{ tenant_id: string }>(
+          "SELECT tenant_id FROM usage_events",
+        );
         const tenants = new Set(res.rows.map((r) => r.tenant_id));
         expect(tenants.has(tenantB)).toBe(false);
         for (const t of tenants) expect(t).toBe(tenantA);
@@ -189,7 +248,9 @@ describe("usage metering against real Postgres (integration)", () => {
       try {
         await c.query("BEGIN");
         await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
-        await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantA]);
+        await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [
+          tenantA,
+        ]);
 
         // Context A, row stamped for B -> WITH CHECK denies.
         await expect(

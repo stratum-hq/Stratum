@@ -3,6 +3,7 @@ import { withTransaction, withClient } from "../pool-helpers.js";
 import {
   type ConfigEntry,
   type SetConfigInput,
+  type BatchSetConfigEntry,
   type ResolvedConfigEntry,
   type ResolvedConfig,
   type BatchSetConfigResult,
@@ -162,7 +163,7 @@ export async function setConfig(
 export async function batchSetConfig(
   pool: pg.Pool,
   tenantId: string,
-  entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
+  entries: BatchSetConfigEntry[],
 ): Promise<BatchSetConfigResult> {
   return withTransaction(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(

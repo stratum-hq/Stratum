@@ -26,6 +26,7 @@ import type {
   PaginatedResult,
   ConfigEntry,
   SetConfigInput,
+  BatchSetConfigEntry,
   ResolvedConfig,
   ResolvedConfigEntry,
   BatchSetConfigResult,
@@ -928,7 +929,7 @@ export class Stratum {
   }
   async batchSetConfig(
     tenantId: string,
-    entries: Array<{ key: string; value: unknown; locked?: boolean; sensitive?: boolean }>,
+    entries: BatchSetConfigEntry[],
     audit?: AuditContext,
   ): Promise<BatchSetConfigResult> {
     return traced("config.batch_set", { tenant_id: tenantId, entry_count: entries.length }, async (span) => {

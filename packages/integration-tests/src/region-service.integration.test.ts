@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import type { AuditContext } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * The whole region surface of the Stratum facade is unexercised by any real-DB
@@ -65,8 +70,14 @@ describe("region service against real Postgres (integration)", () => {
   });
 
   it("lists regions oldest-first by created_at", async () => {
-    const a = await stratum.createRegion({ display_name: "A", slug: uniqueSlug("la") });
-    const b = await stratum.createRegion({ display_name: "B", slug: uniqueSlug("lb") });
+    const a = await stratum.createRegion({
+      display_name: "A",
+      slug: uniqueSlug("la"),
+    });
+    const b = await stratum.createRegion({
+      display_name: "B",
+      slug: uniqueSlug("lb"),
+    });
 
     const list = await stratum.listRegions();
     expect(list.map((r) => r.id)).toEqual([a.id, b.id]);
@@ -94,7 +105,10 @@ describe("region service against real Postgres (integration)", () => {
   });
 
   it("update with an empty patch is a no-op that returns the current row", async () => {
-    const region = await stratum.createRegion({ display_name: "NoOp", slug: uniqueSlug("noop") });
+    const region = await stratum.createRegion({
+      display_name: "NoOp",
+      slug: uniqueSlug("noop"),
+    });
     const updated = await stratum.updateRegion(region.id, {});
     expect(updated.display_name).toBe("NoOp");
     expect(updated.updated_at).toBe(region.updated_at); // untouched, no updated_at bump
@@ -102,19 +116,30 @@ describe("region service against real Postgres (integration)", () => {
 
   it("updateRegion throws for an unknown id", async () => {
     await expect(
-      stratum.updateRegion("00000000-0000-0000-0000-000000000000", { status: "inactive" }),
+      stratum.updateRegion("00000000-0000-0000-0000-000000000000", {
+        status: "inactive",
+      }),
     ).rejects.toThrow(/not found/i);
   });
 
   it("deletes a region that has no tenants assigned", async () => {
-    const region = await stratum.createRegion({ display_name: "Empty", slug: uniqueSlug("del") });
+    const region = await stratum.createRegion({
+      display_name: "Empty",
+      slug: uniqueSlug("del"),
+    });
     await stratum.deleteRegion(region.id);
     await expect(stratum.getRegion(region.id)).rejects.toThrow(/not found/i);
   });
 
   it("refuses to delete a region while an active tenant is assigned to it", async () => {
-    const region = await stratum.createRegion({ display_name: "InUse", slug: uniqueSlug("inuse") });
-    const tenant = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("rt") }));
+    const region = await stratum.createRegion({
+      display_name: "InUse",
+      slug: uniqueSlug("inuse"),
+    });
+    const tenant = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("rt"),
+    });
     await stratum.migrateRegion(tenant.id, region.id);
 
     await expect(stratum.deleteRegion(region.id)).rejects.toThrow(
@@ -126,8 +151,14 @@ describe("region service against real Postgres (integration)", () => {
   });
 
   it("migrateRegion assigns the tenant's region_id and is reflected in the row", async () => {
-    const region = await stratum.createRegion({ display_name: "Dest", slug: uniqueSlug("dest") });
-    const tenant = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("mt") }));
+    const region = await stratum.createRegion({
+      display_name: "Dest",
+      slug: uniqueSlug("dest"),
+    });
+    const tenant = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("mt"),
+    });
 
     // Freshly created tenants have no region.
     const before = await getPool().query<{ region_id: string | null }>(
@@ -151,7 +182,10 @@ describe("region service against real Postgres (integration)", () => {
       slug: uniqueSlug("drn"),
       status: "draining",
     });
-    const tenant = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("dt") }));
+    const tenant = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("dt"),
+    });
 
     await expect(stratum.migrateRegion(tenant.id, region.id)).rejects.toThrow(
       /region is not active/i,
@@ -159,8 +193,14 @@ describe("region service against real Postgres (integration)", () => {
   });
 
   it("migrateRegion throws when the tenant or the region is unknown", async () => {
-    const region = await stratum.createRegion({ display_name: "R", slug: uniqueSlug("mr") });
-    const tenant = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("mrt") }));
+    const region = await stratum.createRegion({
+      display_name: "R",
+      slug: uniqueSlug("mr"),
+    });
+    const tenant = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("mrt"),
+    });
 
     await expect(
       stratum.migrateRegion("00000000-0000-0000-0000-000000000000", region.id),
@@ -177,7 +217,11 @@ describe("region service against real Postgres (integration)", () => {
       actor,
     );
 
-    const rows = await getPool().query<{ action: string; actor_id: string; tenant_id: string | null }>(
+    const rows = await getPool().query<{
+      action: string;
+      actor_id: string;
+      tenant_id: string | null;
+    }>(
       `SELECT action, actor_id, tenant_id FROM audit_logs WHERE resource_type = 'region' AND resource_id = $1`,
       [region.id],
     );

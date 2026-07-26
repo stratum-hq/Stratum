@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { PermissionMode, RevocationMode } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 // createPermission takes the schema OUTPUT type, so the .default() fields are
 // required at the type level. This states the CASCADE defaults explicitly.
@@ -38,26 +42,30 @@ describe("CASCADE revocation after slug rename (integration)", () => {
   });
 
   async function buildTree(prefix: string) {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: `${prefix}_root` }),
-    );
-    const child = await stratum.createTenant(
-      tenantInput({ name: "Child", slug: `${prefix}_child`, parent_id: root.id }),
-    );
-    const grandchild = await stratum.createTenant(
-      tenantInput({
-        name: "Grandchild",
-        slug: `${prefix}_grand`,
-        parent_id: child.id,
-      }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: `${prefix}_root`,
+    });
+    const child = await stratum.createTenant({
+      name: "Child",
+      slug: `${prefix}_child`,
+      parent_id: root.id,
+    });
+    const grandchild = await stratum.createTenant({
+      name: "Grandchild",
+      slug: `${prefix}_grand`,
+      parent_id: child.id,
+    });
     return { root, child, grandchild };
   }
 
   it("cascades permission revocation to a descendant (control, no rename)", async () => {
     const { root, grandchild } = await buildTree("ctrl");
 
-    const rootPolicy = await stratum.createPermission(root.id, cascadePerm("feature:beta"));
+    const rootPolicy = await stratum.createPermission(
+      root.id,
+      cascadePerm("feature:beta"),
+    );
     await stratum.createPermission(grandchild.id, cascadePerm("feature:beta"));
 
     // Baseline: grandchild resolves the key (from its own copy).
@@ -74,7 +82,10 @@ describe("CASCADE revocation after slug rename (integration)", () => {
   it("cascades permission revocation to a descendant after the revoked tenant's slug is renamed", async () => {
     const { root, grandchild } = await buildTree("prev");
 
-    const rootPolicy = await stratum.createPermission(root.id, cascadePerm("feature:beta"));
+    const rootPolicy = await stratum.createPermission(
+      root.id,
+      cascadePerm("feature:beta"),
+    );
     await stratum.createPermission(grandchild.id, cascadePerm("feature:beta"));
 
     // Rename the slug of the tenant the revocation runs on.

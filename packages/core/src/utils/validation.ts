@@ -17,7 +17,10 @@ export const PaginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-export type PaginationInput = z.infer<typeof PaginationSchema>;
+// The INPUT type (pre-defaults): `limit` carries a Zod default (and coerces),
+// so it is optional on the caller side. `z.infer` (the output type) would make
+// it required.
+export type PaginationInput = z.input<typeof PaginationSchema>;
 
 export interface PaginatedResult<T> {
   data: T[];

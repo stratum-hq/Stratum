@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum, withClient } from "@stratum-hq/lib";
 import { PermissionMode, RevocationMode } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * Data-retention cutoff and consent lifecycle against real Postgres: time-based
@@ -86,42 +91,81 @@ describe("retention + consent (integration)", () => {
   });
 
   it("grants, upserts, and revokes consent; getActiveConsent reflects each state", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("con") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("con"),
+    });
 
-    await stratum.grantConsent(t.id, { subject_id: "subj-1", purpose: "marketing" });
-    expect(await stratum.getActiveConsent(t.id, "subj-1", "marketing")).not.toBeNull();
+    await stratum.grantConsent(t.id, {
+      subject_id: "subj-1",
+      purpose: "marketing",
+    });
+    expect(
+      await stratum.getActiveConsent(t.id, "subj-1", "marketing"),
+    ).not.toBeNull();
 
     // Re-granting the same (subject, purpose) upserts — one row, not two.
-    await stratum.grantConsent(t.id, { subject_id: "subj-1", purpose: "marketing" });
+    await stratum.grantConsent(t.id, {
+      subject_id: "subj-1",
+      purpose: "marketing",
+    });
     expect(await stratum.listConsent(t.id, "subj-1")).toHaveLength(1);
 
     // Revoke flips it inactive.
     expect(await stratum.revokeConsent(t.id, "subj-1", "marketing")).toBe(true);
-    expect(await stratum.getActiveConsent(t.id, "subj-1", "marketing")).toBeNull();
+    expect(
+      await stratum.getActiveConsent(t.id, "subj-1", "marketing"),
+    ).toBeNull();
     const listed = await stratum.listConsent(t.id, "subj-1");
     expect(listed[0].granted).toBe(false);
     expect(listed[0].revoked_at).not.toBeNull();
   });
 
   it("treats an expired consent as inactive via the expires_at > now() predicate", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("cexp") }));
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("cexp"),
+    });
 
     const past = new Date(Date.now() - 86_400_000).toISOString();
-    await stratum.grantConsent(t.id, { subject_id: "s", purpose: "analytics", expires_at: past });
+    await stratum.grantConsent(t.id, {
+      subject_id: "s",
+      purpose: "analytics",
+      expires_at: past,
+    });
     expect(await stratum.getActiveConsent(t.id, "s", "analytics")).toBeNull();
 
     const future = new Date(Date.now() + 86_400_000).toISOString();
-    await stratum.grantConsent(t.id, { subject_id: "s", purpose: "analytics", expires_at: future });
-    expect(await stratum.getActiveConsent(t.id, "s", "analytics")).not.toBeNull();
+    await stratum.grantConsent(t.id, {
+      subject_id: "s",
+      purpose: "analytics",
+      expires_at: future,
+    });
+    expect(
+      await stratum.getActiveConsent(t.id, "s", "analytics"),
+    ).not.toBeNull();
   });
 
   it("exports config, permissions, and consent for portability (Article 20)", async () => {
-    const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("exp") }));
-    await stratum.setConfig(t.id, "k", { value: "v", locked: false, sensitive: false });
-    await stratum.createPermission(t.id, {
-      key: "p", value: true, mode: PermissionMode.INHERITED, revocation_mode: RevocationMode.CASCADE,
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("exp"),
     });
-    await stratum.grantConsent(t.id, { subject_id: "s", purpose: "data_processing" });
+    await stratum.setConfig(t.id, "k", {
+      value: "v",
+      locked: false,
+      sensitive: false,
+    });
+    await stratum.createPermission(t.id, {
+      key: "p",
+      value: true,
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
+    });
+    await stratum.grantConsent(t.id, {
+      subject_id: "s",
+      purpose: "data_processing",
+    });
 
     const data = await stratum.exportTenantData(t.id);
     expect((data.config_entries as unknown[]).length).toBe(1);

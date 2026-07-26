@@ -2,8 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import type { AuditContext, CreateAbacPolicyInput } from "@stratum-hq/core";
 import { PermissionMode, RevocationMode } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * A completeness pass over Stratum facade methods that no real-DB test reaches:
@@ -35,11 +40,20 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
   describe("getTenantContext", () => {
     it("assembles tenant, resolved config, permissions and ancestors in one shot", async () => {
-      const root = await stratum.createTenant(tenantInput({ name: "Root", slug: uniqueSlug("tcr") }));
-      const child = await stratum.createTenant(
-        tenantInput({ name: "Child", slug: uniqueSlug("tcc"), parent_id: root.id }),
-      );
-      await stratum.setConfig(root.id, "brand", { value: "acme", locked: false, sensitive: false });
+      const root = await stratum.createTenant({
+        name: "Root",
+        slug: uniqueSlug("tcr"),
+      });
+      const child = await stratum.createTenant({
+        name: "Child",
+        slug: uniqueSlug("tcc"),
+        parent_id: root.id,
+      });
+      await stratum.setConfig(root.id, "brand", {
+        value: "acme",
+        locked: false,
+        sensitive: false,
+      });
       await stratum.createPermission(child.id, {
         key: "invoice:read",
         value: true,
@@ -68,9 +82,11 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
       expect(org.parent_id).toBeNull();
 
       // A nested tenant must NOT appear in listOrganizations.
-      await stratum.createTenant(
-        tenantInput({ name: "Nested", slug: uniqueSlug("nst"), parent_id: org.id }),
-      );
+      await stratum.createTenant({
+        name: "Nested",
+        slug: uniqueSlug("nst"),
+        parent_id: org.id,
+      });
 
       const fetched = await stratum.getOrganization(org.id);
       expect(fetched.id).toBe(org.id);
@@ -91,7 +107,10 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
       const slugA = uniqueSlug("bca");
       const slugB = uniqueSlug("bcb");
       const result = await stratum.batchCreateTenants(
-        [tenantInput({ name: "A", slug: slugA }), tenantInput({ name: "B", slug: slugB })],
+        [
+          { name: "A", slug: slugA },
+          { name: "B", slug: slugB },
+        ],
         actor,
       );
       expect(result.created).toHaveLength(2);
@@ -117,13 +136,13 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
     it("all-or-nothing: a mid-batch failure commits nothing and emits no event or audit for any tenant in the batch", async () => {
       const taken = uniqueSlug("dupe");
-      await stratum.createTenant(tenantInput({ name: "Existing", slug: taken }));
+      await stratum.createTenant({ name: "Existing", slug: taken });
 
       const survivor = uniqueSlug("bcsurv");
       const result = await stratum.batchCreateTenants(
         [
-          tenantInput({ name: "Survivor", slug: survivor }), // inserted first
-          tenantInput({ name: "Clash", slug: taken }), // duplicate -> aborts the txn
+          { name: "Survivor", slug: survivor }, // inserted first
+          { name: "Clash", slug: taken }, // duplicate -> aborts the txn
         ],
         actor,
       );
@@ -162,8 +181,14 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
   describe("API key list/get/dormant", () => {
     it("listApiKeys scopes to a tenant and getApiKey fetches by id (null when unknown)", async () => {
-      const t1 = await stratum.createTenant(tenantInput({ name: "T1", slug: uniqueSlug("ak1") }));
-      const t2 = await stratum.createTenant(tenantInput({ name: "T2", slug: uniqueSlug("ak2") }));
+      const t1 = await stratum.createTenant({
+        name: "T1",
+        slug: uniqueSlug("ak1"),
+      });
+      const t2 = await stratum.createTenant({
+        name: "T2",
+        slug: uniqueSlug("ak2"),
+      });
       const k1 = await stratum.createApiKey(t1.id, "k1");
       await stratum.createApiKey(t2.id, "k2");
 
@@ -172,11 +197,16 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
       const got = await stratum.getApiKey(k1.id);
       expect(got?.tenant_id).toBe(t1.id);
-      expect(await stratum.getApiKey("00000000-0000-0000-0000-000000000000")).toBeNull();
+      expect(
+        await stratum.getApiKey("00000000-0000-0000-0000-000000000000"),
+      ).toBeNull();
     });
 
     it("listDormantKeys returns never-used keys and excludes one that was just validated", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("dk") }));
+      const t = await stratum.createTenant({
+        name: "T",
+        slug: uniqueSlug("dk"),
+      });
       const unused = await stratum.createApiKey(t.id, "unused");
       const used = await stratum.createApiKey(t.id, "used");
 
@@ -203,7 +233,9 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
         events: ["tenant.created"],
       });
 
-      expect((await stratum.getWebhook(hook.id)).url).toBe("https://example.com/hook");
+      expect((await stratum.getWebhook(hook.id)).url).toBe(
+        "https://example.com/hook",
+      );
 
       const updated = await stratum.updateWebhook(hook.id, {
         active: false,
@@ -218,7 +250,10 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
         stratum.listWebhookDeliveries("00000000-0000-0000-0000-000000000000"),
       ).rejects.toThrow();
 
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("wd") }));
+      const t = await stratum.createTenant({
+        name: "T",
+        slug: uniqueSlug("wd"),
+      });
       const hook = await stratum.createWebhook({
         tenant_id: t.id,
         url: "https://example.com/webhook",
@@ -250,13 +285,24 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
   describe("role read/update/delete/remove", () => {
     it("getRole/listRoles reflect writes and updateRole patches scopes", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("role") }));
-      const role = await stratum.createRole({ name: "editor", scopes: ["read"], tenant_id: t.id });
+      const t = await stratum.createTenant({
+        name: "T",
+        slug: uniqueSlug("role"),
+      });
+      const role = await stratum.createRole({
+        name: "editor",
+        scopes: ["read"],
+        tenant_id: t.id,
+      });
 
       expect((await stratum.getRole(role.id))?.name).toBe("editor");
-      expect(await stratum.getRole("00000000-0000-0000-0000-000000000000")).toBeNull();
+      expect(
+        await stratum.getRole("00000000-0000-0000-0000-000000000000"),
+      ).toBeNull();
 
-      const updated = await stratum.updateRole(role.id, { scopes: ["read", "write"] });
+      const updated = await stratum.updateRole(role.id, {
+        scopes: ["read", "write"],
+      });
       expect(updated?.scopes).toEqual(["read", "write"]);
 
       const listed = await stratum.listRoles(t.id);
@@ -271,14 +317,25 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
     });
 
     it("assignRole then removeRole toggles a principal's scope resolution", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("prin") }));
-      const role = await stratum.createRole({ name: "svc", scopes: ["admin"], tenant_id: t.id });
+      const t = await stratum.createTenant({
+        name: "T",
+        slug: uniqueSlug("prin"),
+      });
+      const role = await stratum.createRole({
+        name: "svc",
+        scopes: ["admin"],
+        tenant_id: t.id,
+      });
 
       await stratum.assignRole("service_account", "svc-1", role.id, t.id);
-      expect(await stratum.resolvePrincipalScopes("service_account", "svc-1", t.id)).toEqual(["admin"]);
+      expect(
+        await stratum.resolvePrincipalScopes("service_account", "svc-1", t.id),
+      ).toEqual(["admin"]);
 
       expect(await stratum.removeRole("service_account", "svc-1")).toBe(true);
-      expect(await stratum.resolvePrincipalScopes("service_account", "svc-1", t.id)).toEqual([]);
+      expect(
+        await stratum.resolvePrincipalScopes("service_account", "svc-1", t.id),
+      ).toEqual([]);
     });
   });
 
@@ -286,19 +343,32 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
   describe("getAuditEntry and getAbacPolicies", () => {
     it("getAuditEntry fetches a written entry by id and returns null for an unknown id", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("aud") }), actor);
-      const [entry] = await stratum.queryAuditLogs({ tenant_id: t.id, limit: 50 });
+      const t = await stratum.createTenant(
+        { name: "T", slug: uniqueSlug("aud") },
+        actor,
+      );
+      const [entry] = await stratum.queryAuditLogs({
+        tenant_id: t.id,
+        limit: 50,
+      });
       expect(entry).toBeDefined();
 
       const fetched = await stratum.getAuditEntry(entry.id);
       expect(fetched?.id).toBe(entry.id);
       expect(fetched?.action).toBe("tenant.created");
-      expect(await stratum.getAuditEntry("00000000-0000-0000-0000-000000000000")).toBeNull();
+      expect(
+        await stratum.getAuditEntry("00000000-0000-0000-0000-000000000000"),
+      ).toBeNull();
     });
 
     it("getAbacPolicies returns the tenant's own policies", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "T", slug: uniqueSlug("abac") }));
-      const mk = (over: Partial<CreateAbacPolicyInput>): CreateAbacPolicyInput => ({
+      const t = await stratum.createTenant({
+        name: "T",
+        slug: uniqueSlug("abac"),
+      });
+      const mk = (
+        over: Partial<CreateAbacPolicyInput>,
+      ): CreateAbacPolicyInput => ({
         name: "p",
         resource_type: "report",
         action: "read",
@@ -318,10 +388,20 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
 
   describe("exportTenantData shape", () => {
     it("returns every data category for the tenant (Article 20 completeness)", async () => {
-      const t = await stratum.createTenant(tenantInput({ name: "Export", slug: uniqueSlug("exp") }));
-      await stratum.setConfig(t.id, "k", { value: 1, locked: false, sensitive: false });
+      const t = await stratum.createTenant({
+        name: "Export",
+        slug: uniqueSlug("exp"),
+      });
+      await stratum.setConfig(t.id, "k", {
+        value: 1,
+        locked: false,
+        sensitive: false,
+      });
       await stratum.createApiKey(t.id, "key");
-      await stratum.grantConsent(t.id, { subject_id: "s1", purpose: "marketing" });
+      await stratum.grantConsent(t.id, {
+        subject_id: "s1",
+        purpose: "marketing",
+      });
 
       const dump = await stratum.exportTenantData(t.id);
 

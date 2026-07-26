@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { PermissionMode, RevocationMode } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
 
 /**
  * Cross-tenant isolation at the SERVICE layer, against a real database.
@@ -39,20 +43,28 @@ describe("cross-tenant isolation (integration)", () => {
   });
 
   async function twoRoots(prefix: string) {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: `${prefix}_a` }));
-    const a1 = await stratum.createTenant(
-      tenantInput({ name: "A1", slug: `${prefix}_a1`, parent_id: a.id }),
-    );
-    const a11 = await stratum.createTenant(
-      tenantInput({ name: "A11", slug: `${prefix}_a11`, parent_id: a1.id }),
-    );
-    const a2 = await stratum.createTenant(
-      tenantInput({ name: "A2", slug: `${prefix}_a2`, parent_id: a.id }),
-    );
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: `${prefix}_b` }));
-    const b1 = await stratum.createTenant(
-      tenantInput({ name: "B1", slug: `${prefix}_b1`, parent_id: b.id }),
-    );
+    const a = await stratum.createTenant({ name: "A", slug: `${prefix}_a` });
+    const a1 = await stratum.createTenant({
+      name: "A1",
+      slug: `${prefix}_a1`,
+      parent_id: a.id,
+    });
+    const a11 = await stratum.createTenant({
+      name: "A11",
+      slug: `${prefix}_a11`,
+      parent_id: a1.id,
+    });
+    const a2 = await stratum.createTenant({
+      name: "A2",
+      slug: `${prefix}_a2`,
+      parent_id: a.id,
+    });
+    const b = await stratum.createTenant({ name: "B", slug: `${prefix}_b` });
+    const b1 = await stratum.createTenant({
+      name: "B1",
+      slug: `${prefix}_b1`,
+      parent_id: b.id,
+    });
     return { a, a1, a11, a2, b, b1 };
   }
 
@@ -84,7 +96,11 @@ describe("cross-tenant isolation (integration)", () => {
   it("resolveConfig inherits within the subtree but never leaks to another root", async () => {
     const { a, a1, a2, b, b1 } = await twoRoots("cfg");
 
-    await stratum.setConfig(a.id, "brand", { value: "acme", locked: false, sensitive: false });
+    await stratum.setConfig(a.id, "brand", {
+      value: "acme",
+      locked: false,
+      sensitive: false,
+    });
 
     // Inherited down A's subtree (positive control).
     expect((await stratum.resolveConfig(a1.id)).brand?.value).toBe("acme");
@@ -102,10 +118,14 @@ describe("cross-tenant isolation (integration)", () => {
     await stratum.createPermission(a.id, cascadePerm("feature:gamma"));
 
     // Inherited by A's descendant (positive control).
-    expect((await stratum.resolvePermissions(a1.id))["feature:gamma"]).toBeDefined();
+    expect(
+      (await stratum.resolvePermissions(a1.id))["feature:gamma"],
+    ).toBeDefined();
 
     // Root B, which was granted nothing, resolves nothing.
-    expect((await stratum.resolvePermissions(b.id))["feature:gamma"]).toBeUndefined();
+    expect(
+      (await stratum.resolvePermissions(b.id))["feature:gamma"],
+    ).toBeUndefined();
   });
 
   // ---- Boundary 4: CASCADE revocation is bounded, even after a rename -----
@@ -114,21 +134,32 @@ describe("cross-tenant isolation (integration)", () => {
 
     // Same permission held independently by: A (root), A11 (its descendant),
     // and B (an unrelated root). All CASCADE.
-    const rootPolicy = await stratum.createPermission(a.id, cascadePerm("feature:beta"));
+    const rootPolicy = await stratum.createPermission(
+      a.id,
+      cascadePerm("feature:beta"),
+    );
     await stratum.createPermission(a11.id, cascadePerm("feature:beta"));
     await stratum.createPermission(b.id, cascadePerm("feature:beta"));
 
     // Baseline: all three resolve the key from their own copy.
-    expect((await stratum.resolvePermissions(a11.id))["feature:beta"]).toBeDefined();
-    expect((await stratum.resolvePermissions(b.id))["feature:beta"]).toBeDefined();
+    expect(
+      (await stratum.resolvePermissions(a11.id))["feature:beta"],
+    ).toBeDefined();
+    expect(
+      (await stratum.resolvePermissions(b.id))["feature:beta"],
+    ).toBeDefined();
 
     // Rename the slug of the tenant the revocation runs on, then CASCADE-revoke.
     await stratum.updateTenant(a.id, { slug: "casc_a_renamed" });
     await stratum.deletePermission(a.id, rootPolicy.id);
 
     // Reached A's descendant across the rename (CASCADE by stable identity).
-    expect((await stratum.resolvePermissions(a11.id))["feature:beta"]).toBeUndefined();
+    expect(
+      (await stratum.resolvePermissions(a11.id))["feature:beta"],
+    ).toBeUndefined();
     // Did NOT cross the boundary: B keeps its own grant.
-    expect((await stratum.resolvePermissions(b.id))["feature:beta"]).toBeDefined();
+    expect(
+      (await stratum.resolvePermissions(b.id))["feature:beta"],
+    ).toBeDefined();
   });
 });

@@ -34,7 +34,10 @@ export const AuditLogQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().uuid().optional(),
 });
-export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
+// The INPUT type (pre-defaults): `limit` carries a Zod default (and coerces),
+// so it is optional on the caller side. `z.infer` (the output type) would make
+// it required.
+export type AuditLogQuery = z.input<typeof AuditLogQuerySchema>;
 
 /**
  * Input to append a custom audit event through the public facade. Stratum owns

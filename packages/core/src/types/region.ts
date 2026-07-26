@@ -30,7 +30,7 @@ export const CreateRegionInputSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-export type CreateRegionInput = z.infer<typeof CreateRegionInputSchema>;
+export type CreateRegionInput = z.input<typeof CreateRegionInputSchema>;
 
 export const UpdateRegionInputSchema = z.object({
   display_name: z.string().min(1).optional(),
@@ -39,10 +39,10 @@ export const UpdateRegionInputSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-export type UpdateRegionInput = z.infer<typeof UpdateRegionInputSchema>;
+export type UpdateRegionInput = z.input<typeof UpdateRegionInputSchema>;
 
 export const MigrateRegionInputSchema = z.object({
   region_id: z.string().uuid(),
 });
 
-export type MigrateRegionInput = z.infer<typeof MigrateRegionInputSchema>;
+export type MigrateRegionInput = z.input<typeof MigrateRegionInputSchema>;

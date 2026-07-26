@@ -1,8 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import type { AuditContext } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * The app-facing audit-write API (stratum.recordAuditEvent) against real
@@ -31,7 +36,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("records a custom event that is queryable via queryAuditLogs, with before/after and INET source_ip", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "Writer", slug: uniqueSlug("aw") }),
+      { name: "Writer", slug: uniqueSlug("aw") },
       actor,
     );
 
@@ -71,7 +76,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("applies defaults: actor_type 'system', null source_ip / before / after, empty metadata", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "Defaults", slug: uniqueSlug("awd") }),
+      { name: "Defaults", slug: uniqueSlug("awd") },
       actor,
     );
 
@@ -98,7 +103,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("stamps created_at from an explicit occurredAt (backdated / historical seed)", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "Backdate", slug: uniqueSlug("awbd") }),
+      { name: "Backdate", slug: uniqueSlug("awbd") },
       actor,
     );
 
@@ -129,7 +134,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("defaults created_at to ~now when occurredAt is omitted (backward compatible)", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "NowDefault", slug: uniqueSlug("awn") }),
+      { name: "NowDefault", slug: uniqueSlug("awn") },
       actor,
     );
 
@@ -151,7 +156,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("rejects an invalid occurredAt before touching the database", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "BadTs", slug: uniqueSlug("awt") }),
+      { name: "BadTs", slug: uniqueSlug("awt") },
       actor,
     );
 
@@ -169,7 +174,7 @@ describe("audit-write API against real Postgres (integration)", () => {
 
   it("rejects an invalid source_ip via the INET column type", async () => {
     const tenant = await stratum.createTenant(
-      tenantInput({ name: "BadIp", slug: uniqueSlug("awi") }),
+      { name: "BadIp", slug: uniqueSlug("awi") },
       actor,
     );
 
@@ -207,20 +212,36 @@ describe("audit-write API against real Postgres (integration)", () => {
         CREATE ROLE ${APP_ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS;
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
       await setup.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
-      await setup.query(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`);
+      await setup.query(
+        `GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
+      );
     } finally {
       setup.release();
     }
 
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("awa") }), actor);
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: uniqueSlug("awb") }), actor);
+    const a = await stratum.createTenant(
+      { name: "A", slug: uniqueSlug("awa") },
+      actor,
+    );
+    const b = await stratum.createTenant(
+      { name: "B", slug: uniqueSlug("awb") },
+      actor,
+    );
 
     // Each event is stamped for exactly the tenant it names.
     await stratum.recordAuditEvent({
-      tenantId: a.id, actorId: "alice", action: "custom.a", resourceType: "note", resourceId: "na",
+      tenantId: a.id,
+      actorId: "alice",
+      action: "custom.a",
+      resourceType: "note",
+      resourceId: "na",
     });
     await stratum.recordAuditEvent({
-      tenantId: b.id, actorId: "bob", action: "custom.b", resourceType: "note", resourceId: "nb",
+      tenantId: b.id,
+      actorId: "bob",
+      action: "custom.b",
+      resourceType: "note",
+      resourceId: "nb",
     });
 
     // Read audit_logs directly as the RLS-bound role with tenant context A.
@@ -229,7 +250,9 @@ describe("audit-write API against real Postgres (integration)", () => {
     try {
       await c.query("BEGIN");
       await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
-      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [a.id]);
+      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [
+        a.id,
+      ]);
       const asA = await c.query<{ tenant_id: string; action: string }>(
         "SELECT tenant_id, action FROM audit_logs",
       );
@@ -242,8 +265,12 @@ describe("audit-write API against real Postgres (integration)", () => {
       // Symmetric under context B.
       await c.query("BEGIN");
       await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
-      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [b.id]);
-      const asB = await c.query<{ action: string }>("SELECT action FROM audit_logs");
+      await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [
+        b.id,
+      ]);
+      const asB = await c.query<{ action: string }>(
+        "SELECT action FROM audit_logs",
+      );
       expect(asB.rows.some((r) => r.action === "custom.b")).toBe(true);
       expect(asB.rows.some((r) => r.action === "custom.a")).toBe(false);
       await c.query("COMMIT");

@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { TenantCycleDetectedError, TenantNotFoundError } from "@stratum-hq/core";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
-import { tenantInput, uniqueSlug } from "./helpers/fixtures.js";
+import {
+  TenantCycleDetectedError,
+  TenantNotFoundError,
+} from "@stratum-hq/core";
+import {
+  getPool,
+  closePool,
+  runMigrations,
+  cleanTestData,
+} from "./helpers/db.js";
+import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * moveTenant against real Postgres. A mocked pool cannot prove any of this:
@@ -54,14 +62,18 @@ describe("moveTenant subtree rewrite (integration)", () => {
     const gSlug = uniqueSlug("mvg");
     const bSlug = uniqueSlug("mvb");
 
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: aSlug }));
-    const c = await stratum.createTenant(
-      tenantInput({ name: "C", slug: cSlug, parent_id: a.id }),
-    );
-    const g = await stratum.createTenant(
-      tenantInput({ name: "G", slug: gSlug, parent_id: c.id }),
-    );
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: bSlug }));
+    const a = await stratum.createTenant({ name: "A", slug: aSlug });
+    const c = await stratum.createTenant({
+      name: "C",
+      slug: cSlug,
+      parent_id: a.id,
+    });
+    const g = await stratum.createTenant({
+      name: "G",
+      slug: gSlug,
+      parent_id: c.id,
+    });
+    const b = await stratum.createTenant({ name: "B", slug: bSlug });
 
     // Before: a -> c -> g. ltree is slug-based, path is id-based.
     expect((await paths(c.id)).ltree).toBe(`${aSlug}.${cSlug}`);
@@ -85,14 +97,18 @@ describe("moveTenant subtree rewrite (integration)", () => {
   });
 
   it("getDescendants (ltree query) follows the moved subtree to its new parent and leaves the old parent empty", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("da") }));
-    const c = await stratum.createTenant(
-      tenantInput({ name: "C", slug: uniqueSlug("dc"), parent_id: a.id }),
-    );
-    const g = await stratum.createTenant(
-      tenantInput({ name: "G", slug: uniqueSlug("dg"), parent_id: c.id }),
-    );
-    const b = await stratum.createTenant(tenantInput({ name: "B", slug: uniqueSlug("db") }));
+    const a = await stratum.createTenant({ name: "A", slug: uniqueSlug("da") });
+    const c = await stratum.createTenant({
+      name: "C",
+      slug: uniqueSlug("dc"),
+      parent_id: a.id,
+    });
+    const g = await stratum.createTenant({
+      name: "G",
+      slug: uniqueSlug("dg"),
+      parent_id: c.id,
+    });
+    const b = await stratum.createTenant({ name: "B", slug: uniqueSlug("db") });
 
     await stratum.moveTenant(c.id, b.id);
 
@@ -103,17 +119,26 @@ describe("moveTenant subtree rewrite (integration)", () => {
     expect(await stratum.getDescendants(a.id)).toHaveLength(0);
 
     // Subtree internals are intact: c still owns g.
-    expect((await stratum.getDescendants(c.id)).map((t) => t.id)).toEqual([g.id]);
+    expect((await stratum.getDescendants(c.id)).map((t) => t.id)).toEqual([
+      g.id,
+    ]);
   });
 
   it("rejects a move that would create a cycle (under a descendant)", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("cya") }));
-    const c = await stratum.createTenant(
-      tenantInput({ name: "C", slug: uniqueSlug("cyc"), parent_id: a.id }),
-    );
-    const g = await stratum.createTenant(
-      tenantInput({ name: "G", slug: uniqueSlug("cyg"), parent_id: c.id }),
-    );
+    const a = await stratum.createTenant({
+      name: "A",
+      slug: uniqueSlug("cya"),
+    });
+    const c = await stratum.createTenant({
+      name: "C",
+      slug: uniqueSlug("cyc"),
+      parent_id: a.id,
+    });
+    const g = await stratum.createTenant({
+      name: "G",
+      slug: uniqueSlug("cyg"),
+      parent_id: c.id,
+    });
 
     await expect(stratum.moveTenant(a.id, g.id)).rejects.toThrow(
       TenantCycleDetectedError,
@@ -124,30 +149,35 @@ describe("moveTenant subtree rewrite (integration)", () => {
   });
 
   it("rejects moving a tenant under itself", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("sfa") }));
+    const a = await stratum.createTenant({
+      name: "A",
+      slug: uniqueSlug("sfa"),
+    });
     await expect(stratum.moveTenant(a.id, a.id)).rejects.toThrow(
       TenantCycleDetectedError,
     );
   });
 
   it("rejects a move to a non-existent parent", async () => {
-    const a = await stratum.createTenant(tenantInput({ name: "A", slug: uniqueSlug("npa") }));
+    const a = await stratum.createTenant({
+      name: "A",
+      slug: uniqueSlug("npa"),
+    });
     await expect(
       stratum.moveTenant(a.id, "00000000-0000-0000-0000-000000000000"),
     ).rejects.toThrow(TenantNotFoundError);
   });
 
   it("serializes concurrent sibling inserts under one parent (advisory lock) without corrupting the tree", async () => {
-    const root = await stratum.createTenant(
-      tenantInput({ name: "Root", slug: uniqueSlug("cclock") }),
-    );
+    const root = await stratum.createTenant({
+      name: "Root",
+      slug: uniqueSlug("cclock"),
+    });
 
     const slugs = Array.from({ length: 6 }, () => uniqueSlug("ccl"));
     const children = await Promise.all(
       slugs.map((slug, i) =>
-        stratum.createTenant(
-          tenantInput({ name: `Child ${i}`, slug, parent_id: root.id }),
-        ),
+        stratum.createTenant({ name: `Child ${i}`, slug, parent_id: root.id }),
       ),
     );
 
