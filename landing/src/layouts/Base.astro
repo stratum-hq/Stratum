@@ -10,6 +10,23 @@ const { title, description } = Astro.props;
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Theme, resolved before first paint so there is no post paint flash and the
+       landing agrees with the docs site: an explicit choice in localStorage wins,
+       otherwise the OS preference decides. Mirrors Starlight's pre paint behavior
+       (website/, Epic 18). Kept as is:inline so it runs synchronously in <head>. -->
+  <script is:inline>
+    (() => {
+      try {
+        const saved = localStorage.getItem('stratum-theme');
+        const theme = saved === 'light' || saved === 'dark'
+          ? saved
+          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <title>{title}</title>
   <meta name="description" content={description} />
   <meta property="og:title" content={title} />

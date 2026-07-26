@@ -5,7 +5,7 @@ import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 ---
 
-<Base title="Stratum vs Alternatives — Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, ABP.IO, Clerk / Auth0 Organizations, Nile, and Oso / Permit.io. See why Stratum is the multi-tenancy library Node.js has been missing.">
+<Base title="Stratum vs Alternatives: Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, ABP.IO, Clerk / Auth0 Organizations, Nile, and Oso / Permit.io. See why Stratum is the multi-tenancy library Node.js has been missing.">
 
 <Nav />
 
@@ -16,7 +16,7 @@ import Footer from '../components/Footer.astro';
     <div class="cmp-eyebrow">Compare</div>
     <h1>Stratum vs the <span class="accent">alternatives</span></h1>
     <p class="cmp-subtitle">
-      Seven honest comparisons — from rolling your own to auth-layer orgs,
+      Seven honest comparisons, from rolling your own to auth-layer orgs,
       tenant databases, and authorization engines. Where each fits, and where Stratum does.
     </p>
   </header>
@@ -48,7 +48,7 @@ import Footer from '../components/Footer.astro';
         data, you're looking at a full-quarter migration.
       </p>
       <p>
-        Stratum gives you month-18 features on day one. Not because you need them all immediately —
+        Stratum gives you month-18 features on day one. Not because you need them all immediately,
         but because the architecture is already in place when you do.
       </p>
     </div>
@@ -65,7 +65,7 @@ import Footer from '../components/Footer.astro';
         <tbody>
           <tr>
             <td class="cmp-feat">Setup time</td>
-            <td class="cmp-neutral">1–2 days</td>
+            <td class="cmp-neutral">1-2 days</td>
             <td class="cmp-good">5 minutes</td>
           </tr>
           <tr>
@@ -81,7 +81,7 @@ import Footer from '../components/Footer.astro';
           <tr>
             <td class="cmp-feat">Isolation strategies</td>
             <td class="cmp-neutral">Manual RLS only</td>
-            <td class="cmp-good">RLS, schema, database — per tenant</td>
+            <td class="cmp-good">RLS, schema, database · per tenant</td>
           </tr>
           <tr>
             <td class="cmp-feat">Audit logging</td>
@@ -132,7 +132,7 @@ import Footer from '../components/Footer.astro';
       <p>
         Use WorkOS or Frontegg to manage authentication and user provisioning.
         Use Stratum to manage data isolation, config inheritance, and compliance operations
-        on the PostgreSQL side. They complement each other — they don't compete.
+        on the PostgreSQL side. They complement each other. They don't compete.
       </p>
     </div>
 
@@ -148,7 +148,7 @@ import Footer from '../components/Footer.astro';
         <tbody>
           <tr>
             <td class="cmp-feat">SSO / SAML / SCIM</td>
-            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-good">Yes, core product</td>
             <td class="cmp-bad">Not in scope</td>
           </tr>
           <tr>
@@ -205,7 +205,7 @@ import Footer from '../components/Footer.astro';
       <h2>Stratum vs ABP Framework</h2>
       <p class="cmp-section-intro">
         ABP is the gold standard for multi-tenancy in the .NET ecosystem. Stratum is the
-        equivalent for Node.js — the library that should have existed years ago.
+        equivalent for Node.js, the library that should have existed years ago.
       </p>
     </div>
 
@@ -222,7 +222,7 @@ import Footer from '../components/Footer.astro';
         close it.
       </p>
       <p>
-        Stratum is not a port of ABP — the Node.js and TypeScript ecosystem has different
+        Stratum is not a port of ABP. The Node.js and TypeScript ecosystem has different
         conventions and constraints. But the motivation is the same: give developers in this
         ecosystem a stable, production-ready multi-tenancy foundation so they stop reinventing it.
       </p>
@@ -276,7 +276,7 @@ import Footer from '../components/Footer.astro';
           <tr>
             <td class="cmp-feat">npm / TypeScript native</td>
             <td class="cmp-bad">No</td>
-            <td class="cmp-good">Yes — built for the ecosystem</td>
+            <td class="cmp-good">Yes, built for the ecosystem</td>
           </tr>
         </tbody>
       </table>
@@ -306,13 +306,13 @@ import Footer from '../components/Footer.astro';
         What they deliberately don't touch is the layer below the token. They don't isolate a
         tenant's rows in your database, inherit config down through nested tenants, enforce
         row-level security, audit the data mutations your app performs, or purge a tenant's data
-        for a GDPR request. That's not a gap in the products — it's simply not the layer they
+        for a GDPR request. That's not a gap in the products. It's simply not the layer they
         operate at.
       </p>
       <p>
         Stratum takes the <code>org_id</code> those systems already resolve and builds the tenant
         data layer beneath it: the isolation strategy, the config tree, permission delegation, and
-        the compliance workflows. The two compose cleanly — Clerk decides who is in the org,
+        the compliance workflows. The two compose cleanly: Clerk decides who is in the org,
         Stratum decides what that org's data can do and where it lives.
       </p>
     </div>
@@ -329,7 +329,7 @@ import Footer from '../components/Footer.astro';
         <tbody>
           <tr>
             <td class="cmp-feat">Org membership + invites</td>
-            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-good">Yes, core product</td>
             <td class="cmp-bad">Not in scope</td>
           </tr>
           <tr>
@@ -374,7 +374,7 @@ import Footer from '../components/Footer.astro';
     <div class="cmp-callout">
       <p>
         <strong>Use both:</strong> Clerk (or Auth0) for authentication and the org-membership UI
-        your users see. Stratum for the tenant data layer beneath it — isolation, config, and
+        your users see. Stratum for the tenant data layer beneath it: isolation, config, and
         compliance. They sit at different layers and slot together.
       </p>
     </div>
@@ -393,15 +393,15 @@ import Footer from '../components/Footer.astro';
 
     <div class="cmp-narrative">
       <p>
-        Nile virtualizes tenants at the <strong>database</strong> itself — you build on Nile's
+        Nile virtualizes tenants at the <strong>database</strong> itself. You build on Nile's
         hosted Postgres and get per-tenant isolation baked into the platform. If you're greenfield
         and comfortable putting your data on a startup database vendor, it's an elegant story:
         tenancy is a property of the database, not something you assemble in application code.
       </p>
       <p>
         Stratum takes the opposite stance on <em>where</em> tenancy lives. It's an MIT-licensed
-        library that runs over your existing PostgreSQL — RDS, Supabase, Neon, or self-hosted —
-        so there's no database to migrate to and no vendor to depend on. On top of that Postgres it
+        library that runs over your existing PostgreSQL: RDS, Supabase, Neon, or self-hosted.
+        So there's no database to migrate to and no vendor to depend on. On top of that Postgres it
         adds the application-layer tenancy model Nile doesn't aim to cover: nested tenant
         hierarchy, config inheritance with lockable keys, permission delegation, and GDPR
         export/purge workflows.
@@ -436,7 +436,7 @@ import Footer from '../components/Footer.astro';
           </tr>
           <tr>
             <td class="cmp-feat">Per-tenant isolation</td>
-            <td class="cmp-good">Yes — at the DB</td>
+            <td class="cmp-good">Yes, at the DB</td>
             <td class="cmp-good">RLS, schema, database</td>
           </tr>
           <tr>
@@ -505,7 +505,7 @@ import Footer from '../components/Footer.astro';
       </p>
       <p>
         There is one honest overlap. Stratum's permission delegation and ABAC cover permissions
-        <em>within a tenant hierarchy</em> — delegation modes with cascade revocation, and ABAC
+        <em>within a tenant hierarchy</em>: delegation modes with cascade revocation, and ABAC
         policies that inherit down the tree. That's narrower and more opinionated than a general
         policy engine, and for tenancy-scoped access it's usually enough on its own.
       </p>
@@ -523,7 +523,7 @@ import Footer from '../components/Footer.astro';
         <tbody>
           <tr>
             <td class="cmp-feat">General policy-as-code authz</td>
-            <td class="cmp-good">Yes — core product</td>
+            <td class="cmp-good">Yes, core product</td>
             <td class="cmp-neutral">Tenancy-scoped only</td>
           </tr>
           <tr>
@@ -589,15 +589,15 @@ import Footer from '../components/Footer.astro';
       </div>
       <div class="cmp-summary-card">
         <div class="cmp-summary-label">vs ABP Framework</div>
-        <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent — until now.</p>
+        <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent, until now.</p>
       </div>
       <div class="cmp-summary-card">
         <div class="cmp-summary-label">vs Clerk / Auth0 Orgs</div>
-        <p>They own auth and org membership. Stratum owns the tenant data layer beneath the token — isolation, config, compliance. Compose them.</p>
+        <p>They own auth and org membership. Stratum owns the tenant data layer beneath the token: isolation, config, compliance. Compose them.</p>
       </div>
       <div class="cmp-summary-card">
         <div class="cmp-summary-label">vs Nile</div>
-        <p>Nile is a database you host with them. Stratum is a library over the Postgres you already run — plus nested tenancy and compliance. No lock-in.</p>
+        <p>Nile is a database you host with them. Stratum is a library over the Postgres you already run, plus nested tenancy and compliance. No lock-in.</p>
       </div>
       <div class="cmp-summary-card">
         <div class="cmp-summary-label">vs Oso / Permit.io</div>
@@ -661,7 +661,7 @@ import Footer from '../components/Footer.astro';
     padding: calc(var(--space-8) * 3) var(--space-6) var(--space-16);
   }
 
-  /* Header — compact, data-forward */
+  /* Header: compact, data-forward */
   .cmp-header {
     margin-bottom: var(--space-12);
     text-align: center;
