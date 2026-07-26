@@ -1,0 +1,268 @@
+<!doctype html>
+<!--
+  THROWAWAY reference mockup for the #145 identity proposal.
+  Not part of the landing/ or website/ Astro builds. Not shipped anywhere.
+  Exists only to make the proposed "Stratigraphy" direction concrete for sign-off.
+  Real tokens land in #146 (assets) and #147 (DESIGN.md + token layer).
+-->
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stratum - identity mockup (throwaway)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --basalt:   #0B0E13;
+    --core:     #141A22;
+    --core-2:   #1B222C;
+    --seam:     #26313D;
+    --seam-hi:  #38475726;
+    --chalk:    #E7EDF4;
+    --graphite: #8A97A6;
+    --graphite-dim: #5E6B7A;
+    --signal:   #4FE3C1;
+    --signal-dim: #4fe3c11a;
+    --lock:     #E0A64F;
+
+    --font-display: "Archivo", system-ui, sans-serif;
+    --font-body: "IBM Plex Sans", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  :root[data-theme="light"] {
+    --basalt:   #F4F7FA;
+    --core:     #EAEFF4;
+    --core-2:   #E1E8EF;
+    --seam:     #CAD5DF;
+    --chalk:    #0B0E13;
+    --graphite: #4A5765;
+    --graphite-dim: #7A8794;
+    --signal:   #0E8C77;
+    --signal-dim: #0e8c7714;
+    --lock:     #8A5A0F;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--basalt);
+    color: var(--graphite);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* ---- NAV ---- */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--seam);
+  }
+  .wordmark {
+    font-family: var(--font-mono);
+    font-weight: 600; font-size: 15px; letter-spacing: 0.02em;
+    color: var(--chalk);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .wordmark .glyph { color: var(--signal); }
+  .navlinks { display: flex; gap: 26px; font-family: var(--font-mono); font-size: 13px; }
+  .navlinks a { color: var(--graphite); text-decoration: none; }
+  .navlinks a:hover { color: var(--chalk); }
+
+  /* ---- HERO: stratigraphic rail + content + core-sample readout ---- */
+  .hero { display: grid; grid-template-columns: 56px 1fr 1fr; gap: 0; }
+
+  /* the signature: the depth rail */
+  .rail {
+    position: relative;
+    border-right: 1px solid var(--seam);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--graphite-dim);
+  }
+  .rail .depth {
+    position: relative;
+    height: 132px;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 8px;
+    border-bottom: 1px solid var(--seam);
+  }
+  .rail .depth::after {
+    content: ""; position: absolute; right: -1px; top: 0;
+    width: 1px; height: 100%;
+  }
+  /* signal line tracing down the rail */
+  .rail .flow {
+    position: absolute; right: -1px; top: 8px;
+    width: 2px; height: 396px;
+    background: linear-gradient(var(--signal), var(--signal-dim));
+  }
+  .rail .flow::after {
+    content: "▼"; position: absolute; bottom: -4px; right: -5px;
+    color: var(--signal); font-size: 10px;
+  }
+
+  .hero-main { padding: 60px 40px 60px 34px; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--signal); margin-bottom: 22px;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 800; font-stretch: 125%;
+    font-size: clamp(2.6rem, 5vw, 3.5rem);
+    line-height: 0.98; letter-spacing: -0.01em;
+    color: var(--chalk); text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  h1 .down { color: var(--signal); }
+  .sub { font-size: 1.02rem; color: var(--graphite); max-width: 46ch; margin-bottom: 30px; }
+  .sub code { font-family: var(--font-mono); font-size: 0.85em; color: var(--chalk); }
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .install {
+    font-family: var(--font-mono); font-size: 13px; color: var(--chalk);
+    background: var(--core); border: 1px solid var(--seam);
+    padding: 12px 16px; display: inline-flex; align-items: center; gap: 10px;
+  }
+  .install .pfx { color: var(--signal); }
+  .btn {
+    font-family: var(--font-mono); font-size: 13px; text-decoration: none;
+    padding: 12px 18px; display: inline-flex; align-items: center;
+    color: var(--basalt); background: var(--signal); font-weight: 600;
+  }
+
+  /* core-sample readout panel */
+  .sample { padding: 40px 40px 40px 0; }
+  .panel {
+    background: var(--core); border: 1px solid var(--seam);
+    font-family: var(--font-mono); font-size: 12.5px; line-height: 1.85;
+  }
+  .panel-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-bottom: 1px solid var(--seam);
+    color: var(--graphite-dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .panel-hd .tag { color: var(--graphite); }
+  .panel-body { padding: 16px 18px; }
+  .row { display: grid; grid-template-columns: 26px 1fr; }
+  .d { color: var(--graphite-dim); }
+  .t-root { color: var(--chalk); }
+  .t-mid  { color: var(--graphite); }
+  .t-leaf { color: var(--graphite-dim); }
+  .note   { color: var(--graphite-dim); }
+  .resolved { color: var(--signal); }
+  .locked { color: var(--lock); }
+  .seamrule { border: 0; border-top: 1px solid var(--seam); margin: 12px 0; }
+
+  /* ---- CODE WELL ---- */
+  .section { padding: 30px 40px 60px 34px; }
+  .section h2 {
+    font-family: var(--font-display); font-weight: 800; font-stretch: 125%;
+    text-transform: uppercase; font-size: 1.5rem; color: var(--chalk);
+    letter-spacing: -0.01em; margin-bottom: 6px;
+  }
+  .section p.lede { color: var(--graphite); margin-bottom: 22px; max-width: 52ch; }
+  .well {
+    background: var(--core); border: 1px solid var(--seam);
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.8;
+    overflow: hidden;
+  }
+  .well-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 14px; border-bottom: 1px solid var(--seam);
+    color: var(--graphite-dim); font-size: 11px;
+  }
+  .well-body { display: grid; grid-template-columns: 40px 1fr; }
+  .gutter {
+    color: var(--graphite-dim); text-align: right; padding: 14px 12px 14px 0;
+    border-right: 1px solid var(--seam); user-select: none;
+    background: var(--basalt);
+  }
+  .code { padding: 14px 18px; white-space: pre; overflow-x: auto; }
+  .kw  { color: #C7B3F2; }
+  .str { color: #86C7B0; }
+  .fn  { color: var(--chalk); }
+  .cm  { color: var(--graphite-dim); }
+  .num { color: #E0A64F; }
+  .payoff { color: var(--signal); }
+
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 40px 1fr; }
+    .sample { grid-column: 1 / -1; padding: 0 24px 40px; }
+    .rail .flow { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="wordmark"><span class="glyph">▚</span> STRATUM</div>
+    <div class="navlinks">
+      <a href="#">docs</a><a href="#">guides</a><a href="#">packages</a><a href="#">github</a><a href="#">◐</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="rail" aria-hidden="true">
+      <div class="flow"></div>
+      <div class="depth">d0</div>
+      <div class="depth">d1</div>
+      <div class="depth">d2</div>
+      <div class="depth">d3</div>
+    </div>
+
+    <div class="hero-main">
+      <div class="eyebrow">postgres-native · MIT</div>
+      <h1>Multi-tenancy<br/>that goes <span class="down">deep</span></h1>
+      <p class="sub">
+        When a <code>tenant_id</code> column stops scaling (resellers inside
+        agencies inside enterprises), Stratum is the layer underneath:
+        hierarchy, config inheritance, ABAC, and RLS. Start flat. Grow deep.
+      </p>
+      <div class="actions">
+        <span class="install"><span class="pfx">$</span> npm i @stratum-hq/lib pg</span>
+        <a class="btn" href="#">read the docs →</a>
+      </div>
+    </div>
+
+    <div class="sample">
+      <div class="panel">
+        <div class="panel-hd"><span>core sample</span><span class="tag">tenant tree · depth 0-3</span></div>
+        <div class="panel-body">
+          <div class="row"><span class="d">d0</span><span><span class="t-root">acmesec</span>            <span class="note">root</span></span></div>
+          <div class="row"><span class="d">d1</span><span>└ <span class="t-mid">northstar-msp</span>    <span class="note">reseller</span></span></div>
+          <div class="row"><span class="d">d2</span><span>&nbsp;&nbsp;└ <span class="t-leaf">client-alpha</span></span></div>
+          <div class="row"><span class="d">d3</span><span>&nbsp;&nbsp;&nbsp;&nbsp;└ <span class="t-leaf">team-eng</span></span></div>
+          <hr class="seamrule" />
+          <div class="row"><span class="d"></span><span><span class="resolved">max_users: 1000</span>     <span class="note">◀ resolved ↓ from d0</span></span></div>
+          <div class="row"><span class="d"></span><span><span class="locked">data_region: LOCKED</span> <span class="note">children cannot override</span></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Five lines to a working hierarchy</h2>
+    <p class="lede">Connect a pool, create tenants with parents, and config resolves up the tree. The one thing lit in the accent color is the payoff: the resolved value.</p>
+    <div class="well">
+      <div class="well-hd"><span>setup.ts</span><span>@stratum-hq/lib</span></div>
+      <div class="well-body">
+        <div class="gutter">1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8</div>
+<div class="code"><span class="kw">import</span> { Stratum } <span class="kw">from</span> <span class="str">"@stratum-hq/lib"</span>;
+
+<span class="kw">const</span> stratum = <span class="kw">new</span> <span class="fn">Stratum</span>({ pool });
+<span class="kw">const</span> root = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ slug: <span class="str">"acmesec"</span> });
+<span class="kw">const</span> msp  = <span class="kw">await</span> stratum.<span class="fn">createTenant</span>({ parent_id: root.id });
+
+<span class="kw">await</span> stratum.<span class="fn">setConfig</span>(root.id, <span class="str">"max_users"</span>, { value: <span class="num">1000</span> });
+<span class="kw">const</span> cfg = <span class="kw">await</span> stratum.<span class="fn">resolveConfig</span>(msp.id);
+<span class="payoff">// → max_users: 1000  inherited from "acmesec"</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
