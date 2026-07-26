@@ -158,7 +158,7 @@ a {
 }
 
 /* ===== HERO ACTIONS + ACCENT (shared across pages) ===== */
-/* Global accent class — works on all pages, overrides Astro scoped styles */
+/* Global accent class: works on all pages, overrides Astro scoped styles */
 .accent {
   color: var(--accent) !important;
 }
@@ -910,15 +910,29 @@ a {
    are needed here. The hero diagram is a structural panel, not a code well, so
    it follows --surface-1 and adapts with the theme on its own. */
 
+/* ===== ACCESSIBILITY ===== */
+/* Keyboard focus: a 2px Signal ring with a 3px offset on every interactive
+   element. Signal clears the 3:1 UI contrast floor on both canvases (12.1:1 on
+   Basalt, 3.9:1 on drafting paper). Matches the docs site's focus treatment
+   (website/src/styles/custom.css) so the two surfaces agree. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
   html {
     scroll-behavior: auto;
   }
+  /* The scroll-triggered fade-ins resolve to their final state so no content is
+     gated behind motion; the one shot inheritance-flow reveal is skipped. */
   .fade-in {
     opacity: 1 !important;
     transform: none !important;
