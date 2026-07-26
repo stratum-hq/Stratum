@@ -81,6 +81,9 @@ jobs:
   publish:
     name: Publish
     needs: test
+    # Requires manual approval from a required reviewer on the `publish`
+    # environment before any npm publish runs (arms #174).
+    environment: publish
     runs-on: ubuntu-latest
     permissions:
       contents: read
