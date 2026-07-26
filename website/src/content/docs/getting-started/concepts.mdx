@@ -31,10 +31,20 @@ The maximum tree depth is 20 levels. Advisory locks on parent UUIDs prevent race
 
 | Operation | Description |
 |-----------|-------------|
-| `getAncestors(id)` | Returns all tenants from root down to the parent |
-| `getDescendants(id)` | Returns the entire subtree (uses `ltree` for efficiency) |
+| `getAncestors(id)` <span class="badge-verified">verified</span> | Returns every tenant from the root down to and including the direct parent |
+| `getDescendants(id)` <span class="badge-verified">verified</span> | Returns the **active-scoped** subtree: active descendants only (uses `ltree` for efficiency) |
 | `getChildren(id)` | Returns direct children only |
 | `moveTenant(id, newParentId)` | Relocates a tenant and all its descendants, with cycle detection |
+
+Methods marked <span class="badge-verified">verified</span> have a documented, behaviorally-guaranteed result scope: the exact set they return is part of the API contract, not incidental to the query.
+
+<Aside type="caution" title="getDescendants is active-scoped">
+  `getDescendants` lists the **active-scoped** subtree: active descendants only.
+  Archived and soft-deleted tenants are excluded, so the result is not
+  necessarily every row that sits beneath the tenant in the tree. Likewise
+  `getAncestors` now includes the direct parent. If you need inactive tenants
+  too, query them explicitly rather than assuming the traversal returns them.
+</Aside>
 
 ## Config Inheritance
 

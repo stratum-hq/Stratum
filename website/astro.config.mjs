@@ -1,6 +1,12 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
+// Core Sample type families (documented in DESIGN.md). Loaded non-blocking from
+// the document head rather than via a render-blocking @import in the shared
+// token file, so fonts never gate first paint.
+const fontsHref =
+  "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,600;125,700;125,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap";
+
 export default defineConfig({
   site: "https://docs.stratum-hq.org",
   integrations: [
@@ -33,6 +39,23 @@ export default defineConfig({
             href: "https://fonts.gstatic.com",
             crossorigin: true,
           },
+        },
+        // Non-blocking font load: preload the stylesheet, then apply it via the
+        // media swap so it never blocks first paint. <noscript> keeps fonts for
+        // the no-JS case.
+        { tag: "link", attrs: { rel: "preload", as: "style", href: fontsHref } },
+        {
+          tag: "link",
+          attrs: {
+            rel: "stylesheet",
+            href: fontsHref,
+            media: "print",
+            onload: "this.media='all'",
+          },
+        },
+        {
+          tag: "noscript",
+          content: `<link rel="stylesheet" href="${fontsHref}">`,
         },
         {
           tag: "script",
