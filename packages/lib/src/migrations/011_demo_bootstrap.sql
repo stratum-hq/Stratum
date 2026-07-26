@@ -1,5 +1,5 @@
 -- Migration 011: Demo bootstrap
 -- REMOVED: Demo API key seeding moved to packages/demo/api/src/seed.ts
--- The original migration inserted a hardcoded API key (sk_live_demo_key)
--- with global admin access, which is a security risk in production.
--- Demo data is now seeded via the demo seed script only.
+-- The original migration inserted a hardcoded global-admin API key, which is a
+-- security risk in production. The demo key is now minted at seed time and never
+-- committed; demo data is seeded via the demo seed script only.

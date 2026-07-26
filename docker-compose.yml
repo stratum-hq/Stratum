@@ -74,7 +74,9 @@ services:
     environment:
       DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
       CONTROL_PLANE_URL: http://control-plane:3001/api/v1
-      API_KEY: sk_live_demo_key
+      DEMO_KEY_FILE: /demo-shared/api-key
+    volumes:
+      - demo_secrets:/demo-shared
     depends_on:
       - control-plane
     profiles:
@@ -85,8 +87,12 @@ services:
     build:
       context: .
       dockerfile: packages/demo/web/Dockerfile
+    environment:
+      DEMO_KEY_FILE: /demo-shared/api-key
     ports:
       - "3300:3300"
+    volumes:
+      - demo_secrets:/demo-shared
     depends_on:
       - control-plane
       - demo-api
@@ -128,3 +134,4 @@ volumes:
   stratum_test_data:
   mongodata:
   mysqldata:
+  demo_secrets:

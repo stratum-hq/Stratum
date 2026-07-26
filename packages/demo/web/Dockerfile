@@ -35,12 +35,19 @@ FROM nginx:alpine AS runner
 COPY packages/demo/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/packages/demo/web/dist /usr/share/nginx/html
 
-RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d && \
+# Inject the seed-minted API key into config.js at container start.
+COPY packages/demo/web/docker-web-entrypoint.sh /docker-web-entrypoint.sh
+
+# nginx runs unprivileged: it needs to write config.js into the web root, so the
+# root is owned by nginx. /demo-shared is the volume the seed drops the key on.
+RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d /usr/share/nginx/html && \
     chmod -R 755 /var/cache/nginx && \
+    chmod +x /docker-web-entrypoint.sh && \
+    mkdir -p /demo-shared && chmod 0777 /demo-shared && \
     sed -i '/^pid/d' /etc/nginx/nginx.conf && \
     echo "pid /tmp/nginx.pid;" >> /etc/nginx/nginx.conf
 
 USER nginx
 
 EXPOSE 3300
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/docker-web-entrypoint.sh"]

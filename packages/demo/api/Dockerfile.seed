@@ -67,6 +67,9 @@ COPY --from=builder /app/packages/demo/api/dist ./packages/demo/api/dist
 COPY packages/demo/api/docker-seed-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Shared volume the seed writes the minted key to, for the web container to read.
+RUN mkdir -p /demo-shared && chmod 0777 /demo-shared
+
 RUN addgroup -g 1001 stratum && adduser -u 1001 -G stratum -s /bin/sh -D stratum
 USER 1001
 

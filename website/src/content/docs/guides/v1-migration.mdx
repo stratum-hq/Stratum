@@ -1,0 +1,178 @@
+---
+title: Migrating to v1.0
+description: What changed between the Stratum 0.x line and the first stable 1.0 release, and the steps to upgrade a consumer.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+Stratum 1.0 is the first release with a stability promise. The core import graph --
+`@stratum-hq/core`, `@stratum-hq/lib`, `@stratum-hq/sdk`, `@stratum-hq/db-adapters` --
+plus `@stratum-hq/control-plane`, `@stratum-hq/hono`, and `@stratum-hq/nestjs` are
+versioned to `1.0.0` together, so their public surfaces are now frozen: no breaking
+change without a major bump. This guide lists every change a real consumer can hit
+moving from the 0.x line to 1.0, and the steps to take.
+
+Most of the surface is unchanged. The breaking changes are concentrated in
+authorization (API-key scopes), a set of pre-1.0 export renames, and one batch return
+shape. Everything else is additive.
+
+<Aside type="caution" title="Do these first">
+1. Set `STRATUM_HKDF_SALT` and a real JWT secret. Production hard-fails without them.
+2. Set `STRATUM_API_KEY_HMAC_SECRET` to move API-key hashing from SHA-256 to HMAC-SHA256. Existing keys upgrade transparently on next use; without the secret you stay on SHA-256. Not breaking, but do it.
+3. Ensure your application database role is `NOBYPASSRLS` (the default `stratum_app` role is), then run the migrations, including `019_rls_policies.sql` and `020` (usage metering).
+</Aside>
+
+## Breaking changes
+
+### 1. Authorization is default-deny
+
+Control-plane routes without a declared tenant scope now fail closed (403). Config diff
+and role administration are subtree-scoped, and tenant creation is scoped to the calling
+key's subtree. Make sure each key's scope and subtree cover the operations it performs,
+and declare a scope for any custom route you added. (Fixed and released hardening,
+advisory `GHSA-93wm-g5vg-8j6q`.)
+
+### 2. API-key scopes are hierarchical (FR-53, #132)
+
+Scopes are now a ladder: `admin` implies `write` implies `read`. The control plane checks
+a scope requirement with a rank comparison (`scopeSatisfies`, ranks `read` < `write` <
+`admin`) instead of flat set membership, so a key minted as `["admin"]` or `["write"]`
+now satisfies the lower-scope routes it previously failed.
+
+If you relied on "admin cannot write" or "write cannot read" (undocumented, and unsafe to
+rely on), that behavior changes. This only widens same-tenant access by scope level; it
+does not affect any cross-tenant boundary. Recommended regardless: mint keys with the
+scopes the caller actually needs.
+
+### 3. API-key scope source is unified (FR-53, #132)
+
+A single resolver (`resolveEffectiveScopes`) now backs both the auth boundary
+(`validateApiKey`) and `resolveKeyScopes`: when a role is assigned to a key the role's
+scopes govern; otherwise the key's own column scopes apply; a key with neither defaults to
+`["read"]`. Previously `validateApiKey` read the `api_keys.scopes` column and ignored the
+assigned role, so assigning a role had no effect on control-plane authorization.
+
+**Action:** audit any key that has both a role and column scopes. The role now wins, which
+can *narrow* a key's effective access. Keys without a role are unaffected.
+
+### 4. `batchCreateTenants` is all-or-nothing
+
+`batchCreateTenants` creates every tenant in one transaction: on any failure nothing
+persists. The failure return is now `{ created: [], errors: [<first failure>] }` -- the
+`created` array no longer lists rolled-back tenants. If you relied on partial creation,
+wrap per-tenant `createTenant` calls yourself.
+
+### 5. `TenantContextLegacy` renamed to `ResolvedTenantContext` (#219)
+
+The 1.0 surface carries no "Legacy" name. The flat, resolved per-request context
+(`tenant_id`, `ancestry_path`, `depth`, `resolved_config`, `resolved_permissions`,
+`isolation_strategy`) is now `ResolvedTenantContext`, renamed at its definition in
+`@stratum-hq/core`, in the `@stratum-hq/sdk` re-export, and everywhere internal. No
+deprecated alias is kept; the shape is unchanged. If you import `TenantContextLegacy`, or
+annotate values from `Stratum.currentTenantContext()` / `Stratum.runWithTenant()` or the
+SDK / Hono middleware with it, switch to `ResolvedTenantContext`.
+
+### 6. `@stratum-hq/db-adapters` tenant-context helpers renamed (#219)
+
+The barrel now uses one `<orm>`-prefixed scheme instead of `as`-aliased name collisions.
+Behavior is identical; update imports:
+
+| Old | New |
+|---|---|
+| `withTenant` (Prisma) | `prismaWithTenant` |
+| `withDrizzleTenant` | `drizzleWithTenant` |
+| `withTenantScope` (Sequelize) | `sequelizeWithTenantScope` |
+| `withDrizzleTenantScope` | `drizzleWithTenantScope` |
+| `enableRLSMigration` | `enableRLSForMigration` (distinct from the runtime `enableRLS`) |
+
+### 7. `@stratum-hq/sdk` no longer exports `tenantStorage` (#219)
+
+The raw `AsyncLocalStorage` instance is no longer exported. Use `getTenantContext`,
+`runWithTenantContext`, and `setTenantContext`, which remain public.
+
+### 8. `@stratum-hq/core` export cleanup (#219)
+
+- `SUPPORTED_ISOLATION_STRATEGIES` is the canonical name. `SUPPORTED_ISOLATION_STRATEGIES_V1`
+  is kept one more minor as a deprecated alias, then removed -- import the non-deprecated name.
+- `MAX_TREE_DEPTH` was removed. No depth limit is enforced anywhere in `lib` or `core`, so
+  the constant advertised a guarantee that did not exist. Drop any import of it.
+
+### 9. Deep imports closed; `create`'s `./matrix` points at built output (#219)
+
+`@stratum-hq/control-plane` and `@stratum-hq/cli` now ship `exports` maps that expose only
+their documented entry, so deep imports (e.g. `@stratum-hq/control-plane/dist/routes/...`)
+no longer resolve. `@stratum-hq/create`'s `./matrix` subpath now resolves to built
+`dist/matrix.js` rather than raw source. Deep imports were never supported; import from the
+package entry. The `stratum` bin and control-plane startup are unchanged.
+
+## Behavior fixes to be aware of
+
+### 10. Webhook signatures bind a timestamp
+
+Signatures now sign `<timestamp>.<payload>` (HMAC-SHA256), deliveries carry an
+`X-Stratum-Timestamp` header alongside `X-Stratum-Signature`, and verification enforces a
+freshness window (default 300s, `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). If you verify
+signatures manually, use the exported `verifyWebhookSignature({ secret, payload, signature,
+timestamp })`, or read `X-Stratum-Timestamp`, compute the HMAC over
+`timestamp + "." + rawBody`, compare constant-time, and reject deliveries outside the
+window. For exactly-once handling, de-duplicate on `X-Stratum-Delivery-ID`.
+
+### 11. NestJS guard is JWT-authoritative
+
+The verified JWT tenant claim is now authoritative; the tenant header is only a fallback
+used when no JWT tenant is present and can no longer override a verified identity. If you
+relied on a header to switch tenants while a JWT was present, use the impersonation path
+(`X-Impersonate-Tenant` plus your `authorize` callback). Tenant context is established with
+`run()` rather than `enterWith()`, fixing cross-tenant context leaks under concurrency; no
+consumer action needed.
+
+### 12. RLS for the `SHARED_RLS` strategy
+
+`SHARED_RLS` tenants now get real Postgres row-level security with `FORCE`, a second
+isolation layer independent of application `WHERE tenant_id` filters. Your application DB
+role **must** be `NOBYPASSRLS` (a superuser or `BYPASSRLS` role silently defeats RLS, and
+`enforceRls` hard-fails in production). Per-transaction context is set with
+`SET LOCAL app.current_tenant_id` via `withTransaction`; cross-tenant or system operations
+must go through the audited `withRlsBypass` helper. Run migration `019_rls_policies.sql`.
+See [ADR-0001](https://github.com/stratum-hq/Stratum/blob/main/docs/adr/0001-postgres-rls-defense-in-depth.md).
+
+### 13. Tenant traversal
+
+`getAncestors` includes the direct parent (a prior bug dropped it). `getDescendants` lists
+the active-scoped subtree by default and matches descendants on the stable ID-based
+`ancestry_path`, so a slug rename no longer drops descendants. If you built a workaround for
+the old `getAncestors` behavior, remove it.
+
+## New in 1.0, no action required
+
+`@stratum-hq/lib` re-exports the typed error classes as **runtime values** (FR-52), so you
+can `instanceof TenantNotFoundError` importing only from `@stratum-hq/lib` -- you no longer
+need a direct `@stratum-hq/core` dependency just to branch on error type. The classes are
+the same objects re-exported from core, so `instanceof` matches across import paths.
+
+The 1.1.x and 1.2.x line is purely additive -- adopt any of it at your own pace:
+
+- **Tenant lifecycle** -- `suspendTenant`, `resumeTenant`, `archiveTenant` (with `deleteTenant`
+  now a deprecated alias of `archiveTenant`). See the [lifecycle guide](/guides/tenant-lifecycle/).
+- **`recordAuditEvent`** -- append custom events to `audit_logs`, with an optional
+  `occurredAt` to backdate.
+- **`getTenantBySlug`** -- indexed slug lookup, the counterpart to `getTenant`.
+- **`runScopedJob`** -- run a background job bound to one tenant, with ALS and RLS context.
+- **Usage metering** -- `recordUsage` / `aggregateUsage` (FR-58, migration 020).
+- **Webhook event-stream listing** -- `listWebhookEvents` / `listDeliveriesByEvent`.
+- **`RateLimiter`** -- a standalone per-tenant fixed-window limiter for library consumers.
+
+See the [`@stratum-hq/lib` API reference](/packages/lib/) for signatures, and
+`docs/v1.0-api-surface.md` in the repository for the frozen surface classification and the
+design rationale behind each 1.0 decision.
+
+## Semver from 1.0 on
+
+- Breaking change to a `Stable` name: major bump, changelog entry, migration note. Deprecate
+  first where feasible (mark `@deprecated`, keep one minor, then remove in the next major).
+- New exports and new optional parameters: minor.
+- Bug fixes that do not change a documented contract: patch.
+- A security fix that must break a contract ships as a major with a published advisory; where
+  it can be made opt-in (a new env var), that is preferred and documented.
+- No deep-import promise: `@stratum-hq/pkg/dist/...` is not public. For `@stratum-hq/control-plane`
+  the promise is the HTTP REST API under `/api/v1` and the OpenAPI document, not a JS import surface.
