@@ -135,20 +135,6 @@ export const CustomSizing: Story = {
 // TableSkeleton stories
 // ---------------------------------------------------------------------------
 
-const tableMeta: Meta<typeof TableSkeleton> = {
-  title: "Components/TableSkeleton",
-  component: TableSkeleton,
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Table placeholder shown while config or permission data is loading. " +
-          "Uses Skeleton components in a table layout with configurable row and column counts.",
-      },
-    },
-  },
-};
-
 // We export the table stories under a second meta via a named story export
 // pattern. Storybook CSF only supports one default export per file, so
 // TableSkeleton stories are included here as additional stories.

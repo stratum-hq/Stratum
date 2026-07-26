@@ -41,7 +41,7 @@ function getRequiredScope(method: string, url: string): ScopeRequirement {
 export function createAuthorizeMiddleware() {
   return async function authorizeMiddleware(
     request: FastifyRequest,
-    reply: FastifyReply,
+    _reply: FastifyReply,
   ): Promise<void> {
     // Skip for health and documentation endpoints
     if (

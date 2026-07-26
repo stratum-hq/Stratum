@@ -101,11 +101,6 @@ describe("Table-per-tenant isolation", () => {
   });
 
   it("tenantA table is separate from tenantB table", async () => {
-    const adapter = new MysqlTableAdapter({
-      pool: pool as unknown as MysqlPoolLike,
-      databaseName: dbName,
-    });
-
     // Create tables for both tenants
     await pool.query(
       `CREATE TABLE IF NOT EXISTS \`${dbName}\`.\`users_tenantb\` (id INT AUTO_INCREMENT PRIMARY KEY, data VARCHAR(255))`,

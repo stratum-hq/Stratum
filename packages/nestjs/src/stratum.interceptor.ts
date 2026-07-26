@@ -5,7 +5,7 @@ import { runWithTenantContext } from "@stratum-hq/sdk";
 
 @Injectable()
 export class StratumContextInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
     const tenantCtx = req.tenant;
     if (!tenantCtx) return next.handle();

@@ -13,6 +13,11 @@ interface ConfigInheritanceEntry {
   locked: boolean;
 }
 
+// Loose shapes for the untyped context-inspector modal payload.
+type ContextConfigEntry = { value: unknown; locked?: boolean; inherited?: boolean };
+type ContextPermissionEntry = { value: unknown; mode?: string };
+type ContextTenant = { id?: string; name?: string; parent_id?: string };
+
 interface ConfigInheritanceResponse {
   data?: ConfigInheritanceEntry[];
   inheritance?: ConfigInheritanceEntry[];
@@ -2233,7 +2238,7 @@ export function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries((contextModal.data.config as Record<string, any>) || {}).map(([key, entry]) => (
+                        {Object.entries((contextModal.data.config as Record<string, ContextConfigEntry>) || {}).map(([key, entry]) => (
                           <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)" }}>{JSON.stringify(entry.value)}</td>
@@ -2266,7 +2271,7 @@ export function Dashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries((contextModal.data.permissions as Record<string, any>) || {}).map(([key, perm]) => (
+                        {Object.entries((contextModal.data.permissions as Record<string, ContextPermissionEntry>) || {}).map(([key, perm]) => (
                           <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
                             <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
                             <td style={{ padding: "6px 12px" }}>
@@ -2290,10 +2295,10 @@ export function Dashboard() {
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                       {(() => {
-                        const ancestors = (contextModal.data.ancestors as any[]) || [];
-                        const current = contextModal.data.tenant as any;
+                        const ancestors = (contextModal.data.ancestors as ContextTenant[]) || [];
+                        const current = contextModal.data.tenant as ContextTenant;
                         const chain = [...ancestors, current];
-                        return chain.map((a: any, i: number) => (
+                        return chain.map((a, i) => (
                           <React.Fragment key={a?.id || i}>
                             {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
                             <span style={{
@@ -2308,7 +2313,7 @@ export function Dashboard() {
                           </React.Fragment>
                         ));
                       })()}
-                      {((contextModal.data.ancestors as any[]) || []).length === 0 && !(contextModal.data.tenant as any)?.parent_id && (
+                      {((contextModal.data.ancestors as ContextTenant[]) || []).length === 0 && !(contextModal.data.tenant as ContextTenant)?.parent_id && (
                         <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
                       )}
                     </div>

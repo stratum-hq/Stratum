@@ -80,11 +80,11 @@ function createMockPool(schemas: string[], opts?: { failSchema?: string }) {
               return origQuery(innerSql, innerParams);
             });
             // Replace query for subsequent calls
-            client.query = innerQuery as any;
+            client.query = innerQuery;
             return Promise.resolve({ rows: [] });
           }
           return origQuery(sql, params);
-        }) as any;
+        });
       }
 
       clients.push(client);
@@ -93,7 +93,7 @@ function createMockPool(schemas: string[], opts?: { failSchema?: string }) {
     _clients: clients,
   };
 
-  return pool as any;
+  return pool;
 }
 
 beforeEach(() => {
@@ -131,10 +131,7 @@ describe("migrateAllSchemas", () => {
     // Create a pool where one schema will fail
     const pool = createMockPool(["acme", "badco"]);
     // Override connect to fail for badco's migration
-    let callCount = 0;
-    const origConnect = pool.connect;
     pool.connect = vi.fn().mockImplementation(() => {
-      callCount++;
       const client = createMockClient();
 
       // Make every other set of clients fail for badco
@@ -156,11 +153,11 @@ describe("migrateAllSchemas", () => {
           return Promise.reject(new Error("Schema migration failed"));
         }
         return origQuery(sql, params);
-      }) as any;
+      });
 
       pool._clients.push(client);
       return Promise.resolve(client);
-    }) as any;
+    });
 
     const result = await migrateAllSchemas({ pool });
 
@@ -191,7 +188,6 @@ describe("migrateAllSchemas", () => {
   it("idempotent re-run: already-applied migrations skipped", async () => {
     // Create pool with a client that reports migrations as already applied
     const pool = createMockPool(["acme"]);
-    const origConnect = pool.connect;
     pool.connect = vi.fn().mockImplementation(() => {
       const client = createMockClient();
       // Override: all migrations already applied
@@ -205,10 +201,10 @@ describe("migrateAllSchemas", () => {
           return Promise.resolve({ rows: [{ "?column?": 1 }] });
         }
         return origQuery(sql, params);
-      }) as any;
+      });
       pool._clients.push(client);
       return Promise.resolve(client);
-    }) as any;
+    });
 
     const result = await migrateAllSchemas({ pool });
     expect(result.succeeded).toContain("tenant_acme");
@@ -237,7 +233,6 @@ describe("migrateAllSchemas", () => {
     const pool = createMockPool(schemas);
     let maxConcurrent = 0;
     let currentConcurrent = 0;
-    const origConnect = pool.connect;
 
     pool.connect = vi.fn().mockImplementation(async () => {
       currentConcurrent++;
@@ -254,10 +249,10 @@ describe("migrateAllSchemas", () => {
           currentConcurrent--;
         }
         return origQuery(sql, params);
-      }) as any;
+      });
       pool._clients.push(client);
       return client;
-    }) as any;
+    });
 
     await migrateAllSchemas({ pool, concurrency: 3 });
 

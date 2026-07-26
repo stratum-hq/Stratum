@@ -89,7 +89,7 @@ export function createTenantRoutes(stratum: Stratum) {
         reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: failed.error.issues } });
         return;
       }
-      const inputs = results.map((r) => (r as { success: true; data: any }).data);
+      const inputs = results.map((r) => (r as Extract<typeof r, { success: true }>).data);
       const result = await stratum.batchCreateTenants(inputs, buildAuditContext(request));
       reply.status(201).send(result);
     });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fastifyPlugin } from "../middleware/fastify.js";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { TenantNotFoundError } from "@stratum-hq/core";

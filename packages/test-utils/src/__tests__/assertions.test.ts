@@ -66,10 +66,8 @@ describe("assertIsolation", () => {
   });
 
   it("throws a descriptive error when isolation fails (rows returned)", async () => {
-    let callIndex = 0;
     client = createMockClient({
       queryFn: (text: string) => {
-        callIndex++;
         // The SELECT * query is the 4th call (BEGIN, set_config, INSERT, set_config, SELECT)
         if (text.startsWith("SELECT * FROM")) {
           return { rows: [{ id: "leaked" }, { id: "leaked2" }, { id: "leaked3" }], rowCount: 3 };
@@ -108,17 +106,6 @@ describe("assertIsolation", () => {
 
 describe("assertConfigInheritance", () => {
   it("reads config after setting on parent and asserts child inherits", async () => {
-    const client = createMockClient({
-      queryFn: (text: string, params?: unknown[]) => {
-        if (text.includes("tenant_config_resolved")) {
-          // Return the parent value for inheritance check
-          // We need to figure out which call this is — first resolved read returns parent value
-          return { rows: [{ value: expect.stringContaining("__stratum_parent_") ? (params as string[])?.[0] === undefined ? "" : "__matching__" : "" }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
-
     // More precise mock: track state
     let parentValue = "";
     let childOverrideValue = "";

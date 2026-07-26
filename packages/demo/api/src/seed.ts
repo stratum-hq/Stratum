@@ -4,7 +4,7 @@ const API_BASE =
   process.env.CONTROL_PLANE_URL || "http://localhost:3001/api/v1";
 const API_KEY = process.env.API_KEY || "sk_live_demo_key";
 
-async function api(path: string, body?: unknown, method?: string): Promise<Record<string, any>> {
+async function api(path: string, body?: unknown, method?: string): Promise<Record<string, unknown>> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: method ?? (body ? "POST" : "GET"),
     headers: {
@@ -17,7 +17,7 @@ async function api(path: string, body?: unknown, method?: string): Promise<Recor
     const err = await res.text();
     throw new Error(`API ${path} failed (${res.status}): ${err}`);
   }
-  return res.json() as Promise<Record<string, any>>;
+  return res.json() as Promise<Record<string, unknown>>;
 }
 
 async function seed() {

@@ -57,7 +57,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     keyPrefix: config.nodeEnv === "production" ? "sk_live_" : "sk_test_",
   });
 
-  await app.register(helmet as any, {
+  await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
@@ -67,11 +67,11 @@ export async function buildApp(): Promise<FastifyInstance> {
       },
     },
   });
-  await app.register(cors as any, {
+  await app.register(cors, {
     origin: config.allowedOrigins,
     credentials: true,
   });
-  await app.register(rateLimit as any, {
+  await app.register(rateLimit, {
     max: config.rateLimitMax,
     timeWindow: config.rateLimitWindow,
   });

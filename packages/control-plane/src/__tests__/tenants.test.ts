@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { FastifyInstance } from "fastify";
 import {
   createMockStratum,
@@ -30,7 +31,7 @@ describe("Tenant Routes", () => {
   describe("POST /api/v1/tenants", () => {
     it("creates a tenant and returns 201", async () => {
       const input = { slug: "acme_corp", name: "Acme Corp" };
-      (stratum.createTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.createTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "POST",
@@ -44,7 +45,7 @@ describe("Tenant Routes", () => {
       expect(body.id).toBe(SAMPLE_TENANT.id);
       expect(body.slug).toBe("acme_corp");
       expect(stratum.createTenant).toHaveBeenCalledOnce();
-      expect((stratum.createTenant as any).mock.calls[0][0]).toMatchObject({ slug: "acme_corp" });
+      expect((stratum.createTenant as Mock).mock.calls[0][0]).toMatchObject({ slug: "acme_corp" });
     });
 
     it("returns 400 for invalid input (missing slug)", async () => {
@@ -70,7 +71,7 @@ describe("Tenant Routes", () => {
         created: [SAMPLE_TENANT, SAMPLE_CHILD_TENANT],
         errors: [],
       };
-      (stratum.batchCreateTenants as any).mockResolvedValue(batchResult);
+      (stratum.batchCreateTenants as Mock).mockResolvedValue(batchResult);
 
       const response = await app.inject({
         method: "POST",
@@ -118,7 +119,7 @@ describe("Tenant Routes", () => {
 
   describe("GET /api/v1/tenants/:id", () => {
     it("returns the tenant", async () => {
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "GET",
@@ -134,7 +135,7 @@ describe("Tenant Routes", () => {
 
     it("returns 404 when tenant does not exist", async () => {
       const { StratumError, ErrorCode } = await import("@stratum-hq/core");
-      (stratum.getTenant as any).mockRejectedValue(
+      (stratum.getTenant as Mock).mockRejectedValue(
         new StratumError(ErrorCode.TENANT_NOT_FOUND, "Tenant not found", 404),
       );
 
@@ -155,7 +156,7 @@ describe("Tenant Routes", () => {
   describe("PATCH /api/v1/tenants/:id", () => {
     it("updates a tenant and returns 200", async () => {
       const updatedTenant = { ...SAMPLE_TENANT, name: "Acme Corp Updated" };
-      (stratum.updateTenant as any).mockResolvedValue(updatedTenant);
+      (stratum.updateTenant as Mock).mockResolvedValue(updatedTenant);
 
       const response = await app.inject({
         method: "PATCH",
@@ -174,7 +175,7 @@ describe("Tenant Routes", () => {
 
   describe("DELETE /api/v1/tenants/:id", () => {
     it("soft deletes and returns 204", async () => {
-      (stratum.deleteTenant as any).mockResolvedValue(undefined);
+      (stratum.deleteTenant as Mock).mockResolvedValue(undefined);
 
       const response = await app.inject({
         method: "DELETE",
@@ -185,7 +186,7 @@ describe("Tenant Routes", () => {
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe("");
       expect(stratum.deleteTenant).toHaveBeenCalledOnce();
-      expect((stratum.deleteTenant as any).mock.calls[0][0]).toBe(SAMPLE_TENANT.id);
+      expect((stratum.deleteTenant as Mock).mock.calls[0][0]).toBe(SAMPLE_TENANT.id);
     });
   });
 
@@ -194,7 +195,7 @@ describe("Tenant Routes", () => {
   describe("GET /api/v1/tenants/:id/descendants", () => {
     it("returns the tenant subtree", async () => {
       const descendants = [SAMPLE_CHILD_TENANT];
-      (stratum.getDescendants as any).mockResolvedValue(descendants);
+      (stratum.getDescendants as Mock).mockResolvedValue(descendants);
 
       const response = await app.inject({
         method: "GET",
@@ -226,7 +227,7 @@ describe("Tenant Routes", () => {
     });
 
     it("returns 401 with an invalid API key", async () => {
-      (stratum.validateApiKey as any).mockResolvedValue(null);
+      (stratum.validateApiKey as Mock).mockResolvedValue(null);
 
       const response = await app.inject({
         method: "GET",
@@ -258,7 +259,7 @@ describe("Tenant Routes", () => {
 
     it("read-scope key can GET (read endpoint)", async () => {
       setupReadOnlyApiKey(stratum);
-      (stratum.getTenant as any).mockResolvedValue(SAMPLE_TENANT);
+      (stratum.getTenant as Mock).mockResolvedValue(SAMPLE_TENANT);
 
       const response = await app.inject({
         method: "GET",

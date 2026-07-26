@@ -20,7 +20,6 @@ async function resolveTenantFromRequest() {
   // Option 2: slug from subdomain, resolved to full TenantNode
   const slug = headerList.get("x-tenant-slug");
   if (slug) {
-    const page = await stratum.listTenants({ limit: 1, offset: 0 });
     // In a real app you'd add a getTenantBySlug method or a DB index lookup.
     // For the example, scan the first page (works for demos with few tenants).
     const all = await stratum.listTenants({ limit: 200, offset: 0 });

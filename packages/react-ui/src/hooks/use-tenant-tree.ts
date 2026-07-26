@@ -7,21 +7,6 @@ export interface TenantTreeNode extends TenantNode {
   expanded: boolean;
 }
 
-/**
- * Collect all expanded node IDs from a tree (recursive).
- */
-function collectExpandedIds(nodes: TenantTreeNode[]): Set<string> {
-  const ids = new Set<string>();
-  function walk(list: TenantTreeNode[]) {
-    for (const n of list) {
-      if (n.expanded) ids.add(n.id);
-      walk(n.children);
-    }
-  }
-  walk(nodes);
-  return ids;
-}
-
 export function useTenantTree(rootId?: string) {
   const { apiCall } = useStratum();
   const [tree, setTree] = useState<TenantTreeNode[]>([]);

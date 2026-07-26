@@ -7,7 +7,7 @@ export function createMockPool() {
   };
   const mockPool = {
     connect: vi.fn().mockResolvedValue(mockClient),
-  } as any;
+  } as unknown as import("pg").Pool;
   return { mockPool, mockClient };
 }
 

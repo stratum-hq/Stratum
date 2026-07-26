@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { FastifyInstance } from "fastify";
 import {
   createMockStratum,
@@ -43,7 +44,7 @@ describe("Config Routes", () => {
           sensitive: false,
         },
       };
-      (stratum.resolveConfig as any).mockResolvedValue(resolvedConfig);
+      (stratum.resolveConfig as Mock).mockResolvedValue(resolvedConfig);
 
       const response = await app.inject({
         method: "GET",
@@ -59,7 +60,7 @@ describe("Config Routes", () => {
     });
 
     it("returns empty object when tenant has no config", async () => {
-      (stratum.resolveConfig as any).mockResolvedValue({});
+      (stratum.resolveConfig as Mock).mockResolvedValue({});
 
       const response = await app.inject({
         method: "GET",
@@ -85,7 +86,7 @@ describe("Config Routes", () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      (stratum.setConfig as any).mockResolvedValue(configEntry);
+      (stratum.setConfig as Mock).mockResolvedValue(configEntry);
 
       const response = await app.inject({
         method: "PUT",
@@ -111,7 +112,7 @@ describe("Config Routes", () => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      (stratum.setConfig as any).mockResolvedValue(configEntry);
+      (stratum.setConfig as Mock).mockResolvedValue(configEntry);
 
       const response = await app.inject({
         method: "PUT",
@@ -152,7 +153,7 @@ describe("Config Routes", () => {
         succeeded: 1,
         failed: 1,
       };
-      (stratum.batchSetConfig as any).mockResolvedValue(batchResult);
+      (stratum.batchSetConfig as Mock).mockResolvedValue(batchResult);
 
       const response = await app.inject({
         method: "PUT",
@@ -202,7 +203,7 @@ describe("Config Routes", () => {
 
   describe("DELETE /api/v1/tenants/:id/config/:key", () => {
     it("deletes a config override and returns 204", async () => {
-      (stratum.deleteConfig as any).mockResolvedValue(undefined);
+      (stratum.deleteConfig as Mock).mockResolvedValue(undefined);
 
       const response = await app.inject({
         method: "DELETE",
@@ -213,8 +214,8 @@ describe("Config Routes", () => {
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe("");
       expect(stratum.deleteConfig).toHaveBeenCalledOnce();
-      expect((stratum.deleteConfig as any).mock.calls[0][0]).toBe(tenantId);
-      expect((stratum.deleteConfig as any).mock.calls[0][1]).toBe("feature.dark_mode");
+      expect((stratum.deleteConfig as Mock).mock.calls[0][0]).toBe(tenantId);
+      expect((stratum.deleteConfig as Mock).mock.calls[0][1]).toBe("feature.dark_mode");
     });
   });
 
@@ -223,7 +224,7 @@ describe("Config Routes", () => {
   describe("Locked key error", () => {
     it("returns 403 when trying to override a locked config key", async () => {
       const { ConfigLockedError } = await import("@stratum-hq/core");
-      (stratum.setConfig as any).mockRejectedValue(
+      (stratum.setConfig as Mock).mockRejectedValue(
         new ConfigLockedError("feature.locked_key", "parent-tenant-id"),
       );
 
@@ -260,7 +261,7 @@ describe("Config Routes", () => {
           },
         ],
       };
-      (stratum.diffConfig as any).mockResolvedValue(diffResult);
+      (stratum.diffConfig as Mock).mockResolvedValue(diffResult);
 
       const response = await app.inject({
         method: "GET",

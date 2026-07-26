@@ -6,10 +6,33 @@ import { runWithTenantContext } from "../context.js";
 import { resolveFromJwt } from "../resolvers/jwt.js";
 import { resolveFromHeader } from "../resolvers/header.js";
 
+// Minimal structural types for the Fastify surface this plugin touches, so the
+// SDK does not take a hard dependency on `fastify` types in its published API.
+type DoneFn = (err?: unknown) => void;
+
+interface FastifyRequestLike {
+  headers?: Record<string, string | string[] | undefined>;
+  tenant?: unknown;
+  impersonating?: boolean;
+  originalTenantId?: string | null;
+}
+
+interface FastifyReplyLike {
+  status(code: number): { send(body: unknown): void };
+}
+
+interface FastifyLike {
+  decorateRequest(name: string, value: unknown): void;
+  addHook(
+    event: string,
+    handler: (request: FastifyRequestLike, reply: FastifyReplyLike, done: DoneFn) => void,
+  ): void;
+}
+
 export function fastifyPlugin(
-  fastify: any,
+  fastify: FastifyLike,
   options: { client: StratumClient } & MiddlewareOptions,
-  done: any,
+  done: DoneFn,
 ): void {
   const { client, ...middlewareOptions } = options;
 
@@ -17,7 +40,7 @@ export function fastifyPlugin(
   fastify.decorateRequest("impersonating", false);
   fastify.decorateRequest("originalTenantId", null);
 
-  fastify.addHook("onRequest", (request: any, reply: any, done: any) => {
+  fastify.addHook("onRequest", (request: FastifyRequestLike, reply: FastifyReplyLike, done: DoneFn) => {
     // Resolve tenant ID: JWT → header → custom resolvers
     let tenantId: string | null = null;
 

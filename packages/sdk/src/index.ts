@@ -11,7 +11,11 @@ export function stratum(options: StratumClientOptions) {
     client,
     middleware: (opts?: MiddlewareOptions) => expressMiddleware(client, opts),
     plugin: (opts?: MiddlewareOptions) =>
-      (fastify: any, _opts: any, done: any) =>
+      (
+        fastify: Parameters<typeof fastifyPlugin>[0],
+        _opts: unknown,
+        done: Parameters<typeof fastifyPlugin>[2],
+      ) =>
         fastifyPlugin(fastify, { client, ...opts }, done),
     getTenantContext,
     runWithTenantContext,

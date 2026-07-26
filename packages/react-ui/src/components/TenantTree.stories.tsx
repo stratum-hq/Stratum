@@ -3,7 +3,6 @@ import React from "react";
 import { TenantTree } from "./TenantTree.js";
 import {
   MockStratumProvider,
-  mockTenants,
   deepHierarchyTenants,
   singleRootTenant,
 } from "./storybook-helpers.js";

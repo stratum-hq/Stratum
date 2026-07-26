@@ -1,6 +1,6 @@
-// @ts-nocheck — Hono typed context requires variable declarations; tests verified via vitest runtime
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { stratumMiddleware } from "../middleware.js";
 
 // Mock runWithTenantContext from SDK — execute the callback so downstream handlers run
@@ -114,7 +114,7 @@ describe("stratumMiddleware", () => {
 
   it("calls next() and allows downstream handlers to run", async () => {
     const app = new Hono();
-    const handler = vi.fn((c: any) => c.json({ ok: true }));
+    const handler = vi.fn((c: Context) => c.json({ ok: true }));
     app.use("/*", stratumMiddleware());
     app.get("/test", handler);
 

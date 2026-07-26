@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import type pg from "pg";
 import { getPool, closePool, runMigrations } from "./helpers/db.js";
 
 /**

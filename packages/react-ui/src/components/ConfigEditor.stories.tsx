@@ -3,7 +3,6 @@ import React from "react";
 import { ConfigEditor } from "./ConfigEditor.js";
 import {
   MockStratumProvider,
-  mockConfigEntries,
   mockLockedConfigEntries,
   mockSensitiveConfigEntries,
 } from "./storybook-helpers.js";

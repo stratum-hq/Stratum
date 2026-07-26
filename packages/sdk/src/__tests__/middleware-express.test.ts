@@ -24,6 +24,8 @@ function makeReq(headers: Record<string, string> = {}) {
       ...headers,
     },
     tenant: undefined as ResolvedTenantContext | undefined,
+    impersonating: undefined as boolean | undefined,
+    originalTenantId: undefined as string | null | undefined,
   };
 }
 
@@ -250,7 +252,7 @@ describe("expressMiddleware", () => {
       const req = makeReq({
         "x-tenant-id": "caller-tenant",
         "x-impersonate-tenant": "target-tenant",
-      }) as any;
+      });
       const res = makeRes();
 
       await middleware(req, res, next);
@@ -309,7 +311,7 @@ describe("expressMiddleware", () => {
       const req = makeReq({
         "x-tenant-id": "same-tenant",
         "x-impersonate-tenant": "same-tenant",
-      }) as any;
+      });
       const res = makeRes();
 
       await middleware(req, res, next);
@@ -330,7 +332,7 @@ describe("expressMiddleware", () => {
       const req = makeReq({
         "x-tenant-id": "caller",
         "x-impersonate-tenant": "target",
-      }) as any;
+      });
       const res = makeRes();
 
       await middleware(req, res, next);
@@ -360,7 +362,7 @@ describe("expressMiddleware", () => {
       const req = makeReq({
         "x-tenant-id": "caller",
         "x-view-as": "target",
-      }) as any;
+      });
       const res = makeRes();
 
       await middleware(req, res, next);
@@ -388,7 +390,7 @@ describe("expressMiddleware", () => {
       const req = makeReq({
         "x-tenant-id": "caller",
         "x-impersonate-tenant": "target",
-      }) as any;
+      });
       const res = makeRes();
 
       await middleware(req, res, next);

@@ -11,6 +11,7 @@ import express from "express";
 import pg from "pg";
 import { Stratum } from "@stratum-hq/lib";
 import { stratum as stratumSdk } from "@stratum-hq/sdk";
+import type { ResolvedTenantContext } from "@stratum-hq/sdk";
 
 // ---------------------------------------------------------------------------
 // Bootstrap
@@ -52,7 +53,7 @@ app.use("/api", sdk.middleware());
  * Returns the resolved tenant context for the current request.
  */
 app.get("/api/tenant", (req, res) => {
-  const tenant = (req as any).tenant;
+  const tenant = (req as unknown as { tenant: ResolvedTenantContext }).tenant;
   res.json({ tenant });
 });
 
@@ -61,7 +62,7 @@ app.get("/api/tenant", (req, res) => {
  * Returns the resolved config for the current tenant (inherits from ancestors).
  */
 app.get("/api/config", async (req, res) => {
-  const tenant = (req as any).tenant;
+  const tenant = (req as unknown as { tenant: ResolvedTenantContext }).tenant;
   const config = await stratumLib.resolveConfig(tenant.tenant_id);
   res.json({ tenant_id: tenant.tenant_id, config });
 });

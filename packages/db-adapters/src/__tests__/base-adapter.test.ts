@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BaseAdapter } from "../base-adapter.js";
+import type { Pool } from "pg";
 
 // ---------------------------------------------------------------------------
 // Mock pg
@@ -59,7 +60,7 @@ describe("BaseAdapter", () => {
     mockQuery.mockResolvedValue({ rows: [] });
 
     const pool = new MockPool();
-    adapter = new TestAdapter(pool as any);
+    adapter = new TestAdapter(pool as unknown as Pool);
   });
 
   describe("executeWithTenantContext", () => {
@@ -210,9 +211,7 @@ describe("BaseAdapter", () => {
     });
 
     it("still releases client if RESET query fails", async () => {
-      let callCount = 0;
       mockQuery.mockImplementation(async (sql: string) => {
-        callCount++;
         if (typeof sql === "string" && sql.includes("RESET")) {
           throw new Error("connection broken");
         }
