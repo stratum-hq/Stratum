@@ -382,24 +382,24 @@
       lines.push('    middleware.ts        # Tenant resolution from host/headers');
       lines.push('    app/layout.tsx       # Root layout');
       lines.push('    app/page.tsx         # Landing page');
-      lines.push('    lib/stratum.ts       # Stratum client + withTenant()');
+      lines.push('    lib/stratum.ts       # Stratum client + tenant wrapper');
     } else if (framework === 'express') {
       lines.push('    index.ts            # Express server with tenant middleware');
-      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
     } else if (framework === 'fastify') {
       lines.push('    index.ts            # Fastify server with tenant plugin');
-      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
     } else if (framework === 'hono') {
       lines.push('    index.ts            # Hono server with tenant middleware');
-      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
     } else if (framework === 'nestjs') {
       lines.push('    app.module.ts       # NestJS root module');
       lines.push('    tenant.guard.ts     # Tenant resolution guard');
-      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
     } else {
       // none
       lines.push('    index.ts            # Library entry point');
-      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + withTenant() wrapper');
+      lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
     }
 
     lines.push('  .env.example');

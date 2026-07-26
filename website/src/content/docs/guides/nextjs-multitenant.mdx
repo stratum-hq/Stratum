@@ -13,10 +13,10 @@ The setup has three layers:
 
 1. **Middleware** resolves the tenant from the subdomain (or header, or path) and forwards the tenant ID to downstream handlers
 2. **Server components and API routes** read the tenant ID from headers and use Stratum to resolve config and permissions
-3. **Database queries** run through Stratum's `withTenant()` wrapper, which sets the PostgreSQL session variable for RLS
+3. **Database queries** run through Stratum's `prismaWithTenant()` wrapper, which sets the PostgreSQL session variable for RLS
 
 ```
-Request → Middleware (resolve tenant) → Server Component / API Route → withTenant(prisma) → PostgreSQL RLS
+Request → Middleware (resolve tenant) → Server Component / API Route → prismaWithTenant(prisma) → PostgreSQL RLS
 ```
 
 ## Project Setup
@@ -114,7 +114,7 @@ Create a shared module that initializes Stratum and provides tenant-scoped datab
 import { Pool } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { Stratum } from "@stratum-hq/lib";
-import { withTenant } from "@stratum-hq/db-adapters";
+import { prismaWithTenant } from "@stratum-hq/db-adapters";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -125,7 +125,7 @@ const prisma = new PrismaClient();
 export const stratum = new Stratum({ pool });
 
 export function getTenantPrisma(tenantId: string) {
-  return withTenant(prisma, () => tenantId, pool);
+  return prismaWithTenant(prisma, () => tenantId, pool);
 }
 
 export async function getTenantFromHeaders(headers: Headers) {
