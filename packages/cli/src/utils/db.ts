@@ -56,7 +56,11 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
         'consent_records', 'regions', 'roles', '_migrations'
       )
       AND t.tablename NOT LIKE 'pg_%'
-      AND t.tablename NOT LIKE '\_%'
+      -- The doubled backslash matters: this is a JS template literal, so a single
+      -- backslash is swallowed and Postgres would see a bare underscore, which is
+      -- the LIKE single-char wildcard and would exclude every table. Doubling it
+      -- sends an escaped underscore so only literal-underscore names are skipped.
+      AND t.tablename NOT LIKE '\\_%'
     ORDER BY t.tablename;
   `);
 
