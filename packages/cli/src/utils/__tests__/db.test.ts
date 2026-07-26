@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getConnectionString } from "../db.js";
+import type pg from "pg";
+import { getConnectionString, scanTables } from "../db.js";
 
 const DEFAULT = "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
 
@@ -45,5 +46,36 @@ describe("getConnectionString", () => {
     process.env.DATABASE_URL = "postgres://env";
     // `--database-url` with no value parses to boolean true, which is not a string
     expect(getConnectionString({ "database-url": true })).toBe("postgres://env");
+  });
+});
+
+describe("scanTables SQL", () => {
+  async function capturedSql(): Promise<string> {
+    let sql = "";
+    const fakePool = {
+      query: (text: string) => {
+        sql = text;
+        return Promise.resolve({ rows: [] });
+      },
+    } as unknown as pg.Pool;
+    await scanTables(fakePool);
+    return sql;
+  }
+
+  // Regression for #167: the underscore in the internal-table filter must reach
+  // Postgres as an escaped literal '\_%'. If the backslash is dropped, Postgres
+  // sees the bare '_' single-char wildcard and NOT LIKE '_%' excludes every
+  // non-empty table name, so the scan can never report an orphan table.
+  it("escapes the underscore so Postgres receives a literal '\\_%'", async () => {
+    const sql = await capturedSql();
+    // The runtime string contains a real backslash before the underscore.
+    expect(sql).toMatch(/NOT LIKE '\\_%'/);
+  });
+
+  it("does not emit the bare-wildcard predicate NOT LIKE '_%'", async () => {
+    const sql = await capturedSql();
+    // Strip the correctly-escaped occurrence, then assert no bare '_%' remains.
+    const withoutEscaped = sql.replace(/NOT LIKE '\\_%'/g, "");
+    expect(withoutEscaped).not.toMatch(/NOT LIKE '_%'/);
   });
 });
