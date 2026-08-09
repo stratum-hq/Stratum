@@ -45,7 +45,7 @@
   "devDependencies": {
     "@stratum-hq/core": "*",
     "@stratum-hq/sdk": "*",
-    "hono": "^4.0.0",
+    "hono": "^4.12.34",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
