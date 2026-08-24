@@ -57,3 +57,6 @@ TODOS.md
 
 # Backup files
 *.backup.*
+
+# Design-tool export bundles (reference material, not shipped)
+assets/brand/Stratum Design System — Strata/
