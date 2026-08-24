@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/control-plane",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Stratum control plane REST API server",
   "keywords": [
     "multi-tenancy",

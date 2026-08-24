@@ -1,5 +1,16 @@
 # @stratum-hq/sdk
 
+## 1.0.1
+
+### Patch Changes
+
+- d78d839: Tighten the middleware parameter types from `any` to minimal structural types.
+
+  `expressMiddleware` and `fastifyPlugin` previously typed their framework arguments (`req`/`res`/`next` and `fastify`/`request`/`reply`/`done`) as `any`. They now use small structural `*Like` types so the SDK keeps no hard dependency on `express`/`fastify` types. This is a backward-compatible, type-only refinement with no runtime change: real Express and Fastify objects still satisfy the shapes.
+
+- Updated dependencies [36f69d8]
+  - @stratum-hq/core@1.2.1
+
 ## 1.0.0
 
 ### Major Changes
