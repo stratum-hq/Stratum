@@ -23,9 +23,9 @@
       "info": 0
     },
     "all": {
-      "critical": 1,
+      "critical": 0,
       "high": 1,
-      "moderate": 9,
+      "moderate": 8,
       "low": 0,
       "info": 0
     }

@@ -14,7 +14,7 @@
     "@stratum-hq/lib": "*",
     "@stratum-hq/db-adapters": "*",
     "pg": "^8.11.0",
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.11",
     "typescript": "^5.9.3"
   }
 }

@@ -55,7 +55,7 @@
     "@stratum-hq/sdk": "*",
     "reflect-metadata": "^0.1.13",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.11"
   },
   "license": "MIT",
   "author": "Christian Crank",
