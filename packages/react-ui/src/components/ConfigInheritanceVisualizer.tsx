@@ -224,22 +224,22 @@ export function ConfigInheritanceVisualizer({ className }: ConfigInheritanceVisu
 
 const cascadeStyles = `
 .stratum-cascade {
-  font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
+  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
 }
 
 .stratum-cascade--error {
   padding: var(--space-xl, 24px);
-  color: var(--color-error, #DC2626);
+  color: var(--color-error, #C4573A);
   font-size: 0.875rem;
 }
 
 .stratum-cascade-retry {
   margin-top: var(--space-sm, 8px);
   padding: var(--space-xs, 4px) var(--space-md, 12px);
-  border: 1px solid var(--border, #E2E8F0);
+  border: 1px solid var(--border, #EFE7D9);
   border-radius: var(--radius-sm, 4px);
   background: var(--bg-card, white);
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary, #4E4636);
   cursor: pointer;
   font-size: 0.75rem;
 }
@@ -248,7 +248,7 @@ const cascadeStyles = `
 .stratum-cascade-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border, #E2E8F0);
+  border-bottom: 1px solid var(--border, #EFE7D9);
   margin-bottom: var(--space-lg, 16px);
   overflow-x: auto;
 }
@@ -257,22 +257,22 @@ const cascadeStyles = `
   padding: var(--space-sm, 8px) var(--space-lg, 16px);
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-tertiary, #64748B);
+  color: var(--text-tertiary, #6F6553);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
+  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
   white-space: nowrap;
 }
 
 .stratum-cascade-tab:hover {
-  color: var(--text-primary, #0F172A);
+  color: var(--text-primary, #12100C);
 }
 
 .stratum-cascade-tab.active {
-  color: var(--color-accent, #0D9488);
-  border-bottom-color: var(--color-accent, #0D9488);
+  color: var(--color-accent, #C9793F);
+  border-bottom-color: var(--color-accent, #C9793F);
 }
 
 /* Split-screen layout */
@@ -290,14 +290,14 @@ const cascadeStyles = `
   justify-content: center;
   padding: var(--space-3xl, 48px) 0;
   flex-shrink: 0;
-  color: var(--color-accent, #0D9488);
+  color: var(--color-accent, #C9793F);
   opacity: 0.6;
 }
 
 .stratum-cascade-arrow__line {
   width: 2px;
   height: 24px;
-  background: var(--color-accent, #0D9488);
+  background: var(--color-accent, #C9793F);
   opacity: 0.4;
 }
 
@@ -310,7 +310,7 @@ const cascadeStyles = `
 .stratum-cascade-panel {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border, #E2E8F0);
+  border: 1px solid var(--border, #EFE7D9);
   border-radius: var(--radius-md, 6px);
   overflow: hidden;
 }
@@ -325,7 +325,7 @@ const cascadeStyles = `
 
 .stratum-cascade-panel__header {
   padding: var(--space-sm, 8px) var(--space-md, 12px);
-  border-bottom: 1px solid var(--border, #E2E8F0);
+  border-bottom: 1px solid var(--border, #EFE7D9);
   background: var(--bg-card, white);
   display: flex;
   align-items: baseline;
@@ -335,13 +335,13 @@ const cascadeStyles = `
 .stratum-cascade-panel__title {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--text-primary, #0F172A);
-  font-family: var(--font-display, 'Satoshi', sans-serif);
+  color: var(--text-primary, #12100C);
+  font-family: var(--font-display, 'Libre Franklin', sans-serif);
 }
 
 .stratum-cascade-panel__subtitle {
   font-size: 0.6875rem;
-  color: var(--text-tertiary, #64748B);
+  color: var(--text-tertiary, #6F6553);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -349,7 +349,7 @@ const cascadeStyles = `
 .stratum-cascade-empty-message {
   padding: var(--space-xl, 24px);
   text-align: center;
-  color: var(--text-tertiary, #64748B);
+  color: var(--text-tertiary, #6F6553);
   font-size: 0.8125rem;
 }
 
@@ -367,31 +367,31 @@ const cascadeStyles = `
   font-size: 0.625rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-tertiary, #64748B);
-  border-bottom: 1px solid var(--border, #E2E8F0);
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  color: var(--text-tertiary, #6F6553);
+  border-bottom: 1px solid var(--border, #EFE7D9);
+  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
 }
 
 .stratum-cascade-table td {
   padding: var(--space-xs, 4px) var(--space-md, 12px);
-  border-bottom: 1px solid var(--border, #E2E8F0);
-  color: var(--text-primary, #0F172A);
+  border-bottom: 1px solid var(--border, #EFE7D9);
+  color: var(--text-primary, #12100C);
 }
 
 .stratum-cascade-key {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
   font-weight: 500;
 }
 
 .stratum-cascade-value code {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
   font-size: 0.6875rem;
-  color: var(--text-secondary, #475569);
+  color: var(--text-secondary, #4E4636);
 }
 
 .stratum-cascade-empty {
   text-align: center;
-  color: var(--text-tertiary, #64748B);
+  color: var(--text-tertiary, #6F6553);
   padding: var(--space-lg, 16px) !important;
   font-style: italic;
 }
@@ -414,19 +414,19 @@ const cascadeStyles = `
 }
 
 .stratum-cascade-badge--inherited {
-  color: var(--color-accent, #0D9488);
-  background: var(--color-accent-light, #CCFBF1);
+  color: var(--color-accent, #C9793F);
+  background: var(--color-accent-light, #F0E0D2);
 }
 
 .stratum-cascade-badge--locked {
-  color: var(--color-warning, #D97706);
-  background: var(--color-warning-bg, #FEF3C7);
+  color: var(--color-warning, #D9A03F);
+  background: var(--color-warning-bg, #F3E4C0);
 }
 
 .stratum-cascade-badge--own {
-  color: var(--text-secondary, #475569);
-  background: var(--bg-input, var(--color-100, #F1F5F9));
-  border: 1px solid var(--border, #E2E8F0);
+  color: var(--text-secondary, #4E4636);
+  background: var(--bg-input, var(--color-100, #E9E2D4));
+  border: 1px solid var(--border, #EFE7D9);
 }
 
 /* Dark mode overrides */
@@ -442,7 +442,7 @@ const cascadeStyles = `
 .stratum-cascade-diff {
   margin-top: var(--space-md, 12px);
   padding: var(--space-sm, 8px) var(--space-md, 12px);
-  border: 1px solid var(--border, #E2E8F0);
+  border: 1px solid var(--border, #EFE7D9);
   border-radius: var(--radius-sm, 4px);
   display: flex;
   align-items: center;
@@ -452,7 +452,7 @@ const cascadeStyles = `
 }
 
 .stratum-cascade-diff__label {
-  color: var(--text-tertiary, #64748B);
+  color: var(--text-tertiary, #6F6553);
   font-weight: 500;
 }
 
@@ -465,18 +465,18 @@ const cascadeStyles = `
 }
 
 .stratum-cascade-diff__stat--inherited {
-  color: var(--color-accent, #0D9488);
-  background: var(--color-accent-light, #CCFBF1);
+  color: var(--color-accent, #C9793F);
+  background: var(--color-accent-light, #F0E0D2);
 }
 
 .stratum-cascade-diff__stat--locked {
-  color: var(--color-warning, #D97706);
-  background: var(--color-warning-bg, #FEF3C7);
+  color: var(--color-warning, #D9A03F);
+  background: var(--color-warning-bg, #F3E4C0);
 }
 
 .stratum-cascade-diff__stat--own {
-  color: var(--text-secondary, #475569);
-  background: var(--bg-input, var(--color-100, #F1F5F9));
+  color: var(--text-secondary, #4E4636);
+  background: var(--bg-input, var(--color-100, #E9E2D4));
 }
 
 [data-theme="dark"] .stratum-cascade-diff__stat--inherited {

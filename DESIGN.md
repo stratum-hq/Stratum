@@ -1,20 +1,27 @@
 # Stratum Design System
 
-This document defines the Stratum visual identity: the "Stratigraphy" direction
-approved in issue #145 (`docs/identity-proposal.md`). It is the reference the
-landing site (Epic 17) and the docs site (Epic 18) build to. If a value here and
-a value in the code disagree, the code's single source of truth wins and this
-document is what should be corrected.
+This document defines the Stratum visual identity: "Strata," the earth-toned
+retheme that replaced the "Core Sample" direction from issue #145
+(`docs/identity-proposal.md`, kept as historical record). It is the reference
+the landing site, the docs site, `@stratum-hq/react`, and the demo dashboard
+build to. If a value here and a value in the code disagree, the code's single
+source of truth wins and this document is what should be corrected.
 
 ## Concept
 
 A stratum is a layer. Stratum is layers of tenancy (root, reseller, client,
 team) with configuration, permissions, and isolation flowing down through them.
-The identity reads the product as a precision instrument for a layered system:
-architectural blueprint, database `EXPLAIN` output, geological core sample. Cool,
-dark first, and quiet, with exactly one live color. The register is deliberate:
-the audience is backend and platform engineers, for whom "cold and precise"
-reads as "serious and trustworthy."
+Strata reads that literally, off a core sample: peat and loam ground, marl and
+silt text, one live mineral accent (ember, a copper patina that only appears
+where something is reacting), and one sealed color (ochre) that means exactly
+one thing. It keeps Core Sample's grammar (the depth rail, the inheritance-flow
+signature, the one-accent discipline) and recolors it warm, dark first, and
+quiet. This is a *third* direction, not a reversion to the retired "geological
+warmth" palette that used a lifestyle-cream and terracotta combination — this
+repo's own earlier identity work called that combination "the most common
+AI-default aesthetic in circulation." Strata uses deep, quarried grounds
+instead of cream, and a single restrained accent rather than a second brand
+hue.
 
 ## Single source of truth
 
@@ -32,61 +39,66 @@ and both sites move together.
 variables onto these tokens; those mappings reference the tokens with `var()`,
 never a literal, so the docs theme inherits any palette change automatically.
 
-## Palette: Core Sample
+`@stratum-hq/react`'s `src/styles/default.css` and the demo dashboard
+(`packages/demo/web`) carry their own copies of these same values rather than
+importing the shared file directly, since they ship and run independently of
+the marketing/docs build. Keep all three in sync by hand when a token changes.
 
-Six roles plus one functional color. Cool, dark first, one bold accent, and one
-warm color that is never decorative.
+## Palette: Strata
+
+Six roles plus two functional colors. Earth-toned, dark first, one bold accent,
+and two warm colors that are never decorative.
 
 | Role | Token | Dark | Light | Used for |
 |---|---|---|---|---|
-| Base canvas | `--basalt` / `--surface-0` | `#0B0E13` | `#F4F7FA` | Page background. A deep cool blue black in dark; cool drafting paper in light, not warm cream. |
-| Raised surface | `--core` / `--surface-1` | `#141A22` | `#FFFFFF` | Cards, code wells, readout panels, the depth rail. |
-| Boundary line | `--seam` / `--border` | `#26313D` | `#D2DBE4` | Every border and divider. A seam is the line between two strata: a hairline rule means "a boundary," which is the product's whole job. |
-| Primary text | `--chalk` / `--text-primary` | `#E7EDF4` | `#0B0E13` | Headlines and body. Cool near white, like chalk on a blueprint. |
-| Secondary text | `--graphite` / `--text-secondary` | `#8A97A6` | `#48555F` | Sub text, captions, labels, inactive rail markers. |
-| The one accent | `--signal` / `--accent` | `#4FE3C1` | `#0E8C77` | Phosphor teal. Reserved for the live thing only: the resolved config value, the inheritance flow line, the active depth, the cursor, one word in the headline. All of the boldness is spent here. |
-| Locked state | `--lock` | `#E0A64F` | `#8A5A0F` | Amber. Used only for "locked, cannot override": a config key a parent sealed. The single warm color on the page, and it always carries that one meaning. Never a heading color, never decoration. |
+| Base canvas | `--peat` / `--surface-0` | `#12100C` | `#F4EFE4` | Page background. Warm near-black ground in dark; limestone paper (quarried warm, not lifestyle cream) in light. |
+| Raised surface | `--loam` / `--surface-1` | `#1C1813` | `#FFFCF6` | Cards, code wells, readout panels, the depth rail. |
+| Boundary line | `--seam` / `--border` | `#332B21` | `#DBD2BF` | Every border and divider. A seam is the line between two strata: a hairline rule means "a boundary," which is the product's whole job. |
+| Primary text | `--marl` / `--text-primary` | `#EFE7D9` | `#1A1611` | Headlines and body. Warm chalk / limestone. |
+| Secondary text | `--silt` / `--text-secondary` | `#A79880` | `#4E4636` | Sub text, captions, labels, inactive rail markers. |
+| The one accent | `--ember` / `--accent` | `#C9793F` | `#8B4A26` | Copper patina. Reserved for the live thing only: the resolved config value, the inheritance flow line, the active depth, the cursor, one word in the headline. All of the boldness is spent here. |
+| Locked state | `--ochre` / `--lock` | `#D9A03F` | `#8A5A0F` | Used only for "locked, cannot override": a config key a parent sealed. Never a heading color, never decoration. |
+| Failure | `--oxide` / `--error` | `#C4573A` | `#9C3A22` | Errors only. |
 
 Supporting tokens derived from the same family: `--surface-2`, `--surface-3`
-(raised steps between Core and Seam), `--text-tertiary` (de-emphasized meta and
-markers), `--border-hover`, and `--signal-strong` (the accent's hover state).
+(raised steps between Loam and Seam), `--text-tertiary` (de-emphasized meta and
+markers), `--border-hover`, `--ember-strong` (the accent's hover state), and
+`--sandstone` (secondary structural tone for package names, code text, and
+other mono runs that must not read as "live").
 
 ### Accent tokens and the ink that sits on them
 
-Signal teal is a light color, so text placed on a Signal fill must be dark. The
+Ember is a light color, so text placed on an ember fill must be dark. The
 accent is split into three tokens so contrast never breaks:
 
-- `--accent`: the fill and large or non text use of Signal (buttons, focus
+- `--accent`: the fill and large or non text use of ember (buttons, focus
   rings, a headline word).
 - `--accent-text`: small accent text and inline links. Identical to `--accent`
-  in dark mode; a darker teal in light mode where Signal must darken to stay
+  in dark mode; a darker ember in light mode where it must darken to stay
   legible at body size.
-- `--on-accent`: the ink placed on a Signal fill (Basalt in both themes). This
-  is why the primary button label is dark, not white.
-
-The amber Lock is the deliberate inversion of the retired terracotta: the only
-warm color left is the one that means "sealed."
+- `--on-accent`: the ink placed on an ember fill (Peat in both themes). This is
+  why the primary button label is dark, not white.
 
 ## Type: display, body, mono
 
-Three roles, and the deliberate move is to promote the monospace to a
-first class identity element, not just the code font.
+Three roles, and the deliberate move (carried over from Core Sample) is to
+promote the monospace to a first class identity element, not just the code
+font.
 
 | Role | Token | Family | Used for |
 |---|---|---|---|
-| Display | `--font-display` | Archivo, expanded width (`wdth` 125), weight 600 to 800 | Short, loud statements only: the hero headline and section headings. An expanded grotesque reads as industrial signage, engineered and structural. |
+| Display | `--font-display` | Libre Franklin, weight 700 to 900 | Short, loud statements only: the hero headline and section headings. A neutral American grotesque, not expanded — engineering-neutral rather than industrial signage. |
 | Body | `--font-body` | IBM Plex Sans | All prose. A humanist sans with real engineering heritage, strong on screen legibility, and tabular figures that keep data dense tables aligned. |
 | Structural | `--font-mono` | IBM Plex Mono | Labels, eyebrows, depth markers, data readouts, the wordmark, the stratigraphic rail, and code. Coheres with Plex Sans as one superfamily. This is where the "tool for engineers" signal lives. |
 
-The pairing is a real tension (a wide, mechanical display over a warm, readable
-body) rather than one family at two weights. Body and mono share the Plex
-superfamily so prose and code feel like one document. The fonts are loaded once,
-in `assets/tokens.css`.
+Body and mono share the Plex superfamily so prose and code feel like one
+document. The fonts are loaded once per surface, non-blocking, from each
+document head (see `assets/tokens.css`'s header comment for why).
 
 ## Signature: the depth rail and the inheritance flow
 
-The one element the brand is remembered by. Epics 17 and 18 implement it; it is
-documented here so both build the same thing.
+The one element the brand is remembered by, unchanged in structure from Core
+Sample and recolored to Strata.
 
 - **Depth rail.** A thin persistent left vertical axis marked with tenant depth
   (`d0`, `d1`, `d2`, `d3`, ...) in mono, with hairline Seam rules between levels.
@@ -94,20 +106,20 @@ documented here so both build the same thing.
   is depth 1), so a numbered structural device is honest here in a way generic
   `01 / 02 / 03` markers are not. The rail doubles as scroll position and section
   anchor and persists on every page.
-- **Inheritance flow.** A Signal teal line traces down the rail and a config
-  value visibly resolves from an upper stratum to a lower one: `max_users: 1000`
-  set at `d0`, a teal marker dropping it to a deeper tenant labeled
-  `resolved from d0`. Directly beneath, `data_region: LOCKED` sits in amber with
+- **Inheritance flow.** An ember line traces down the rail and a config value
+  visibly resolves from an upper stratum to a lower one: `max_users: 1000` set
+  at `d0`, an ember marker dropping it to a deeper tenant labeled
+  `resolved from d0`. Directly beneath, `data_region: LOCKED` sits in ochre with
   `children cannot override`. That single graphic states the whole product
   thesis (values flow down the layers unless a parent seals them) in the brand's
   own colors.
 - **Code well.** Half the page is code, so a code block is a brand surface. It is
-  a Core surface panel with a mono filename tab, a Seam top rule, and a left
+  a Loam surface panel with a mono filename tab, a Seam top rule, and a left
   gutter that continues the depth rail. Syntax is restrained so exactly one thing
-  glows: the resolved value, in Signal teal (`--syntax-accent`). Keywords are a
-  muted violet, strings a muted teal green, numbers the Lock amber, comments the
-  tertiary gray. The code well stays dark in both themes so a snippet reads the
-  same on the landing page and in a guide.
+  glows: the resolved value, in ember (`--syntax-accent`). Keywords are a dusty
+  mauve, strings a clay tan, numbers the ochre lock, comments the tertiary gray.
+  The code well stays dark in both themes so a snippet reads the same on the
+  landing page and in a guide.
 
 ## Accessibility floor
 
@@ -118,35 +130,35 @@ These are non negotiable and carried in the shared token layer.
 Measured against WCAG 2.1 (AA is 4.5:1 for normal text, 3:1 for large text and
 UI). Values below are the real ratios for the shipped tokens.
 
-Dark, on Basalt `#0B0E13`:
+Dark, on Peat `#12100C`:
 
 | Pair | Ratio | Verdict |
 |---|---|---|
-| Chalk primary text | 16.4:1 | AAA |
-| Graphite secondary text | 6.5:1 | AA normal, AAA large |
-| Signal accent | 12.1:1 | AAA, safe as small labels and inline code |
-| Lock amber | 9.0:1 | AA/AAA, safe for small badge text |
-| Basalt ink on a Signal button fill | 12.1:1 | AAA |
+| Marl primary text | 15.1:1 | AAA |
+| Silt secondary text | 6.7:1 | AA normal, AAA large |
+| Ember accent | 5.7:1 | AA normal, safe as small labels and inline code |
+| Ochre lock | 8.4:1 | AA/AAA, safe for small badge text |
+| Peat ink on an ember button fill | 5.7:1 | AA |
 
-Light, on drafting paper `#F4F7FA`:
+Light, on limestone paper `#F4EFE4`:
 
 | Pair | Ratio | Verdict |
 |---|---|---|
-| Ink primary text | 18.0:1 | AAA |
-| Secondary text `#48555F` | 7.1:1 | AA/AAA |
-| `--accent` Signal `#0E8C77` | 3.9:1 | large text, UI, and non text only |
-| `--accent-text` Signal `#0A6E5B` | 5.8:1 | AA at body size, for small accent text and links |
-| Lock amber `#8A5A0F` | 5.5:1 | AA normal |
-| Basalt ink on a Signal button fill | 4.6:1 | AA normal |
+| Ink primary text | 16.6:1 | AAA |
+| Secondary text `#4E4636` | 7.6:1 | AA/AAA |
+| `--accent` ember `#8B4A26` | 3.9:1 | large text, UI, and non text only |
+| `--accent-text` ember `#6E3A1D` | 5.6:1 | AA at body size, for small accent text and links |
+| Ochre lock `#8A5A0F` | 5.3:1 | AA normal |
+| Peat ink on an ember button fill | 4.4:1 | AA normal |
 
-Two Signal tokens exist in light mode precisely so the accent never drops below
+Two ember tokens exist in light mode precisely so the accent never drops below
 AA at body size: large and UI uses take `--accent`, small text takes
 `--accent-text`. Tertiary text and the large accent token sit at 3:1 or above and
 are reserved for large, UI, and de-emphasized meta, never for body copy.
 
 ### Focus
 
-Every interactive element shows a visible keyboard focus ring: a 2px Signal
+Every interactive element shows a visible keyboard focus ring: a 2px ember
 `:focus-visible` outline with a 3px offset. Focus is never removed without a
 replacement of equal or greater visibility.
 
@@ -183,7 +195,25 @@ Semantic aliases that components use, all defined in `assets/tokens.css`:
   `--duration-fast` / `--duration-normal` / `--duration-slow`, and `--shadow-sm`
   through `--shadow-lg`.
 
-The retired warm palette used a `--sandstone` secondary hue. Core Sample has no
-second brand color, so `--sandstone` resolves to neutral graphite and remains
-only so existing markup keeps rendering; new work should reference the text and
-accent tokens directly.
+`--sandstone` is Strata's own secondary structural tone (sand, `#C9B08A` dark /
+`#7A5F35` light), used for package names, code text, and other mono runs that
+must not read as "live." It is a real token here, not a neutral fallback the
+way it was under Core Sample.
+
+## Logo
+
+The mark is three horizontal strokes of decreasing length and increasing
+"depth" (marl/loam text tone → silt → ember), evoking sediment layers and the
+tenant hierarchy simultaneously. Variants live in `assets/brand/`:
+
+- `stratum-mark.svg` / `stratum-mark-light.svg` — the three-stroke mark alone,
+  for dark and light backgrounds respectively.
+- `stratum-mark-tile.svg` — square tile variant (favicons, app icons).
+- `stratum-lockup.svg` / `stratum-lockup-stacked.svg` / `stratum-lockup-light.svg`
+  — mark plus wordmark, horizontal, stacked, and light-background variants.
+
+No raster (PNG/ICO) exports were regenerated as part of the Strata retheme;
+`favicon.svg` was updated on both sites, but `favicon.ico`, the PNG favicons,
+`apple-touch-icon.png`, and the `og.png` / `og-square.png` social preview
+images still reflect the retired Core Sample mark pending a proper export
+pass.

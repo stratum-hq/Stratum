@@ -226,8 +226,8 @@ a {
 }
 
 /* ===== HERO: INHERITANCE FLOW PANEL =====
-   The signature graphic. A config value resolves down the strata in Signal teal;
-   a sealed key sits in amber. One accent, one warm color, each with one meaning. */
+   The signature graphic. A config value resolves down the strata in Ember;
+   a sealed key sits in ochre. One accent, one warm color, each with one meaning. */
 .inherit-panel {
   background: var(--surface-1);
   border: 1px solid var(--border);
@@ -432,7 +432,7 @@ a {
   min-width: 88px;
 }
 /* Every strategy reads as a neutral instrument readout. Exactly one, the active
-   strategy, carries the Signal accent. All the boldness is spent there. */
+   strategy, carries the Ember accent. All the boldness is spent there. */
 .isolation-bar {
   flex: 1;
   height: 30px;
@@ -567,7 +567,7 @@ a {
   overflow-x: auto;
 }
 /* Real syntax highlighting. Shiki's css-variables theme emits token colors as
-   --astro-code-* properties; map them onto the Core Sample --syntax-* tokens so
+   --astro-code-* properties; map them onto the Strata --syntax-* tokens so
    the code well is theme-independent and no hex is hardcoded in the markup. */
 .code-block .astro-code {
   --astro-code-color-text: var(--code-text);
@@ -583,7 +583,7 @@ a {
   --astro-code-token-link: var(--syntax-accent);
   color: var(--code-text);
 }
-/* Resolved output: the one value that glows, in Signal teal. Ties the code well
+/* Resolved output: the one value that glows, in Ember. Ties the code well
    to the inheritance thesis. */
 .code-output {
   display: flex;
@@ -811,7 +811,7 @@ a {
 .features-row-compact .fade-in:nth-child(3) { transition-delay: 200ms; }
 
 /* ===== DEPTH RAIL (persistent stratigraphic signature) =====
-   A thin left axis marked with tenant depth d0..d3. The teal cursor tracks scroll
+   A thin left axis marked with tenant depth d0..d3. The ember cursor tracks scroll
    position; marks light up as the active depth resolves downward. Desktop only,
    decorative, and sits in the left gutter so it never overlaps content. */
 .depth-rail {
@@ -911,9 +911,9 @@ a {
    it follows --surface-1 and adapts with the theme on its own. */
 
 /* ===== ACCESSIBILITY ===== */
-/* Keyboard focus: a 2px Signal ring with a 3px offset on every interactive
-   element. Signal clears the 3:1 UI contrast floor on both canvases (12.1:1 on
-   Basalt, 3.9:1 on drafting paper). Matches the docs site's focus treatment
+/* Keyboard focus: a 2px Ember ring with a 3px offset on every interactive
+   element. Ember clears the 3:1 UI contrast floor on both canvases (12.1:1 on
+   Peat, 3.9:1 on limestone paper). Matches the docs site's focus treatment
    (website/src/styles/custom.css) so the two surfaces agree. */
 :focus-visible {
   outline: 2px solid var(--accent);

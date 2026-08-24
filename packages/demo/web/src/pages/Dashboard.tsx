@@ -90,43 +90,42 @@ const TABS: TabDef[] = [
 // ── CSS-in-JS with design tokens ─────────────────────────────────────────────
 
 const cssVars = `
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* Colors */
-  --color-primary: #2563EB;
-  --color-primary-hover: #1d4ed8;
-  --color-accent: #0D9488;
-  --color-accent-hover: #0F766E;
-  --color-accent-light: #CCFBF1;
-  --color-accent-muted: #F0FDFA;
-  --color-success: #059669;
-  --color-success-bg: #D1FAE5;
-  --color-warning: #D97706;
-  --color-warning-bg: #FEF3C7;
-  --color-error: #DC2626;
-  --color-error-bg: #FEE2E2;
-  --color-info: #2563EB;
-  --color-info-bg: #DBEAFE;
+  /* Colors — Strata (earth-toned, one live accent: ember) */
+  --color-primary: #8B4A26;
+  --color-primary-hover: #6E3A1D;
+  --color-accent: #8B4A26;
+  --color-accent-hover: #6E3A1D;
+  --color-accent-light: #F0E0D2;
+  --color-accent-muted: #F7EFE5;
+  --color-success: #8B4A26;
+  --color-success-bg: #F0E0D2;
+  --color-warning: #8A5A0F;
+  --color-warning-bg: #F3E4C0;
+  --color-error: #9C3A22;
+  --color-error-bg: #F5DDD2;
+  --color-info: #6B5A3C;
+  --color-info-bg: #E8E1D2;
 
-  /* Neutrals */
-  --color-950: #0C1222;
-  --color-900: #0F172A;
-  --color-800: #1E293B;
-  --color-700: #334155;
-  --color-600: #475569;
-  --color-500: #64748B;
-  --color-400: #94A3B8;
-  --color-300: #CBD5E1;
-  --color-200: #E2E8F0;
-  --color-100: #F1F5F9;
-  --color-50: #F8FAFC;
+  /* Neutrals — peat to limestone paper */
+  --color-950: #12100C;
+  --color-900: #1C1813;
+  --color-800: #241F19;
+  --color-700: #332B21;
+  --color-600: #4E4636;
+  --color-500: #6F6553;
+  --color-400: #A79880;
+  --color-300: #C9B08A;
+  --color-200: #DCD2BF;
+  --color-100: #E9E2D4;
+  --color-50: #F4EFE4;
 
   /* Typography */
-  --font-display: 'Satoshi', system-ui, -apple-system, sans-serif;
-  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: 'Libre Franklin', system-ui, -apple-system, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Spacing */
   --space-2xs: 2px;
@@ -145,11 +144,11 @@ const cssVars = `
   --radius-xl: 12px;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(12,18,34,0.05);
-  --shadow-md: 0 2px 8px rgba(12,18,34,0.08), 0 1px 2px rgba(12,18,34,0.04);
-  --shadow-lg: 0 4px 16px rgba(12,18,34,0.10), 0 2px 4px rgba(12,18,34,0.06);
-  --shadow-xl: 0 8px 32px rgba(12,18,34,0.12), 0 4px 8px rgba(12,18,34,0.06);
+  /* Shadows — warm-toned, fall from peat */
+  --shadow-sm: 0 1px 2px rgba(26,22,17,0.07);
+  --shadow-md: 0 2px 8px rgba(26,22,17,0.10), 0 1px 2px rgba(26,22,17,0.05);
+  --shadow-lg: 0 4px 16px rgba(26,22,17,0.13), 0 2px 4px rgba(26,22,17,0.06);
+  --shadow-xl: 0 8px 32px rgba(26,22,17,0.15), 0 4px 8px rgba(26,22,17,0.07);
 
   /* Motion */
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);
@@ -162,8 +161,8 @@ const cssVars = `
 
   /* Dark mode surfaces */
   --bg-page: var(--color-50);
-  --bg-card: #ffffff;
-  --bg-input: #ffffff;
+  --bg-card: #FFFCF6;
+  --bg-input: #FFFCF6;
   --text-primary: var(--color-900);
   --text-secondary: var(--color-600);
   --text-tertiary: var(--color-500);
@@ -172,28 +171,28 @@ const cssVars = `
 }
 
 [data-theme="dark"] {
-  --bg-page: #0A0F1A;
+  --bg-page: #12100C;
   --bg-card: var(--color-900);
   --bg-input: var(--color-800);
-  --text-primary: #E2E8F0;
+  --text-primary: #EFE7D9;
   --text-secondary: var(--color-400);
   --text-tertiary: var(--color-500);
   --border: var(--color-700);
   --border-strong: var(--color-600);
-  --color-primary: #3B82F6;
-  --color-accent: #2DD4BF;
-  --color-success: #34D399;
-  --color-success-bg: #064e3b;
-  --color-warning: #FBBF24;
-  --color-warning-bg: #451a03;
-  --color-error: #F87171;
-  --color-error-bg: #450a0a;
-  --color-info: #3B82F6;
-  --color-info-bg: #1e3a5f;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
-  --shadow-xl: 0 8px 32px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.3);
+  --color-primary: #D89060;
+  --color-accent: #D89060;
+  --color-success: #C9793F;
+  --color-success-bg: #342619;
+  --color-warning: #D9A03F;
+  --color-warning-bg: #362B19;
+  --color-error: #C4573A;
+  --color-error-bg: #342118;
+  --color-info: #C9B08A;
+  --color-info-bg: #312A21;
+  --shadow-sm: 0 1px 2px rgba(18,16,12,0.4);
+  --shadow-md: 0 2px 8px rgba(18,16,12,0.5), 0 1px 2px rgba(18,16,12,0.3);
+  --shadow-lg: 0 4px 16px rgba(18,16,12,0.6), 0 2px 4px rgba(18,16,12,0.3);
+  --shadow-xl: 0 8px 32px rgba(18,16,12,0.7), 0 4px 8px rgba(18,16,12,0.4);
 }
 
 body {
@@ -783,11 +782,11 @@ input[type="checkbox"]:focus-visible {
 }
 
 /* Severity colors */
-.severity-critical { background: #ef4444; color: white; }
-.severity-high { background: #f97316; color: white; }
-.severity-medium { background: #eab308; color: #422006; }
-.severity-low { background: #22c55e; color: white; }
-.severity-info { background: #3b82f6; color: white; }
+.severity-critical { background: #C4573A; color: white; }
+.severity-high { background: #C9793F; color: white; }
+.severity-medium { background: #D9A03F; color: #1A1611; }
+.severity-low { background: #9FB07E; color: #1A1611; }
+.severity-info { background: #C9B08A; color: #1A1611; }
 
 /* Edit row */
 .stratum-edit-row {
@@ -802,7 +801,7 @@ input[type="checkbox"]:focus-visible {
 .stratum-key-banner {
   padding: var(--space-md) var(--space-lg);
   background: var(--color-success-bg);
-  border-bottom: 1px solid #bbf7d0;
+  border-bottom: 1px solid #F0E0D2;
   font-size: 0.75rem;
 }
 
@@ -889,11 +888,11 @@ input[type="checkbox"]:focus-visible {
 // ── Breadcrumb helper ────────────────────────────────────────────────────────
 
 const depthDotColors: Record<number, string> = {
-  0: "#3b82f6", // blue — root/MSSP
-  1: "#8b5cf6", // purple — MSP
-  2: "#0D9488", // teal — client
-  3: "#0D9488",
-  4: "#0D9488",
+  0: "#C9793F", // ember — root/MSSP
+  1: "#D9A03F", // ochre — MSP
+  2: "#C9B08A", // sand — client
+  3: "#C9B08A",
+  4: "#C9B08A",
 };
 
 function findAncestryNames(
@@ -936,7 +935,7 @@ function Breadcrumb({ tenantId }: { tenantId: string }) {
           <span className="stratum-breadcrumb-segment">
             <span
               className="stratum-breadcrumb-dot"
-              style={{ background: depthDotColors[seg.depth] || "#94A3B8" }}
+              style={{ background: depthDotColors[seg.depth] || "#A79880" }}
             />
             <span className={`stratum-breadcrumb-name${i === ancestry.length - 1 ? " active" : ""}`}>
               {seg.name}
@@ -2186,7 +2185,7 @@ export function Dashboard() {
               color: "var(--text-primary)",
               width: 680,
               maxWidth: "90vw",
-              fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+              fontFamily: "'IBM Plex Sans', system-ui, -apple-system, sans-serif",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2302,11 +2301,11 @@ export function Dashboard() {
                           <React.Fragment key={a?.id || i}>
                             {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
                             <span style={{
-                              background: i === chain.length - 1 ? "#DBEAFE" : "#F1F5F9",
+                              background: i === chain.length - 1 ? "#F0E0D2" : "#E9E2D4",
                               padding: "4px 12px", borderRadius: 9999,
                               fontSize: "0.75rem",
                               fontWeight: i === chain.length - 1 ? 600 : 400,
-                              color: i === chain.length - 1 ? "#1E40AF" : "#334155",
+                              color: i === chain.length - 1 ? "#6E3A1D" : "#4E4636",
                             }}>
                               {a?.name || "Unknown"}
                             </span>

@@ -349,7 +349,7 @@ const draggableStyles = `
 }
 
 .stratum-tree__node--drop-target {
-  outline: 2px dashed var(--color-accent, #0D9488);
+  outline: 2px dashed var(--color-accent, #C9793F);
   outline-offset: -2px;
   border-radius: var(--radius-sm, 4px);
   background: rgba(13, 148, 136, 0.08);
@@ -358,7 +358,7 @@ const draggableStyles = `
 .stratum-tree__drag-handle {
   width: 14px;
   font-size: 10px;
-  color: var(--color-400, #94A3B8);
+  color: var(--color-400, #A79880);
   flex-shrink: 0;
   cursor: grab;
   line-height: 1;
@@ -374,12 +374,12 @@ const draggableStyles = `
   padding: 6px 16px;
   min-width: 140px;
   background: var(--bg-card, white);
-  border: 1px solid var(--color-accent, #0D9488);
+  border: 1px solid var(--color-accent, #C9793F);
   border-radius: var(--radius-sm, 4px);
   box-shadow: var(--shadow-md, 0 2px 8px rgba(0,0,0,0.15));
   font-size: 0.8125rem;
-  font-family: var(--font-body, 'DM Sans', system-ui, sans-serif);
-  color: var(--text-primary, #0F172A);
+  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
+  color: var(--text-primary, #12100C);
   cursor: grabbing;
   white-space: nowrap;
 }
@@ -396,21 +396,21 @@ const draggableStyles = `
   cursor: pointer;
   font-size: 11px;
   padding: 0 2px;
-  color: var(--color-400, #94A3B8);
+  color: var(--color-400, #A79880);
   line-height: 1;
 }
 
 .stratum-tree__action-btn:hover {
-  color: var(--text-primary, #0F172A);
+  color: var(--text-primary, #12100C);
 }
 
 .stratum-tree__action-btn--danger:hover {
-  color: var(--color-error, #DC2626);
+  color: var(--color-error, #C4573A);
 }
 
 [data-theme="dark"] .stratum-tree__drag-overlay {
-  background: var(--color-800, #1E293B);
-  color: #e2e8f0;
+  background: var(--color-800, #241F19);
+  color: #EFE7D9;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
 }
 `;

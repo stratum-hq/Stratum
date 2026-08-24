@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/stratumlogo.png" alt="Stratum Logo" width="200" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/stratum-lockup.svg" />
+    <img src="assets/brand/stratum-lockup-light.svg" alt="Stratum" width="220" />
+  </picture>
 </p>
 
 <h1 align="center">Stratum</h1>
