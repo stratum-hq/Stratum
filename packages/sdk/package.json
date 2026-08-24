@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Stratum Node.js SDK for multi-tenant context propagation",
   "keywords": [
     "multi-tenancy",

@@ -1,5 +1,13 @@
 # @stratum-hq/react
 
+## 0.4.1
+
+### Patch Changes
+
+- Retheme the shipped component styles (`dist/styles/default.css`) to the "Strata" earth-toned palette (peat/loam/ember) and Libre Franklin / IBM Plex Sans / IBM Plex Mono typefaces, replacing the previous, already-drifted palette. No component API changes; consumers who import the stylesheet will see updated colors and fonts.
+- Updated dependencies [36f69d8]
+  - @stratum-hq/core@1.2.1
+
 ## 0.4.0
 
 ### Minor Changes

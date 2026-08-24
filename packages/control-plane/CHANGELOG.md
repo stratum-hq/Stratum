@@ -1,5 +1,14 @@
 # @stratum-hq/control-plane
 
+## 1.0.1
+
+### Patch Changes
+
+- Bump `@fastify/swagger-ui` to clear two real advisories in its `@fastify/static` dependency (non-canonical-path authorization bypass, route-guard bypass via path traversal). The published package previously pinned `@fastify/swagger-ui: ^5.2.0`, whose `@fastify/static` range could never reach the patched version. No API or behavior change to the `/api/docs` route.
+- Updated dependencies [36f69d8]
+  - @stratum-hq/core@1.2.1
+  - @stratum-hq/lib@1.2.1
+
 ## 1.0.0
 
 ### Major Changes
