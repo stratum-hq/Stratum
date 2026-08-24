@@ -3,49 +3,50 @@
 /* ============================================================
    Font Imports
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wdth,wght@0,75..100,400..700;1,75..100,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
    Design Tokens — Dark Mode (Primary / Default)
+   Palette: Strata (earth-toned, one live mineral accent: ember).
    ============================================================ */
 :root {
-  /* --- Surfaces — deep earth, not pure black --- */
-  --surface-0: #0F0E0C;
-  --surface-1: #1A1815;
-  --surface-2: #252220;
-  --surface-3: #302D2A;
+  /* --- Surfaces — peat and loam, not pure black --- */
+  --surface-0: #12100C;
+  --surface-1: #1C1813;
+  --surface-2: #241F19;
+  --surface-3: #2E271F;
 
   /* --- Text --- */
-  --text-primary: #E8E2D9;
-  --text-secondary: #A39E95;
-  --text-tertiary: #6B6560;
+  --text-primary: #EFE7D9;
+  --text-secondary: #A79880;
+  --text-tertiary: #7A6C58;
 
-  /* --- Accent — terracotta (used sparingly) --- */
-  --accent: #C05746;
-  --accent-hover: #D4654E;
-  --accent-muted: #C0574620;
+  /* --- Accent — ember, a copper patina (used sparingly) --- */
+  --accent: #C9793F;
+  --accent-hover: #D89060;
+  --accent-muted: #C9793F26;
 
-  /* --- Warm neutrals — sandstone --- */
-  --sandstone: #C4A882;
-  --sandstone-muted: #C4A88240;
+  /* --- Warm neutrals — sand --- */
+  --sandstone: #C9B08A;
+  --sandstone-muted: #C9B08A33;
 
   /* --- Semantic --- */
-  --success: #5B8C5A;
-  --success-bg: #1A2E19;
-  --warning: #C4A244;
-  --warning-bg: #2E2610;
-  --error: #C05746;
-  --error-bg: #2E1410;
-  --info: #7A8B9A;
-  --info-bg: #1A2430;
+  --success: #C9793F;
+  --success-bg: color-mix(in srgb, var(--success) 14%, var(--surface-1));
+  --warning: #D9A03F;
+  --warning-bg: color-mix(in srgb, var(--warning) 14%, var(--surface-1));
+  --error: #C4573A;
+  --error-bg: color-mix(in srgb, var(--error) 14%, var(--surface-1));
+  --info: #C9B08A;
+  --info-bg: color-mix(in srgb, var(--info) 12%, var(--surface-1));
 
   /* --- Borders --- */
-  --border: #2A2725;
-  --border-hover: #3D3935;
+  --border: #332B21;
+  --border-hover: #463B2D;
 
   /* --- Code --- */
-  --code-bg: #161412;
-  --code-text: #C4A882;
+  --code-bg: #0F0D0A;
+  --code-text: #C9B08A;
 
   /* --- Legacy aliases (component compatibility) --- */
   --color-primary: var(--accent);
@@ -76,18 +77,18 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
   --color-text-disabled: var(--text-tertiary);
-  --color-text-on-primary: #E8E2D9;
+  --color-text-on-primary: #EFE7D9;
   --color-text-active: var(--accent-hover);
 
   --color-border-default: var(--border);
   --color-border-strong: var(--border-hover);
   --color-border-input: var(--border-hover);
 
-  /* --- Badge: Inherited — sandstone --- */
+  /* --- Badge: Inherited — sand --- */
   --color-badge-inherited-bg: var(--sandstone-muted);
   --color-badge-inherited-text: var(--sandstone);
 
-  /* --- Badge: Locked — warning amber --- */
+  /* --- Badge: Locked — warning ochre --- */
   --color-badge-locked-bg: var(--warning-bg);
   --color-badge-locked-text: var(--warning);
 
@@ -100,9 +101,9 @@
   --color-badge-delegated-text: var(--success);
 
   /* --- Typography --- */
-  --font-display: "Instrument Sans", system-ui, sans-serif;
-  --font-body: "Instrument Sans", system-ui, sans-serif;
-  --font-code: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --font-display: "Libre Franklin", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-code: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --font-size-xs: 0.6875rem;   /* 11px */
   --font-size-sm: 0.75rem;     /* 12px */
@@ -144,10 +145,10 @@
   --radius-full: 9999px;
 
   /* --- Shadows — warm-toned --- */
-  --shadow-sm: 0 1px 2px rgba(15, 14, 12, 0.4);
-  --shadow-md: 0 2px 8px rgba(15, 14, 12, 0.5), 0 1px 2px rgba(15, 14, 12, 0.3);
-  --shadow-lg: 0 4px 16px rgba(15, 14, 12, 0.6), 0 2px 4px rgba(15, 14, 12, 0.3);
-  --shadow-xl: 0 8px 32px rgba(15, 14, 12, 0.7), 0 4px 8px rgba(15, 14, 12, 0.4);
+  --shadow-sm: 0 1px 2px rgba(18, 16, 12, 0.4);
+  --shadow-md: 0 2px 8px rgba(18, 16, 12, 0.5), 0 1px 2px rgba(18, 16, 12, 0.3);
+  --shadow-lg: 0 4px 16px rgba(18, 16, 12, 0.6), 0 2px 4px rgba(18, 16, 12, 0.3);
+  --shadow-xl: 0 8px 32px rgba(18, 16, 12, 0.7), 0 4px 8px rgba(18, 16, 12, 0.4);
 
   /* --- Motion --- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -171,36 +172,36 @@
    Light Mode — for docs only
    ============================================================ */
 [data-theme="light"] {
-  --surface-0: #FAF8F5;
-  --surface-1: #F0EDE8;
-  --surface-2: #E5E0DA;
-  --surface-3: #D6D0C8;
+  --surface-0: #F4EFE4;
+  --surface-1: #FFFCF6;
+  --surface-2: #E9E2D4;
+  --surface-3: #DCD2BF;
 
-  --text-primary: #1A1815;
-  --text-secondary: #5C5650;
-  --text-tertiary: #8A847D;
+  --text-primary: #1A1611;
+  --text-secondary: #4E4636;
+  --text-tertiary: #6F6553;
 
-  --accent: #A84535;
-  --accent-hover: #C05746;
-  --accent-muted: #A8453520;
+  --accent: #8B4A26;
+  --accent-hover: #6E3A1D;
+  --accent-muted: #8B4A2620;
 
-  --sandstone: #8B6F4E;
-  --sandstone-muted: #8B6F4E20;
+  --sandstone: #7A5F35;
+  --sandstone-muted: #7A5F3520;
 
-  --success: #3D6B3C;
-  --success-bg: #D8EDCC;
-  --warning: #8B6E10;
-  --warning-bg: #F5E8C0;
-  --error: #A84535;
-  --error-bg: #F5D5CC;
-  --info: #4A5D6E;
-  --info-bg: #D8E4EC;
+  --success: #8B4A26;
+  --success-bg: #F0E0D2;
+  --warning: #8A5A0F;
+  --warning-bg: #F3E4C0;
+  --error: #9C3A22;
+  --error-bg: #F5DDD2;
+  --info: #6B5A3C;
+  --info-bg: #E8E1D2;
 
-  --border: #D6D0C8;
-  --border-hover: #C4BDB4;
+  --border: #DBD2BF;
+  --border-hover: #C4B79F;
 
-  --code-bg: #F0EDE8;
-  --code-text: #8B6F4E;
+  --code-bg: #FFFCF6;
+  --code-text: #7A5F35;
 
   /* --- Legacy aliases (light) --- */
   --color-primary: var(--accent);
@@ -231,7 +232,7 @@
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
   --color-text-disabled: var(--text-tertiary);
-  --color-text-on-primary: #FAF8F5;
+  --color-text-on-primary: #FFFCF6;
   --color-text-active: var(--accent);
 
   --color-border-default: var(--border);
@@ -250,10 +251,10 @@
   --color-badge-delegated-bg: var(--success-bg);
   --color-badge-delegated-text: var(--success);
 
-  --shadow-sm: 0 1px 2px rgba(26, 24, 21, 0.06);
-  --shadow-md: 0 2px 8px rgba(26, 24, 21, 0.09), 0 1px 2px rgba(26, 24, 21, 0.05);
-  --shadow-lg: 0 4px 16px rgba(26, 24, 21, 0.12), 0 2px 4px rgba(26, 24, 21, 0.06);
-  --shadow-xl: 0 8px 32px rgba(26, 24, 21, 0.14), 0 4px 8px rgba(26, 24, 21, 0.07);
+  --shadow-sm: 0 1px 2px rgba(26, 22, 17, 0.06);
+  --shadow-md: 0 2px 8px rgba(26, 22, 17, 0.09), 0 1px 2px rgba(26, 22, 17, 0.05);
+  --shadow-lg: 0 4px 16px rgba(26, 22, 17, 0.12), 0 2px 4px rgba(26, 22, 17, 0.06);
+  --shadow-xl: 0 8px 32px rgba(26, 22, 17, 0.14), 0 4px 8px rgba(26, 22, 17, 0.07);
 }
 
 /* ============================================================
@@ -261,36 +262,36 @@
    ============================================================ */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
-    --surface-0: #FAF8F5;
-    --surface-1: #F0EDE8;
-    --surface-2: #E5E0DA;
-    --surface-3: #D6D0C8;
+    --surface-0: #F4EFE4;
+    --surface-1: #FFFCF6;
+    --surface-2: #E9E2D4;
+    --surface-3: #DCD2BF;
 
-    --text-primary: #1A1815;
-    --text-secondary: #5C5650;
-    --text-tertiary: #8A847D;
+    --text-primary: #1A1611;
+    --text-secondary: #4E4636;
+    --text-tertiary: #6F6553;
 
-    --accent: #A84535;
-    --accent-hover: #C05746;
-    --accent-muted: #A8453520;
+    --accent: #8B4A26;
+    --accent-hover: #6E3A1D;
+    --accent-muted: #8B4A2620;
 
-    --sandstone: #8B6F4E;
-    --sandstone-muted: #8B6F4E20;
+    --sandstone: #7A5F35;
+    --sandstone-muted: #7A5F3520;
 
-    --success: #3D6B3C;
-    --success-bg: #D8EDCC;
-    --warning: #8B6E10;
-    --warning-bg: #F5E8C0;
-    --error: #A84535;
-    --error-bg: #F5D5CC;
-    --info: #4A5D6E;
-    --info-bg: #D8E4EC;
+    --success: #8B4A26;
+    --success-bg: #F0E0D2;
+    --warning: #8A5A0F;
+    --warning-bg: #F3E4C0;
+    --error: #9C3A22;
+    --error-bg: #F5DDD2;
+    --info: #6B5A3C;
+    --info-bg: #E8E1D2;
 
-    --border: #D6D0C8;
-    --border-hover: #C4BDB4;
+    --border: #DBD2BF;
+    --border-hover: #C4B79F;
 
-    --code-bg: #F0EDE8;
-    --code-text: #8B6F4E;
+    --code-bg: #FFFCF6;
+    --code-text: #7A5F35;
 
     --color-primary: var(--accent);
     --color-primary-hover: var(--accent-hover);
@@ -320,7 +321,7 @@
     --color-text-secondary: var(--text-secondary);
     --color-text-tertiary: var(--text-tertiary);
     --color-text-disabled: var(--text-tertiary);
-    --color-text-on-primary: #FAF8F5;
+    --color-text-on-primary: #FFFCF6;
     --color-text-active: var(--accent);
 
     --color-border-default: var(--border);
@@ -339,10 +340,10 @@
     --color-badge-delegated-bg: var(--success-bg);
     --color-badge-delegated-text: var(--success);
 
-    --shadow-sm: 0 1px 2px rgba(26, 24, 21, 0.06);
-    --shadow-md: 0 2px 8px rgba(26, 24, 21, 0.09), 0 1px 2px rgba(26, 24, 21, 0.05);
-    --shadow-lg: 0 4px 16px rgba(26, 24, 21, 0.12), 0 2px 4px rgba(26, 24, 21, 0.06);
-    --shadow-xl: 0 8px 32px rgba(26, 24, 21, 0.14), 0 4px 8px rgba(26, 24, 21, 0.07);
+    --shadow-sm: 0 1px 2px rgba(26, 22, 17, 0.06);
+    --shadow-md: 0 2px 8px rgba(26, 22, 17, 0.09), 0 1px 2px rgba(26, 22, 17, 0.05);
+    --shadow-lg: 0 4px 16px rgba(26, 22, 17, 0.12), 0 2px 4px rgba(26, 22, 17, 0.06);
+    --shadow-xl: 0 8px 32px rgba(26, 22, 17, 0.14), 0 4px 8px rgba(26, 22, 17, 0.07);
   }
 }
 

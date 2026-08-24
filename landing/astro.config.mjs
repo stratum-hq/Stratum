@@ -27,7 +27,7 @@ export default defineConfig({
   site: 'https://stratum-hq.org',
   integrations: [sitemap()],
   // Real syntax highlighting. The css-variables theme emits token colors as
-  // --astro-code-* custom properties, which global.css maps onto the Core Sample
+  // --astro-code-* custom properties, which global.css maps onto the Strata
   // --syntax-* tokens, so no hex is hardcoded in the highlighted markup.
   markdown: {
     shikiConfig: { theme: 'css-variables' },

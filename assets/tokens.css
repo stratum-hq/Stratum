@@ -9,84 +9,86 @@
    either stylesheet. Add or change a value here so the two surfaces resolve
    the same palette and cannot drift.
 
-   Palette: Core Sample (cool, dark first, one live accent).
-   Type: Archivo (display) / IBM Plex Sans (body) / IBM Plex Mono (structural).
+   Palette: Strata (earth-toned, dark first, one live mineral accent).
+   Type: Libre Franklin (display) / IBM Plex Sans (body) / IBM Plex Mono (structural).
 
    Fonts are NOT loaded here. A CSS @import is render-blocking, so each surface
-   loads the Archivo / IBM Plex Sans / IBM Plex Mono families non-blocking from
-   its own document head (preload + swap). This file only names the families in
-   --font-display / --font-body / --font-mono below.
+   loads the Libre Franklin / IBM Plex Sans / IBM Plex Mono families non-blocking
+   from its own document head (preload + swap). This file only names the
+   families in --font-display / --font-body / --font-mono below.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   Dark theme (default). Core Sample.
+   Dark theme (default). Strata.
    -------------------------------------------------------------------------- */
 :root {
-  /* Core Sample primitives */
-  --basalt: #0B0E13;   /* page canvas: the viewport of an instrument */
-  --core: #141A22;     /* raised surface: cards, code wells, readout panels */
-  --seam: #26313D;     /* the boundary line between two strata */
-  --chalk: #E7EDF4;    /* primary text: chalk on a blueprint */
-  --graphite: #8A97A6; /* secondary text, captions, inactive markers */
-  --signal: #4FE3C1;   /* the one accent: phosphor teal, the live value only */
-  --signal-strong: #6BEBCD;
-  --lock: #E0A64F;     /* functional amber: "sealed / cannot override" only */
+  /* Strata primitives */
+  --peat: #12100C;      /* page canvas: warm near-black, undisturbed ground */
+  --loam: #1C1813;      /* raised surface: cards, code wells, readout panels */
+  --seam: #332B21;      /* the boundary line between two strata */
+  --marl: #EFE7D9;      /* primary text: warm chalk / limestone */
+  --silt: #A79880;      /* secondary text, captions, inactive markers */
+  --ember: #C9793F;     /* the one accent: copper patina, the live value only */
+  --ember-strong: #D89060;
+  --ochre: #D9A03F;     /* functional: "sealed / cannot override" only */
+  --oxide: #C4573A;     /* functional: failure */
 
   /* Surfaces */
-  --surface-0: var(--basalt);
-  --surface-1: var(--core);
-  --surface-2: #1B222C;
-  --surface-3: #222C38;
+  --surface-0: var(--peat);
+  --surface-1: var(--loam);
+  --surface-2: #241F19;
+  --surface-3: #2E271F;
 
   /* Text */
-  --text-primary: var(--chalk);
-  --text-secondary: var(--graphite);
-  --text-tertiary: #5F6B78;
+  --text-primary: var(--marl);
+  --text-secondary: var(--silt);
+  --text-tertiary: #7A6C58;
 
-  /* Accent: Signal teal. --accent for UI / large / non text, --accent-text for
+  /* Accent: ember. --accent for UI / large / non text, --accent-text for
      small accent text and inline links. They diverge only in light mode where
-     Signal must darken to hold the contrast floor. --on-accent is the ink that
-     sits on a Signal fill (teal is a light color, so its label must be dark). */
-  --accent: var(--signal);
-  --accent-hover: var(--signal-strong);
-  --accent-text: var(--signal);
+     ember must darken to hold the contrast floor. --on-accent is the ink that
+     sits on an ember fill (ember is a light color, so its label must be dark). */
+  --accent: var(--ember);
+  --accent-hover: var(--ember-strong);
+  --accent-text: var(--ember);
   --accent-muted: color-mix(in srgb, var(--accent) 14%, transparent);
-  --on-accent: var(--basalt);
+  --on-accent: var(--peat);
 
-  /* Secondary structural tone. Was "sandstone" in the retired warm palette;
-     Core Sample has no second brand hue, so this resolves to neutral graphite. */
-  --sandstone: var(--graphite);
+  /* Secondary structural tone: sand. Used for package names, code text, and
+     other structural mono runs that must not read as "live". */
+  --sandstone: #C9B08A;
   --sandstone-muted: color-mix(in srgb, var(--sandstone) 22%, transparent);
 
-  /* Lock: amber. Never a heading color, never decoration. */
+  /* Lock: ochre. Never a heading color, never decoration. */
+  --lock: var(--ochre);
   --lock-muted: color-mix(in srgb, var(--lock) 16%, transparent);
 
   /* Boundaries */
   --border: var(--seam);
-  --border-hover: #34414F;
+  --border-hover: #463B2D;
 
   /* Code well. Stays dark in both themes: the instrument surface is constant,
      so a snippet reads the same on the landing page and in a guide. */
-  --code-bg: #0E141B;
-  --code-text: #8A97A6;
+  --code-bg: #0F0D0A;
+  --code-text: var(--sandstone);
 
   /* Syntax. Theme independent (the well is always dark). Restrained so exactly
-     one thing glows: the resolved value, in Signal teal. */
-  --syntax-keyword: #9B8AC4;   /* muted violet */
-  --syntax-function: #86A0BE;  /* muted slate blue */
-  --syntax-string: #6FB0A0;    /* muted teal green */
-  --syntax-number: #E0A64F;    /* amber */
-  --syntax-comment: #5F6B78;
-  --syntax-accent: #4FE3C1;    /* the resolved value */
+     one thing glows: the resolved value, in ember. */
+  --syntax-keyword: #B08FA6;   /* dusty mauve */
+  --syntax-function: #9FB07E;  /* olive */
+  --syntax-string: #C9976A;    /* clay tan */
+  --syntax-number: #D9A03F;    /* ochre */
+  --syntax-comment: #7A6C58;
+  --syntax-accent: #C9793F;    /* the resolved value */
 
-  /* Functional status (cool compatible, sparingly used) */
-  --success: #5FB98D;
+  /* Functional status (earth compatible, sparingly used) */
+  --success: var(--ember);
   --warning: var(--lock);
-  --error: #E06C79;
-  --info: #6E8CA8;
+  --error: var(--oxide);
+  --info: var(--sandstone);
 
   /* Type roles */
-  --font-display: "Archivo", system-ui, sans-serif;
+  --font-display: "Libre Franklin", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
@@ -116,43 +118,44 @@
   --duration-normal: 250ms;
   --duration-slow: 400ms;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
+  /* Shadows. Warm-toned: they fall from peat, never neutral black. */
+  --shadow-sm: 0 1px 2px rgba(18, 16, 12, 0.4);
+  --shadow-md: 0 2px 8px rgba(18, 16, 12, 0.5), 0 1px 2px rgba(18, 16, 12, 0.3);
+  --shadow-lg: 0 4px 16px rgba(18, 16, 12, 0.6), 0 2px 4px rgba(18, 16, 12, 0.3);
 }
 
 /* --------------------------------------------------------------------------
-   Light theme: cool "drafting paper", not warm cream. The muted, syntax, code
-   well, warning, and on-accent tokens reference the values above via var(), so
-   they adapt here without being restated.
+   Light theme: limestone paper. Warm, but a quarried warm — bone and dust,
+   not lifestyle cream. The muted, syntax, code well, warning, and on-accent
+   tokens reference the values above via var(), so they adapt here without
+   being restated.
    -------------------------------------------------------------------------- */
 [data-theme="light"] {
-  --surface-0: #F4F7FA;
-  --surface-1: #FFFFFF;
-  --surface-2: #E9EEF4;
-  --surface-3: #DCE4EC;
+  --surface-0: #F4EFE4;
+  --surface-1: #FFFCF6;
+  --surface-2: #E9E2D4;
+  --surface-3: #DCD2BF;
 
-  --text-primary: #0B0E13;
-  --text-secondary: #48555F;
-  --text-tertiary: #6B7784;
+  --text-primary: #1A1611;
+  --text-secondary: #4E4636;
+  --text-tertiary: #6F6553;
 
-  /* Signal darkens on paper. Two tokens hold the WCAG floor:
-     --accent (about 3.8:1) for large / bold / non text UI and buttons,
+  /* Ember darkens on paper. Two tokens hold the WCAG floor:
+     --accent (about 3.9:1) for large / bold / non text UI and buttons,
      --accent-text (about 5.6:1, AA at body size) for small accent text. */
-  --accent: #0E8C77;
-  --accent-hover: #0A6E5B;
-  --accent-text: #0A6E5B;
+  --accent: #8B4A26;
+  --accent-hover: #6E3A1D;
+  --accent-text: #6E3A1D;
 
-  --sandstone: #48555F;
+  --sandstone: #7A5F35;
 
   --lock: #8A5A0F;
 
-  --border: #D2DBE4;
-  --border-hover: #B9C6D2;
+  --border: #DBD2BF;
+  --border-hover: #C4B79F;
 
-  --info: #4E6B87;
+  --info: #6B5A3C;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(26, 22, 17, 0.07);
+  --shadow-md: 0 2px 8px rgba(26, 22, 17, 0.10), 0 1px 2px rgba(26, 22, 17, 0.05);
 }

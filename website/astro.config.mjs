@@ -1,11 +1,11 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
-// Core Sample type families (documented in DESIGN.md). Loaded non-blocking from
+// Strata type families (documented in DESIGN.md). Loaded non-blocking from
 // the document head rather than via a render-blocking @import in the shared
 // token file, so fonts never gate first paint.
 const fontsHref =
-  "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,600;125,700;125,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap";
+  "https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap";
 
 export default defineConfig({
   site: "https://docs.stratum-hq.org",

@@ -6,7 +6,7 @@
    onto those shared tokens and styles docs specific surfaces. Do not hardcode
    hex here; change or add a token in the shared file so this site and the
    landing site cannot drift.
-   Palette: Core Sample. Type: Archivo / IBM Plex Sans / IBM Plex Mono.
+   Palette: Strata. Type: Libre Franklin / IBM Plex Sans / IBM Plex Mono.
    ========================================================================== */
 
 @import url('../../../assets/tokens.css');
@@ -19,12 +19,12 @@
    -------------------------------------------------------------------------- */
 :root,
 :root[data-theme="light"] {
-  /* Accent: Signal */
+  /* Accent: Ember */
   --sl-color-accent-low: var(--surface-2);
   --sl-color-accent: var(--accent);
   --sl-color-accent-high: var(--text-primary);
 
-  /* Gray ramp remapped onto the Basalt / Core / Seam / Chalk / Graphite scale */
+  /* Gray ramp remapped onto the Peat / Loam / Seam / Marl / Silt scale */
   --sl-color-white: var(--text-primary);
   --sl-color-gray-1: var(--text-secondary);
   --sl-color-gray-2: var(--text-tertiary);
@@ -50,7 +50,7 @@
    --sl-* map above adapts to them automatically through var(). */
 
 /* --------------------------------------------------------------------------
-   Typography: Archivo (display) / IBM Plex Sans (body), Core Sample
+   Typography: Libre Franklin (display) / IBM Plex Sans (body), Strata
    -------------------------------------------------------------------------- */
 body {
   font-family: var(--sl-font);
@@ -115,7 +115,7 @@ h4,
 }
 
 /* --------------------------------------------------------------------------
-   Code: IBM Plex Mono, Core Sample code well
+   Code: IBM Plex Mono, Strata code well
    -------------------------------------------------------------------------- */
 code,
 pre,
@@ -140,7 +140,7 @@ pre code {
 }
 
 /* --------------------------------------------------------------------------
-   Tables: data-dense, mono structural headers (Core Sample)
+   Tables: data-dense, mono structural headers (Strata)
    -------------------------------------------------------------------------- */
 .sl-markdown-content table {
   font-size: 0.875rem;
@@ -210,7 +210,7 @@ nav a[aria-current="page"]:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Badge styles: Core Sample (Signal accent, Lock amber, neutral)
+   Badge styles: Strata (Ember accent, Ochre lock, neutral)
    Mono labels so a badge reads as a structural marker, never decoration.
    Color reinforces a word that is already there (never color alone).
    -------------------------------------------------------------------------- */
@@ -251,7 +251,7 @@ nav a[aria-current="page"]:hover {
 }
 
 /* Per-method verification badge. Marks a documented behavioral guarantee on a
-   method or endpoint. Signal only ever lights the live/verified thing, so the
+   method or endpoint. Ember only ever lights the live/verified thing, so the
    accent is spent here; the word "verified" carries the meaning without color. */
 .badge-verified {
   display: inline-flex;
@@ -308,7 +308,7 @@ nav a[aria-current="page"]:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Card icon overrides: Signal accent border + icon on a Core surface
+   Card icon overrides: Ember accent border + icon on a Loam surface
    -------------------------------------------------------------------------- */
 .card .icon {
   color: var(--accent) !important;
@@ -353,7 +353,7 @@ nav a[aria-current="page"]:hover {
 }
 
 /* The code well is a brand surface: a left gutter in Seam that continues the
-   depth rail, lighting to Signal on hover (the one live color). Expressive
+   depth rail, lighting to Ember on hover (the one live color). Expressive
    Code owns the syntax theme inside; this only frames the well. */
 .sl-markdown-content .expressive-code {
   border-left: 2px solid var(--border);

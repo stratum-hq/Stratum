@@ -17,22 +17,22 @@ declare global {
 
 const appStyles = `
 .stratum-app {
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--bg-page, var(--color-50, #f8fafc));
+  background: var(--bg-page, var(--color-50, #F4EFE4));
   color: var(--text-primary, var(--color-900));
 }
 
 .stratum-app-header {
-  background: var(--color-900, #0f172a);
+  background: var(--color-900, #1C1813);
   color: white;
   padding: var(--space-sm, 8px) var(--space-xl, 24px);
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--color-800, #1e293b);
+  border-bottom: 1px solid var(--color-800, #241F19);
   gap: var(--space-md, 12px);
   min-height: 44px;
 }
@@ -41,12 +41,12 @@ const appStyles = `
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  font-family: var(--font-display, 'Satoshi', sans-serif);
+  font-family: var(--font-display, 'Libre Franklin', sans-serif);
 }
 
 .stratum-app-subtitle {
   font-size: 0.8125rem;
-  color: var(--color-400, #94a3b8);
+  color: var(--color-400, #A79880);
   margin-left: var(--space-sm, 8px);
 }
 
@@ -59,14 +59,14 @@ const appStyles = `
 
 .stratum-app-hierarchy-label {
   font-size: 0.75rem;
-  color: var(--color-600, #475569);
+  color: var(--color-600, #4E4636);
 }
 
 .stratum-hamburger {
   display: none;
   background: transparent;
   border: none;
-  color: var(--color-400, #94A3B8);
+  color: var(--color-400, #A79880);
   font-size: 1.25rem;
   cursor: pointer;
   padding: var(--space-xs, 4px) var(--space-sm, 8px);
@@ -133,7 +133,7 @@ const appStyles = `
     position: fixed;
     inset: 0;
     z-index: 90;
-    background: rgba(12, 18, 34, 0.5);
+    background: rgba(18, 16, 12, 0.5);
     opacity: 0;
     pointer-events: none;
     transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
