@@ -45,7 +45,7 @@
     "vite": "^7.0.0",
     "vitest": "^4.1.11",
     "@testing-library/react": "^16.0.0",
-    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/jest-dom": "^7.0.1",
     "jsdom": "^25.0.0"
   }
 }
