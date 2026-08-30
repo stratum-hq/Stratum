@@ -38,7 +38,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "license": "MIT",
