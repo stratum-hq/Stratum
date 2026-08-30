@@ -50,7 +50,7 @@
   "devDependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^11.1.18",
-    "@nestjs/testing": "^10.0.0",
+    "@nestjs/testing": "^12.0.1",
     "@stratum-hq/core": "*",
     "@stratum-hq/sdk": "*",
     "reflect-metadata": "^0.1.13",
