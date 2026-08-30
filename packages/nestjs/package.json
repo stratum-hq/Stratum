@@ -54,7 +54,7 @@
     "@stratum-hq/core": "*",
     "@stratum-hq/sdk": "*",
     "reflect-metadata": "^0.1.13",
-    "typescript": "^5.4.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "license": "MIT",
