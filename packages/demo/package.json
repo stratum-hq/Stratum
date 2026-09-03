@@ -24,7 +24,7 @@
     "@stratum-hq/sdk": "*",
     "@types/cors": "^2.8.19",
     "cors": "^2.8.6",
-    "express": "^4.18.0",
+    "express": "^5.2.1",
     "jsonwebtoken": "^9.0.0",
     "pg": "^8.11.0",
     "react": "^18.2.0",
