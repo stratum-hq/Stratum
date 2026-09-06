@@ -56,7 +56,7 @@
     }
   },
   "devDependencies": {
-    "mysql2": "^3.12.0",
+    "mysql2": "^3.24.3",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
   },
