@@ -55,6 +55,9 @@ const STRATUM_TABLES = [
 
 const MAX_TREE_DEPTH = 20;
 
+const CYCLE_REPAIR_DOCS =
+  "https://docs.stratum-hq.org/packages/cli/#repair-a-tenant-parent-cycle";
+
 // ── Individual checks ────────────────────────────────────────────────
 
 async function checkConnectivity(
@@ -287,6 +290,61 @@ async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
+async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
+  // Walk up from each tenant and keep the ids already seen, so the walk ends
+  // on a loop. A tenant is on a cycle when its walk comes back to it. Each
+  // cycle is reported once: from the member with the lowest id.
+  const res = await pool.query(`
+    WITH RECURSIVE up(start_id, id, parent_id, seen) AS (
+      SELECT t.id, t.id, t.parent_id, ARRAY[t.id]
+      FROM tenants t
+      WHERE t.parent_id IS NOT NULL
+      UNION ALL
+      SELECT up.start_id, p.id, p.parent_id, up.seen || p.id
+      FROM up
+      JOIN tenants p ON p.id = up.parent_id
+      WHERE p.id <> ALL (up.seen)
+    )
+    SELECT (
+      SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY m.ord)
+      FROM unnest(up.seen) WITH ORDINALITY AS m(id, ord)
+      JOIN tenants t ON t.id = m.id
+    ) AS members
+    FROM up
+    WHERE up.parent_id = up.start_id
+      AND up.start_id <= ALL (up.seen)
+    ORDER BY up.start_id;
+  `);
+
+  const cycles = res.rows as Array<{ members: Array<{ id: string; name: string }> }>;
+
+  if (cycles.length === 0) {
+    return {
+      status: "pass",
+      label: "Tenant parent cycles",
+      summary: "None found",
+    };
+  }
+
+  const details = cycles.slice(0, 10).map(({ members }) => {
+    const names = members.map((m) => `${m.name} (${m.id.slice(0, 8)}...)`);
+    return `Cycle: ${[...names, names[0]].join(" → ")}`;
+  });
+  // moveTenant is not a safe fix: it derives new paths from the stored
+  // ancestry_path of the moved tenant, which a cycle can make wrong.
+  details.push(
+    "Fix: set parent_id of one tenant in each cycle to a tenant outside the cycle, or to NULL",
+    `Then, in the same transaction, recompute ancestry_path and depth: ${CYCLE_REPAIR_DOCS}`,
+  );
+
+  return {
+    status: "fail",
+    label: "Tenant parent cycles",
+    summary: `${cycles.length} cycle(s) in the tenant parent chain`,
+    details,
+  };
+}
+
 async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, last_used_at
@@ -477,6 +535,17 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
         results.push({
           status: "warn",
           label: "Orphaned tenants",
+          summary: "Could not query tenants table",
+        });
+      }
+
+      // Tenant parent cycles
+      try {
+        results.push(await withRlsBypass(pool, (client) => checkParentCycles(client)));
+      } catch {
+        results.push({
+          status: "warn",
+          label: "Tenant parent cycles",
           summary: "Could not query tenants table",
         });
       }

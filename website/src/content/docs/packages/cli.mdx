@@ -52,6 +52,73 @@ Checks:
 - Stratum schema tables (tenants, config_entries, etc.)
 - RLS status on all user tables
 
+### stratum doctor
+
+Check a database that already runs Stratum for configuration problems and damaged data:
+
+```bash
+stratum doctor
+stratum doctor --database-url postgres://user:pass@host:5432/mydb
+```
+
+Checks:
+
+- Database connectivity
+- Stratum schema tables
+- RLS enabled and forced on every table with a `tenant_id` column
+- RLS policies that filter by tenant
+- Indexes on `tenant_id`
+- Orphaned tenants: a parent that is missing or archived
+- Tenant parent cycles: tenants whose parent chain comes back to the same tenant
+- Stale API keys: not used for 90 days or more
+- Expired API keys that are not revoked
+- The `STRATUM_ENCRYPTION_KEY` setting
+- Tree depth
+
+The command reads the Stratum tables under the `app.bypass_rls` setting, so it sees every tenant when it connects as the application role. If a check fails, the command exits with code 1. A warning does not change the exit code.
+
+Stratum refuses every write that makes a parent cycle (migration 029), but it does not repair a cycle that is already in the data. While a cycle is in the data, a write that changes the `slug` of a tenant in the cycle fails. For each cycle, `doctor` lists its tenants from child to parent.
+
+#### Repair a tenant parent cycle
+
+To repair a cycle, set `parent_id` of one tenant in the cycle to a tenant outside the cycle, or to `NULL`. Then recompute `ancestry_path` and `depth` for the whole tree. Triggers keep `ancestry_ltree` correct, but nothing in the database maintains `ancestry_path` and `depth`.
+
+Do not use `moveTenant` or `POST /api/v1/tenants/:id/move` for this repair. They compute the new paths from the stored `ancestry_path` of the moved tenant, and in a cycle that value can be wrong. The result can then leave other tenants of the cycle with a wrong `ancestry_path` and `depth`.
+
+Run this SQL as one transaction. Replace the two placeholders first. The advisory lock is the lock that Stratum takes for every change to the tree, so no Stratum write runs at the same time.
+
+```sql
+BEGIN;
+SELECT pg_advisory_xact_lock(('x' || substr(md5('stratum.tenant_tree'), 1, 16))::bit(64)::bigint);
+SET LOCAL app.bypass_rls = 'on';
+
+-- Break the cycle. To make the tenant a root, write NULL in place of the quoted new parent id.
+UPDATE tenants SET parent_id = '<new-parent-id>' WHERE id = '<cycle-member-id>';
+
+-- Recompute ancestry_path and depth from parent_id, for every tenant below a root.
+WITH RECURSIVE chain AS (
+  SELECT id, '/'::text AS ancestry_path, 0 AS depth
+  FROM tenants
+  WHERE parent_id IS NULL
+  UNION ALL
+  SELECT c.id,
+         CASE WHEN chain.ancestry_path = '/' THEN '/' || chain.id
+              ELSE chain.ancestry_path || '/' || chain.id END,
+         chain.depth + 1
+  FROM tenants c
+  JOIN chain ON c.parent_id = chain.id
+)
+UPDATE tenants t
+SET ancestry_path = chain.ancestry_path, depth = chain.depth
+FROM chain
+WHERE t.id = chain.id
+  AND (t.ancestry_path IS DISTINCT FROM chain.ancestry_path OR t.depth IS DISTINCT FROM chain.depth);
+
+COMMIT;
+```
+
+If there is more than one cycle, break each cycle with its own `UPDATE` before the recompute. Tenants that are still on a cycle have no root, so the recompute does not reach them. Run `stratum doctor` again after the transaction to confirm that the check passes.
+
 ### stratum migrate
 
 Add tenant isolation to existing database tables:
