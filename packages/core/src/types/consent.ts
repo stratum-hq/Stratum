@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 export const ConsentPurpose = {
   DATA_PROCESSING: "data_processing",
@@ -26,7 +27,11 @@ export type ConsentRecord = z.infer<typeof ConsentRecordSchema>;
 export const GrantConsentInputSchema = z.object({
   subject_id: z.string().min(1),
   purpose: z.string().min(1),
-  expires_at: z.string().optional(),
+  expires_at: z
+    .string()
+    .datetime({ offset: true })
+    .refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE)
+    .optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
