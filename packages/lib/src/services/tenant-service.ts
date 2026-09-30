@@ -799,6 +799,10 @@ export async function getChildren(pool: pg.Pool, id: string): Promise<TenantNode
  */
 export async function reorderTenant(pool: pg.Pool, id: string, position: number): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
+    // A move changes which siblings a tenant has, so take the tree lock before
+    // reading the tenant's parent.
+    await lockTree(client, "shared");
+
     // Get the tenant
     const tenantRes = await client.query<TenantNode>(
       `SELECT * FROM tenants WHERE id = $1`,
@@ -808,6 +812,16 @@ export async function reorderTenant(pool: pg.Pool, id: string, position: number)
       throw new TenantNotFoundError(id);
     }
     const tenant = tenantRes.rows[0];
+
+    // Two reorders of the same siblings renumber the same rows. Lock them in id
+    // order before reading their order, so the second reorder waits for the
+    // first and then reads its result.
+    await client.query(
+      tenant.parent_id
+        ? `SELECT id FROM tenants WHERE parent_id = $1 ORDER BY id FOR UPDATE`
+        : `SELECT id FROM tenants WHERE parent_id IS NULL ORDER BY id FOR UPDATE`,
+      tenant.parent_id ? [tenant.parent_id] : [],
+    );
 
     // Get all siblings (same parent, active)
     const siblingsRes = await client.query<TenantNode>(
