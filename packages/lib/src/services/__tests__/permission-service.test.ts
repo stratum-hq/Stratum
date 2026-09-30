@@ -334,6 +334,39 @@ describe("deletePermission", () => {
     expect(parentDeleteCall[1]).toEqual(["policy-parent"]);
   });
 
+  it("CASCADE: throws TenantNotFoundError when the tenant row is gone", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "policy-parent",
+          tenant_id: "parent-id",
+          key: "can_access_reports",
+          value: JSON.stringify(true),
+          mode: PermissionMode.INHERITED,
+          revocation_mode: RevocationMode.CASCADE,
+          source_tenant_id: "parent-id",
+          created_at: "2024-01-01T00:00:00.000Z",
+          updated_at: "2024-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    // The tree lock, then a tenant lookup that finds no row.
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(
+      permissionService.deletePermission(pool, "parent-id", "policy-parent"),
+    ).rejects.toBeInstanceOf(TenantNotFoundError);
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+  });
+
   it("PERMANENT: cannot revoke a PERMANENT permission", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();

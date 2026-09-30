@@ -310,6 +310,10 @@ export async function deletePermission(
           `SELECT ancestry_path FROM tenants WHERE id = $1`,
           [tenantId],
         );
+        // A concurrent purge can remove the tenant after the policy was read.
+        if (tenantRes.rows.length === 0) {
+          throw new TenantNotFoundError(tenantId);
+        }
         const subtreePath = appendToPath(tenantRes.rows[0].ancestry_path, tenantId);
         const descendantsRes = await client.query<{ id: string }>(
           `SELECT id FROM tenants

@@ -1,6 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { evaluateCondition, evaluatePolicy } from "../abac-service.js";
-import type { AbacCondition, AbacPolicy } from "@stratum-hq/core";
+import { describe, it, expect, vi } from "vitest";
+
+// deleteAbacPolicy runs its queries through withTransaction.
+vi.mock("../../pool-helpers.js", () => ({
+  withClient: vi.fn(),
+  withTransaction: vi.fn(),
+}));
+
+import * as poolHelpers from "../../pool-helpers.js";
+import { deleteAbacPolicy, evaluateCondition, evaluatePolicy } from "../abac-service.js";
+import { makeMockPool } from "./test-helpers.js";
+import { TenantNotFoundError, type AbacCondition, type AbacPolicy } from "@stratum-hq/core";
 
 function makePolicy(overrides: Partial<AbacPolicy> = {}): AbacPolicy {
   return {
@@ -117,5 +126,34 @@ describe("evaluatePolicy", () => {
       ],
     });
     expect(evaluatePolicy(policy, { role: "admin", level: 5 })).toBe(false);
+  });
+});
+
+describe("deleteAbacPolicy", () => {
+  it("throws TenantNotFoundError when the tenant row is gone", async () => {
+    const mockQuery = vi.fn();
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          id: "policy-1",
+          tenant_id: "tenant-1",
+          resource_type: "document",
+          action: "read",
+          name: "readers",
+        },
+      ],
+    });
+    // The tree lock, then a tenant lookup that finds no row.
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    await expect(deleteAbacPolicy(makeMockPool(), "tenant-1", "policy-1")).rejects.toBeInstanceOf(
+      TenantNotFoundError,
+    );
+    expect(mockQuery).toHaveBeenCalledTimes(3);
   });
 });
