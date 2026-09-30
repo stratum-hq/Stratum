@@ -1,7 +1,7 @@
 {
   "name": "@stratum-hq/mongodb",
-  "version": "0.2.1",
-  "description": "MongoDB tenant isolation for Stratum \u2014 shared collection, collection-per-tenant, and database-per-tenant strategies",
+  "version": "0.3.0",
+  "description": "MongoDB tenant isolation for Stratum — shared collection, collection-per-tenant, and database-per-tenant strategies",
   "keywords": [
     "multi-tenancy",
     "multi-tenant",

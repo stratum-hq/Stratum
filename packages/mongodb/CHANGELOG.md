@@ -1,5 +1,19 @@
 # @stratum-hq/mongodb
 
+## 0.3.0
+
+### Minor Changes
+
+- dca0826: Harden MongoDB tenant scoping in the shared-collection proxy and Mongoose plugin, and make `assertMongoIsolation` run through the adapter under test (GHSA-699c-qcjr-hw36).
+
+### Patch Changes
+
+- dca0826: Harden tenant filtering and per-tenant purge in the MySQL and MongoDB adapters (GHSA-62pj-p2pf-4mvh).
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+  - @stratum-hq/sdk@1.1.0
+  - @stratum-hq/core@1.3.0
+
 ## 0.2.1
 
 ### Patch Changes

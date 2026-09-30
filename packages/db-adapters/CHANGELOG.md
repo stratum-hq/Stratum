@@ -1,5 +1,17 @@
 # @stratum-hq/db-adapters
 
+## 1.1.0
+
+### Minor Changes
+
+- dca0826: Harden tenant isolation in the schema-per-tenant and database-per-tenant strategies and the Prisma and Drizzle adapters (GHSA-jhhc-cm2c-jh27). Behavior change: the schema-per-tenant `search_path` is now the tenant schema alone, without `public`; queries that call extension functions or types from another schema must schema-qualify them or opt that schema in with the new `extraSearchPath` option.
+
+### Patch Changes
+
+- 9de2ddb: Republish so the README on npm matches the 1.0 API. The 1.0.0 README showed the pre-1.0 names `withTenant`, `withDrizzleTenant` and `withTenantScope`; the package exports `prismaWithTenant`, `drizzleWithTenant` and `sequelizeWithTenantScope`.
+- Updated dependencies [dca0826]
+  - @stratum-hq/core@1.3.0
+
 ## 1.0.0
 
 ### Major Changes

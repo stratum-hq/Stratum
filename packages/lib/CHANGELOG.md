@@ -1,5 +1,29 @@
 # @stratum-hq/lib
 
+## 1.3.0
+
+### Minor Changes
+
+- dca0826: Enforce INHERITED permission mode for descendants and redact webhook secrets from audit entries (GHSA-wf22-q48q-4cjq).
+- dca0826: Route testWebhook through pinned delivery and broaden the webhook egress blocklist (GHSA-xq46-9x9m-22p9).
+- dca0826: Create tenants with their own schema or database as pending until provisioned, and drop that storage on purge (GHSA-jhhc-cm2c-jh27).
+- dca0826: Harden tenant hierarchy integrity under concurrent writes (GHSA-f3h7-j63g-96wh).
+
+### Patch Changes
+
+- dca0826: Harden API key lifecycle, JWT binding and rate limiting (GHSA-rqvw-c6qr-6x37).
+- dca0826: Harden control-plane authorization for tenant-scoped callers (GHSA-76p7-8h5v-7qxr).
+- dca0826: Harden tenant isolation in the schema-per-tenant and database-per-tenant strategies and the Prisma and Drizzle adapters (GHSA-jhhc-cm2c-jh27). Behavior change: the schema-per-tenant `search_path` is now the tenant schema alone, without `public`; queries that call extension functions or types from another schema must schema-qualify them or opt that schema in with the new `extraSearchPath` option.
+- dca0826: Harden policy evaluation, revocation and audit handling in the library (GHSA-wf22-q48q-4cjq).
+- dca0826: Harden webhook delivery (GHSA-xq46-9x9m-22p9).
+- Updated dependencies [9de2ddb]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+  - @stratum-hq/db-adapters@1.1.0
+  - @stratum-hq/sdk@1.1.0
+  - @stratum-hq/core@1.3.0
+
 ## 1.2.1
 
 ### Patch Changes

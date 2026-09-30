@@ -1,5 +1,31 @@
 # @stratum-hq/control-plane
 
+## 1.1.0
+
+### Minor Changes
+
+- dca0826: Create tenants with their own schema or database as pending until provisioned, and drop that storage on purge (GHSA-jhhc-cm2c-jh27).
+
+### Patch Changes
+
+- dca0826: Harden API key lifecycle, JWT binding and rate limiting (GHSA-rqvw-c6qr-6x37).
+- dca0826: Harden control-plane authorization for tenant-scoped callers (GHSA-76p7-8h5v-7qxr).
+- dca0826: Harden JWT secret startup checks (GHSA-rqvw-c6qr-6x37).
+- dca0826: Harden tenant isolation in the schema-per-tenant and database-per-tenant strategies and the Prisma and Drizzle adapters (GHSA-jhhc-cm2c-jh27). Behavior change: the schema-per-tenant `search_path` is now the tenant schema alone, without `public`; queries that call extension functions or types from another schema must schema-qualify them or opt that schema in with the new `extraSearchPath` option.
+- dca0826: Harden policy evaluation, revocation and audit handling in the library (GHSA-wf22-q48q-4cjq).
+- dca0826: Harden tenant resolution in the SDK middleware and align the tenant context response with the documented shape (GHSA-4m57-6j5q-w3fv). `jsonwebtoken` is now declared as an optional peer dependency of `@stratum-hq/sdk`, needed only when `jwtSecret` is used.
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+  - @stratum-hq/lib@1.3.0
+  - @stratum-hq/core@1.3.0
+
 ## 1.0.1
 
 ### Patch Changes

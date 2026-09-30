@@ -1,5 +1,11 @@
 # @stratum-hq/core
 
+## 1.3.0
+
+### Minor Changes
+
+- dca0826: Create tenants with their own schema or database as pending until provisioned, and drop that storage on purge (GHSA-jhhc-cm2c-jh27).
+
 ## 1.2.1
 
 ### Patch Changes
