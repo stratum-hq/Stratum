@@ -43,7 +43,7 @@ describe("slug-keyed isolated storage (integration)", () => {
       await expect(
         stratum.updateTenant(t.id, { slug: uniqueSlug("iso_new") }),
       ).rejects.toThrow(/slug/i);
-      expect((await stratum.getTenant(t.id)).slug).toBe(slug);
+      expect((await stratum.getTenant(t.id, true)).slug).toBe(slug);
     },
   );
 

@@ -8,6 +8,8 @@ export enum ErrorCode {
   TENANT_CYCLE_DETECTED = "TENANT_CYCLE_DETECTED",
   TENANT_ARCHIVED = "TENANT_ARCHIVED",
   TENANT_SUSPENDED = "TENANT_SUSPENDED",
+  TENANT_PENDING = "TENANT_PENDING",
+  TENANT_PROVISIONING_FAILED = "TENANT_PROVISIONING_FAILED",
   TENANT_INVALID_STATE = "TENANT_INVALID_STATE",
   TENANT_CONTEXT_NOT_FOUND = "TENANT_CONTEXT_NOT_FOUND",
   ISOLATION_VIOLATION = "ISOLATION_VIOLATION",
@@ -118,6 +120,38 @@ export class TenantSuspendedError extends StratumError {
       { tenant_id: tenantId },
     );
     this.name = "TenantSuspendedError";
+  }
+}
+
+/**
+ * Raised when a tenant is used before its isolated storage has been
+ * provisioned and it has been activated.
+ */
+export class TenantPendingError extends StratumError {
+  constructor(tenantId: string) {
+    super(
+      ErrorCode.TENANT_PENDING,
+      `Tenant ${tenantId} is pending provisioning`,
+      409,
+      { tenant_id: tenantId },
+    );
+    this.name = "TenantPendingError";
+  }
+}
+
+/**
+ * Raised when a new tenant's schema or database could not be provisioned. The
+ * tenant is left `pending`; purge it to remove it, then create it again.
+ */
+export class TenantProvisioningError extends StratumError {
+  constructor(tenantId: string) {
+    super(
+      ErrorCode.TENANT_PROVISIONING_FAILED,
+      `Storage provisioning failed for tenant ${tenantId}; the tenant was left pending`,
+      500,
+      { tenant_id: tenantId, status: "pending" },
+    );
+    this.name = "TenantProvisioningError";
   }
 }
 

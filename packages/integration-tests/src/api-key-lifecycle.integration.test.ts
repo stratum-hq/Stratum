@@ -135,14 +135,12 @@ describe("API key lifecycle (integration)", () => {
 
     it("rejects a key whose tenant sits under a suspended ancestor", async () => {
       const parent = await stratum.createTenant({ name: "p", slug: uniqueSlug("p") });
-      const other = await stratum.createTenant({ name: "o", slug: uniqueSlug("o") });
-      const child = await stratum.createTenant({ name: "c", slug: uniqueSlug("c"), parent_id: other.id });
+      const child = await stratum.createTenant({ name: "c", slug: uniqueSlug("c"), parent_id: parent.id });
       const key = await stratum.createApiKey(child.id, "k");
 
-      // A suspended tenant has no active children, but an active subtree can
-      // still be moved under it.
-      await stratum.suspendTenant(parent.id);
-      await stratum.moveTenant(child.id, parent.id);
+      // The lib refuses to leave an active tenant under a suspended one, so
+      // write that state directly: the key check must not rely on it.
+      await getPool().query(`UPDATE tenants SET status = 'suspended' WHERE id = $1`, [parent.id]);
 
       expect(await stratum.validateApiKey(key.plaintext_key)).toBeNull();
     });

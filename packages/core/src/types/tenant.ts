@@ -11,6 +11,8 @@ export type IsolationStrategy =
   (typeof IsolationStrategy)[keyof typeof IsolationStrategy];
 
 export const TenantStatus = {
+  /** Isolated storage (schema or database) not yet provisioned; not usable. */
+  PENDING: "pending",
   ACTIVE: "active",
   SUSPENDED: "suspended",
   ARCHIVED: "archived",

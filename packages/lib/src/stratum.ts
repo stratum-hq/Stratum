@@ -50,6 +50,7 @@ import type {
   CreateRegionInput,
   UpdateRegionInput,
   TenantContext,
+  TenantStatus,
   ResolvedTenantContext,
   ConfigDiff,
   ConfigDiffItem,
@@ -207,8 +208,12 @@ export class Stratum {
       return tenantService.getTenantBySlug(this.pool, slug, includeArchived);
     });
   }
-  listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
-    return tenantService.listTenants(this.pool, pagination);
+  /**
+   * List tenants, active ones by default. Pass `status` to list pending,
+   * suspended or archived tenants instead.
+   */
+  listTenants(pagination: PaginationInput, options?: { status?: TenantStatus }): Promise<PaginatedResult<TenantNode>> {
+    return tenantService.listTenants(this.pool, pagination, options?.status);
   }
   async updateTenant(id: string, patch: UpdateTenantInput, audit?: AuditContext): Promise<TenantNode> {
     return traced("tenant.update", { tenant_id: id }, async (span) => {
@@ -263,6 +268,23 @@ export class Stratum {
       if (audit) {
         await auditService.createAuditEntry(
           this.pool, audit, "tenant.resumed", "tenant", id, id,
+        );
+      }
+      return tenant;
+    });
+  }
+  /**
+   * Activate a pending tenant once its schema or database has been
+   * provisioned. Tenants with their own storage are created pending and are
+   * not usable until activated. Rejects if the tenant is not pending or its
+   * parent is not active.
+   */
+  async activateTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.activate", { tenant_id: id }, async () => {
+      const tenant = await tenantService.activateTenant(this.pool, id);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.activated", "tenant", id, id,
         );
       }
       return tenant;

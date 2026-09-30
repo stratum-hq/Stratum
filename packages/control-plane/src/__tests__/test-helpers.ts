@@ -34,6 +34,7 @@ export function createMockStratum(): Stratum {
     getDescendants: vi.fn(),
     getChildren: vi.fn(),
     purgeTenant: vi.fn(),
+    activateTenant: vi.fn(),
     exportTenantData: vi.fn(),
     migrateRegion: vi.fn(),
 

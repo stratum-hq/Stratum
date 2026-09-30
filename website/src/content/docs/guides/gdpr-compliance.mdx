@@ -41,6 +41,11 @@ API keys are exported without plaintext secrets for security.
 ## Tenant Purge (Article 17)
 
 Hard-delete **all** data belonging to a tenant. This operation is irreversible.
+For a `SCHEMA_PER_TENANT` tenant it also drops the tenant's schema (`DROP SCHEMA ... CASCADE`,
+in the same transaction as the rows), and for a `DB_PER_TENANT` tenant it drops
+the tenant's database (before the rows, since `DROP DATABASE` cannot run in a
+transaction; close any connection pools to that database first). A tenant that
+is still `pending` has no storage of its own, so only its rows are removed.
 
 ```typescript
 await stratum.purgeTenant("tenant-uuid");

@@ -6,12 +6,14 @@ import {
   type UpdateTenantInput,
   type PaginationInput,
   type PaginatedResult,
+  type TenantStatus,
   TenantNotFoundError,
   TenantAlreadyExistsError,
   TenantHasChildrenError,
   TenantCycleDetectedError,
   TenantArchivedError,
   TenantSuspendedError,
+  TenantPendingError,
   InvalidTenantStateError,
   ValidationError,
   appendToPath,
@@ -19,33 +21,63 @@ import {
   getAncestorIds,
 } from "@stratum-hq/core";
 
+/**
+ * Serialize changes to the tree's shape on one advisory key. A move takes it
+ * exclusively: it checks for cycles against the destination's ancestry and
+ * rewrites the paths of a whole subtree, so nothing else may read or write
+ * ancestry while it runs. Creates and lifecycle transitions take it shared, so
+ * they still run alongside each other (row locks order those) but never read a
+ * parent path that an in-flight move is about to rewrite. Take it before
+ * reading any row the change depends on.
+ */
+async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
+  const fn = mode === "exclusive" ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared";
+  await client.query(`SELECT ${fn}(('x' || substr(md5('stratum.tenant_tree'), 1, 16))::bit(64)::bigint)`);
+}
+
+/**
+ * Load the parent for a tenant being created or moved, and require it to be
+ * active: a suspended or archived subtree must not grow, so an active tenant
+ * always has an active parent. FOR SHARE holds the parent row until commit, so
+ * a concurrent suspend or archive of the parent (which locks it FOR UPDATE)
+ * waits for this transaction and then sees the new child.
+ */
+async function loadActiveParent(client: pg.PoolClient, parentId: string): Promise<TenantNode> {
+  const res = await client.query<TenantNode>(
+    `SELECT * FROM tenants WHERE id = $1 FOR SHARE`,
+    [parentId],
+  );
+  if (res.rows.length === 0) {
+    throw new TenantNotFoundError(parentId);
+  }
+  const parent = res.rows[0];
+  if (parent.status === "archived") {
+    throw new TenantArchivedError(parentId);
+  }
+  if (parent.status === "suspended") {
+    throw new TenantSuspendedError(parentId);
+  }
+  if (parent.status === "pending") {
+    throw new TenantPendingError(parentId);
+  }
+  return parent;
+}
+
+/**
+ * A tenant with its own schema or database starts `pending` and is activated
+ * (activateTenant) once that storage has been provisioned, so it is never
+ * usable without it. SHARED_RLS tenants need no storage and start `active`.
+ */
+function initialStatus(input: CreateTenantInput): TenantStatus {
+  const strategy = input.isolation_strategy ?? "SHARED_RLS";
+  return strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT" ? "pending" : "active";
+}
+
 export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
-    // Advisory lock on parent to serialize sibling inserts
     if (input.parent_id) {
-      await client.query(
-        `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-        [input.parent_id],
-      );
-
-      // Verify parent exists and is active
-      const parentRes = await client.query<TenantNode>(
-        `SELECT * FROM tenants WHERE id = $1`,
-        [input.parent_id],
-      );
-      if (parentRes.rows.length === 0) {
-        throw new TenantNotFoundError(input.parent_id);
-      }
-      if (parentRes.rows[0].status === "archived") {
-        throw new TenantArchivedError(input.parent_id);
-      }
-      // A suspended or archived subtree must not grow: an active tenant always
-      // has an active parent. See suspendTenant/resumeTenant for the inverse.
-      if (parentRes.rows[0].status === "suspended") {
-        throw new TenantSuspendedError(input.parent_id);
-      }
-
-      const parent = parentRes.rows[0];
+      await lockTree(client, "shared");
+      const parent = await loadActiveParent(client, input.parent_id);
       const ancestry_path = appendToPath(parent.ancestry_path, parent.id);
 
       // Inherit region_id from parent if not explicitly provided
@@ -53,7 +85,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
 
       const res = await client.query<TenantNode>(
         `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
         [
           input.parent_id,
@@ -64,6 +96,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          initialStatus(input),
           regionId,
         ],
       );
@@ -75,7 +108,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
 
       const res = await client.query<TenantNode>(
         `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
+         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
           input.name,
@@ -83,6 +116,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          initialStatus(input),
           rootRegionId,
         ],
       );
@@ -119,11 +153,14 @@ export async function getTenant(
     if (!includeArchived && tenant.status === "archived") {
       throw new TenantArchivedError(id);
     }
-    // Suspended tenants are blocked from normal access too. `includeArchived`
-    // is the "give me the row whatever its state" escape hatch and bypasses
-    // both non-active states.
+    // Suspended and pending tenants are blocked from normal access too.
+    // `includeArchived` is the "give me the row whatever its state" escape
+    // hatch and bypasses every non-active state.
     if (!includeArchived && tenant.status === "suspended") {
       throw new TenantSuspendedError(id);
+    }
+    if (!includeArchived && tenant.status === "pending") {
+      throw new TenantPendingError(id);
     }
     return tenant;
   });
@@ -137,7 +174,7 @@ export async function getTenant(
  *
  * Mirrors getTenant's not-found and state contract: throws TenantNotFoundError
  * when no row matches, and — unless `includeArchived` is set — TenantArchivedError
- * / TenantSuspendedError for a non-active row. `includeArchived` is the "give me
+ * / TenantSuspendedError / TenantPendingError for a non-active row. `includeArchived` is the "give me
  * the row whatever its state" escape hatch and bypasses both non-active states.
  */
 export async function getTenantBySlug(
@@ -161,13 +198,21 @@ export async function getTenantBySlug(
     if (!includeArchived && tenant.status === "suspended") {
       throw new TenantSuspendedError(tenant.id);
     }
+    if (!includeArchived && tenant.status === "pending") {
+      throw new TenantPendingError(tenant.id);
+    }
     return tenant;
   });
 }
 
+/**
+ * List tenants in one status, `active` by default. Pending, suspended and
+ * archived tenants appear only when that status is asked for.
+ */
 export async function listTenants(
   pool: pg.Pool,
   pagination: PaginationInput,
+  status: TenantStatus = "active",
 ): Promise<PaginatedResult<TenantNode>> {
   return withClient(pool, async (client) => {
     const limit = pagination.limit ?? 50;
@@ -176,18 +221,18 @@ export async function listTenants(
     if (pagination.cursor) {
       res = await client.query<TenantNode>(
         `SELECT * FROM tenants
-         WHERE status = 'active' AND id > $1
+         WHERE status = $3 AND id > $1
          ORDER BY id ASC
          LIMIT $2`,
-        [pagination.cursor, limit + 1],
+        [pagination.cursor, limit + 1, status],
       );
     } else {
       res = await client.query<TenantNode>(
         `SELECT * FROM tenants
-         WHERE status = 'active'
+         WHERE status = $2
          ORDER BY id ASC
          LIMIT $1`,
-        [limit + 1],
+        [limit + 1, status],
       );
     }
 
@@ -276,8 +321,10 @@ export async function updateTenant(
 // ---------------------------------------------------------------------------
 // Tenant lifecycle
 //
-// States: active -> {suspended, archived} -> (purged). Transitions:
-//   createTenant   (none)               -> active
+// States: [pending ->] active -> {suspended, archived} -> (purged). Transitions:
+//   createTenant   (none)               -> active, or pending for a tenant with
+//                                          its own schema or database
+//   activateTenant pending              -> active      (storage provisioned)
 //   suspendTenant  active               -> suspended  (reversible, blocks access)
 //   resumeTenant   suspended | archived -> active      (reverses suspend/archive)
 //   archiveTenant  active | suspended   -> archived    (soft delete, reversible)
@@ -290,8 +337,8 @@ export async function updateTenant(
 // Descendant rules, tested against real Postgres in packages/integration-tests:
 //   * suspend / archive block when the tenant has an ACTIVE child
 //     (TenantHasChildrenError). They act leaf-first and never cascade.
-//   * resume / create require the parent to be ACTIVE, so the invariant "an
-//     active tenant's parent is active" always holds.
+//   * resume / activate / create / move require the parent to be ACTIVE, so
+//     the invariant "an active tenant's parent is active" always holds.
 //   * purge requires an empty subtree (no children of ANY status).
 // ---------------------------------------------------------------------------
 
@@ -301,8 +348,12 @@ export async function updateTenant(
  * suspended rows, because lifecycle operations act on exactly those states.
  */
 async function loadForTransition(client: pg.PoolClient, id: string): Promise<TenantNode> {
+  // Transitions read the tree (children, parent) to keep "an active tenant's
+  // parent is active", so they must not interleave with a move. FOR UPDATE
+  // then orders them against creates and other transitions on this tenant.
+  await lockTree(client, "shared");
   const res = await client.query<TenantNode>(
-    `SELECT * FROM tenants WHERE id = $1`,
+    `SELECT * FROM tenants WHERE id = $1 FOR UPDATE`,
     [id],
   );
   if (res.rows.length === 0) {
@@ -377,8 +428,10 @@ export async function resumeTenant(pool: pg.Pool, id: string): Promise<TenantNod
       throw new InvalidTenantStateError(id, tenant.status, "resume", ["suspended", "archived"]);
     }
     if (tenant.parent_id) {
+      // FOR SHARE: a concurrent suspend or archive of the parent waits for
+      // this resume and then sees an active child.
       const parentRes = await client.query<{ status: string }>(
-        `SELECT status FROM tenants WHERE id = $1`,
+        `SELECT status FROM tenants WHERE id = $1 FOR SHARE`,
         [tenant.parent_id],
       );
       const parentStatus = parentRes.rows[0]?.status;
@@ -391,6 +444,27 @@ export async function resumeTenant(pool: pg.Pool, id: string): Promise<TenantNod
     }
     const res = await client.query<TenantNode>(
       `UPDATE tenants SET status = 'active', deleted_at = NULL, updated_at = now() WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return res.rows[0];
+  });
+}
+
+/**
+ * Activate a pending tenant once its schema or database has been provisioned.
+ * Rejects if the tenant is not pending, or if its parent is not active.
+ */
+export async function activateTenant(pool: pg.Pool, id: string): Promise<TenantNode> {
+  return withTransaction(pool, async (client) => {
+    const tenant = await loadForTransition(client, id);
+    if (tenant.status !== "pending") {
+      throw new InvalidTenantStateError(id, tenant.status, "activate", ["pending"]);
+    }
+    if (tenant.parent_id) {
+      await loadActiveParent(client, tenant.parent_id);
+    }
+    const res = await client.query<TenantNode>(
+      `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1 RETURNING *`,
       [id],
     );
     return res.rows[0];
@@ -413,15 +487,7 @@ export async function moveTenant(
   newParentId: string,
 ): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
-    // Lock both old and new parents to prevent concurrent moves
-    await client.query(
-      `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-      [id],
-    );
-    await client.query(
-      `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-      [newParentId],
-    );
+    await lockTree(client, "exclusive");
 
     // Load tenant being moved
     const tenantRes = await client.query<TenantNode>(
@@ -433,15 +499,7 @@ export async function moveTenant(
     }
     const tenant = tenantRes.rows[0];
 
-    // Load new parent
-    const newParentRes = await client.query<TenantNode>(
-      `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
-      [newParentId],
-    );
-    if (newParentRes.rows.length === 0) {
-      throw new TenantNotFoundError(newParentId);
-    }
-    const newParent = newParentRes.rows[0];
+    const newParent = await loadActiveParent(client, newParentId);
 
     // Cycle detection: newParent must not be a descendant of tenant.
     // Check if the moving tenant's ID appears in the new parent's ancestry_path
@@ -526,6 +584,7 @@ export async function batchCreateTenants(
 
   try {
     await withTransaction(pool, async (client) => {
+      await lockTree(client, "shared");
       // Map of slug → created tenant for intra-batch parent references
       const slugMap = new Map<string, TenantNode>();
 
@@ -541,29 +600,15 @@ export async function batchCreateTenants(
           if (batchParent) {
             parentNode = batchParent;
           } else {
-            // Look up in DB
-            const parentRes = await client.query<TenantNode>(
-              `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
-              [parentId],
-            );
-            if (parentRes.rows.length === 0) {
-              throw new TenantNotFoundError(parentId);
-            }
-            parentNode = parentRes.rows[0];
+            parentNode = await loadActiveParent(client, parentId);
           }
-
-          // Advisory lock on parent
-          await client.query(
-            `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-            [parentId],
-          );
 
           const ancestry_path = appendToPath(parentNode.ancestry_path, parentNode.id);
           const regionId = (input as Record<string, unknown>).region_id ?? (parentNode as Record<string, unknown>).region_id ?? null;
 
           const res = await client.query<TenantNode>(
             `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING *`,
             [
               parentId,
@@ -574,6 +619,7 @@ export async function batchCreateTenants(
               JSON.stringify(input.config ?? {}),
               JSON.stringify(input.metadata ?? {}),
               input.isolation_strategy ?? "SHARED_RLS",
+              initialStatus(input),
               regionId,
             ],
           );
@@ -585,7 +631,7 @@ export async function batchCreateTenants(
           const rootRegionId = (input as Record<string, unknown>).region_id ?? null;
           const res = await client.query<TenantNode>(
             `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-             VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
+             VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, $6, $7)
              RETURNING *`,
             [
               input.name,
@@ -593,6 +639,7 @@ export async function batchCreateTenants(
               JSON.stringify(input.config ?? {}),
               JSON.stringify(input.metadata ?? {}),
               input.isolation_strategy ?? "SHARED_RLS",
+              initialStatus(input),
               rootRegionId,
             ],
           );

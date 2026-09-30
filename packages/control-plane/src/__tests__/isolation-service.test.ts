@@ -12,10 +12,11 @@ vi.mock("@stratum-hq/db-adapters", () => ({
   tenantSchemaName: (slug: string) => `tenant_${slug}`,
   createDatabase: vi.fn(),
   databaseExists: vi.fn(),
+  dropDatabase: vi.fn(),
 }));
 
-import { createDatabase, databaseExists } from "@stratum-hq/db-adapters";
-import { setupDatabaseForTenant } from "../services/isolation-service.js";
+import { createDatabase, databaseExists, dropDatabase } from "@stratum-hq/db-adapters";
+import { setupDatabaseForTenant, teardownDatabaseForTenant } from "../services/isolation-service.js";
 
 describe("setupDatabaseForTenant", () => {
   beforeEach(() => {
@@ -33,6 +34,19 @@ describe("setupDatabaseForTenant", () => {
     vi.mocked(databaseExists).mockResolvedValue(true);
     await expect(setupDatabaseForTenant("acme")).rejects.toThrow(/already exists/);
     expect(createDatabase).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledOnce();
+  });
+});
+
+describe("teardownDatabaseForTenant", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("drops the tenant database", async () => {
+    await teardownDatabaseForTenant("acme");
+    expect(dropDatabase).toHaveBeenCalledOnce();
+    expect(vi.mocked(dropDatabase).mock.calls[0][1]).toBe("acme");
     expect(release).toHaveBeenCalledOnce();
   });
 });
