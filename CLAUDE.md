@@ -99,7 +99,7 @@ are as exercised as the packages above.
 | Package | Directory | Note |
 |---|---|---|
 | `@stratum-hq/demo` | `packages/demo` | MSSP hierarchy demo app: an Express-style API plus a Vite web front end. Not published. |
-| `@stratum-hq/integration-tests` | `packages/integration-tests` | 30 integration test files against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
+| `@stratum-hq/integration-tests` | `packages/integration-tests` | Integration tests against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
 
 Not workspace packages, but present at the repo root: `website/` (Starlight docs),
 `landing/` (Astro marketing site), `examples/`, `docker/`, `scripts/`.
@@ -111,7 +111,7 @@ Not workspace packages, but present at the repo root: `website/` (Starlight docs
 ```bash
 npm install          # or npm ci
 npm run build        # turbo build, 15 tasks
-npm test             # turbo test, unit tests only, no database needed
+npm test             # turbo test test:root, unit tests only, no database needed
 npm run lint         # turbo lint lint:root, which is ESLint per package plus the root, 17 tasks
 npm run typecheck    # turbo typecheck, tsc --noEmit per package
 npm run verify       # lint + typecheck + test + build; the pre-push hook runs this
@@ -135,33 +135,20 @@ failure but is not one. Use `npx turbo test --force --concurrency=2` if that hap
 
 ## 4. The testing contract, and what the tests do not prove
 
-`npm test` runs **1,062 unit tests across 15 packages** (counted 2026-09-30). Read the
-next section before you treat that number as reassurance.
+`npm test` runs the unit tests of every package that has a `test` script, plus the root
+`test:root` task. The root task runs the repository policy tests in `scripts/__tests__/`.
+Read the next section before you treat a green run as reassurance.
 
-| Package | Tests |
-|---|---|
-| `@stratum-hq/lib` | 243 |
-| `@stratum-hq/control-plane` | 154 |
-| `@stratum-hq/db-adapters` | 126 |
-| `@stratum-hq/core` | 120 |
-| `@stratum-hq/create` | 93 |
-| `@stratum-hq/mysql` | 61 |
-| `@stratum-hq/sdk` | 57 |
-| `@stratum-hq/mongodb` | 54 |
-| `@stratum-hq/cli` | 49 |
-| `@stratum-hq/compliance` | 43 |
-| `@stratum-hq/react` | 19 |
-| `@stratum-hq/nestjs` | 16 |
-| `@stratum-hq/test-utils` | 10 |
-| `@stratum-hq/hono` | 9 |
-| `@stratum-hq/demo` | 8 |
+This file does not record test counts, because each change makes a recorded count wrong.
+To get the current counts, run `npx turbo test --force --concurrency=2`. Vitest prints a
+`Tests` line for each package.
 
 ### The important caveat
 
-**No unit test in `@stratum-hq/lib` touches a real database.** All 243 of them run without
+**No unit test in `@stratum-hq/lib` touches a real database.** All of them run without
 Postgres.
 
-Of the 20 test files in `packages/lib/src`, 12 stub the database layer entirely: they
+Most test files in `packages/lib/src` stub the database layer entirely: they
 `vi.mock("../../pool-helpers.js")` and use `makeMockPool()` from
 `packages/lib/src/services/__tests__/test-helpers.ts`, which literally returns
 `{} as import("pg").Pool`. Those tests assert on the **SQL strings the service passes to a
@@ -296,10 +283,10 @@ not yours.
 
 The gate is `npm run verify`, which runs **lint + typecheck + test + build**. The pre-push
 hook (`.githooks/pre-push`, installed by the root `prepare` script) runs the
-forbidden-action guards first, then `verify`, and blocks the push if either fails.
+forbidden-action guards first, then the secret scan over the pushed commits, then `verify`.
+It blocks the push if any of them fails.
 
-Two guardrail checks are **not** part of `verify`, the hooks, or any CI workflow yet, so
-run them yourself:
+Two guardrail checks are **not** part of `verify`, so run them yourself:
 
 ```bash
 npm run verify        # expect exit 0
@@ -307,8 +294,10 @@ npm run lint:secrets  # expect exit 0
 npm run lint:deps     # expect exit 0; needs the network
 ```
 
-`npm run lint:secrets:staged` is the variant that reads the index rather than the working
-tree, for use in a hook.
+`lint:secrets` also runs in the pre-push hook and in `ci.yml`. The hook runs it as
+`node scripts/check-secrets.mjs --range <remote sha>..<local sha>`, which scans every
+commit the push sends. `npm run lint:secrets:staged` is the variant that reads the index
+rather than the working tree. `lint:deps` runs in no hook and no workflow.
 
 The last two are the guardrails, and they fail in opposite ways, which is worth knowing
 before you hit one.
@@ -316,8 +305,9 @@ before you hit one.
 `lint:secrets` is **not** a ratchet. It expects zero and has no regenerate command on
 purpose. A finding is either a false positive, which you record by hand in
 `scripts/secret-allowlist.json` with a reason, or an incident, which you rotate. The demo
-stack's global-admin bootstrap key is already allowlisted, with the reasoning written out;
-do not add to that list casually. See `docs/secret-scanning.md`.
+stack's global-admin bootstrap key is not committed and is not in the allowlist: the seed
+mints a random key at seed time. Do not add to that list casually. See
+`docs/secret-scanning.md`.
 
 `lint:deps` **is** a ratchet over the current `npm audit` counts, per severity, split into
 `runtime` and `all`. It fails when a count rises, and it also fails when a count falls,
@@ -327,9 +317,9 @@ regenerate it to make a rise go away without saying so in the PR. It needs the n
 and it records counts only because this repository is public. See
 `docs/dependency-policy.md`.
 
-CI (`ci.yml`) runs lint, typecheck, build, and the full unit suite on every pull request,
-and `ci-integration.yml` / `ci-mongo-integration.yml` run the database suites. CI does not
-run `lint:secrets`, `lint:deps`, or the Storybook build in `packages/react-ui`, so a green
+CI (`ci.yml`) runs `lint:secrets`, lint, typecheck, build, and the full unit suite on every
+pull request, and `ci-integration.yml` / `ci-mongo-integration.yml` run the database suites.
+CI does not run `lint:deps` or the Storybook build in `packages/react-ui`, so a green
 PR check says nothing about those. If you did not run the commands and read the output, the
 change is unverified, and you must say so rather than implying otherwise.
 

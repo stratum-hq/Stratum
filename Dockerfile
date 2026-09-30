@@ -22,6 +22,8 @@ COPY packages/db-adapters/ packages/db-adapters/
 COPY packages/sdk/ packages/sdk/
 COPY packages/control-plane/ packages/control-plane/
 COPY tsconfig.base.json ./
+# The lib build script runs this helper to copy its SQL migrations into dist.
+COPY scripts/copy-dir.mjs scripts/
 RUN npm run build --workspace=@stratum-hq/core && \
     npm run build --workspace=@stratum-hq/db-adapters && \
     npm run build --workspace=@stratum-hq/sdk && \

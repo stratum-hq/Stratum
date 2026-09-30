@@ -46,7 +46,8 @@ most common failures surface first. A full cold run of all four stages takes
 roughly 25 seconds; repeat runs are near instant because Turbo caches them.
 
 `npm install` points `core.hooksPath` at `.githooks/`, which installs a
-**pre-push hook** that runs `npm run verify` and blocks the push if it fails.
+**pre-push hook** that scans the pushed commits for secrets, then runs
+`npm run verify`, and blocks the push if either fails.
 This happens automatically on a fresh clone, so there is no setup step.
 
 If you need to push despite a failure, for example when the failure is

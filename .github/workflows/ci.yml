@@ -38,6 +38,11 @@ jobs:
 
       - run: npm ci
 
+      # The pre-push hook scans each pushed commit, but `--no-verify` skips it
+      # and a fork PR never ran it. This step scans the checked-out tree.
+      - name: Secret scan
+        run: npm run lint:secrets
+
       # Lint and typecheck run here too, not only in the pre-push hook, so a
       # `--no-verify` push or a fork PR cannot skip them. This mirrors what
       # `npm run verify` does locally, keeping CI and the hook in agreement.

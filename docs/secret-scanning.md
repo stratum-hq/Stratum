@@ -3,10 +3,23 @@
 ```bash
 npm run lint:secrets           # scan the working tree
 npm run lint:secrets:staged    # scan only what is staged
+node scripts/check-secrets.mjs --range origin/main..HEAD   # scan what the commits add
 ```
 
 Exit 0 means nothing credential-shaped is about to be committed. Exit 1 means open the
 file and line it names.
+
+## Where it runs
+
+| Where | What it scans |
+|-------|---------------|
+| `.githooks/pre-push` | Every commit the push sends, with `--range`. The range is `<remote sha>..<local sha>`. A new branch has no remote sha, so its range starts at the merge base with the remote's default branch. |
+| `ci.yml`, step `Secret scan` | The checked-out tree, with `npm run lint:secrets`. This catches a push made with `--no-verify` and a fork pull request. |
+| By hand | Any mode above. |
+
+The hook scans each commit, not only the tip. A push sends every commit, so a token that a
+later commit deletes still reaches the remote. If the hook blocks a push, rotate a real
+credential first. Then remove the token from the commit that added it, before the push.
 
 The July 2026 audit found this repository's history clean and `.env` correctly gitignored.
 This check exists to keep a good state good, so it is **not a ratchet**. The expected count
@@ -25,7 +38,9 @@ hand in `scripts/secret-allowlist.json` with a reason.
 untracked files that are not gitignored. Ignored files are excluded, which is what keeps a
 correctly gitignored `.env` and every `node_modules` from failing the build on every run.
 In `--staged` mode the bytes come from the index rather than the working tree, so a secret
-that is staged but since edited out of the file is still caught.
+that is staged but since edited out of the file is still caught. In `--range` mode the
+bytes come from each commit in the range. The scan covers every file a commit adds or
+modifies, and compares a merge commit with its first parent.
 
 ## What it looks for
 
@@ -108,8 +123,7 @@ itself, whose fixtures are deliberately credential-shaped.
 
 ## Self-check
 
-`npm test` is `turbo test` over the workspaces, so there is no root test runner for a
-`scripts/` unit test to live in. Rather than add one, `check-secrets.mjs` runs the fixture
+`check-secrets.mjs` does not rely on `npm test` to check its rules. It runs the fixture
 table from `secret-rules.mjs` on every invocation. It is pure regex over a dozen short
 strings and costs well under a millisecond, and it means a rule cannot be loosened or
 tightened without the fixture covering it failing first:
@@ -127,7 +141,8 @@ Worth knowing before trusting this more than it deserves:
   phrases of three or more segments, because they clear the entropy floor on character
   variety alone and are almost always English rather than a credential. A passphrase someone
   actually uses as a secret looks the same.
-- **Only what git would stage.** History is not rescanned. The audit did that once; doing it
+- **Only new work.** The scan covers the tree, the index, or the commits a push sends.
+  History that is already on the remote is not rescanned. The audit did that once; doing it
   on every run would be slow, and remediating a historical hit means rewriting history,
   which is a forbidden action in `CLAUDE.md` and needs a human.
 - **No custom in-house token formats** beyond Stratum's own prefix. If a service starts
