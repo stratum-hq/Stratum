@@ -28,8 +28,8 @@ JWT_SECRET=<output of: openssl rand -hex 32>
 PORT=3000
 ```
 
-The server does not start without `JWT_SECRET`. Keep the secret out of source
-control.
+The server does not start without `JWT_SECRET` and `STRATUM_API_KEY`. Keep
+both out of source control.
 
 ## Run
 
@@ -51,7 +51,7 @@ npm start
 | `GET` | `/health` | Health check (no auth required) |
 | `GET` | `/api/tenant` | Returns current tenant context |
 | `GET` | `/api/config` | Returns resolved config for current tenant |
-| `POST` | `/api/tenants` | Creates a new tenant |
+| `POST` | `/api/tenants` | Creates a child tenant under the caller's tenant |
 
 All `/api/*` routes require an `Authorization: Bearer <token>` header. The token
 must verify with `JWT_SECRET` and carry a `tenant_id` claim that holds a valid
@@ -77,12 +77,15 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/tenant
 # Get resolved config
 curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/config
 
-# Create a child tenant
+# Create a child tenant under the tenant in the token
 curl -X POST http://localhost:3000/api/tenants \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name": "Acme Corp", "slug": "acme_corp", "parent_id": "'$TENANT_ID'"}'
+  -d '{"name": "Acme Corp", "slug": "acme_corp"}'
 ```
+
+The route reads the parent from the verified token, not from the request body.
+A caller can only create tenants below its own tenant.
 
 ## When to trust the tenant header
 

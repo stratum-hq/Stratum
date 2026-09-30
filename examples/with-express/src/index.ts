@@ -32,11 +32,18 @@ if (!jwtSecret) {
   throw new Error("JWT_SECRET is required: the example reads the tenant from a verified JWT.");
 }
 
+// The SDK authenticates to the control plane with this key. Read it from the
+// environment, never from code.
+const apiKey = process.env.STRATUM_API_KEY;
+if (!apiKey) {
+  throw new Error("STRATUM_API_KEY is required: the SDK authenticates to the control plane with it.");
+}
+
 // Stratum SDK — wires Express middleware that resolves the tenant per request
 // and makes the tenant context available as req.tenant
 const sdk = stratumSdk({
   controlPlaneUrl: process.env.STRATUM_CONTROL_PLANE_URL ?? "http://localhost:3001",
-  apiKey: process.env.STRATUM_API_KEY ?? "sk_live_dev",
+  apiKey,
 });
 
 // ---------------------------------------------------------------------------
@@ -82,15 +89,18 @@ app.get("/api/config", async (req, res) => {
 
 /**
  * POST /api/tenants
- * Creates a new tenant. Useful for self-serve sign-up flows.
+ * Creates a child tenant under the tenant of the verified caller.
  *
- * Body: { name: string, slug: string, parent_id?: string }
+ * Body: { name: string, slug: string }
+ *
+ * The parent always comes from the verified token, never from the body, so a
+ * caller can only add tenants below its own tenant.
  */
 app.post("/api/tenants", async (req, res) => {
-  const { name, slug, parent_id } = req.body as {
+  const caller = (req as unknown as { tenant: ResolvedTenantContext }).tenant;
+  const { name, slug } = req.body as {
     name: string;
     slug: string;
-    parent_id?: string;
   };
 
   if (!name || !slug) {
@@ -101,7 +111,7 @@ app.post("/api/tenants", async (req, res) => {
   const tenant = await stratumLib.createTenant({
     name,
     slug,
-    parent_id: parent_id ?? null,
+    parent_id: caller.tenant_id,
   });
 
   res.status(201).json({ tenant });
@@ -126,6 +136,7 @@ app.listen(PORT, () => {
   console.log("Try it (see README.md to create a token):");
   console.log(`  curl -H "Authorization: Bearer $TOKEN" http://localhost:${PORT}/api/tenant`);
   console.log(`  curl -H "Authorization: Bearer $TOKEN" http://localhost:${PORT}/api/config`);
+  console.log("  # Creates a child of the tenant in $TOKEN:");
   console.log(`  curl -X POST http://localhost:${PORT}/api/tenants \\`);
   console.log(`    -H "Content-Type: application/json" \\`);
   console.log(`    -H "Authorization: Bearer $TOKEN" \\`);

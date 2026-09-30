@@ -85,9 +85,11 @@ The module is `@Global()` -- you only need to import it once in your root module
 
 The guard resolves tenant context from incoming requests using the same resolution chain as the Express/Fastify middleware:
 
-1. **Header** -- reads `X-Tenant-ID` header
-2. **JWT** -- extracts tenant ID from a verified Bearer token claim (requires `jwtSecret`)
+1. **JWT** -- extracts tenant ID from a verified Bearer token claim (requires `jwtSecret` or `jwtVerify`)
+2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`). When JWT verification is configured, this step runs only with `trustTenantHeader: true`.
 3. **Custom resolvers** -- your async functions, tried in order
+
+When JWT verification is configured, a Bearer token that fails verification gets `UnauthorizedException` (HTTP 401), and the guard does not try the header or the resolvers.
 
 If no tenant is found, the guard throws `UnauthorizedException` (HTTP 401). If the tenant is suspended, or the control plane denies access to it, the guard throws `ForbiddenException` (HTTP 403). If the tenant is archived, it throws `GoneException` (HTTP 410). The same rules apply to an impersonation target.
 

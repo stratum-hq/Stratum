@@ -13,8 +13,8 @@ file and line it names.
 
 | Where | What it scans |
 |-------|---------------|
-| `.githooks/pre-push` | Every commit the push sends, with `--range`. The range is `<remote sha>..<local sha>`. A new branch has no remote sha, so its range starts at the merge base with the remote's default branch. |
-| `ci.yml`, step `Secret scan` | The checked-out tree, with `npm run lint:secrets`. This catches a push made with `--no-verify` and a fork pull request. |
+| `.githooks/pre-push` | Every commit the push sends, with `--range`. The range is `<remote sha>..<local sha>`. A new branch has no remote sha, so its range starts at the merge base with the remote's default branch. If no merge base is known, the hook blocks the push and asks you to fetch the default branch. |
+| `ci.yml`, step `Secret scan` | The checked-out tree, with `npm run lint:secrets`. For a pull request, that tree is the merge of the pull request tip into its base. It catches a token that is still present at the tip, including one from a push made with `--no-verify` or from a fork pull request. It does not see a token that an earlier commit added and a later commit removed. |
 | By hand | Any mode above. |
 
 The hook scans each commit, not only the tip. A push sends every commit, so a token that a

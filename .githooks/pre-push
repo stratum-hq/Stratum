@@ -57,9 +57,22 @@ printf '%s\n' "$refs" | while read -r local_ref local_sha remote_ref remote_sha;
 	elif base=$(git merge-base "$local_sha" "$default_ref" 2>/dev/null); then
 		range="$base..$local_sha"
 	else
-		# No shared history is known locally, so every reachable commit is new.
-		echo "pre-push: no merge base with $default_ref, scanning all of $local_ref" >&2
-		range="$local_sha"
+		# A scan of the whole history reports tokens that the remote already has,
+		# so the hook stops and asks for the missing ref instead.
+		cat >&2 <<EOF
+pre-push: no merge base between $local_ref and $default_ref, push blocked.
+
+The hook scans only the commits that a new branch adds to the default branch.
+Fetch the default branch, then push again:
+
+  git fetch $remote_name
+  git remote set-head $remote_name --auto
+
+If the remote has no default branch yet, run \`npm run lint:secrets\`, then
+push with --no-verify.
+
+EOF
+		exit 1
 	fi
 
 	echo "pre-push: scanning $local_ref ($range) for secrets"

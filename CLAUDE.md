@@ -296,7 +296,9 @@ npm run lint:deps     # expect exit 0; needs the network
 
 `lint:secrets` also runs in the pre-push hook and in `ci.yml`. The hook runs it as
 `node scripts/check-secrets.mjs --range <remote sha>..<local sha>`, which scans every
-commit the push sends. `npm run lint:secrets:staged` is the variant that reads the index
+commit the push sends. A new branch has no remote sha, so its range starts at the merge
+base with the remote's default branch. If the hook finds no merge base, it blocks the push
+and asks you to fetch that branch. `npm run lint:secrets:staged` is the variant that reads the index
 rather than the working tree. `lint:deps` runs in no hook and no workflow.
 
 The last two are the guardrails, and they fail in opposite ways, which is worth knowing

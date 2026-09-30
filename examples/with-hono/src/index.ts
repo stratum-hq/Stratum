@@ -119,12 +119,16 @@ api.get("/config", async (c) => {
 
 /**
  * POST /api/tenants
- * Creates a new tenant (e.g. during self-serve sign-up).
+ * Creates a child tenant under the tenant of the verified caller.
  *
- * Body: { name: string, slug: string, parent_id?: string }
+ * Body: { name: string, slug: string }
+ *
+ * The parent always comes from the verified token, never from the body, so a
+ * caller can only add tenants below its own tenant.
  */
 api.post("/tenants", async (c) => {
-  const body = await c.req.json<{ name: string; slug: string; parent_id?: string }>();
+  const callerTenantId = c.get("tenantId");
+  const body = await c.req.json<{ name: string; slug: string }>();
 
   if (!body.name || !body.slug) {
     return c.json({ error: "name and slug are required" }, 400);
@@ -133,7 +137,7 @@ api.post("/tenants", async (c) => {
   const tenant = await stratum.createTenant({
     name: body.name,
     slug: body.slug,
-    parent_id: body.parent_id ?? null,
+    parent_id: callerTenantId,
   });
 
   return c.json({ tenant }, 201);
