@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type pg from "pg";
 import {
   SchemaRawAdapter,
+  createSchemaTenantPool,
+  tenantSchemaName,
   createSchema,
   dropSchema,
   setSchemaSearchPath,
@@ -19,6 +21,9 @@ let pool: pg.Pool;
 let client: pg.PoolClient;
 const slugA = uniqueSlug("sp_path_a");
 const slugB = uniqueSlug("sp_path_b");
+// A schema holding an extension-style function, the way uuid-ossp or ltree
+// objects often live in a shared schema.
+const extSchema = `ext_${uniqueSlug("sp")}`;
 
 beforeAll(async () => {
   pool = getPool();
@@ -28,11 +33,16 @@ beforeAll(async () => {
   // Freshly provisioned tenant schemas with no tables replicated yet.
   await createSchema(client, slugA);
   await createSchema(client, slugB);
+  await client.query(`CREATE SCHEMA ${extSchema}`);
+  await client.query(
+    `CREATE FUNCTION ${extSchema}.ext_answer() RETURNS int LANGUAGE sql AS 'SELECT 42'`,
+  );
 });
 
 afterAll(async () => {
   await dropSchema(client, slugA).catch(() => {});
   await dropSchema(client, slugB).catch(() => {});
+  await client.query(`DROP SCHEMA IF EXISTS ${extSchema} CASCADE`);
   await client.query(`DROP TABLE IF EXISTS public.gadget`);
   client.release();
   await closePool();
@@ -74,5 +84,60 @@ describe("schema-per-tenant search_path", () => {
       await c.query("ROLLBACK");
       c.release();
     }
+  });
+
+  describe("extraSearchPath opt-in", () => {
+    it("by default does not resolve functions outside the tenant schema", async () => {
+      const adapter = new SchemaRawAdapter(pool);
+      await expect(adapter.query(slugA, `SELECT ext_answer() AS v`)).rejects.toThrow(
+        /does not exist/,
+      );
+    });
+
+    it("SchemaRawAdapter resolves a function from an opted-in extra schema", async () => {
+      const adapter = new SchemaRawAdapter(pool, { extraSearchPath: [extSchema] });
+      const res = await adapter.query<{ v: number }>(slugA, `SELECT ext_answer() AS v`);
+      expect(res.rows[0].v).toBe(42);
+    });
+
+    it("createSchemaTenantPool passes the extra schemas through", async () => {
+      const tenantPool = createSchemaTenantPool(pool, () => slugA, { extraSearchPath: [extSchema] });
+      const res = await tenantPool.query(`SELECT ext_answer() AS v`);
+      expect(res.rows[0].v).toBe(42);
+    });
+
+    it("setSchemaSearchPath puts extra schemas after the tenant schema", async () => {
+      const c = await pool.connect();
+      try {
+        await c.query("BEGIN");
+        await setSchemaSearchPath(c, slugA, [extSchema]);
+        const path = await c.query<{ search_path: string }>(`SHOW search_path`);
+        expect(path.rows[0].search_path).toBe(`${tenantSchemaName(slugA)}, ${extSchema}`);
+        const res = await c.query<{ v: number }>(`SELECT ext_answer() AS v`);
+        expect(res.rows[0].v).toBe(42);
+        // A table missing from the tenant schema still does not reach public.
+        await expect(c.query(`SELECT name FROM gadget`)).rejects.toThrow(/does not exist/);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+
+    it.each(["public; DROP TABLE gadget", "a b", "x\"y", "1abc", ""])(
+      "rejects an invalid extra schema entry (%s)",
+      async (bad) => {
+        expect(() => new SchemaRawAdapter(pool, { extraSearchPath: [bad] })).toThrow(
+          /invalid schema name/i,
+        );
+        const c = await pool.connect();
+        try {
+          await c.query("BEGIN");
+          await expect(setSchemaSearchPath(c, slugA, [bad])).rejects.toThrow(/invalid schema name/i);
+        } finally {
+          await c.query("ROLLBACK");
+          c.release();
+        }
+      },
+    );
   });
 });

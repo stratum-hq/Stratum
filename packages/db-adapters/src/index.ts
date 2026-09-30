@@ -6,6 +6,7 @@ export {
   SchemaRawAdapter,
   createSchemaTenantPool,
 } from "./adapters/schema-raw.js";
+export type { SchemaAdapterOptions } from "./adapters/schema-raw.js";
 export {
   SchemaPrismaAdapter,
   withSchemaTenant,

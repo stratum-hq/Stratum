@@ -1,7 +1,7 @@
 import pg from "pg";
 
 // Validate schema name to prevent SQL injection (only allows alphanumeric + underscores)
-function validateSchemaName(schemaName: string): string {
+export function validateSchemaName(schemaName: string): string {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
     throw new Error(`Invalid schema name: ${schemaName}`);
   }

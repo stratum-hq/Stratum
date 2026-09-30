@@ -1,10 +1,28 @@
 import pg from "pg";
 import { validateSlug } from "@stratum-hq/core";
-import { tenantSchemaName } from "../schema/manager.js";
-import { resetSearchPath } from "../schema/session.js";
+import { tenantSchemaName, validateSchemaName } from "../schema/manager.js";
+import { resetSearchPath, tenantSearchPath } from "../schema/session.js";
+
+export interface SchemaAdapterOptions {
+  /**
+   * Schemas searched after the tenant schema, for example one holding
+   * extension functions or types. Default: none. An unqualified table missing
+   * from the tenant schema resolves in these schemas, so list only schemas
+   * that hold no tenant data.
+   */
+  extraSearchPath?: string[];
+}
 
 export class SchemaRawAdapter {
-  constructor(private pool: pg.Pool) {}
+  private readonly extraSearchPath: string[];
+
+  constructor(
+    private pool: pg.Pool,
+    options: SchemaAdapterOptions = {},
+  ) {
+    // Validate up front so a bad entry fails at construction, not per query.
+    this.extraSearchPath = (options.extraSearchPath ?? []).map(validateSchemaName);
+  }
 
   async query<T extends pg.QueryResultRow = pg.QueryResultRow>(
     tenantSlug: string,
@@ -18,7 +36,8 @@ export class SchemaRawAdapter {
 
   /**
    * Executes a callback within a transaction scoped to the tenant's schema.
-   * Sets `search_path` to `tenant_{slug}` alone for the duration of the transaction.
+   * Sets `search_path` to `tenant_{slug}`, followed only by any `extraSearchPath`
+   * schemas, for the duration of the transaction.
    */
   async executeWithTenantContext<T>(
     tenantSlug: string,
@@ -30,7 +49,9 @@ export class SchemaRawAdapter {
     try {
       await client.query("BEGIN");
       // SET LOCAL is transaction-scoped; schemaName is derived from a validated slug.
-      await client.query(`SET LOCAL search_path TO ${schemaName}`);
+      await client.query(
+        `SET LOCAL search_path TO ${tenantSearchPath(schemaName, this.extraSearchPath)}`,
+      );
       const result = await fn(client);
       await client.query("COMMIT");
       return result;
@@ -47,8 +68,9 @@ export class SchemaRawAdapter {
 export function createSchemaTenantPool(
   pool: pg.Pool,
   contextFn: () => string,
+  options: SchemaAdapterOptions = {},
 ): SchemaRawAdapter {
-  const adapter = new SchemaRawAdapter(pool);
+  const adapter = new SchemaRawAdapter(pool, options);
   return new Proxy(adapter, {
     get(target, prop) {
       if (prop === "query") {
