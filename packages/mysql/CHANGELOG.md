@@ -1,5 +1,19 @@
 # @stratum-hq/mysql
 
+## 0.3.0
+
+### Minor Changes
+
+- dca0826: Harden the TypeORM subscriber tenant handling (GHSA-62pj-p2pf-4mvh).
+
+### Patch Changes
+
+- dca0826: Harden tenant filtering and per-tenant purge in the MySQL and MongoDB adapters (GHSA-62pj-p2pf-4mvh).
+- Updated dependencies [dca0826]
+- Updated dependencies [dca0826]
+  - @stratum-hq/sdk@1.1.0
+  - @stratum-hq/core@1.3.0
+
 ## 0.2.1
 
 ### Patch Changes

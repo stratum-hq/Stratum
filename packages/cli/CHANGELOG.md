@@ -1,5 +1,17 @@
 # @stratum-hq/cli
 
+## 0.5.0
+
+### Minor Changes
+
+- 1669fd7: Harden defaults in generated projects, CLI checks, React hooks and test helpers (GHSA-rrrp-gww6-44gr). Behavior changes: `StratumProvider`'s `apiKey` is optional and generated React code uses a server-side proxy instead; `TenantThemeProvider` ignores `customCss` that is not plain declarations; `assertConfigInheritance` now takes a Stratum instance instead of a pg pool.
+
+### Patch Changes
+
+- dca0826: Harden API key lifecycle, JWT binding and rate limiting (GHSA-rqvw-c6qr-6x37).
+- Updated dependencies [dca0826]
+  - @stratum-hq/core@1.3.0
+
 ## 0.4.1
 
 ### Patch Changes

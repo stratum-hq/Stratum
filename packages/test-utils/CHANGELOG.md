@@ -1,5 +1,12 @@
 # @stratum-hq/test-utils
 
+## 0.4.0
+
+### Minor Changes
+
+- 1669fd7: Harden defaults in generated projects, CLI checks, React hooks and test helpers (GHSA-rrrp-gww6-44gr). Behavior changes: `StratumProvider`'s `apiKey` is optional and generated React code uses a server-side proxy instead; `TenantThemeProvider` ignores `customCss` that is not plain declarations; `assertConfigInheritance` now takes a Stratum instance instead of a pg pool.
+- dca0826: Harden MongoDB tenant scoping in the shared-collection proxy and Mongoose plugin, and make `assertMongoIsolation` run through the adapter under test (GHSA-699c-qcjr-hw36).
+
 ## 0.3.1
 
 ### Patch Changes
