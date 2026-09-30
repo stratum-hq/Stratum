@@ -57,7 +57,7 @@ is a general-purpose open source library and it is **public**.
 
 ## 2. Repository layout
 
-npm workspaces + Turborepo. All code lives in `packages/*`. Sixteen packages, fourteen of
+npm workspaces + Turborepo. All code lives in `packages/*`. Seventeen packages, fifteen of
 them published to npm; `demo` and `integration-tests` are `private: true` and are never
 published.
 
@@ -91,14 +91,15 @@ are as exercised as the packages above.
 | `@stratum-hq/nestjs` | `packages/nestjs` | Roughly 240 lines: guard, `@Tenant()` decorator, DI module. |
 | `@stratum-hq/test-utils` | `packages/test-utils` | Two source files of cross-tenant isolation assertions. |
 | `@stratum-hq/hono` | `packages/hono` | Roughly 80 lines of middleware and ALS context. |
-| `@stratum-hq/stratum` | `packages/stratum` | **Empty.** An npm name reservation at version 0.0.1 with a package.json, a README, and a LICENSE. No source, no build, no tests. Do not add code here without an explicit decision to make it a real package. |
+| `@stratum-hq/compliance` | `packages/compliance` | Content-free compliance kernel: coverage scoring, a finding state machine, control types. Four source files, zero runtime dependencies, no database. |
+| `@stratum-hq/stratum` | `packages/stratum` | **Empty.** An npm name reservation (currently 0.0.2) with a package.json, a README, and a LICENSE. No source, no build, no tests. Do not add code here without an explicit decision to make it a real package. |
 
 ### Private packages
 
 | Package | Directory | Note |
 |---|---|---|
-| `@stratum-hq/demo` | `packages/demo` | MSSP hierarchy demo app: an Express-style API plus a Vite web front end. Not published. Has failing tests, see section 5. |
-| `@stratum-hq/integration-tests` | `packages/integration-tests` | 20 integration tests against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
+| `@stratum-hq/demo` | `packages/demo` | MSSP hierarchy demo app: an Express-style API plus a Vite web front end. Not published. |
+| `@stratum-hq/integration-tests` | `packages/integration-tests` | 30 integration test files against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
 
 Not workspace packages, but present at the repo root: `website/` (Starlight docs),
 `landing/` (Astro marketing site), `examples/`, `docker/`, `scripts/`.
@@ -109,9 +110,11 @@ Not workspace packages, but present at the repo root: `website/` (Starlight docs
 
 ```bash
 npm install          # or npm ci
-npm run build        # turbo build, 14 tasks
+npm run build        # turbo build, 15 tasks
 npm test             # turbo test, unit tests only, no database needed
-npm run lint         # turbo lint, which is tsc --noEmit per package, 18 tasks
+npm run lint         # turbo lint lint:root, which is ESLint per package plus the root, 17 tasks
+npm run typecheck    # turbo typecheck, tsc --noEmit per package
+npm run verify       # lint + typecheck + test + build; the pre-push hook runs this
 npm run format       # prettier over packages/*/src
 ```
 
@@ -132,44 +135,41 @@ failure but is not one. Use `npx turbo test --force --concurrency=2` if that hap
 
 ## 4. The testing contract, and what the tests do not prove
 
-`npm test` runs **757 unit tests across 13 packages**. Read the next paragraph before you
-treat that number as reassurance.
+`npm test` runs **1,062 unit tests across 15 packages** (counted 2026-09-30). Read the
+next section before you treat that number as reassurance.
 
 | Package | Tests |
 |---|---|
-| `@stratum-hq/lib` | 132 |
-| `@stratum-hq/db-adapters` | 124 |
-| `@stratum-hq/core` | 114 |
+| `@stratum-hq/lib` | 243 |
+| `@stratum-hq/control-plane` | 154 |
+| `@stratum-hq/db-adapters` | 126 |
+| `@stratum-hq/core` | 120 |
 | `@stratum-hq/create` | 93 |
-| `@stratum-hq/control-plane` | 62 |
 | `@stratum-hq/mysql` | 61 |
 | `@stratum-hq/sdk` | 57 |
 | `@stratum-hq/mongodb` | 54 |
+| `@stratum-hq/cli` | 49 |
+| `@stratum-hq/compliance` | 43 |
 | `@stratum-hq/react` | 19 |
-| `@stratum-hq/nestjs` | 14 |
+| `@stratum-hq/nestjs` | 16 |
 | `@stratum-hq/test-utils` | 10 |
 | `@stratum-hq/hono` | 9 |
-| `@stratum-hq/demo` | 8 (4 of them fail, see section 5) |
-
-`@stratum-hq/cli` has a `test` script but zero test files. It passes because of
-`--passWithNoTests`. A green CLI test task means nothing was run.
+| `@stratum-hq/demo` | 8 |
 
 ### The important caveat
 
-**No unit test in `@stratum-hq/lib` touches a real database.** All 132 of them run without
+**No unit test in `@stratum-hq/lib` touches a real database.** All 243 of them run without
 Postgres.
 
-The 13 test files in `packages/lib/src` declare 128 `it()` blocks, which vitest expands to
-132 cases. Of those 128 declarations, 102 belong to files that stub the database layer
-entirely: they `vi.mock("../../pool-helpers.js")` and use `makeMockPool()` from
+Of the 20 test files in `packages/lib/src`, 12 stub the database layer entirely: they
+`vi.mock("../../pool-helpers.js")` and use `makeMockPool()` from
 `packages/lib/src/services/__tests__/test-helpers.ts`, which literally returns
 `{} as import("pg").Pool`. Those tests assert on the **SQL strings the service passes to a
 fake client**, not on what PostgreSQL does with them.
 
-The remaining 26 declarations, in `crypto.test.ts`, `stratum-als.test.ts`, and
-`abac-service.test.ts`, are genuine pure-logic tests of AES-256-GCM, AsyncLocalStorage
-context, and policy evaluation. They are meaningful, and they are also not about the
-database.
+The rest, such as `crypto.test.ts`, `stratum-als.test.ts`, and `abac-service.test.ts`, are
+genuine pure-logic tests of AES-256-GCM, AsyncLocalStorage context, policy evaluation, and
+the public error surface. They are meaningful, and they are also not about the database.
 
 What this means in practice:
 
@@ -178,8 +178,10 @@ What this means in practice:
   a transaction rolls back, that RLS actually isolates, or that a constraint fires.
 - A refactor that changes SQL text will fail these tests even when behavior is identical.
 - A change that keeps the SQL text identical but breaks the schema will pass them.
-- The only tests that exercise real database behavior are the 20 in
-  `packages/integration-tests`, and they are not in `npm test`.
+- The only tests that exercise real database behavior are the ones in
+  `packages/integration-tests` (plus the `src/__tests__/integration/` suites in `mysql` and
+  `mongodb`), and they are not in `npm test`. CI runs them in `ci-integration.yml` and
+  `ci-mongo-integration.yml`.
 
 If you change anything that writes SQL, run the integration suite against a real database
 before you claim the change works. Do not report "tests pass" as evidence that a
@@ -189,26 +191,14 @@ database-facing change is correct.
 
 ## 5. Known baseline, do not mistake it for your own regression
 
-These are already broken on the base branch. If you see them, you did not cause them.
-Do not open an issue for them, do not "fix" them as a drive-by, and do not let them block
-your work. Note them and move on.
+As of 2026-09-30 there are **no known failures** on `main`: `npm run verify` passes, and
+`npm test` exits 0 across all 15 packages. If something fails, assume it is real until you
+have checked it against `main`.
 
-1. **`@stratum-hq/demo` fails 4 tests.** `packages/demo/web/src/dark-mode.test.ts` fails 4
-   of its 4 assertions with `TypeError: localStorage.clear is not a function` at line 6.
-   This is a jsdom setup problem in `packages/demo/vitest.config.ts` /
-   `web/src/test-setup.ts`, not a product bug. It makes the top-level `npm test` exit 1
-   even when everything else is green, so `npm test` is currently expected to exit
-   non-zero.
-
-2. **PR CI gates only part of the suite.** `.github/workflows/ci.yml` filters to six
-   packages (`core`, `lib`, `sdk`, `db-adapters`, `cli`, `react`). Since `cli` has no test
-   files, that covers **446 of 757 tests**. The other 311, in `create`, `control-plane`,
-   `mysql`, `mongodb`, `nestjs`, `hono`, `test-utils`, and `demo`, gate nothing on a pull
-   request. A green PR check is not a green suite. Run `npm test` locally.
-
-3. **`CONTRIBUTING.md` is stale.** It says 15 packages, omits `packages/mysql`, and refers
-   to `packages/react-ui` without noting the package is named `@stratum-hq/react`. Trust
-   this file over that table. Do not fix it as part of an unrelated change.
+The earlier baseline items (the demo `localStorage` failures, PR CI covering only six
+packages, and the stale `CONTRIBUTING.md` table) have all been fixed. When a new
+known-broken item appears, list it here with the exact error, so the next person does not
+mistake it for their own regression.
 
 ---
 
@@ -222,7 +212,7 @@ damage.
 `.github/workflows/publish.yml` triggers on `push: tags: ["v*"]`. It builds, tests, and
 then **publishes every non-private package in `packages/*` to npm** using OIDC trusted
 publishing. There is no token to be missing and no manual approval step. A tag pushed by
-accident ships a real public release of 14 packages to the registry, and npm releases
+accident ships a real public release of 15 packages to the registry, and npm releases
 cannot be unpublished cleanly.
 
 Do not run `git tag`. Do not run `git push --tags`. Do not run `git push --follow-tags`.
@@ -277,36 +267,28 @@ not yours.
 - Add a dependency without saying why in the pull request.
 - Add code to `packages/stratum`. It is a name reservation.
 - Put Tenantry code, product logic, or customer data anywhere in this repository.
-- Delete or rewrite the failing demo tests to make `npm test` green. Fix them properly or
-  leave them alone.
+- Delete, skip, or weaken a failing test to make `npm test` green. Fix the cause properly
+  or leave the test alone.
 
 ---
 
 ## 7. The verification contract
 
-The target is a single command, `npm run verify`, that runs **typecheck + lint + test +
-build**, with secret scanning wired in, and which a pre-push hook enforces so a bad push is
-blocked locally rather than caught later.
+The gate is `npm run verify`, which runs **lint + typecheck + test + build**. The pre-push
+hook (`.githooks/pre-push`, installed by the root `prepare` script) runs the
+forbidden-action guards first, then `verify`, and blocks the push if either fails.
 
-**It does not exist yet.** As of this writing there is no `verify` script in the root
-`package.json` on `main` or on `epic/102-guardrails`. Adding it is separate tracked work,
-as is the `typecheck` task it depends on. Do not assume `npm run verify` will work; check
-`package.json` first. When it lands, it becomes the gate and this section should be updated
-to say so plainly.
-
-The two checks it needs to call are already here as standalone scripts, so wiring them is
-one line each: `npm run lint:secrets` and `npm run lint:deps`. The pre-push hook should use
-`npm run lint:secrets:staged`, which reads the index rather than the working tree.
-
-Until then, the gate is these five commands, run locally, in this order:
+Two guardrail checks are **not** part of `verify`, the hooks, or any CI workflow yet, so
+run them yourself:
 
 ```bash
-npm run lint          # expect exit 0, 18 tasks
-npm run build         # expect exit 0, 14 tasks
-npm test              # expect exit 1, from the 4 known demo failures only
+npm run verify        # expect exit 0
 npm run lint:secrets  # expect exit 0
-npm run lint:deps     # expect exit 0
+npm run lint:deps     # expect exit 0; needs the network
 ```
+
+`npm run lint:secrets:staged` is the variant that reads the index rather than the working
+tree, for use in a hook.
 
 The last two are the guardrails, and they fail in opposite ways, which is worth knowing
 before you hit one.
@@ -325,10 +307,11 @@ regenerate it to make a rise go away without saying so in the PR. It needs the n
 and it records counts only because this repository is public. See
 `docs/dependency-policy.md`.
 
-**Local checks are the gate right now.** GitHub Actions minutes for this organization are
-exhausted until August 9, so most pull requests are opened with CI skipped. Nothing is
-watching your branch. If you did not run the commands and read the output, the change is
-unverified, and you must say so rather than implying otherwise.
+CI (`ci.yml`) runs lint, typecheck, build, and the full unit suite on every pull request,
+and `ci-integration.yml` / `ci-mongo-integration.yml` run the database suites. CI does not
+run `lint:secrets`, `lint:deps`, or the Storybook build in `packages/react-ui`, so a green
+PR check says nothing about those. If you did not run the commands and read the output, the
+change is unverified, and you must say so rather than implying otherwise.
 
 When you report results, paste the real output. Do not paraphrase a test summary you did
 not see, and do not describe a run as green when it exited non-zero for a reason you have
