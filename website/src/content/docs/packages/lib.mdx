@@ -328,6 +328,7 @@ Beyond the `Stratum` class, `@stratum-hq/lib` exports helpers you can use direct
 import {
   migrate,             // migrate({ pool, enforceRls? }): run the Stratum migrations
   migrateAllSchemas,   // migrateAllSchemas(...): multi-schema migration runner
+  STRATUM_TABLES,      // readonly string[]: the tables the Stratum migrations create
   runScopedJob,        // runScopedJob(pool, tenantId, fn): tenant-scoped background job
   verifyWebhookSignature,
   signWebhookPayload,
@@ -338,6 +339,7 @@ import {
 ```
 
 - `runScopedJob(pool, tenantId, fn)` runs `fn` bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down afterward, so a job cannot touch another tenant's rows and the context never leaks onto the next job on a pooled connection.
+- `STRATUM_TABLES` lists the `public` tables that the Stratum migrations create, plus `_migrations`. Use it to tell Stratum's tables from your application tables. The CLI's `scan` and `migrate --all` skip these tables.
 - `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 
 ## Pool Helpers

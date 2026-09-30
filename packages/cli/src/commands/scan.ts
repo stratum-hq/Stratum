@@ -99,8 +99,10 @@ function generateMigrationSQL(result: ScanResult): string {
     lines.push("");
   }
 
-  // Step 3: Create RLS policies
-  const tablesNeedingPolicy = [...result.needsTenantId, ...result.needsRLS, ...result.needsPolicy];
+  // Step 3: Create RLS policies. CREATE POLICY fails when the policy exists,
+  // and that error rolls back the whole script, so skip tables that have one.
+  const tablesNeedingPolicy = [...result.needsTenantId, ...result.needsRLS, ...result.needsPolicy]
+    .filter((t) => !t.has_policy);
   if (tablesNeedingPolicy.length > 0) {
     lines.push("-- Step 3: Create tenant isolation policies");
     for (const table of tablesNeedingPolicy) {

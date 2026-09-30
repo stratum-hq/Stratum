@@ -203,59 +203,119 @@ export default config;
     },
     {
       filename: "src/stratum-knex.ts",
-      content: `// Knex with Stratum tenant-scoped queries
+      content: preset.database === "postgres" ? KNEX_POSTGRES_SCOPE : knexColumnScope(preset.database),
+    },
+  ];
+}
+
+// PostgreSQL does not accept a bind parameter in SET, so the generated code
+// calls set_config. The third argument (is_local = true) ends the setting with
+// the transaction, so a pooled connection never keeps another tenant's ID.
+const KNEX_POSTGRES_SCOPE = `// Knex with Stratum tenant-scoped queries
+import createKnex, { type Knex } from "knex";
+import config from "../knexfile.js";
+
+const knex = createKnex(config);
+
+// Run fn in a transaction that sets app.current_tenant_id, the setting that
+// the RLS policies read. The setting ends with the transaction, so run every
+// tenant query through trx, not through knex.
+export async function withTenantScope<T>(
+  tenantId: string,
+  fn: (trx: Knex.Transaction) => Promise<T>,
+): Promise<T> {
+  return knex.transaction(async (trx) => {
+    await trx.raw("SELECT set_config('app.current_tenant_id', ?, true)", [tenantId]);
+    return fn(trx);
+  });
+}
+
+// Usage:
+// const orders = await withTenantScope(currentTenantId, (trx) => trx("orders").select());
+
+export { knex };
+`;
+
+function knexColumnScope(database: string): string {
+  return `// Knex with Stratum tenant-scoped queries
 import Knex from "knex";
 import config from "../knexfile.js";
 
 const knex = Knex(config);
 
 // Create a tenant-scoped query builder.
-// For RLS strategy, set the session variable before queries.
 export async function withTenantScope(tenantId: string, fn: (db: typeof knex) => Promise<void>) {
-${preset.database === "postgres" ? `  await knex.raw("SET app.current_tenant = ?", [tenantId]);` : `  // For ${preset.database}, scope queries by tenant_id column`}
-  try {
-    await fn(knex);
-  } finally {
-${preset.database === "postgres" ? `    await knex.raw("RESET app.current_tenant");` : `    // Scope cleanup not needed for column-based isolation`}
-  }
+  // For ${database}, scope queries by tenant_id column
+  await fn(knex);
 }
 
 export { knex };
-`,
-    },
-  ];
+`;
 }
 
-function generateMongooseSetup(_preset: StackPreset): DbSetupFile[] {
+// @stratum-hq/mongodb has no Mongoose connection helper. The generated code uses
+// Mongoose directly and copies the tenant names of the @stratum-hq/mongodb
+// adapters, so MongoDatabaseAdapter and MongoCollectionAdapter find the same
+// data, for example for purgeTenantData.
+function generateMongooseSetup(preset: StackPreset): DbSetupFile[] {
+  const tenantAccess =
+    preset.strategy === "collection"
+      ? `// Return the tenant's model for a base collection. The tenant's documents are
+// in the collection {baseCollection}_{tenantSlug}, the name that
+// MongoCollectionAdapter from @stratum-hq/mongodb uses.
+export function getTenantModel<T>(
+  baseCollection: string,
+  schema: mongoose.Schema<T>,
+  tenantSlug: string,
+) {
+  const name = \`\${baseCollection}_\${assertSlug(tenantSlug)}\`;
+  return mainConnection.models[name] ?? mainConnection.model(name, schema, name);
+}
+
+// Usage:
+// const Order = getTenantModel("orders", OrderSchema, "tenant_abc");
+// const orders = await Order.find();`
+      : `// Return a connection to the tenant's own database. The database name is
+// stratum_tenant_{tenantSlug}, the name that MongoDatabaseAdapter from
+// @stratum-hq/mongodb uses. useCache returns the same connection on each call.
+export function getTenantConnection(tenantSlug: string) {
+  return mainConnection.useDb(\`stratum_tenant_\${assertSlug(tenantSlug)}\`, { useCache: true });
+}
+
+// Usage:
+// const conn = getTenantConnection("tenant_abc");
+// const Order = conn.model("Order", OrderSchema);
+// const orders = await Order.find();`;
+
   return [
     {
       filename: "src/stratum-mongoose.ts",
       content: `// Mongoose with Stratum multi-tenant support
 import mongoose from "mongoose";
-import { createTenantConnection } from "@stratum-hq/mongodb";
 
 // Main connection (used for tenant metadata)
 const mainConnection = mongoose.createConnection(
   process.env.MONGODB_URI || "mongodb://localhost:27017/main",
 );
 
-// Create a tenant-scoped connection.
-// Each tenant gets its own database (database-per-tenant strategy)
-// or collection prefix (collection strategy).
-export function getTenantConnection(tenantId: string) {
-  return createTenantConnection(mainConnection, tenantId);
+// A tenant slug becomes part of a MongoDB name, so it must match the Stratum
+// slug rule: a lowercase letter, then lowercase letters, digits or underscores.
+const SLUG_PATTERN = /^[a-z][a-z0-9_]{0,62}$/;
+
+function assertSlug(tenantSlug: string): string {
+  if (!SLUG_PATTERN.test(tenantSlug)) {
+    throw new Error(\`Invalid tenant slug: "\${tenantSlug}"\`);
+  }
+  return tenantSlug;
 }
+
+${tenantAccess}
 
 // Define schemas that work across tenant connections
 export const TenantSchema = new mongoose.Schema({
   name: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
 });
-
-// Usage:
-// const conn = getTenantConnection("tenant-abc");
-// const Order = conn.model("Order", OrderSchema);
-// const orders = await Order.find();
 
 export { mainConnection };
 `,
@@ -276,7 +336,11 @@ const pool = mysql.createPool({
 });
 
 // Execute a query scoped to a tenant by filtering on tenant_id
-export async function tenantQuery(tenantId: string, sql: string, params: unknown[] = []) {
+export async function tenantQuery(
+  tenantId: string,
+  sql: string,
+  params: (string | number | bigint | boolean | Date | null)[] = [],
+) {
   const [rows] = await pool.execute(sql, [...params, tenantId]);
   return rows;
 }
@@ -302,9 +366,10 @@ const pool = new Pool({
 });
 
 // Create a tenant-scoped pool.
-// Sets app.current_tenant on each connection for RLS enforcement.
+// Each query runs in a transaction that sets app.current_tenant_id, the
+// setting that the RLS policies read.
 export function getTenantPool(tenantId: string) {
-  return createTenantPool(pool, tenantId);
+  return createTenantPool(pool, () => tenantId);
 }
 
 // Usage:
