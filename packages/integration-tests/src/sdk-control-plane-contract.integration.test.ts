@@ -156,6 +156,49 @@ describe("SDK against the real control plane (integration)", () => {
     expect(status).toBe(403);
   });
 
+  // The control plane rejects a JSON content type with an empty body, so these
+  // body-less requests only succeed when the client omits that header (#385).
+  describe("body-less requests", () => {
+    it("archives a tenant through archiveTenant", async () => {
+      const client = await operatorClient();
+      await client.archiveTenant(childId);
+      expect((await stratum.getTenant(childId, true)).status).toBe("archived");
+    });
+
+    it("archives a tenant through deleteTenant", async () => {
+      const client = await operatorClient();
+      await client.deleteTenant(childId);
+      expect((await stratum.getTenant(childId, true)).status).toBe("archived");
+    });
+
+    it("purges a tenant through purgeTenant", async () => {
+      const client = await operatorClient();
+      await client.purgeTenant(childId);
+      await expect(stratum.getTenant(childId, true)).rejects.toBeInstanceOf(TenantNotFoundError);
+    });
+
+    it("deletes a webhook through deleteWebhook", async () => {
+      const hook = await stratum.createWebhook({
+        tenant_id: parentId,
+        url: "https://example.com/hook",
+        secret: "integration-test-webhook-secret",
+        events: ["tenant.created"],
+      });
+      const client = await operatorClient();
+      await client.deleteWebhook(hook.id);
+      const res = await getPool().query("SELECT 1 FROM webhooks WHERE id = $1", [hook.id]);
+      expect(res.rowCount).toBe(0);
+    });
+
+    it("deletes a region through deleteRegion", async () => {
+      const region = await stratum.createRegion({ display_name: "EU", slug: uniqueSlug("eu") });
+      const client = await operatorClient();
+      await client.deleteRegion(region.id);
+      const res = await getPool().query("SELECT 1 FROM regions WHERE id = $1", [region.id]);
+      expect(res.rowCount).toBe(0);
+    });
+  });
+
   it("keeps a single 'Tenant not found' prefix on a missing tenant", async () => {
     const missingId = "00000000-0000-4000-8000-000000000000";
     const client = await operatorClient();

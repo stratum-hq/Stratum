@@ -98,19 +98,47 @@ describe("StratumClient", () => {
       expect(init.headers["X-API-Key"]).toBe(API_KEY);
     });
 
-    it("sends Content-Type application/json header", async () => {
+    it("sends Content-Type application/json with a request body", async () => {
       const client = makeClient();
-      const ctx = makeResolvedTenantContext("t-1");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-        mockFetchResponse(ctx),
+        mockFetchResponse(makeTenantNode("t-1")),
+      );
+
+      await client.createTenant({ name: "T", slug: "t_1" } as Parameters<typeof client.createTenant>[0]);
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0];
+      expect(init.headers["Content-Type"]).toBe("application/json");
+    });
+
+    it("omits Content-Type from a GET without a body", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(makeResolvedTenantContext("t-1")),
       );
 
       await client.resolveTenant("t-1");
 
       const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0];
-      expect(init.headers["Content-Type"]).toBe("application/json");
+      expect(init.headers).not.toHaveProperty("Content-Type");
+    });
+
+    it("omits Content-Type from a DELETE without a body", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await client.archiveTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0];
+      expect(init.body).toBeUndefined();
+      expect(init.headers).not.toHaveProperty("Content-Type");
     });
   });
 
@@ -563,8 +591,8 @@ describe("StratumClient", () => {
     });
 
     // Fastify rejects a request that has the JSON content type and no body
-    // (FST_ERR_CTP_EMPTY_JSON_BODY), and the client always sends that content type.
-    it("purgeTenant sends a JSON body so that the control plane accepts the request", async () => {
+    // (FST_ERR_CTP_EMPTY_JSON_BODY), so a body-less request omits that header.
+    it("purgeTenant sends no body and no JSON content type", async () => {
       const client = makeClient({ cache: { enabled: false } });
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(undefined, 204),
@@ -574,8 +602,8 @@ describe("StratumClient", () => {
 
       const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0] as [string, RequestInit];
-      expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
-      expect(JSON.parse(init.body as string)).toEqual({});
+      expect(init.body).toBeUndefined();
+      expect(init.headers as Record<string, string>).not.toHaveProperty("Content-Type");
     });
 
     it("purgeTenant rejects an id that is a dot segment before it sends a request", async () => {
