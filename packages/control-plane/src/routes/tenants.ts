@@ -171,7 +171,9 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // DELETE /api/v1/tenants/:id — Soft-delete (archive) tenant
-    app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
+    // A scoped key reaches its own pending child here, so it gets the state
+    // error that archive gives a pending tenant, not a scope error.
+    app.delete<{ Params: { id: string } }>("/:id", { config: { tenantScopeIncludesPending: true } }, async (request, reply) => {
       await stratum.deleteTenant(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
@@ -230,7 +232,9 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants/:id/purge — GDPR Article 17: hard-delete all tenant data
-    app.post<{ Params: { id: string } }>("/:id/purge", async (request, reply) => {
+    // A scoped key may purge its own pending child, for example after a failed
+    // storage provisioning.
+    app.post<{ Params: { id: string } }>("/:id/purge", { config: { tenantScopeIncludesPending: true } }, async (request, reply) => {
       await stratum.purgeTenant(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
