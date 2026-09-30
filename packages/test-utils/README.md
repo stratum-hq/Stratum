@@ -38,7 +38,7 @@ If tenantA can see any of tenantB's rows, the assertion fails with a descriptive
 ## API
 
 - **`assertIsolation(options)`** — verifies that tenantA cannot read tenantB's data through parameterized SQL against a PostgreSQL pool.
-- **`assertMongoIsolation(options)`** — the same guarantee for MongoDB collections.
+- **`assertMongoIsolation(getCollection, tenantA, tenantB)`** — the same guarantee for MongoDB. `getCollection(tenantId)` must return the collection through your Stratum adapter or Mongoose plugin, so the check exercises the real data path.
 - **`assertConfigInheritance(options)`** — verifies config values flow correctly through the tenant hierarchy.
 
 All helpers produce clear failure output showing exactly which isolation boundary was crossed.
