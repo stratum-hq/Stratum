@@ -86,7 +86,7 @@ a `user` resource with a `role` field).
 ### Evaluation Rules
 
 1. **Deny overrides allow** -- if any deny policy matches, the request is denied regardless of allow policies
-2. **Priority** -- higher priority policies are evaluated first
+2. **Priority** -- higher priority policies are evaluated first. `priority` is an integer from -2147483648 to 2147483647. `CreateAbacPolicyInputSchema` rejects a value outside that range.
 3. **Default deny** -- if no policy matches, the request is denied
 4. **Wildcard** -- use `*` for `resource_type` or `action` to match any value
 
