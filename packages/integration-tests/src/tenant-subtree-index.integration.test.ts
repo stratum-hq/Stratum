@@ -210,11 +210,17 @@ describe("subtree queries on ancestry_path (integration)", () => {
       mode: PermissionMode.INHERITED,
       revocation_mode: RevocationMode.CASCADE,
     };
-    const everyTenant = [t.rootA, t.a1, t.a1x, t.a1xDeep, t.a1y, t.a2, t.rootB, t.b1];
+    const everyTenant = [t.rootA, t.a1, t.a1x, t.a1xDeep, t.a2, t.rootB, t.b1];
     const policies = new Map<string, string>();
     for (const tenant of everyTenant) {
       policies.set(tenant.id, (await stratum.createPermission(tenant.id, perm)).id);
     }
+    // The library refuses writes to the archived a1y, so its copy is written in SQL.
+    await getPool().query(
+      `INSERT INTO permission_policies (tenant_id, key, value, mode, revocation_mode, source_tenant_id)
+       VALUES ($1, $2, 'true', $3, $4, $1)`,
+      [t.a1y.id, perm.key, perm.mode, perm.revocation_mode],
+    );
 
     await stratum.deletePermission(t.a1.id, policies.get(t.a1.id)!);
 
@@ -234,11 +240,17 @@ describe("subtree queries on ancestry_path (integration)", () => {
       effect: "allow" as const,
       conditions: [],
     };
-    const everyTenant = [t.rootA, t.a1, t.a1x, t.a1xDeep, t.a1y, t.a2, t.rootB, t.b1];
+    const everyTenant = [t.rootA, t.a1, t.a1x, t.a1xDeep, t.a2, t.rootB, t.b1];
     const policies = new Map<string, string>();
     for (const tenant of everyTenant) {
       policies.set(tenant.id, (await stratum.createAbacPolicy(tenant.id, policy)).id);
     }
+    // The library refuses writes to the archived a1y, so its copy is written in SQL.
+    await getPool().query(
+      `INSERT INTO abac_policies (tenant_id, name, resource_type, action, effect, conditions, source_tenant_id)
+       VALUES ($1, $2, $3, $4, $5, '[]'::jsonb, $1)`,
+      [t.a1y.id, policy.name, policy.resource_type, policy.action, policy.effect],
+    );
 
     await stratum.deleteAbacPolicy(t.a1.id, policies.get(t.a1.id)!);
 

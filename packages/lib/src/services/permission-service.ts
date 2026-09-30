@@ -1,6 +1,6 @@
 import pg from "pg";
 import { withTransaction, withClient } from "../pool-helpers.js";
-import { lockTree } from "./tenant-service.js";
+import { lockTree, loadActiveTenant } from "./tenant-service.js";
 import {
   type PermissionPolicy,
   type CreatePermissionInput,
@@ -149,15 +149,9 @@ export async function createPermission(
 ): Promise<PermissionPolicy> {
   return withTransaction(pool, async (client) => {
     // Load ancestry to check for locked ancestor permissions
-    const tenantRes = await client.query<{ ancestry_path: string }>(
-      `SELECT ancestry_path FROM tenants WHERE id = $1`,
-      [tenantId],
-    );
-    if (tenantRes.rows.length === 0) {
-      throw new TenantNotFoundError(tenantId);
-    }
+    const tenant = await loadActiveTenant(client, tenantId);
 
-    const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
+    const ancestorIds = parseAncestryPath(tenant.ancestry_path);
     // Exclude self (ancestry_path does not include self)
     if (ancestorIds.length > 0) {
       const restrictingRes = await client.query<PermissionPolicy>(
@@ -211,14 +205,8 @@ export async function updatePermission(
     const current = existing.rows[0];
 
     // Check if an ancestor has LOCKED this key
-    const tenantRes = await client.query<{ ancestry_path: string }>(
-      `SELECT ancestry_path FROM tenants WHERE id = $1`,
-      [tenantId],
-    );
-    if (tenantRes.rows.length === 0) {
-      throw new TenantNotFoundError(tenantId);
-    }
-    const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
+    const tenant = await loadActiveTenant(client, tenantId);
+    const ancestorIds = parseAncestryPath(tenant.ancestry_path);
     if (ancestorIds.length > 0) {
       const restrictingRes = await client.query<PermissionPolicy>(
         `SELECT * FROM permission_policies

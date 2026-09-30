@@ -45,8 +45,11 @@ beforeEach(() => {
 });
 
 describe("recordUsage", () => {
+  const ACTIVE_TENANT = { id: TENANT, status: "active" };
+
   it("inserts a usage event and maps quantity to a number", async () => {
-    const mockQuery = wireClient([[mockRow]]);
+    // The first query loads the tenant and requires it to be active.
+    const mockQuery = wireClient([[ACTIVE_TENANT], [mockRow]]);
 
     const result = await usageService.recordUsage(makeMockPool(), TENANT, {
       metric: "api.calls",
@@ -55,8 +58,8 @@ describe("recordUsage", () => {
 
     expect(result.quantity).toBe(5); // BIGINT string -> number
     expect(typeof result.quantity).toBe("number");
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    const [sql, params] = mockQuery.mock.calls[0];
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    const [sql, params] = mockQuery.mock.calls[1];
     expect(sql).toContain("INSERT INTO usage_events");
     expect(sql).toContain("ON CONFLICT (tenant_id, metric, idempotency_key)");
     expect(params[0]).toBe(TENANT); // tenant_id
@@ -67,11 +70,11 @@ describe("recordUsage", () => {
   });
 
   it("defaults quantity to 1 and metadata to {}", async () => {
-    const mockQuery = wireClient([[{ ...mockRow, quantity: "1" }]]);
+    const mockQuery = wireClient([[ACTIVE_TENANT], [{ ...mockRow, quantity: "1" }]]);
 
     await usageService.recordUsage(makeMockPool(), TENANT, { metric: "seats" });
 
-    const params = mockQuery.mock.calls[0][1];
+    const params = mockQuery.mock.calls[1][1];
     expect(params[2]).toBe(1); // quantity default
     expect(params[4]).toBe("{}"); // metadata default, JSON-stringified
   });
@@ -97,7 +100,7 @@ describe("recordUsage", () => {
     const stored = { ...mockRow, idempotency_key: "evt-1", quantity: "3" };
     // First call (INSERT ... ON CONFLICT DO NOTHING) returns no rows; the
     // service then SELECTs the already-stored event.
-    const mockQuery = wireClient([[], [stored]]);
+    const mockQuery = wireClient([[ACTIVE_TENANT], [], [stored]]);
 
     const result = await usageService.recordUsage(makeMockPool(), TENANT, {
       metric: "api.calls",
@@ -107,9 +110,9 @@ describe("recordUsage", () => {
 
     expect(result.idempotency_key).toBe("evt-1");
     expect(result.quantity).toBe(3);
-    expect(mockQuery).toHaveBeenCalledTimes(2);
-    expect(mockQuery.mock.calls[1][0]).toContain("SELECT");
-    expect(mockQuery.mock.calls[1][1]).toEqual([TENANT, "api.calls", "evt-1"]);
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+    expect(mockQuery.mock.calls[2][0]).toContain("SELECT");
+    expect(mockQuery.mock.calls[2][1]).toEqual([TENANT, "api.calls", "evt-1"]);
   });
 });
 

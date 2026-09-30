@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient } from "../pool-helpers.js";
+import { loadActiveTenant } from "./tenant-service.js";
 import {
   RecordUsageInputSchema,
   type RecordUsageInput,
@@ -44,6 +45,7 @@ export async function recordUsage(
 ): Promise<UsageEvent> {
   const parsed = RecordUsageInputSchema.parse(input);
   return withClient(pool, async (client) => {
+    await loadActiveTenant(client, tenantId);
     const res = await client.query<UsageEventRow>(
       `INSERT INTO usage_events (tenant_id, metric, quantity, idempotency_key, metadata, occurred_at)
        VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()))
