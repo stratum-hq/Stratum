@@ -34,6 +34,16 @@ export function validationErrorBody(
 }
 
 /**
+ * Returns the body of a 400 VALIDATION_ERROR response from the key and role routes.
+ * The top-level `details` is a deprecated copy of the issues for older clients.
+ * It goes away in the next major release.
+ */
+export function legacyValidationErrorBody(message: string, issues: readonly ValidationIssue[]) {
+  const body = validationErrorBody(message, issues);
+  return { ...body, details: body.error.details.issues };
+}
+
+/**
  * Returns true when the error has the shape of a ZodError.
  * The check is structural because a process can load more than one copy of zod.
  * An instanceof check fails for an error from a copy other than this one.

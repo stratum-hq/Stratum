@@ -6,7 +6,7 @@ import { declareTenantScope, fromBodyTenantId, isOperator } from "../middleware/
 import { parseWindow } from "../middleware/per-key-rate-limit.js";
 import { config } from "../config.js";
 import { buildAuditContext } from "./audit-logs.js";
-import { validationErrorBody } from "../middleware/error-handler.js";
+import { legacyValidationErrorBody } from "../middleware/error-handler.js";
 
 const createApiKeySchema = z.object({
   tenant_id: z.string().uuid(),
@@ -28,9 +28,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       async (request, reply) => {
         const parsed = createApiKeySchema.safeParse(request.body);
         if (!parsed.success) {
-          const body = validationErrorBody("Invalid request body", parsed.error.issues);
-          // The top-level `details` is a deprecated copy of the issues for older clients.
-          reply.status(400).send({ ...body, details: body.error.details.issues });
+          reply.status(400).send(legacyValidationErrorBody("Invalid request body", parsed.error.issues));
           return;
         }
         const { tenant_id, name, rate_limit_max, rate_limit_window } = parsed.data;

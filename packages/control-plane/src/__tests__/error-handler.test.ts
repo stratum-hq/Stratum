@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import { RegionInUseError, ValidationError } from "@stratum-hq/core";
-import { errorHandler } from "../middleware/error-handler.js";
+import { errorHandler, legacyValidationErrorBody } from "../middleware/error-handler.js";
 
 /**
  * Stands in for a ZodError from a second copy of zod. The class identity differs from
@@ -133,11 +133,29 @@ describe("errorHandler", () => {
 
   it("does not answer an error with an unknown code as a StratumError", async () => {
     const res = await app.inject({ method: "GET", url: "/unknown-code" });
-    expect(res.json().error.code).not.toBe("SOMETHING_ELSE");
+    // The error falls through to the branch for Fastify errors below 500.
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ error: { code: "VALIDATION_ERROR", message: "not a stratum error" } });
   });
 
   it("answers 500 for an error named ZodError that has no issues array", async () => {
     const res = await app.inject({ method: "GET", url: "/named-zod-without-issues" });
     expect(res.statusCode).toBe(500);
+  });
+});
+
+describe("legacyValidationErrorBody", () => {
+  it("adds a top-level details copy of the trimmed issues to the validation body", () => {
+    const issues = [{ path: ["name"], message: "Required", code: "invalid_type", expected: "string" }];
+    const trimmed = [{ path: ["name"], message: "Required", code: "invalid_type" }];
+    expect(legacyValidationErrorBody("Invalid request body", issues)).toEqual({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Invalid request body",
+        details: { issues: trimmed },
+        issues: trimmed,
+      },
+      details: trimmed,
+    });
   });
 });
