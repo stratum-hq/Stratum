@@ -48,7 +48,7 @@ export async function assertTenantInScope(
     throw new ForbiddenError("JWT authentication requires a tenant scope");
   }
 
-  if (!tenantId) return;
+  if (tenantId === null) return;
 
   // Fast path: exact match
   if (apiKey.tenant_id === tenantId) return;
