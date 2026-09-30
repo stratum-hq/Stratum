@@ -125,15 +125,18 @@ await adapter.closeAll();
 
 ### TypeORM Subscriber
 
-Auto-injects `tenant_id` on every insert using AsyncLocalStorage context:
+Auto-injects `tenant_id` on every insert using AsyncLocalStorage context, and never lets an update change `tenant_id` (`save()` keeps the loaded value; `update()` and query builder updates drop it from the SET values):
 
 ```typescript
 import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
 
 const dataSource = new DataSource({
-  subscribers: [StratumTypeOrmSubscriber],
   // ... your TypeORM config
 });
+await dataSource.initialize();
+// TypeORM's `subscribers` option only loads @EventSubscriber()-decorated
+// classes, so register an instance directly.
+dataSource.subscribers.push(new StratumTypeOrmSubscriber());
 ```
 
 <Aside type="caution">

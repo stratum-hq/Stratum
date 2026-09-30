@@ -24,7 +24,7 @@ export { createTenantView, dropTenantView, setTenantSession } from "./views/mana
 
 // Integrations
 export { StratumTypeOrmSubscriber } from "./integrations/typeorm-subscriber.js";
-export type { InsertEvent, EntitySubscriberInterface } from "./integrations/typeorm-subscriber.js";
+export type { InsertEvent, UpdateEvent, EntitySubscriberInterface } from "./integrations/typeorm-subscriber.js";
 export { withTenantScope } from "./integrations/knex.js";
 export type { KnexLike, KnexQueryBuilderLike } from "./integrations/knex.js";
 export { withMysqlTenantScope } from "./integrations/sequelize.js";
