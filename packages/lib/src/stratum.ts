@@ -1069,6 +1069,13 @@ export class Stratum {
       unreadable: result.unreadable.length,
     };
     this.logger.warn("encryption key rotated", summary);
+    // These rows still need a key that the run did not have, so the operator must act before retiring the old key.
+    if (result.unreadable.length > 0) {
+      this.logger.warn("encryption key rotation left unreadable rows", {
+        unreadable: result.unreadable.length,
+        rows: result.unreadable,
+      });
+    }
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "encryption.key_rotated", "system", "encryption_key", null,

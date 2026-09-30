@@ -238,4 +238,6 @@ Re-encrypts all sensitive config entries and webhook secrets from the old key to
 - `already_rotated`: values that already decrypt with the new key, for example after an interrupted request.
 - `unreadable`: values that decrypt with neither key. They stay unchanged. Examine each one before you remove the old key.
 
+If encrypted values exist and none of them decrypts with either key, the request returns `400 VALIDATION_ERROR` and changes no row. This result almost always means that `old_key` is wrong.
+
 After rotation, update the `STRATUM_ENCRYPTION_KEY` environment variable and restart the control plane.

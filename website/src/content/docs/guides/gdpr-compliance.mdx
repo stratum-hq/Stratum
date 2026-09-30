@@ -102,7 +102,7 @@ await stratum.grantConsent(tenantId, {
 });
 ```
 
-`expires_at` is an ISO 8601 datetime with a time zone, either `Z` or an offset such as `+02:00`. `GrantConsentInputSchema` rejects any other string, which includes PostgreSQL special values such as `infinity`. The control plane returns `400 VALIDATION_ERROR` for such a value.
+The control plane API requires `expires_at` to be an ISO 8601 datetime with a time zone, either `Z` or an offset such as `+02:00`. It validates the request body with `GrantConsentInputSchema`, and returns `400 VALIDATION_ERROR` for any other string. That includes a date without a time, a datetime without a time zone, and PostgreSQL special values such as `infinity`. The library method `grantConsent` does not apply this validation. If you call it directly, validate the input with `GrantConsentInputSchema` first.
 
 ### Check Active Consent
 

@@ -1,6 +1,7 @@
 import pg from "pg";
 import { withTransaction } from "../pool-helpers.js";
-import { reEncrypt, decryptsWithKey } from "../crypto.js";
+import { ValidationError } from "@stratum-hq/core";
+import { encryptWithKeyMaterial, decryptWithKeyMaterial } from "../crypto.js";
 
 /** A row that decrypts with neither the old key nor the new key. Rotation leaves it unchanged. */
 export interface KeyRotationUnreadableRow {
@@ -26,10 +27,11 @@ type RotateOutcome = { kind: "rotated"; value: string } | { kind: "already_rotat
 // Accepting those values, instead of failing on them, is what lets a re-run
 // with the same keys finish the rotation.
 function rotateValue(encrypted: string, oldKeyMaterial: string, newKeyMaterial: string): RotateOutcome {
-  if (decryptsWithKey(encrypted, oldKeyMaterial)) {
-    return { kind: "rotated", value: reEncrypt(encrypted, oldKeyMaterial, newKeyMaterial) };
+  const plaintext = decryptWithKeyMaterial(encrypted, oldKeyMaterial);
+  if (plaintext !== null) {
+    return { kind: "rotated", value: encryptWithKeyMaterial(plaintext, newKeyMaterial) };
   }
-  if (decryptsWithKey(encrypted, newKeyMaterial)) return { kind: "already_rotated" };
+  if (decryptWithKeyMaterial(encrypted, newKeyMaterial) !== null) return { kind: "already_rotated" };
   return { kind: "unreadable" };
 }
 
@@ -42,6 +44,10 @@ function rotateValue(encrypted: string, oldKeyMaterial: string, newKeyMaterial: 
  * The run is safe to repeat with the same keys. A value that already decrypts
  * with the new key stays as it is and counts in `already_rotated`. A value that
  * decrypts with neither key stays as it is and appears in `unreadable`.
+ *
+ * Throws a ValidationError when encrypted values exist and none of them
+ * decrypts with either key. That result almost always means `oldKeyMaterial`
+ * is wrong, and the run has changed no row.
  *
  * After rotation, update the STRATUM_ENCRYPTION_KEY environment variable to
  * the new key.
@@ -117,6 +123,15 @@ export async function rotateEncryptionKey(
       return batch.rows.length;
     });
     if (count < batchSize) break;
+  }
+
+  // A run that changed nothing and matched no value on either key must not look
+  // like a success, because the operator would then retire a key that is still in use.
+  if (unreadable.length > 0 && configCount + webhookCount + alreadyRotated === 0) {
+    throw new ValidationError(
+      "Key rotation found no encrypted value that decrypts with the old key or the new key. Check the old key. No row was changed.",
+      { unreadable: unreadable.length },
+    );
   }
 
   return {

@@ -169,12 +169,20 @@ describe("telemetry span lifecycle", () => {
     const abortSeen = new Promise<void>((resolve) => (signalAbortSeen = resolve));
 
     abortApp.addHook("onRequestAbort", async (_request) => signalAbortSeen());
+    // Fastify runs onSend after the handler returns and immediately before it writes the response.
+    let signalSendReached!: () => void;
+    const sendReached = new Promise<void>((resolve) => (signalSendReached = resolve));
+    abortApp.addHook("onSend", async (_request, _reply, payload) => {
+      signalSendReached();
+      return payload;
+    });
     abortApp.get("/slow", async () => {
       signalHandlerStarted();
       await handlerReleased;
       return { ok: true };
     });
     await abortApp.listen({ port: 0, host: "127.0.0.1" });
+    let closed = false;
 
     try {
       const { port } = abortApp.server.address() as net.AddressInfo;
@@ -187,14 +195,18 @@ describe("telemetry span lifecycle", () => {
 
       // The handler finishes after the client is gone, as a slow query would.
       releaseHandler();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // A second end() can only come from the onResponse hook of this request.
+      // Waiting for onSend and then for close() lets that request finish every hook before the assertions.
+      await sendReached;
+      await abortApp.close();
+      closed = true;
 
       expect(spans).toHaveLength(1);
       expect(spans[0].ended).toBe(true);
       expect(spans[0].endCalls).toBe(1);
     } finally {
       releaseHandler();
-      await abortApp.close();
+      if (!closed) await abortApp.close();
     }
   });
 });

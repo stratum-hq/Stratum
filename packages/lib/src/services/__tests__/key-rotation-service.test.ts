@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import pg from "pg";
 import { rotateEncryptionKey } from "../key-rotation-service.js";
+import { ValidationError } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../../crypto.js";
 
 // ---------------------------------------------------------------------------
@@ -215,5 +216,32 @@ describe("rotateEncryptionKey batching", () => {
     expect(store.config[1].value).toBe(onNew);
     expect(store.config[2].value).toBe(onUnrelated);
     expect(store.webhooks[1].secret_hash).toBe(onUnrelated);
+  });
+
+  it("rejects a rotation when no encrypted value decrypts with the old key or the new key", async () => {
+    process.env.STRATUM_ENCRYPTION_KEY = "unrelated-key-material";
+    const onUnrelated = encrypt("on-unrelated");
+    const store: Store = {
+      config: [{ id: seedId(0), value: onUnrelated, sensitive: true }],
+      webhooks: [{ id: seedId(1), secret_hash: onUnrelated }],
+    };
+
+    const run = rotateEncryptionKey(makeFakePool(store), OLD_KEY, NEW_KEY);
+
+    await expect(run).rejects.toBeInstanceOf(ValidationError);
+    await expect(run).rejects.toMatchObject({ details: { unreadable: 2 } });
+    expect(store.config[0].value).toBe(onUnrelated);
+    expect(store.webhooks[0].secret_hash).toBe(onUnrelated);
+  });
+
+  it("returns zero counts when no encrypted value exists", async () => {
+    const result = await rotateEncryptionKey(makeFakePool({ config: [], webhooks: [] }), OLD_KEY, NEW_KEY);
+
+    expect(result).toEqual({
+      config_entries_rotated: 0,
+      webhooks_rotated: 0,
+      already_rotated: 0,
+      unreadable: [],
+    });
   });
 });

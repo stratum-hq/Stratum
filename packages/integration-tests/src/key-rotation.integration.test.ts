@@ -246,3 +246,91 @@ describe("Key rotation resume after a partial failure (integration)", () => {
     expect(again.unreadable).toHaveLength(2);
   });
 });
+
+describe("Key rotation with an old key that opens no value (integration)", () => {
+  const OLD_KEY = "wrongkey-old-key-material-32char";
+  const NEW_KEY = "wrongkey-new-key-material-32char";
+  const WRONG_KEY = "wrongkey-typo-key-material-32chr";
+
+  let pool: pg.Pool;
+
+  beforeAll(async () => {
+    delete process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
+    await runMigrations();
+    pool = getPool();
+  });
+
+  afterEach(async () => {
+    delete process.env.STRATUM_ENCRYPTION_KEY;
+    await cleanTestData();
+  });
+
+  afterAll(async () => {
+    await closePool();
+  });
+
+  function recordingLogger() {
+    const warnings: Array<{ msg: string; ctx?: Record<string, unknown> }> = [];
+    return {
+      warnings,
+      logger: {
+        info: () => {},
+        error: () => {},
+        warn: (msg: string, ctx?: Record<string, unknown>) => warnings.push({ msg, ctx }),
+      },
+    };
+  }
+
+  it("rejects the rotation, leaves every row unchanged, and logs no success", async () => {
+    const { warnings, logger } = recordingLogger();
+    const stratum = new Stratum({ pool, logger });
+    const tenant = await stratum.createTenant({ name: "Rotation Wrong Key", slug: uniqueSlug("rot_wrong") });
+
+    process.env.STRATUM_ENCRYPTION_KEY = OLD_KEY;
+    const config = await stratum.setConfig(tenant.id, "db_password", {
+      value: "super-secret",
+      locked: false,
+      sensitive: true,
+    });
+    const hook = await stratum.createWebhook({
+      tenant_id: tenant.id,
+      url: "https://example.com/hook-wrong-key",
+      secret: "webhook-secret-wrong-key",
+      events: ["tenant.created"],
+    });
+    const readRaw = async () => ({
+      config: (await pool.query<{ value: string }>(`SELECT value FROM config_entries WHERE id = $1`, [config.id]))
+        .rows[0].value,
+      hook: (await pool.query<{ secret_hash: string }>(`SELECT secret_hash FROM webhooks WHERE id = $1`, [hook.id]))
+        .rows[0].secret_hash,
+    });
+    const before = await readRaw();
+
+    await expect(stratum.rotateEncryptionKey(WRONG_KEY, NEW_KEY)).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+    });
+
+    expect(await readRaw()).toEqual(before);
+    expect(JSON.parse(decryptAsLib(before.config, OLD_KEY))).toBe("super-secret");
+    expect(warnings.map((w) => w.msg)).not.toContain("encryption key rotated");
+  });
+
+  it("logs a distinct warning when some rows decrypt with neither key", async () => {
+    const { warnings, logger } = recordingLogger();
+    const stratum = new Stratum({ pool, logger });
+    const tenant = await stratum.createTenant({ name: "Rotation Partial", slug: uniqueSlug("rot_partial") });
+
+    process.env.STRATUM_ENCRYPTION_KEY = OLD_KEY;
+    await stratum.setConfig(tenant.id, "readable", { value: "a", locked: false, sensitive: true });
+    process.env.STRATUM_ENCRYPTION_KEY = WRONG_KEY;
+    const bad = await stratum.setConfig(tenant.id, "unreadable", { value: "b", locked: false, sensitive: true });
+
+    const result = await stratum.rotateEncryptionKey(OLD_KEY, NEW_KEY);
+
+    expect(result.config_entries_rotated).toBe(1);
+    expect(result.unreadable).toEqual([{ table: "config_entries", id: bad.id }]);
+    const unreadableWarning = warnings.find((w) => w.msg === "encryption key rotation left unreadable rows");
+    expect(unreadableWarning?.ctx).toMatchObject({ unreadable: 1 });
+  });
+});

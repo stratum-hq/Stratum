@@ -96,19 +96,18 @@ export function decrypt(encrypted: string): string {
   }
 }
 
-/** Re-encrypts a value with a new key. Used for key rotation. Safe under concurrency — does not mutate process.env. */
-export function reEncrypt(encrypted: string, oldKeyMaterial: string, newKeyMaterial: string): string {
-  const plaintext = decryptWithKey(encrypted, deriveKey(oldKeyMaterial));
-  return encryptWithKey(plaintext, deriveKey(newKeyMaterial));
+/** Encrypts a value with the key derived from `keyMaterial`.
+ * Key rotation uses it because it must not read or change process.env. */
+export function encryptWithKeyMaterial(plaintext: string, keyMaterial: string): string {
+  return encryptWithKey(plaintext, deriveKey(keyMaterial));
 }
 
-/** Returns true when the value decrypts with the key derived from `keyMaterial`.
- * Key rotation uses it to find values that an earlier, interrupted run already rotated. */
-export function decryptsWithKey(encrypted: string, keyMaterial: string): boolean {
+/** Returns the plaintext, or null when the value does not decrypt with the key derived from `keyMaterial`.
+ * Key rotation uses the null result to try the next key instead of failing. */
+export function decryptWithKeyMaterial(encrypted: string, keyMaterial: string): string | null {
   try {
-    decryptWithKey(encrypted, deriveKey(keyMaterial));
-    return true;
+    return decryptWithKey(encrypted, deriveKey(keyMaterial));
   } catch {
-    return false;
+    return null;
   }
 }

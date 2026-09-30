@@ -296,7 +296,9 @@ interface KeyRotationUnreadableRow {
 }
 ```
 
-A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key.
+A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key. When some values are unreadable, the run logs the warning `encryption key rotation left unreadable rows`.
+
+If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key is wrong.
 
 ### Usage metering
 
