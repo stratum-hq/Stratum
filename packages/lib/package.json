@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/lib",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Stratum tenant management library - framework-agnostic business logic",
   "keywords": [
     "multi-tenancy",
@@ -46,9 +46,9 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@stratum-hq/core": "^1.4.0",
+    "@stratum-hq/core": "^1.5.0",
     "@stratum-hq/db-adapters": "^1.2.0",
-    "@stratum-hq/sdk": "^1.2.0",
+    "@stratum-hq/sdk": "^1.3.0",
     "pg": "^8.11.0"
   },
   "peerDependencies": {

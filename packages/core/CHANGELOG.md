@@ -1,5 +1,11 @@
 # @stratum-hq/core
 
+## 1.5.0
+
+### Minor Changes
+
+- 4c1686a: Region `control_plane_url` input must be an http or https URL without credentials (GHSA-jx2p-pffr-c5gh).
+
 ## 1.4.0
 
 ### Minor Changes

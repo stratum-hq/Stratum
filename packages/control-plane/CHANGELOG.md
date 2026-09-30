@@ -1,5 +1,28 @@
 # @stratum-hq/control-plane
 
+## 1.3.0
+
+### Minor Changes
+
+- 4c1686a: The control plane's JWT_SECRET presence, length and placeholder checks now apply in every environment other than `development` and `test`, not only `production` (GHSA-p3jw-vw8m-3rqr).
+- 4c1686a: Every control-plane route now declares its required scope in route config, and a route without a declaration is refused (GHSA-p3jw-vw8m-3rqr).
+- 4c1686a: Control-plane migrations enforce RLS, and the missing `JWT_AUDIENCE` warning fires, in every environment other than `development` and `test` (an unset `NODE_ENV` counts as `development`) (GHSA-jx2p-pffr-c5gh).
+- 4c1686a: Global operator API keys now receive tenant-state errors (403 `TENANT_SUSPENDED`, 410 `TENANT_ARCHIVED`, 409 `TENANT_PENDING`) on config, permission, webhook and consent writes to a tenant that is not active, and usage events are refused for a tenant that is not active (GHSA-54ff-f8q6-8mfx).
+
+### Patch Changes
+
+- 4c1686a: Authenticated requests to a path that matches no route now get 404 instead of 403; unauthenticated requests still get 401, and matched routes stay default-deny (GHSA-p3jw-vw8m-3rqr).
+- 96e9a3c: An error below 500 that has no Stratum code now gets a code from its status, not `VALIDATION_ERROR`. The codes are `BAD_REQUEST` (400 and any unlisted status), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `CONFLICT` (409), `PAYLOAD_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), and `RATE_LIMITED` (429). A Fastify schema validation error keeps `VALIDATION_ERROR`. A client that read `VALIDATION_ERROR` for a request body that is not valid JSON must now read `BAD_REQUEST`.
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+  - @stratum-hq/lib@1.5.0
+  - @stratum-hq/core@1.5.0
+
 ## 1.2.0
 
 ### Minor Changes

@@ -1,5 +1,29 @@
 # @stratum-hq/lib
 
+## 1.5.0
+
+### Minor Changes
+
+- 4c1686a: Creating or rotating an API key for a suspended or archived tenant is now refused with `InvalidTenantStateError` (GHSA-p3jw-vw8m-3rqr).
+- 4c1686a: Webhook and region audit entries record URLs as `scheme://host/` plus a path fingerprint (`#fp=` and the first 12 hex characters of sha256 of the path), or `[REDACTED]` for a URL without a host; migration 030 applies the same form to existing audit rows, and webhook URL validation errors no longer echo the full URL (GHSA-jx2p-pffr-c5gh).
+
+  Upgrade note: migration 030 scrubs audit rows only. Region rows whose `control_plane_url` already contains credentials keep that value in the `regions` table; update those regions with a URL that has no credentials.
+
+- 4c1686a: `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT` are now required in every environment other than `development` and `test` (an unset `NODE_ENV` counts as `development`); only those fall back to the built-in key (GHSA-jx2p-pffr-c5gh).
+
+  Upgrade note: deployments outside development and test must set `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT`. The match is exact: any other `NODE_ENV` value, such as `dev`, `local`, `ci`, `qa`, `staging` or `Development`, is strict. Data encrypted without them used the built-in development key and must be re-encrypted with `rotateEncryptionKey` while the built-in salt is still in effect: set `STRATUM_HKDF_SALT` to the built-in salt's hex value, then rotate. See "Moving off the built-in development key" in the `@stratum-hq/lib` package docs (`website/src/content/docs/packages/lib.mdx`).
+
+- 4c1686a: Migration 029 refuses a parent_id that would make a tenant its own ancestor (GHSA-54ff-f8q6-8mfx).
+- 4c1686a: reorderTenant takes the tenant tree lock and locks the sibling rows, so concurrent reorders and moves run one after the other (GHSA-54ff-f8q6-8mfx).
+- 4c1686a: Config, permission, webhook, consent, ABAC policy, tenant role (create and update), role assignment (assignRole, assignRoleToKey) and usage writes now require an active tenant and throw TenantSuspendedError, TenantArchivedError or TenantPendingError otherwise; removals and webhook deactivation still work (GHSA-54ff-f8q6-8mfx).
+
+### Patch Changes
+
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+  - @stratum-hq/sdk@1.3.0
+  - @stratum-hq/core@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes

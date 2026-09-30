@@ -1,5 +1,19 @@
 # @stratum-hq/mysql
 
+## 0.5.0
+
+### Minor Changes
+
+- 4c1686a: Tighten tenant scoping (GHSA-fxg8-jqvx-hpc5). Behavior changes: withTenantScope now throws on joins, union()/unionAll() and modify(); the TypeORM subscriber refuses upserts on tables whose unique keys lack tenant_id; MysqlTableAdapter.scopedTable throws without baseTables.
+- 4c1686a: Scope TypeORM writes to the current tenant (GHSA-fxg8-jqvx-hpc5). Behavior changes: registerStratumSubscriber adds the tenant condition to update, delete and soft-delete query builders and refuses them outside a tenant context; save() of a row that belongs to another tenant throws; TRUNCATE (clear(), clearTable()) of a tenant table is refused; a subscriber added to dataSource.subscribers by hand now refuses every UPDATE and DELETE.
+
+### Patch Changes
+
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+  - @stratum-hq/sdk@1.3.0
+  - @stratum-hq/core@1.5.0
+
 ## 0.4.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @stratum-hq/create
 
+## 0.5.0
+
+### Minor Changes
+
+- 4c1686a: Generated servers and Next.js middleware take the tenant from a verified JWT instead of the hostname (GHSA-p4wg-j8hh-9wh8).
+
 ## 0.4.1
 
 ### Patch Changes

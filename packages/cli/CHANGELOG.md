@@ -1,5 +1,23 @@
 # @stratum-hq/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- 4c1686a: Isolation checks now verify what RLS policies filter on, and the Next.js templates take the tenant from a verified JWT (GHSA-p4wg-j8hh-9wh8).
+
+### Patch Changes
+
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+  - @stratum-hq/lib@1.5.0
+  - @stratum-hq/core@1.5.0
+
 ## 0.6.0
 
 ### Minor Changes
