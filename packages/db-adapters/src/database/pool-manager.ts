@@ -6,23 +6,34 @@ export interface DatabasePoolManagerOptions {
   baseConnectionConfig: pg.PoolConfig;
   /** Maximum number of tenant pools to keep open simultaneously. Default: 50. */
   maxPools?: number;
-  /** Milliseconds of inactivity before a pool is eligible for LRU eviction. Default: 30000. */
+  /**
+   * Milliseconds an idle connection stays open inside a tenant pool before pg
+   * closes it. The manager passes it to pg.Pool as idleTimeoutMillis. It does
+   * not control LRU eviction. Default: 30000.
+   */
   idleTimeoutMs?: number;
 }
 
 interface PoolEntry {
   pool: pg.Pool;
   lastUsed: number;
+  /** Callers that received this pool from getPool and have not called releasePool. */
+  refCount: number;
 }
 
 /**
  * Manages a collection of per-tenant pg.Pool instances.
  *
- * Pools are keyed by tenant slug and created on first access.
- * When the pool count exceeds maxPools, the least-recently-used pool is evicted.
+ * Pools are keyed by tenant slug and created on first access. Each getPool call
+ * holds the pool until the caller calls releasePool. When the pool count reaches
+ * maxPools, the least-recently-used pool that no caller holds is evicted. A pool
+ * that a caller holds is never evicted, so the count can exceed maxPools while
+ * every pool is in use.
  */
 export class DatabasePoolManager {
   private readonly pools: Map<string, PoolEntry> = new Map();
+  /** Holds that callers still have on pools that closePool or closeAll removed, by pool key. */
+  private readonly closedHolds: Map<string, number> = new Map();
   private readonly baseConfig: pg.PoolConfig;
   private readonly maxPools: number;
   private readonly idleTimeoutMs: number;
@@ -34,8 +45,9 @@ export class DatabasePoolManager {
   }
 
   /**
-   * Returns an existing pool for the tenant slug, or creates a new one.
-   * Evicts the LRU pool if the pool limit is reached.
+   * Returns the pool for the tenant slug, and creates it on first access.
+   * Each call holds the pool until the caller calls releasePool with the same
+   * arguments. A held pool is never evicted.
    *
    * When a regionId is provided, the pool is keyed as `regionId:slug` to support
    * multi-region deployments where the same slug may exist in different regions.
@@ -43,25 +55,63 @@ export class DatabasePoolManager {
   async getPool(tenantSlug: string, regionId?: string): Promise<pg.Pool> {
     const dbName = getDatabaseName(tenantSlug);
     const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
-    const existing = this.pools.get(poolKey);
-    if (existing) {
-      existing.lastUsed = Date.now();
-      return existing.pool;
+
+    // The lookup, the eviction choice and the insert run with no await between
+    // them. Thus a concurrent call for the same key always finds this entry.
+    let entry = this.pools.get(poolKey);
+    let victim: pg.Pool | undefined;
+    if (!entry) {
+      if (this.pools.size >= this.maxPools) victim = this.takeLRU();
+      entry = {
+        pool: new pg.Pool({
+          ...this.baseConfig,
+          database: dbName,
+          idleTimeoutMillis: this.idleTimeoutMs,
+        }),
+        lastUsed: Date.now(),
+        refCount: 0,
+      };
+      this.pools.set(poolKey, entry);
     }
 
-    // Evict before adding so we never exceed maxPools.
-    if (this.pools.size >= this.maxPools) {
-      await this.evictLRU();
+    entry.lastUsed = Date.now();
+    entry.refCount++;
+    if (victim) {
+      // The evicted pool belongs to a different tenant. Its end error must not
+      // fail this request, which already has a usable pool.
+      await victim.end().catch(() => undefined);
+    }
+    return entry.pool;
+  }
+
+  /**
+   * Ends one hold on the pool that getPool returned for the same arguments.
+   * Call it once for each getPool call. No-op if the pool is not tracked.
+   *
+   * Without a regionId, a bare slug also matches one region-prefixed pool
+   * (`regionId:slug`), as closePool does. If the slug matches pools in more
+   * than one region, the call releases nothing, because the manager cannot
+   * tell which pool the caller holds. Pass the regionId in that case.
+   */
+  releasePool(tenantSlug: string, regionId?: string): void {
+    const poolKey = this.resolveHeldKey(tenantSlug, regionId);
+    if (poolKey === undefined) return;
+
+    // The caller passes a key, not the pool, so the manager cannot tell a
+    // hold on a closed pool from a hold on its replacement. It ends holds on
+    // closed pools first. The replacement then counts as held for longer than
+    // it is, which is safe: eviction never ends a pool that is in use.
+    const closed = this.closedHolds.get(poolKey);
+    if (closed !== undefined) {
+      if (closed === 1) this.closedHolds.delete(poolKey);
+      else this.closedHolds.set(poolKey, closed - 1);
+      return;
     }
 
-    const pool = new pg.Pool({
-      ...this.baseConfig,
-      database: dbName,
-      idleTimeoutMillis: this.idleTimeoutMs,
-    });
-
-    this.pools.set(poolKey, { pool, lastUsed: Date.now() });
-    return pool;
+    const entry = this.pools.get(poolKey);
+    if (!entry || entry.refCount === 0) return;
+    entry.refCount--;
+    entry.lastUsed = Date.now();
   }
 
   /** Closes and removes the pool for the given tenant slug. No-op if not found.
@@ -82,6 +132,7 @@ export class DatabasePoolManager {
     const entry = this.pools.get(resolvedKey);
     if (!entry) return;
     this.pools.delete(resolvedKey);
+    this.recordClosedHolds(resolvedKey, entry);
     await entry.pool.end();
   }
 
@@ -89,7 +140,30 @@ export class DatabasePoolManager {
   async closeAll(): Promise<void> {
     const entries = Array.from(this.pools.entries());
     this.pools.clear();
+    for (const [key, entry] of entries) this.recordClosedHolds(key, entry);
     await Promise.all(entries.map(([, entry]) => entry.pool.end()));
+  }
+
+  /** Keeps the holds of a removed pool, so that their releases do not reach a later pool for the key. */
+  private recordClosedHolds(poolKey: string, entry: PoolEntry): void {
+    if (entry.refCount === 0) return;
+    this.closedHolds.set(poolKey, (this.closedHolds.get(poolKey) ?? 0) + entry.refCount);
+  }
+
+  /**
+   * Returns the key that releasePool acts on: the exact key when the manager
+   * tracks it, else the one region-prefixed key for a bare slug. Returns
+   * undefined when no key or more than one key matches.
+   */
+  private resolveHeldKey(tenantSlug: string, regionId?: string): string | undefined {
+    const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
+    if (this.pools.has(poolKey) || this.closedHolds.has(poolKey) || regionId) return poolKey;
+
+    const matches = new Set<string>();
+    for (const key of [...this.pools.keys(), ...this.closedHolds.keys()]) {
+      if (key.endsWith(`:${tenantSlug}`)) matches.add(key);
+    }
+    return matches.size === 1 ? [...matches][0] : undefined;
   }
 
   /** Returns a snapshot of current pool statistics. */
@@ -104,20 +178,24 @@ export class DatabasePoolManager {
     return { poolCount: this.pools.size, activeConnections };
   }
 
-  /** Evicts the pool that has been idle the longest. */
-  private async evictLRU(): Promise<void> {
+  /**
+   * Removes the least-recently-used pool that no caller holds from the map and
+   * returns it. The caller ends it. Returns undefined when every pool is held.
+   */
+  private takeLRU(): pg.Pool | undefined {
     let oldestKey: string | undefined;
     let oldestTime = Infinity;
 
     for (const [key, entry] of this.pools.entries()) {
-      if (entry.lastUsed < oldestTime) {
+      if (entry.refCount === 0 && entry.lastUsed < oldestTime) {
         oldestTime = entry.lastUsed;
         oldestKey = key;
       }
     }
 
-    if (oldestKey !== undefined) {
-      await this.closePool(oldestKey);
-    }
+    if (oldestKey === undefined) return undefined;
+    const entry = this.pools.get(oldestKey)!;
+    this.pools.delete(oldestKey);
+    return entry.pool;
   }
 }

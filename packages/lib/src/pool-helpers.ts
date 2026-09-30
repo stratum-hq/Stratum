@@ -23,11 +23,26 @@ async function enterBypass(client: pg.PoolClient): Promise<void> {
   await client.query("SET LOCAL app.bypass_rls = 'on'");
 }
 
+// A failed ROLLBACK must not replace the caller's error. Callers map error
+// codes such as 23505, so the original error must reach them unchanged. The
+// ROLLBACK error goes to client.release instead: a truthy argument makes
+// pg-pool destroy the connection, so no later caller gets a connection in an
+// unknown transaction state.
+async function rollback(client: pg.PoolClient): Promise<Error | undefined> {
+  try {
+    await client.query("ROLLBACK");
+    return undefined;
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
+}
+
 export async function withClient<T>(
   pool: pg.Pool,
   fn: (client: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
+  let rollbackErr: Error | undefined;
   try {
     await client.query("BEGIN");
     await enterBypass(client);
@@ -35,10 +50,10 @@ export async function withClient<T>(
     await client.query("COMMIT");
     return result;
   } catch (err) {
-    await client.query("ROLLBACK");
+    rollbackErr = await rollback(client);
     throw err;
   } finally {
-    client.release();
+    client.release(rollbackErr);
   }
 }
 
@@ -47,6 +62,7 @@ export async function withTransaction<T>(
   fn: (client: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await pool.connect();
+  let rollbackErr: Error | undefined;
   try {
     await client.query("BEGIN");
     await enterBypass(client);
@@ -54,9 +70,9 @@ export async function withTransaction<T>(
     await client.query("COMMIT");
     return result;
   } catch (err) {
-    await client.query("ROLLBACK");
+    rollbackErr = await rollback(client);
     throw err;
   } finally {
-    client.release();
+    client.release(rollbackErr);
   }
 }

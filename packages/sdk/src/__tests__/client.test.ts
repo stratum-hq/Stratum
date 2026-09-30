@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StratumClient } from "../client.js";
 import type { ResolvedTenantContext, TenantNode } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,19 +98,47 @@ describe("StratumClient", () => {
       expect(init.headers["X-API-Key"]).toBe(API_KEY);
     });
 
-    it("sends Content-Type application/json header", async () => {
+    it("sends Content-Type application/json with a request body", async () => {
       const client = makeClient();
-      const ctx = makeResolvedTenantContext("t-1");
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-        mockFetchResponse(ctx),
+        mockFetchResponse(makeTenantNode("t-1")),
+      );
+
+      await client.createTenant({ name: "T", slug: "t_1" } as Parameters<typeof client.createTenant>[0]);
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0];
+      expect(init.headers["Content-Type"]).toBe("application/json");
+    });
+
+    it("omits Content-Type from a GET without a body", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(makeResolvedTenantContext("t-1")),
       );
 
       await client.resolveTenant("t-1");
 
       const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
         .calls[0];
-      expect(init.headers["Content-Type"]).toBe("application/json");
+      expect(init.headers).not.toHaveProperty("Content-Type");
+    });
+
+    it("omits Content-Type from a DELETE without a body", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await client.archiveTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0];
+      expect(init.body).toBeUndefined();
+      expect(init.headers).not.toHaveProperty("Content-Type");
     });
   });
 
@@ -182,6 +216,113 @@ describe("StratumClient", () => {
       await expect(client.resolveTenant("t-1")).rejects.toThrow(
         "Internal server error",
       );
+    });
+
+    it("keeps the control plane's 404 message without a second prefix", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "TENANT_NOT_FOUND", message: "Tenant not found: t-missing" } },
+          404,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-missing").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantNotFoundError);
+      expect((err as Error).message).toBe("Tenant not found: t-missing");
+    });
+
+    it("throws TenantSuspendedError on a 403 with code TENANT_SUSPENDED", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          {
+            error: {
+              code: "TENANT_SUSPENDED",
+              message: "Tenant t-1 is suspended",
+              details: { tenant_id: "t-1" },
+            },
+          },
+          403,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantSuspendedError);
+      expect((err as Error).message).toBe("Tenant t-1 is suspended");
+    });
+
+    it("throws ForbiddenError on a 403 with any other code", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "FORBIDDEN", message: "Insufficient permissions for this operation" } },
+          403,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenError);
+      expect((err as Error).message).toBe("Insufficient permissions for this operation");
+    });
+
+    it("throws TenantArchivedError on a 410 with code TENANT_ARCHIVED", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "TENANT_ARCHIVED", message: "Tenant t-1 is archived" } },
+          410,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantArchivedError);
+      expect((err as Error).message).toBe("Tenant t-1 is archived");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Request timeout
+  // -----------------------------------------------------------------------
+
+  describe("request timeout", () => {
+    /** A fetch that never answers and rejects only when its signal aborts. */
+    function stalledFetch() {
+      return vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+          }),
+      );
+    }
+
+    it("sends an abort signal with every request by default", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(makeResolvedTenantContext("t-1")),
+      );
+
+      await client.resolveTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("rejects a stalled request with a TimeoutError after timeoutMs", async () => {
+      const client = new StratumClient({
+        controlPlaneUrl: CONTROL_PLANE_URL,
+        apiKey: API_KEY,
+        timeoutMs: 20,
+      });
+      globalThis.fetch = stalledFetch() as unknown as typeof fetch;
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect((err as Error).name).toBe("TimeoutError");
     });
   });
 
@@ -370,6 +511,22 @@ describe("StratumClient", () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
     });
 
+    it("purgeTenant invalidates the cache for that tenant", async () => {
+      const client = makeClient({ cache: { enabled: true } });
+      const ctx = makeResolvedTenantContext("t-purge");
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(mockFetchResponse(ctx))
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204))
+        .mockResolvedValueOnce(mockFetchResponse(ctx));
+
+      await client.resolveTenant("t-purge");
+      await client.purgeTenant("t-purge");
+      await client.resolveTenant("t-purge");
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    });
+
     it("invalidateCache manually removes a cached entry", async () => {
       const client = makeClient({ cache: { enabled: true } });
       const ctx = makeResolvedTenantContext("t-manual");
@@ -413,6 +570,67 @@ describe("StratumClient", () => {
   // -----------------------------------------------------------------------
   // URL normalization
   // -----------------------------------------------------------------------
+
+  // The request shape is the contract with the control plane. These tests do
+  // not assert an error class, because the error mapping belongs to #334.
+  describe("tenant removal requests", () => {
+    it("purgeTenant sends POST to the purge route with the encoded id", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await expect(client.purgeTenant("a/b c")).resolves.toBeUndefined();
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect(url).toBe(`${CONTROL_PLANE_URL}/api/v1/tenants/a%2Fb%20c/purge`);
+      expect(init.method).toBe("POST");
+      expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
+    });
+
+    // Fastify rejects a request that has the JSON content type and no body
+    // (FST_ERR_CTP_EMPTY_JSON_BODY), so a body-less request omits that header.
+    it("purgeTenant sends no body and no JSON content type", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await client.purgeTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect(init.body).toBeUndefined();
+      expect(init.headers as Record<string, string>).not.toHaveProperty("Content-Type");
+    });
+
+    it("purgeTenant rejects an id that is a dot segment before it sends a request", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+
+      await expect(client.purgeTenant("..")).rejects.toThrow("Invalid identifier");
+
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it("deleteTenant sends the same archive request as archiveTenant", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204))
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204));
+
+      await client.archiveTenant("t-1");
+      await client.deleteTenant("t-1");
+
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls as Array<[string, RequestInit]>;
+      expect(calls[0][0]).toBe(`${CONTROL_PLANE_URL}/api/v1/tenants/t-1`);
+      expect(calls[0][1].method).toBe("DELETE");
+      expect(calls[1][0]).toBe(calls[0][0]);
+      expect(calls[1][1].method).toBe(calls[0][1].method);
+    });
+  });
 
   describe("URL handling", () => {
     it("strips trailing slash from controlPlaneUrl", async () => {
