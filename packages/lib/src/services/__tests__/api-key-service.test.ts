@@ -72,7 +72,7 @@ describe("validateApiKey", () => {
     mockConnections(() => stampDone);
 
     let resolved = false;
-    const pending = apiKeyService.validateApiKey(makeMockPool(), "sk_live_abc").then((r) => {
+    const pending = apiKeyService.validateApiKey(makeMockPool(), "presented-key").then((r) => {
       resolved = true;
       return r;
     });
@@ -87,7 +87,7 @@ describe("validateApiKey", () => {
   it("still authenticates the key when the last_used_at stamp fails", async () => {
     mockConnections(() => Promise.reject(new Error("connection lost")));
 
-    const result = await apiKeyService.validateApiKey(makeMockPool(), "sk_live_abc");
+    const result = await apiKeyService.validateApiKey(makeMockPool(), "presented-key");
 
     expect(result?.key_id).toBe("key-1");
   });
