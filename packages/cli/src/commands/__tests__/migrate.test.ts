@@ -121,10 +121,14 @@ describe("migrate", () => {
     expect(joined).not.toContain("00000000-0000-0000-0000-000000000000");
     expect(queries).toContain("ALTER TABLE orders ADD COLUMN tenant_id UUID");
     expect(joined).toMatch(/REFERENCES tenants\(id\) ON DELETE CASCADE NOT VALID/);
+    const addColumn = queries.indexOf("ALTER TABLE orders ADD COLUMN tenant_id UUID");
+    const addConstraint = queries.findIndex((q) =>
+      q.startsWith("ALTER TABLE orders ADD CONSTRAINT fk_orders_tenant_id"),
+    );
     const validate = queries.indexOf("ALTER TABLE orders VALIDATE CONSTRAINT fk_orders_tenant_id");
-    const setNotNull = queries.indexOf("ALTER TABLE orders ALTER COLUMN tenant_id SET NOT NULL");
-    expect(validate).toBeGreaterThan(-1);
-    expect(setNotNull).toBeGreaterThan(-1);
+    expect(addColumn).toBeGreaterThan(-1);
+    expect(addConstraint).toBeGreaterThan(addColumn);
+    expect(validate).toBeGreaterThan(addConstraint);
   });
 
   it("rolls back before adding tenant_id when the table has rows and --tenant is absent", async () => {
@@ -189,6 +193,21 @@ describe("migrate", () => {
     expect(client.query).not.toHaveBeenCalled();
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["tenants", "usage_events"])(
+    "rejects the Stratum table %s before it opens a transaction",
+    async (table) => {
+      const { pool } = makeFakePool();
+      (connectDb as Mock).mockResolvedValue(pool);
+      (scanTables as Mock).mockResolvedValue([]);
+      (confirm as Mock).mockResolvedValue(true);
+
+      await expect(migrate([table], {})).rejects.toThrow(/is a Stratum table/);
+      expect(pool.connect).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(pool.end).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("does nothing when the target table is already fully migrated", async () => {
     const { pool, client } = makeFakePool();

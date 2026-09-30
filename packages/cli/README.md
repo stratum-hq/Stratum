@@ -42,6 +42,8 @@ Each migration adds a `tenant_id UUID NOT NULL` column, enables `FORCE ROW LEVEL
 
 If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
 
+The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables.
+
 ### `stratum generate api-key`
 
 ```bash

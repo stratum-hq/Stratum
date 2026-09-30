@@ -1,3 +1,4 @@
+import { STRATUM_TABLES } from "@stratum-hq/lib";
 import { connectDb, scanTables, type TableInfo } from "../utils/db.js";
 import { confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
@@ -246,6 +247,12 @@ export async function migrate(
     } else if (args.length > 0) {
       // Migrate specific table
       const tableName = args[0];
+      // Stratum's migrations own these tables and their RLS policies.
+      if (STRATUM_TABLES.includes(tableName)) {
+        throw new Error(
+          `"${tableName}" is a Stratum table. "stratum migrate" only migrates application tables.`,
+        );
+      }
       log.heading(`Migrate: ${tableName}`);
 
       const tables = await scanTables(pool);
