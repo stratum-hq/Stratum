@@ -2,7 +2,8 @@ import { validateSlug } from "@stratum-hq/core";
 import type { MysqlPoolLike, MysqlPoolManagerOptions } from "./types.js";
 
 interface PoolEntry {
-  pool: MysqlPoolLike;
+  /** Settles when the pool exists. Concurrent first requests wait on the same promise. */
+  ready: Promise<MysqlPoolLike>;
   lastUsed: number;
   /** Number of active callers holding this pool. */
   refCount: number;
@@ -19,7 +20,8 @@ interface PoolEntry {
  */
 export class MysqlPoolManager {
   private readonly pools: Map<string, PoolEntry> = new Map();
-  private readonly pending: Map<string, Promise<MysqlPoolLike>> = new Map();
+  /** Pools that closePool or closeAll removed while a caller held them, by slug. */
+  private readonly closedEntries: Map<string, Set<PoolEntry>> = new Map();
   private readonly createPool: (uri: string) => MysqlPoolLike | Promise<MysqlPoolLike>;
   private readonly baseUri: string;
   private readonly maxPools: number;
@@ -52,40 +54,27 @@ export class MysqlPoolManager {
   async getPool(slug: string): Promise<MysqlPoolLike> {
     validateSlug(slug);
 
-    const existing = this.pools.get(slug);
-    if (existing) {
-      existing.lastUsed = Date.now();
-      existing.refCount++;
-      return existing.pool;
+    // The lookup, the eviction choice and the insert run with no await between
+    // them. Thus a concurrent call for the same slug always finds this entry and
+    // waits for the same pool.
+    let entry = this.pools.get(slug);
+    if (!entry) {
+      const victim = this.pools.size >= this.maxPools ? this.takeLRU() : undefined;
+      entry = { ready: this.openPool(slug, victim), lastUsed: Date.now(), refCount: 0 };
+      this.pools.set(slug, entry);
     }
 
-    // Deduplicate concurrent creation requests for the same slug.
-    const inflight = this.pending.get(slug);
-    if (inflight) {
-      const pool = await inflight;
-      const entry = this.pools.get(slug);
-      if (entry) {
-        entry.refCount++;
-      }
-      return pool;
-    }
-
-    // Evict before adding so we never exceed maxPools.
-    if (this.pools.size >= this.maxPools) {
-      await this.evictLRU();
-    }
-
-    const dbName = `stratum_tenant_${slug}`;
-    const uri = this.buildUri(dbName);
-    const createPromise = Promise.resolve(this.createPool(uri));
-    this.pending.set(slug, createPromise);
-
+    entry.lastUsed = Date.now();
+    entry.refCount++;
     try {
-      const pool = await createPromise;
-      this.pools.set(slug, { pool, lastUsed: Date.now(), refCount: 1 });
-      return pool;
-    } finally {
-      this.pending.delete(slug);
+      return await entry.ready;
+    } catch (err) {
+      // Remove the failed entry so that the next call tries again. The caller
+      // gets no pool, so it will not call releasePool.
+      if (this.pools.get(slug) === entry) this.pools.delete(slug);
+      entry.refCount--;
+      this.forgetClosedIfReleased(slug, entry);
+      throw err;
     }
   }
 
@@ -94,6 +83,17 @@ export class MysqlPoolManager {
    * No-op if the slug is not tracked.
    */
   releasePool(slug: string): void {
+    // The caller passes a slug, not the pool, so the manager cannot tell a
+    // hold on a closed pool from a hold on its replacement. It ends holds on
+    // closed pools first. The replacement then counts as held for longer than
+    // it is, which is safe: eviction never ends a pool in use.
+    const closed = this.closedEntries.get(slug)?.values().next().value;
+    if (closed) {
+      closed.refCount--;
+      this.forgetClosedIfReleased(slug, closed);
+      return;
+    }
+
     const entry = this.pools.get(slug);
     if (!entry) return;
     if (entry.refCount > 0) {
@@ -106,7 +106,8 @@ export class MysqlPoolManager {
     const entry = this.pools.get(slug);
     if (!entry) return;
     this.pools.delete(slug);
-    await entry.pool.end();
+    this.recordClosedHolds(slug, entry);
+    await endEntry(entry);
   }
 
   /** Closes all managed pools and stops the idle timer. Call during application shutdown. */
@@ -114,7 +115,8 @@ export class MysqlPoolManager {
     clearInterval(this.idleTimer);
     const entries = Array.from(this.pools.entries());
     this.pools.clear();
-    await Promise.all(entries.map(([, entry]) => entry.pool.end()));
+    for (const [slug, entry] of entries) this.recordClosedHolds(slug, entry);
+    await Promise.all(entries.map(([, entry]) => endEntry(entry)));
   }
 
   /** Returns a snapshot of current pool statistics. */
@@ -122,8 +124,38 @@ export class MysqlPoolManager {
     return { poolCount: this.pools.size };
   }
 
-  /** Evicts the pool that has been idle the longest and has no active references. */
-  private async evictLRU(): Promise<void> {
+  /** Keeps a removed pool that callers still hold, so that their releases do not reach a later pool for the slug. */
+  private recordClosedHolds(slug: string, entry: PoolEntry): void {
+    if (entry.refCount === 0) return;
+    let closed = this.closedEntries.get(slug);
+    if (!closed) {
+      closed = new Set();
+      this.closedEntries.set(slug, closed);
+    }
+    closed.add(entry);
+  }
+
+  /** Stops tracking a removed pool after its last hold ends. */
+  private forgetClosedIfReleased(slug: string, entry: PoolEntry): void {
+    const closed = this.closedEntries.get(slug);
+    if (!closed || entry.refCount > 0) return;
+    closed.delete(entry);
+    if (closed.size === 0) this.closedEntries.delete(slug);
+  }
+
+  /** Ends the evicted pool first, then creates the pool for the slug. */
+  private async openPool(slug: string, victim: PoolEntry | undefined): Promise<MysqlPoolLike> {
+    // The evicted pool belongs to a different tenant. Its end error must not
+    // fail this request.
+    if (victim) await endEntry(victim).catch(() => undefined);
+    return this.createPool(this.buildUri(`stratum_tenant_${slug}`));
+  }
+
+  /**
+   * Removes the least-recently-used pool that no caller holds from the map and
+   * returns its entry. The caller ends it. Returns undefined when every pool is held.
+   */
+  private takeLRU(): PoolEntry | undefined {
     let oldestKey: string | undefined;
     let oldestTime = Infinity;
 
@@ -134,9 +166,10 @@ export class MysqlPoolManager {
       }
     }
 
-    if (oldestKey !== undefined) {
-      await this.closePool(oldestKey);
-    }
+    if (oldestKey === undefined) return undefined;
+    const entry = this.pools.get(oldestKey)!;
+    this.pools.delete(oldestKey);
+    return entry;
   }
 
   /** Closes pools that have been idle longer than idleTimeoutMs and have no active references. */
@@ -166,4 +199,10 @@ export class MysqlPoolManager {
       return base;
     }
   }
+}
+
+/** Ends the entry's pool. A pool that failed to be created has nothing to end. */
+async function endEntry(entry: PoolEntry): Promise<void> {
+  const pool = await entry.ready.catch(() => undefined);
+  await pool?.end();
 }

@@ -105,6 +105,63 @@ describe("MysqlPoolManager", () => {
       // bbb (index 1) should have been evicted
       expect(pools[1].end).toHaveBeenCalled();
     });
+
+    it("creates one pool when two first requests for a tenant arrive at capacity", async () => {
+      for (const slug of ["aaa", "bbb", "ccc"]) {
+        await manager.getPool(slug);
+        manager.releasePool(slug);
+      }
+
+      const [first, second] = await Promise.all([manager.getPool("ddd"), manager.getPool("ddd")]);
+
+      expect(first).toBe(second);
+      expect(pools.length).toBe(4);
+      expect(manager.getStats().poolCount).toBe(3);
+    });
+
+    it("counts each concurrent first request at capacity as a hold", async () => {
+      vi.useFakeTimers();
+      for (const [time, slug] of [[1000, "aaa"], [2000, "bbb"], [3000, "ccc"]] as const) {
+        vi.setSystemTime(time);
+        await manager.getPool(slug);
+        manager.releasePool(slug);
+      }
+
+      // Both requests evict aaa's slot and share one ddd pool, which stays held after one release.
+      vi.setSystemTime(4000);
+      const [ddd] = await Promise.all([manager.getPool("ddd"), manager.getPool("ddd")]);
+      manager.releasePool("ddd");
+
+      // Make ddd the least recently used pool, then force an eviction.
+      vi.setSystemTime(5000);
+      await manager.getPool("bbb");
+      manager.releasePool("bbb");
+      vi.setSystemTime(6000);
+      await manager.getPool("ccc");
+      manager.releasePool("ccc");
+      vi.setSystemTime(7000);
+      await manager.getPool("eee");
+
+      expect(ddd.end).not.toHaveBeenCalled();
+      expect(pools[1].end).toHaveBeenCalled();
+    });
+
+    it("tries again after pool creation fails", async () => {
+      const failing = new MysqlPoolManager({
+        createPool: vi
+          .fn<() => Promise<MysqlPoolLike>>()
+          .mockRejectedValueOnce(new Error("connect failed"))
+          .mockImplementation(async () => createMockPool()),
+        baseUri: "mysql://localhost:3306/default",
+      });
+
+      await expect(failing.getPool("acme")).rejects.toThrow("connect failed");
+      expect(failing.getStats().poolCount).toBe(0);
+      await expect(failing.getPool("acme")).resolves.toBeDefined();
+      expect(failing.getStats().poolCount).toBe(1);
+
+      await failing.closeAll();
+    });
   });
 
   describe("releasePool", () => {
@@ -118,6 +175,27 @@ describe("MysqlPoolManager", () => {
 
     it("is a no-op for unknown slug", () => {
       expect(() => manager.releasePool("unknown")).not.toThrow();
+    });
+
+    it("does not release a new pool when a hold on a closed pool for the same slug ends", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      await manager.getPool("acme");
+      await manager.closePool("acme");
+      const replacement = await manager.getPool("acme");
+      // This release ends the hold on the closed pool, not on the replacement.
+      manager.releasePool("acme");
+
+      for (const [time, slug] of [[2000, "bbb"], [3000, "ccc"]] as const) {
+        vi.setSystemTime(time);
+        await manager.getPool(slug);
+        manager.releasePool(slug);
+      }
+      vi.setSystemTime(4000);
+      await manager.getPool("ddd");
+
+      expect(replacement.end).not.toHaveBeenCalled();
+      expect(pools[2].end).toHaveBeenCalled();
     });
   });
 
