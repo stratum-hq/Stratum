@@ -83,67 +83,76 @@ describe("Tenant isolation provisioning", () => {
     expect(stratum.purgeTenant).not.toHaveBeenCalled();
   });
 
-  function createIsolated(strategy: string) {
-    return app.inject({
-      method: "POST",
-      url: "/api/v1/tenants",
-      headers: authHeaders(),
-      payload: { slug: SAMPLE_TENANT.slug, name: SAMPLE_TENANT.name, isolation_strategy: strategy },
+  describe("when activation fails after provisioning succeeded", () => {
+    beforeEach(() => {
+      // Earlier tests leave rejecting implementations on these module mocks.
+      for (const fn of [setupSchemaForTenant, setupDatabaseForTenant, teardownSchemaForTenant, teardownDatabaseForTenant]) {
+        (fn as Mock).mockResolvedValue(undefined);
+      }
     });
-  }
 
-  it.each([
-    ["SCHEMA_PER_TENANT", teardownSchemaForTenant, teardownDatabaseForTenant],
-    ["DB_PER_TENANT", teardownDatabaseForTenant, teardownSchemaForTenant],
-  ] as const)(
-    "removes the %s storage it provisioned when activation fails, and leaves the tenant pending",
-    async (strategy, teardown, otherTeardown) => {
-      const tenant = { ...SAMPLE_TENANT, isolation_strategy: strategy, status: "pending" };
+    function createIsolated(strategy: string) {
+      return app.inject({
+        method: "POST",
+        url: "/api/v1/tenants",
+        headers: authHeaders(),
+        payload: { slug: SAMPLE_TENANT.slug, name: SAMPLE_TENANT.name, isolation_strategy: strategy },
+      });
+    }
+
+    it.each([
+      ["SCHEMA_PER_TENANT", teardownSchemaForTenant, teardownDatabaseForTenant],
+      ["DB_PER_TENANT", teardownDatabaseForTenant, teardownSchemaForTenant],
+    ] as const)(
+      "removes the %s storage it provisioned when activation fails, and leaves the tenant pending",
+      async (strategy, teardown, otherTeardown) => {
+        const tenant = { ...SAMPLE_TENANT, isolation_strategy: strategy, status: "pending" };
+        (stratum.createTenant as Mock).mockResolvedValue(tenant);
+        (stratum.activateTenant as Mock).mockRejectedValue(new Error("activation failed"));
+        (stratum.getTenant as Mock).mockResolvedValue(tenant);
+
+        const response = await createIsolated(strategy);
+
+        expect(response.statusCode).toBe(500);
+        expect(response.json().error.code).toBe("TENANT_PROVISIONING_FAILED");
+        expect(response.json().error.details).toEqual({
+          tenant_id: tenant.id,
+          status: "pending",
+          stage: "activation",
+          storage_removed: true,
+        });
+        expect(teardown).toHaveBeenCalledWith(tenant.slug);
+        expect(otherTeardown).not.toHaveBeenCalled();
+        expect(stratum.purgeTenant).not.toHaveBeenCalled();
+      },
+    );
+
+    it("reports storage_removed false when removing the provisioned storage also fails", async () => {
+      const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT", status: "pending" };
       (stratum.createTenant as Mock).mockResolvedValue(tenant);
       (stratum.activateTenant as Mock).mockRejectedValue(new Error("activation failed"));
       (stratum.getTenant as Mock).mockResolvedValue(tenant);
+      (teardownSchemaForTenant as Mock).mockRejectedValue(new Error("drop failed"));
 
-      const response = await createIsolated(strategy);
+      const response = await createIsolated("SCHEMA_PER_TENANT");
 
       expect(response.statusCode).toBe(500);
       expect(response.json().error.code).toBe("TENANT_PROVISIONING_FAILED");
-      expect(response.json().error.details).toEqual({
-        tenant_id: tenant.id,
-        status: "pending",
-        stage: "activation",
-        storage_removed: true,
-      });
-      expect(teardown).toHaveBeenCalledWith(tenant.slug);
-      expect(otherTeardown).not.toHaveBeenCalled();
-      expect(stratum.purgeTenant).not.toHaveBeenCalled();
-    },
-  );
+      expect(response.json().error.details).toMatchObject({ stage: "activation", storage_removed: false });
+    });
 
-  it("reports storage_removed false when removing the provisioned storage also fails", async () => {
-    const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT", status: "pending" };
-    (stratum.createTenant as Mock).mockResolvedValue(tenant);
-    (stratum.activateTenant as Mock).mockRejectedValue(new Error("activation failed"));
-    (stratum.getTenant as Mock).mockResolvedValue(tenant);
-    (teardownSchemaForTenant as Mock).mockRejectedValue(new Error("drop failed"));
+    it("keeps the storage and returns the tenant when activation reports an error but the tenant is active", async () => {
+      const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT", status: "pending" };
+      (stratum.createTenant as Mock).mockResolvedValue(tenant);
+      (stratum.activateTenant as Mock).mockRejectedValue(new Error("connection lost after commit"));
+      (stratum.getTenant as Mock).mockResolvedValue({ ...tenant, status: "active" });
 
-    const response = await createIsolated("SCHEMA_PER_TENANT");
+      const response = await createIsolated("SCHEMA_PER_TENANT");
 
-    expect(response.statusCode).toBe(500);
-    expect(response.json().error.code).toBe("TENANT_PROVISIONING_FAILED");
-    expect(response.json().error.details).toMatchObject({ stage: "activation", storage_removed: false });
-  });
-
-  it("keeps the storage and returns the tenant when activation reports an error but the tenant is active", async () => {
-    const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT", status: "pending" };
-    (stratum.createTenant as Mock).mockResolvedValue(tenant);
-    (stratum.activateTenant as Mock).mockRejectedValue(new Error("connection lost after commit"));
-    (stratum.getTenant as Mock).mockResolvedValue({ ...tenant, status: "active" });
-
-    const response = await createIsolated("SCHEMA_PER_TENANT");
-
-    expect(response.statusCode).toBe(201);
-    expect(response.json().status).toBe("active");
-    expect(teardownSchemaForTenant).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(201);
+      expect(response.json().status).toBe("active");
+      expect(teardownSchemaForTenant).not.toHaveBeenCalled();
+    });
   });
 
   it.each(["SCHEMA_PER_TENANT", "DB_PER_TENANT"])(

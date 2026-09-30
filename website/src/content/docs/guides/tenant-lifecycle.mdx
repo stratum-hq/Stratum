@@ -112,6 +112,14 @@ and create it again. Purging a tenant that is still `pending` removes only its
 rows and never drops a schema or database, because its storage was never
 confirmed as its own.
 
+If provisioning succeeds but activation fails, the control plane drops the
+schema or database it just created. It then returns `TENANT_PROVISIONING_FAILED`
+with `details.stage` set to `"activation"`, and leaves the tenant `pending`.
+Purge the tenant and create it again, as above. If `details.storage_removed` is
+`false`, the drop also failed: drop that schema or database by hand before you
+create the tenant again. For a failure during provisioning, `details.stage` is
+`"provisioning"`.
+
 <Aside type="caution">
 Blocking is the deliberate, safe default: no operation ever silently changes the
 state of tenants you did not name. If you need to suspend or archive a whole
