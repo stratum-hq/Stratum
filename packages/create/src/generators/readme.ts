@@ -95,7 +95,7 @@ function getStrategyDescription(strategy: string): string {
   switch (strategy) {
     case "rls":
       return `- **Row-Level Security** -- PostgreSQL RLS policies filter rows by tenant automatically
-- Each query sets \`app.current_tenant\` and RLS enforces isolation
+- Each query sets \`app.current_tenant_id\` and RLS enforces isolation
 - All tenants share one database and schema`;
     case "schema":
       return `- **Schema-per-tenant** -- each tenant gets a dedicated PostgreSQL schema
