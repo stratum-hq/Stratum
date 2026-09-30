@@ -12,7 +12,7 @@ The SDK exports `tenantErrorResponse` and `controlPlaneErrorResponse`, so other 
 
 The NestJS `StratumGuard` throws `NotFoundException` (404) for a tenant that does not exist, instead of `UnauthorizedException` (401). This matches the Express and Fastify middleware. It throws `GatewayTimeoutException` (504) for a control plane timeout and `InternalServerErrorException` (500) for a rejected SDK API key. A request with no tenant ID still gets 401.
 
-The Hono `stratumMiddleware` answers a tenant error from its `resolve` callback with 404, 403 or 410, as the Express and Fastify middleware do. Before this change, the error went to the Hono error handler as a 500.
+The Hono `stratumMiddleware` answers a tenant error from its `resolve` callback with 404, 403 or 410, as the Express and Fastify middleware do. It answers a control plane timeout with 504 `CONTROL_PLANE_TIMEOUT`, and an `UnauthorizedError` for the SDK's own API key with 500 `CONTROL_PLANE_AUTH_FAILED` and a `console.error` line. Before this change, all of these errors went to the Hono error handler.
 
 The `timeoutMs` option must be an integer from 1 to 4294967295, or `Infinity` to turn the time limit off. The constructor throws a `RangeError` for any other value. Before this change, an invalid value made every request throw.
 
