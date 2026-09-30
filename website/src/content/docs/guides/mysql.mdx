@@ -178,18 +178,30 @@ Joins (`join()`, `leftJoin()`, `crossJoin()`, `joinRaw()` and the other join for
 
 ### Sequelize Adapter
 
-Wraps queries with MySQL session variables, guaranteeing cleanup via `try/finally`:
+Scopes Sequelize models to one tenant for the duration of a callback:
 
 ```typescript
 import { withMysqlTenantScope } from "@stratum-hq/mysql";
 
 await withMysqlTenantScope(sequelize, "acme", async (scoped, transaction) => {
-  // @stratum_tenant_id is set on the transaction's connection only.
-  // Pass the transaction to every query, or it runs on another connection.
-  // Guaranteed cleanup via try/finally, even on errors
-  const [rows] = await scoped.query("SELECT @stratum_tenant_id", { transaction });
+  // Models with a tenant_id attribute see and change only this tenant's rows.
+  const notes = await Note.findAll({ include: ["owner"], transaction });
+  await Note.create({ name: "new" }, { transaction }); // tenant_id is set for you
 });
 ```
+
+Inside the callback, for every model with a `tenant_id` attribute:
+
+- `findAll()`, `findOne()`, `findByPk()`, `findAndCountAll()`, `count()`, `sum()`, `min()`, `max()` and `reload()` return only the tenant's rows. Includes of tenant models are filtered in their join condition, so an include that is not `required` still returns the parent row.
+- `update()`, `destroy()`, `restore()`, `increment()` and `decrement()` change only the tenant's rows, and `update()` never writes `tenant_id`.
+- `create()`, `save()` of a new instance and `bulkCreate()` write the tenant's `tenant_id`, whatever value the caller passed.
+- `save()`, `destroy()` and `restore()` of an instance whose row belongs to another tenant throw.
+- `upsert()`, `bulkCreate()` with `updateOnDuplicate`, `truncate()` and `include: { all: true }` are refused, and a model query that bypasses these methods (for example a direct `queryInterface` call) throws.
+- `hooks: false` does not skip the filter.
+
+The helper also sets `@stratum_tenant_id` on the transaction's connection and clears it in a `finally` block. Pass the transaction to queries that must run in it.
+
+**Not scoped:** raw `sequelize.query()`, models without a `tenant_id` attribute, the through (junction) model of a many-to-many include, and any code outside the callback. The helper throws when it is given something other than a Sequelize v6 instance.
 
 ## MySQL Views (Not Supported)
 

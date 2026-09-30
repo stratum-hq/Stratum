@@ -61,6 +61,7 @@
   "devDependencies": {
     "knex": "^3.3.0",
     "mysql2": "^3.24.4",
+    "sequelize": "^6.37.8",
     "typeorm": "^1.1.1",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
