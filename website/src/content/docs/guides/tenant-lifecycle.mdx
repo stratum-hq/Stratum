@@ -110,7 +110,8 @@ If provisioning fails, the control plane returns `TENANT_PROVISIONING_FAILED`
 with the tenant id and leaves the tenant `pending`. To retry, purge that tenant
 and create it again. Purging a tenant that is still `pending` removes only its
 rows and never drops a schema or database, because its storage was never
-confirmed as its own.
+confirmed as its own. A tenant-scoped API key with the `admin` scope can purge a
+`pending` tenant in its own subtree. You do not need an operator key for it.
 
 If provisioning succeeds but activation fails, the control plane drops the
 schema or database it just created. It then returns `TENANT_PROVISIONING_FAILED`
