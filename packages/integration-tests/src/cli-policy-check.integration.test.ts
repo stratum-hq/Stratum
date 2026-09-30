@@ -99,6 +99,11 @@ function expectReportedNotIsolated(): void {
     expect(out).toContain("cli_orders");
   });
 
+  it("migrate --all exits non-zero while the table is left with that policy", () => {
+    const { code } = runCli(["migrate", "--all"]);
+    expect(code).not.toBe(0);
+  });
+
   it("migrate <table> does not report the table as fully migrated", () => {
     const { out } = runCli(["migrate", "cli_orders"]);
     expect(out).not.toContain("already fully migrated");

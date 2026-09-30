@@ -242,7 +242,18 @@ export async function migrate(
       // Adding a policy cannot fix these: PostgreSQL ORs permissive policies.
       logPolicyIssues(unmigrated);
       const migratable = unmigrated.filter((t) => !t.policy_issue);
+      const leftWithIssue = unmigrated.length - migratable.length;
+      // Exit non-zero while any table keeps a policy that does not filter by tenant.
+      const failIfLeft = (): void => {
+        if (leftWithIssue > 0) {
+          throw new Error(
+            `${leftWithIssue} table(s) still have policies that do not isolate tenants. ` +
+              "Correct or drop them by hand, then run again.",
+          );
+        }
+      };
       if (migratable.length === 0) {
+        failIfLeft();
         return;
       }
 
@@ -253,6 +264,7 @@ export async function migrate(
       const proceed = await confirm("Proceed with migration?");
       if (!proceed) {
         log.info("Cancelled.");
+        failIfLeft();
         return;
       }
 
@@ -264,6 +276,7 @@ export async function migrate(
 
       console.log();
       log.success(`Migrated ${migratable.length} table(s).`);
+      failIfLeft();
     } else if (args.length > 0) {
       // Migrate specific table
       const tableName = args[0];
