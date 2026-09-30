@@ -89,7 +89,10 @@ export interface MongoPoolManagerOptions {
   baseUri: string;
   /** Maximum number of cached clients. Default: 20. */
   maxClients?: number;
-  /** Idle timeout in milliseconds. Default: 60000. */
+  /**
+   * Milliseconds a client that no caller holds can stay unused before the
+   * manager closes it. The manager also checks at this interval. Default: 60000.
+   */
   idleTimeoutMs?: number;
 }
 
