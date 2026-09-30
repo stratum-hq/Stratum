@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
-import { ValidationError } from "@stratum-hq/core";
+import { RegionInUseError, ValidationError } from "@stratum-hq/core";
 import { errorHandler } from "../middleware/error-handler.js";
 
 /**
@@ -8,13 +8,39 @@ import { errorHandler } from "../middleware/error-handler.js";
  * the zod copy the control plane imports, so an instanceof check cannot match it.
  */
 class ForeignZodError extends Error {
-  readonly issues = [{ path: ["priority"], message: "Number must be less than or equal to 2147483647", code: "too_big" }];
+  readonly issues = [
+    {
+      path: ["priority"],
+      message: "Number must be less than or equal to 2147483647",
+      code: "too_big",
+      maximum: 2147483647,
+    },
+  ];
 
   constructor() {
     super("validation failed");
     this.name = "ZodError";
   }
 }
+
+/**
+ * Stands in for a StratumError subclass from a second copy of @stratum-hq/core.
+ * It does not extend the StratumError class that the control plane imports.
+ */
+class ForeignStratumError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly statusCode: number,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "RegionInUseError";
+  }
+}
+
+const ZOD_ISSUE = { path: ["priority"], message: "Number must be less than or equal to 2147483647", code: "too_big" };
+const CORE_ISSUE = { path: ["sourceIp"], message: "Invalid ip", code: "invalid_string" };
 
 let app: FastifyInstance;
 
@@ -25,7 +51,19 @@ beforeAll(async () => {
     throw new ForeignZodError();
   });
   app.get("/validation-error", async () => {
-    throw new ValidationError("Validation failed", { issues: [{ path: ["sourceIp"], message: "Invalid ip" }] });
+    throw new ValidationError("Validation failed", { issues: [CORE_ISSUE] });
+  });
+  app.get("/foreign-validation-error", async () => {
+    throw new ForeignStratumError("VALIDATION_ERROR", "Validation failed", 400, { issues: [CORE_ISSUE] });
+  });
+  app.get("/region-in-use", async () => {
+    throw new RegionInUseError("r-1");
+  });
+  app.get("/foreign-region-in-use", async () => {
+    throw new ForeignStratumError("REGION_IN_USE", "Cannot delete region r-1", 409, { region_id: "r-1" });
+  });
+  app.get("/unknown-code", async () => {
+    throw new ForeignStratumError("SOMETHING_ELSE", "not a stratum error", 409);
   });
   app.get("/named-zod-without-issues", async () => {
     const err = new Error("not a validation error");
@@ -40,23 +78,62 @@ afterAll(async () => {
 });
 
 describe("errorHandler", () => {
-  it("answers 400 for a ZodError from a different zod copy", async () => {
+  it("answers 400 with details.issues for a ZodError from a different zod copy", async () => {
     const res = await app.inject({ method: "GET", url: "/foreign-zod" });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({
       error: {
         code: "VALIDATION_ERROR",
         message: "Validation failed",
-        issues: [{ path: ["priority"], message: "Number must be less than or equal to 2147483647", code: "too_big" }],
+        details: { issues: [ZOD_ISSUE] },
+        issues: [ZOD_ISSUE],
       },
     });
   });
 
-  it("answers 400 with the issue details for a core ValidationError", async () => {
+  it("answers a core ValidationError with the same shape as a ZodError", async () => {
     const res = await app.inject({ method: "GET", url: "/validation-error" });
     expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Validation failed",
+        details: { issues: [CORE_ISSUE] },
+        issues: [CORE_ISSUE],
+      },
+    });
+  });
+
+  it("answers 400 with details.issues for a ValidationError from a different core copy", async () => {
+    const res = await app.inject({ method: "GET", url: "/foreign-validation-error" });
+    expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe("VALIDATION_ERROR");
-    expect(res.json().error.details.issues[0].path).toEqual(["sourceIp"]);
+    expect(res.json().error.details.issues).toEqual([CORE_ISSUE]);
+  });
+
+  it("keeps the status code and details of a StratumError subclass", async () => {
+    const res = await app.inject({ method: "GET", url: "/region-in-use" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: {
+        code: "REGION_IN_USE",
+        message: "Cannot delete region r-1: active tenants are still assigned to it",
+        details: { region_id: "r-1" },
+      },
+    });
+  });
+
+  it("keeps the status code of a StratumError subclass from a different core copy", async () => {
+    const res = await app.inject({ method: "GET", url: "/foreign-region-in-use" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: { code: "REGION_IN_USE", message: "Cannot delete region r-1", details: { region_id: "r-1" } },
+    });
+  });
+
+  it("does not answer an error with an unknown code as a StratumError", async () => {
+    const res = await app.inject({ method: "GET", url: "/unknown-code" });
+    expect(res.json().error.code).not.toBe("SOMETHING_ELSE");
   });
 
   it("answers 500 for an error named ZodError that has no issues array", async () => {

@@ -61,6 +61,22 @@ describe("Tenant Routes", () => {
       const body = response.json();
       expect(body.error.code).toBe("VALIDATION_ERROR");
     });
+
+    it("returns the validation issues in error.details.issues", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/tenants",
+        headers: authHeaders(),
+        payload: { name: "No Slug" },
+      });
+
+      const { error } = response.json();
+      expect(error.details.issues).toEqual([
+        { path: ["slug"], message: expect.any(String), code: "invalid_type" },
+      ]);
+      // The deprecated alias carries the same issues for one release.
+      expect(error.issues).toEqual(error.details.issues);
+    });
   });
 
   // ── POST /api/v1/tenants/batch ──────────────────────────────────────
@@ -112,6 +128,23 @@ describe("Tenant Routes", () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+
+    it("returns the issues of an invalid tenant in error.details.issues", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/tenants/batch",
+        headers: authHeaders(),
+        payload: { tenants: [{ name: "No Slug" }] },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const { error } = response.json();
+      expect(error.code).toBe("VALIDATION_ERROR");
+      expect(error.details.issues).toEqual([
+        { path: ["slug"], message: expect.any(String), code: "invalid_type" },
+      ]);
+      expect(error.issues).toEqual(error.details.issues);
     });
   });
 
