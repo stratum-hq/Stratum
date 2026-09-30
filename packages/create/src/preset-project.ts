@@ -9,6 +9,7 @@ import { generateDbSetup } from "./generators/db-setup.js";
 import { generateMiddleware } from "./generators/middleware.js";
 import { generatePresetPackageJson } from "./generators/package-json.js";
 import { generatePresetReadme } from "./generators/readme.js";
+import { generateTsconfig } from "./generators/tsconfig.js";
 
 function writeFile(filePath: string, content: string): void {
   const dir = path.dirname(filePath);
@@ -114,31 +115,7 @@ export function createPresetProject(
   // tsconfig.json
   writeFile(
     path.join(targetDir, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ESNext",
-          module: "NodeNext",
-          moduleResolution: "NodeNext",
-          strict: true,
-          outDir: "dist",
-          rootDir: "src",
-          declaration: true,
-          skipLibCheck: true,
-          esModuleInterop: true,
-          ...(preset.framework === "nestjs"
-            ? { experimentalDecorators: true, emitDecoratorMetadata: true }
-            : {}),
-          ...(preset.framework === "nextjs"
-            ? { jsx: "preserve", plugins: [{ name: "next" }] }
-            : {}),
-        },
-        include: ["src"],
-        exclude: ["node_modules", "dist"],
-      },
-      null,
-      2,
-    ),
+    generateTsconfig(preset.framework),
   );
 
   // npm install

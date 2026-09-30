@@ -8,6 +8,9 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
     typescript: "^5.3.0",
     "@types/node": "^20.11.0",
   };
+  if (preset.framework !== "nextjs") {
+    devDeps["tsx"] = "^4.7.0";
+  }
 
   // Database driver deps
   addDatabaseDeps(deps, preset);
@@ -159,10 +162,13 @@ function getScripts(preset: StackPreset): Record<string, string> {
   if (preset.framework === "nextjs") {
     return { dev: "next dev", build: "next build", start: "next start" };
   }
-  if (preset.framework === "nestjs") {
-    return { dev: "node --watch src/main.ts", build: "tsc", start: "node dist/main.js" };
-  }
-  return { dev: "node --watch src/index.js", build: "tsc", start: "node dist/index.js" };
+  // Node 20 cannot run a .ts file, so dev runs the source through tsx.
+  const entry = preset.framework === "nestjs" ? "main" : "index";
+  return {
+    dev: `tsx watch --env-file=.env src/${entry}.ts`,
+    build: "tsc",
+    start: `node dist/${entry}.js`,
+  };
 }
 
 function sortKeys(obj: Record<string, string>): Record<string, string> {

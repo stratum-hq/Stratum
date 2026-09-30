@@ -37,6 +37,7 @@ npx @stratum-hq/create my-app [options]
 ```bash
 cd my-app
 docker compose up -d   # start PostgreSQL
+cp .env.example .env   # npm run dev reads .env
 npm run dev            # run the app
 ```
 
