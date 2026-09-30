@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { TenantCycleDetectedError, TenantSuspendedError } from "@stratum-hq/core";
+import {
+  PermissionMode,
+  RevocationMode,
+  TenantCycleDetectedError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 import {
@@ -172,5 +177,92 @@ describe("tenant tree writes under a suspended parent (integration)", () => {
     expect(result.errors).toHaveLength(1);
     const rows = await getPool().query("SELECT 1 FROM tenants WHERE slug = $1", [slug]);
     expect(rows.rows).toHaveLength(0);
+  });
+});
+
+/**
+ * A subtree query reads the tenant's own ancestry_path and then selects rows by
+ * that prefix, in two statements. A move that commits between them would leave
+ * the prefix stale, so the query would miss the subtree. Each test stops a move
+ * of the subtree, starts the subtree operation, and requires it to wait for the
+ * move and then act on the moved subtree.
+ */
+describe("subtree queries during a move (integration)", () => {
+  async function movingSubtree() {
+    const A = await node("a9t");
+    const B = await node("a9t");
+    const X = await node(GATE_PREFIX, A.id);
+    const Y = await node("a9t", X.id);
+    const Z = await node("a9t", Y.id);
+    return { B, X, Y, Z };
+  }
+
+  async function runDuringMove<T>(movedId: string, newParentId: string, op: () => Promise<T>) {
+    const pool = getPool();
+    const gate = await closeGate(DATABASE_URL);
+    const move = track(stratum.moveTenant(movedId, newParentId));
+    await waitForLockWaiters(pool, 1);
+    const during = track(op());
+    await waitForLockWaiters(pool, 2, during);
+    const settledBeforeMove = during.settled();
+    await gate.open();
+    const [m, d] = await Promise.all([move.result, during.result]);
+    expect(m.ok).toBe(true);
+    expect(settledBeforeMove).toBe(false);
+    return d;
+  }
+
+  it("getDescendants waits for a move of the subtree and returns the moved rows", async () => {
+    const { B, X, Y, Z } = await movingSubtree();
+
+    const d = await runDuringMove(X.id, B.id, () => stratum.getDescendants(X.id));
+
+    expect(d.ok).toBe(true);
+    const rows = d.ok ? d.value : [];
+    expect(rows.map((r) => r.id).sort()).toEqual([Y.id, Z.id].sort());
+    expect(rows.every((r) => r.ancestry_path.startsWith(`/${B.id}/${X.id}`))).toBe(true);
+  });
+
+  it("CASCADE permission revocation waits for a move of the subtree and reaches every descendant", async () => {
+    const { B, X, Y, Z } = await movingSubtree();
+    const perm = {
+      key: "feature:moving",
+      mode: PermissionMode.INHERITED,
+      revocation_mode: RevocationMode.CASCADE,
+    };
+    const root = await stratum.createPermission(X.id, perm);
+    await stratum.createPermission(Y.id, perm);
+    await stratum.createPermission(Z.id, perm);
+
+    const d = await runDuringMove(X.id, B.id, () => stratum.deletePermission(X.id, root.id));
+
+    expect(d.ok).toBe(true);
+    const left = await getPool().query(
+      `SELECT 1 FROM permission_policies WHERE key = $1`,
+      [perm.key],
+    );
+    expect(left.rows).toHaveLength(0);
+  });
+
+  it("CASCADE ABAC revocation waits for a move of the subtree and reaches every descendant", async () => {
+    const { B, X, Y, Z } = await movingSubtree();
+    const policy = {
+      name: "moving_gate",
+      resource_type: "report",
+      action: "read",
+      effect: "allow" as const,
+      conditions: [],
+    };
+    const root = await stratum.createAbacPolicy(X.id, policy);
+    await stratum.createAbacPolicy(Y.id, policy);
+    await stratum.createAbacPolicy(Z.id, policy);
+
+    const d = await runDuringMove(X.id, B.id, () => stratum.deleteAbacPolicy(X.id, root.id));
+
+    expect(d.ok).toBe(true);
+    const left = await getPool().query(`SELECT 1 FROM abac_policies WHERE name = $1`, [
+      policy.name,
+    ]);
+    expect(left.rows).toHaveLength(0);
   });
 });
