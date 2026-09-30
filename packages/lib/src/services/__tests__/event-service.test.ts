@@ -84,6 +84,24 @@ describe("webhook egress filter (SSRF protection)", () => {
     expect(() => eventService.validateWebhookUrl("http://localhost/hook")).toThrow();
   });
 
+  it("does not include URL credentials, path or query in validation error messages", () => {
+    for (const url of [
+      "ftp://val-user:val-pass-2e8c@files.example.test/val-path-secret-71d4?token=val-query-secret-c05a",
+      "http://val-user:val-pass-2e8c@[bad/val-path-secret-71d4?token=val-query-secret-c05a",
+    ]) {
+      let message = "";
+      try {
+        eventService.validateWebhookUrl(url);
+      } catch (err) {
+        message = (err as Error).message;
+      }
+      expect(message).not.toBe("");
+      for (const secret of ["val-pass-2e8c", "val-path-secret-71d4", "val-query-secret-c05a"]) {
+        expect(message).not.toContain(secret);
+      }
+    }
+  });
+
   it("allows a public https target", () => {
     expect(() => eventService.validateWebhookUrl("https://example.com/hook")).not.toThrow();
   });

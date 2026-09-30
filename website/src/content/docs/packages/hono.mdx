@@ -48,6 +48,10 @@ app.get("/users", async (c) => {
 
 `stratumMiddleware` does not verify a token. The `jwtClaim` option reads the `jwtPayload` that Hono's JWT middleware sets. Therefore, register `jwt()` before `stratumMiddleware`.
 
+## Read the tenant from a path parameter
+
+`pathParam` reads a URL path parameter, for example `pathParam: "tenantId"` for a route `/tenants/:tenantId/...`. The path is client-controlled like a header: any client can put another tenant's ID in it. Use `pathParam` only when your application separately authorizes the caller for that tenant, for example with a later middleware that compares it with a claim of the verified token.
+
 ## Read the tenant from a header
 
 Without `jwtClaim` or `pathParam`, the middleware reads the `x-tenant-id` header (or the one named by `header`). Any client can send that header and select another tenant, so this mode requires `trustTenantHeader: true`; without it, `stratumMiddleware` throws at construction.

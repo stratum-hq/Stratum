@@ -79,9 +79,12 @@ export function createAuthorizeMiddleware() {
       throw new UnauthorizedError("Authentication required");
     }
 
+    // A request that matched no route reaches only the not-found handler, so
+    // it is answered with 404 once the caller is authenticated.
+    if (request.is404) return;
+
     // The required scope is a property of the matched route, declared in its
-    // config (see declareRequiredScope). A route that declares none, or a
-    // request that matched no route, is refused.
+    // config (see declareRequiredScope). A route that declares none is refused.
     const requiredScope = request.routeOptions?.config?.requiredScope;
     if (requiredScope === undefined) {
       throw new ForbiddenError("Route has no required-scope declaration");

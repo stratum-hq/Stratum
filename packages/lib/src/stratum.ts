@@ -71,19 +71,7 @@ import type {
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
-
-/**
- * Reduces a URL to scheme, host and path for audit state. Credentials, query
- * string and fragment are dropped because they often carry access tokens.
- */
-function redactUrlForAudit(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
-  } catch {
-    return "[REDACTED]";
-  }
-}
+import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
   pool: pg.Pool;

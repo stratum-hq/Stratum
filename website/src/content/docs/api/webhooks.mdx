@@ -205,7 +205,7 @@ GET /api/v1/audit-logs
 
 **Response:** `200 OK` -- array of audit entries.
 
-Known secrets are redacted in audit entries: sensitive config values and webhook secrets are recorded as `[REDACTED]`, and webhook URLs and region `control_plane_url` values are recorded with scheme, host and path only (credentials, query string and fragment are dropped).
+Known secrets are redacted in audit entries: sensitive config values and webhook secrets are recorded as `[REDACTED]`, and webhook URLs and region `control_plane_url` values are recorded as `scheme://host/#fp=<fingerprint>`. The fingerprint is the first 12 hex characters of the SHA-256 of the URL path, so entries for different endpoints can be told apart without recording the path; credentials, path, query string and fragment are dropped. A URL with an empty path is recorded as `scheme://host/`, and a URL without a host as `[REDACTED]`.
 
 ---
 

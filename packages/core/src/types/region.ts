@@ -6,19 +6,23 @@ export const RegionStatus = {
   INACTIVE: "inactive",
 } as const;
 
-// A control-plane URL must not embed credentials: it is stored in plaintext,
-// returned by the API and recorded in audit state.
+// A control-plane URL must be http or https and must not embed credentials: it
+// is stored in plaintext, returned by the API and recorded in audit state.
 const ControlPlaneUrlSchema = z
   .string()
   .url()
   .refine((value) => {
     try {
       const parsed = new URL(value);
-      return parsed.username === "" && parsed.password === "";
+      return (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+        parsed.username === "" &&
+        parsed.password === ""
+      );
     } catch {
       return false;
     }
-  }, "control_plane_url must not contain credentials");
+  }, "control_plane_url must be an http or https URL without credentials");
 
 export const RegionSchema = z.object({
   id: z.string().uuid(),

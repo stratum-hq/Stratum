@@ -20,11 +20,19 @@ describe("region control_plane_url", () => {
     ).toBe(false);
   });
 
+  it("rejects a control_plane_url that is not http or https", () => {
+    for (const url of ["ftp://cp.example.test/api", "mailto:ops@example.test", "file:///etc/cp", "javascript:alert(1)"]) {
+      expect(CreateRegionInputSchema.safeParse({ ...base, control_plane_url: url }).success).toBe(false);
+      expect(UpdateRegionInputSchema.safeParse({ control_plane_url: url }).success).toBe(false);
+    }
+  });
+
   it("accepts a control_plane_url without credentials, and null on update", () => {
     expect(
       CreateRegionInputSchema.safeParse({ ...base, control_plane_url: "https://cp.example.test:8443/api" }).success,
     ).toBe(true);
     expect(UpdateRegionInputSchema.safeParse({ control_plane_url: "https://cp.example.test" }).success).toBe(true);
+    expect(UpdateRegionInputSchema.safeParse({ control_plane_url: "http://cp.internal.example.test" }).success).toBe(true);
     expect(UpdateRegionInputSchema.safeParse({ control_plane_url: null }).success).toBe(true);
   });
 });
