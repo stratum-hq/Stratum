@@ -38,6 +38,14 @@ describe("tenantSchemaName", () => {
   it("handles slugs with underscores and digits", () => {
     expect(tenantSchemaName("acme_corp_2024")).toBe("tenant_acme_corp_2024");
   });
+
+  it("accepts a slug whose schema name is exactly 63 bytes", () => {
+    expect(tenantSchemaName("a".repeat(56))).toHaveLength(63);
+  });
+
+  it("throws when the schema name would exceed PostgreSQL's 63-byte limit", () => {
+    expect(() => tenantSchemaName("a".repeat(57))).toThrow(/exceeds 63 bytes/);
+  });
 });
 
 // ---------------------------------------------------------------------------

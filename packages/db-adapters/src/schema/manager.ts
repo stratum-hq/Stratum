@@ -16,8 +16,17 @@ function validateTableName(tableName: string): string {
   return tableName;
 }
 
+// PostgreSQL silently truncates identifiers longer than this many bytes.
+const MAX_IDENTIFIER_BYTES = 63;
+
 export function tenantSchemaName(tenantSlug: string): string {
-  return `tenant_${tenantSlug}`;
+  const schemaName = `tenant_${tenantSlug}`;
+  if (Buffer.byteLength(schemaName) > MAX_IDENTIFIER_BYTES) {
+    throw new Error(
+      `Schema name for tenant slug "${tenantSlug}" exceeds ${MAX_IDENTIFIER_BYTES} bytes`,
+    );
+  }
+  return schemaName;
 }
 
 export async function createSchema(
