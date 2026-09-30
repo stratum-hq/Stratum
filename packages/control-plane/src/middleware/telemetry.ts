@@ -21,7 +21,7 @@ try {
 const TRACER_NAME = "@stratum-hq/control-plane";
 
 /**
- * Register the telemetry onRequest / onResponse hooks on a Fastify instance.
+ * Register the telemetry onRequest, onResponse, onRequestAbort, and onError hooks on a Fastify instance.
  *
  * If @opentelemetry/api is not installed, this is a no-op.
  */
@@ -72,6 +72,23 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
       span.setStatus({ code: SpanStatusCode.OK });
     }
 
+    span.end();
+  });
+
+  // A client that disconnects early can prevent onResponse, so this hook ends the span instead.
+  // Each hook removes the span from the map first, so only one of them can end it.
+  app.addHook("onRequestAbort", async (request: FastifyRequest) => {
+    const span = inflightSpans.get(request.id as string);
+    if (!span) return;
+    inflightSpans.delete(request.id as string);
+
+    if (request.apiKey?.tenant_id) {
+      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
+    }
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: "Client closed the connection before the response",
+    });
     span.end();
   });
 
