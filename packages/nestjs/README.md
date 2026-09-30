@@ -48,7 +48,7 @@ export class DataController {
 ## API
 
 - **`StratumModule.forRoot(options)` / `forRootAsync(options)`** — register the SDK client for DI. `forRootAsync` supports `useFactory` + `inject` for config that depends on other providers (e.g. `ConfigService`).
-- **`StratumGuard`** — resolves the tenant from the `X-Tenant-ID` header, a verified JWT claim, or custom `resolvers` (in that order). Sets `req.tenant` (full `TenantContext`), plus `req.impersonating` / `req.originalTenantId` when impersonation is enabled. Throws `UnauthorizedException` (401) if no tenant is found.
+- **`StratumGuard`** — resolves the tenant from the `X-Tenant-ID` header, a verified JWT claim, or custom `resolvers` (in that order). Sets `req.tenant` (full `TenantContext`), plus `req.impersonating` / `req.originalTenantId` when impersonation is enabled. Throws `UnauthorizedException` (401) if no tenant is found, `ForbiddenException` (403) if the tenant is suspended or access is denied, and `GoneException` (410) if the tenant is archived.
 - **`@Tenant()`** — parameter decorator that extracts `req.tenant`.
 - **`StratumContextInterceptor`** — binds the resolved context to AsyncLocalStorage so services can call `getTenantContext()` from `@stratum-hq/sdk` without the request object.
 

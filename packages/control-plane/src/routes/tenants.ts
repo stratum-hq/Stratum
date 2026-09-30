@@ -17,6 +17,8 @@ import { Stratum } from "@stratum-hq/lib";
 import {
   setupSchemaForTenant,
   setupDatabaseForTenant,
+  teardownSchemaForTenant,
+  teardownDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
 import { createTenantScopeGuard, createTenantCreateGuard, createTenantBatchCreateGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
@@ -74,6 +76,8 @@ export function createTenantRoutes(stratum: Stratum) {
       // blocks every use of it. Provision its storage, then activate it. If
       // provisioning fails the tenant stays pending: purge it to remove it
       // (purging a pending tenant never drops storage), then create it again.
+      // If activation fails, the storage is removed here, because purging the
+      // pending tenant later will not remove it.
       const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
       if (strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT") {
         try {
@@ -86,7 +90,38 @@ export function createTenantRoutes(stratum: Stratum) {
           request.log.error({ err, tenant_id: tenant.id }, "tenant storage provisioning failed; tenant left pending");
           throw new TenantProvisioningError(tenant.id);
         }
-        const active = await stratum.activateTenant(tenant.id, buildAuditContext(request));
+        let active;
+        try {
+          active = await stratum.activateTenant(tenant.id, buildAuditContext(request));
+        } catch (err) {
+          // An error can arrive after the activation committed, for example
+          // when the connection drops. Read the tenant again, and remove the
+          // storage only when the tenant is known to be still pending.
+          const current = await stratum.getTenant(tenant.id, true).catch(() => undefined);
+          if (current?.status === "active") {
+            reply.status(201).send(current);
+            return;
+          }
+          if (current?.status !== "pending") throw err;
+          request.log.error({ err, tenant_id: tenant.id }, "tenant activation failed; removing its provisioned storage");
+          // Provisioning refuses storage that already exists, so this request
+          // created the storage and no other tenant's data is in it.
+          let storageRemoved = true;
+          try {
+            if (strategy === "SCHEMA_PER_TENANT") {
+              await teardownSchemaForTenant(tenant.slug);
+            } else {
+              await teardownDatabaseForTenant(tenant.slug);
+            }
+          } catch (teardownErr) {
+            storageRemoved = false;
+            request.log.error(
+              { err: teardownErr, tenant_id: tenant.id, slug: tenant.slug, strategy },
+              "could not remove the storage of a tenant whose activation failed; drop it by hand",
+            );
+          }
+          throw new TenantProvisioningError(tenant.id, { stage: "activation", storageRemoved });
+        }
         reply.status(201).send(active);
         return;
       }

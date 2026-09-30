@@ -211,7 +211,7 @@ GET /api/v1/audit-logs
 POST /api/v1/maintenance/rotate-encryption-key
 ```
 
-Re-encrypts all sensitive config entries and webhook secrets from the old key to the new key in a single atomic transaction.
+Re-encrypts all sensitive config entries and webhook secrets from the old key to the new key. The rotation runs in batches of 100, and each batch commits in its own transaction. If a request fails partway, send it again with the same keys. Values that already decrypt with the new key stay unchanged.
 
 **Body:**
 
@@ -227,8 +227,17 @@ Re-encrypts all sensitive config entries and webhook secrets from the old key to
 ```json
 {
   "config_entries_rotated": 12,
-  "webhooks_rotated": 5
+  "webhooks_rotated": 5,
+  "already_rotated": 0,
+  "unreadable": [
+    { "table": "config_entries", "id": "7f1c2e9a-3b4d-4e5f-8a6b-9c0d1e2f3a4b" }
+  ]
 }
 ```
+
+- `already_rotated`: values that already decrypt with the new key, for example after an interrupted request.
+- `unreadable`: values that decrypt with neither key. They stay unchanged. Examine each one before you remove the old key.
+
+If encrypted values exist and none of them decrypts with either key, the request returns `400 VALIDATION_ERROR` and changes no row. This result almost always means that `old_key` is wrong.
 
 After rotation, update the `STRATUM_ENCRYPTION_KEY` environment variable and restart the control plane.

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { fastifyPlugin } from "../middleware/fastify.js";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
-import { TenantNotFoundError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -223,6 +228,78 @@ describe("fastifyPlugin", () => {
         }),
       );
     });
+  });
+
+  describe("tenant state and access errors", () => {
+    const cases = [
+      { name: "suspended", error: () => new TenantSuspendedError("t-1"), status: 403, code: "TENANT_SUSPENDED" },
+      { name: "archived", error: () => new TenantArchivedError("t-1"), status: 410, code: "TENANT_ARCHIVED" },
+      { name: "forbidden", error: () => new ForbiddenError("Insufficient permissions"), status: 403, code: "FORBIDDEN" },
+      { name: "not found", error: () => new TenantNotFoundError("target-tenant"), status: 404, code: "TENANT_NOT_FOUND" },
+    ];
+
+    /** Runs the hook and settles on the first reply or done() call. */
+    async function runHook(
+      hook: (request: unknown, reply: unknown, done: unknown) => void,
+      request: unknown,
+      reply: Record<string, unknown>,
+      done: ReturnType<typeof vi.fn>,
+    ) {
+      await new Promise<void>((resolve) => {
+        (reply.send as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          resolve();
+          return reply;
+        });
+        done.mockImplementation(() => resolve());
+        hook(request, reply, done);
+      });
+    }
+
+    for (const c of cases.slice(0, 3)) {
+      it(`answers ${c.status} ${c.code} when the caller tenant is ${c.name}`, async () => {
+        const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(c.error()) });
+        const { hook } = registerPlugin(client);
+        const reply = makeReply();
+        const done = vi.fn();
+
+        await runHook(hook, makeRequest({ "x-tenant-id": "t-1" }), reply, done);
+
+        expect(reply.status).toHaveBeenCalledWith(c.status);
+        expect(reply.send).toHaveBeenCalledWith({
+          error: expect.objectContaining({ code: c.code }),
+        });
+        expect(done).not.toHaveBeenCalled();
+      });
+    }
+
+    for (const c of cases) {
+      it(`answers ${c.status} ${c.code} when the impersonation target is ${c.name}`, async () => {
+        const client = makeClient({
+          resolveTenant: vi
+            .fn()
+            .mockResolvedValueOnce(makeResolvedTenantContext("caller-tenant"))
+            .mockRejectedValueOnce(c.error()),
+        });
+        const { hook } = registerPlugin(client, {
+          impersonation: { enabled: true, authorize: () => true },
+        });
+        const reply = makeReply();
+        const done = vi.fn();
+
+        await runHook(
+          hook,
+          makeRequest({ "x-tenant-id": "caller-tenant", "x-impersonate-tenant": "target-tenant" }),
+          reply,
+          done,
+        );
+
+        expect(reply.status).toHaveBeenCalledWith(c.status);
+        expect(reply.send).toHaveBeenCalledWith({
+          error: expect.objectContaining({ code: c.code }),
+        });
+        expect(done).not.toHaveBeenCalled();
+      });
+    }
   });
 
   describe("error handling", () => {

@@ -280,6 +280,26 @@ reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
 
+`rotateEncryptionKey` re-encrypts sensitive config values and webhook secrets in batches of 100. Each batch commits in its own transaction. If a run fails partway, run it again with the same keys. The second run skips values that already decrypt with the new key.
+
+```typescript
+interface KeyRotationResult {
+  config_entries_rotated: number;  // values re-encrypted by this run
+  webhooks_rotated: number;
+  already_rotated: number;         // values that already decrypt with the new key
+  unreadable: KeyRotationUnreadableRow[];  // values that decrypt with neither key
+}
+
+interface KeyRotationUnreadableRow {
+  table: "config_entries" | "webhooks";
+  id: string;
+}
+```
+
+A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key. When some values are unreadable, the run logs the warning `encryption key rotation left unreadable rows`.
+
+If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key is wrong.
+
 ### Usage metering
 
 ```typescript
@@ -310,6 +330,7 @@ Beyond the `Stratum` class, `@stratum-hq/lib` exports helpers you can use direct
 import {
   migrate,             // migrate({ pool, enforceRls? }): run the Stratum migrations
   migrateAllSchemas,   // migrateAllSchemas(...): multi-schema migration runner
+  STRATUM_TABLES,      // readonly string[]: the tables the Stratum migrations create
   runScopedJob,        // runScopedJob(pool, tenantId, fn): tenant-scoped background job
   verifyWebhookSignature,
   signWebhookPayload,
@@ -320,6 +341,7 @@ import {
 ```
 
 - `runScopedJob(pool, tenantId, fn)` runs `fn` bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down afterward, so a job cannot touch another tenant's rows and the context never leaks onto the next job on a pooled connection.
+- `STRATUM_TABLES` lists the `public` tables that the Stratum migrations create, plus `_migrations`. Use it to tell Stratum's tables from your application tables. The CLI's `scan` and `migrate --all` skip these tables.
 - `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 
 ## Pool Helpers

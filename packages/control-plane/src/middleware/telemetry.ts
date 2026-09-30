@@ -21,7 +21,7 @@ try {
 const TRACER_NAME = "@stratum-hq/control-plane";
 
 /**
- * Register the telemetry onRequest / onResponse hooks on a Fastify instance.
+ * Register the telemetry onRequest, onResponse, onRequestAbort, and onError hooks on a Fastify instance.
  *
  * If @opentelemetry/api is not installed, this is a no-op.
  */
@@ -36,20 +36,18 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
   const inflightSpans = new Map<string, any>();
 
   app.addHook("onRequest", async (request: FastifyRequest, _reply: FastifyReply) => {
-    const span = tracer.startSpan(`HTTP ${request.method} ${request.routeOptions?.url ?? request.url}`, {
+    // A query string can carry cursors or filter values, so spans record the path only.
+    const path = request.url.split("?", 1)[0];
+    const route = request.routeOptions?.url ?? path;
+    const span = tracer.startSpan(`HTTP ${request.method} ${route}`, {
       kind: SpanKind.SERVER,
       attributes: {
         "http.method": request.method,
-        "http.url": request.url,
-        "http.route": request.routeOptions?.url ?? request.url,
+        "http.url": path,
+        "http.route": route,
         "http.request_id": request.id as string,
       },
     });
-
-    // Attach tenant_id from the authenticated key if available
-    if (request.apiKey?.tenant_id) {
-      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
-    }
 
     inflightSpans.set(request.id as string, span);
   });
@@ -59,6 +57,10 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
     if (!span) return;
     inflightSpans.delete(request.id as string);
 
+    // Authentication runs as a preHandler, after onRequest, so the tenant is known only here.
+    if (request.apiKey?.tenant_id) {
+      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
+    }
     span.setAttribute("http.status_code", reply.statusCode);
 
     if (reply.statusCode >= 400) {
@@ -70,6 +72,23 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
       span.setStatus({ code: SpanStatusCode.OK });
     }
 
+    span.end();
+  });
+
+  // A client that disconnects early can prevent onResponse, so this hook ends the span instead.
+  // Each hook removes the span from the map first, so only one of them can end it.
+  app.addHook("onRequestAbort", async (request: FastifyRequest) => {
+    const span = inflightSpans.get(request.id as string);
+    if (!span) return;
+    inflightSpans.delete(request.id as string);
+
+    if (request.apiKey?.tenant_id) {
+      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
+    }
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: "Client closed the connection before the response",
+    });
     span.end();
   });
 

@@ -554,9 +554,11 @@ describe("getDescendants", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
-    // Query 1: check existence
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
-    // Query 2: SELECT descendants
+    // Query 1: take the tree lock shared
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // Query 2: check existence and load the ancestry_path
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
+    // Query 3: SELECT descendants
     const child1 = makeTenant({
       id: "child-1",
       parent_id: "parent-id",
@@ -591,7 +593,8 @@ describe("getDescendants", () => {
   it("excludes archived and soft-deleted descendants by default", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
@@ -601,17 +604,18 @@ describe("getDescendants", () => {
 
     await tenantService.getDescendants(pool, "parent-id");
 
-    // The subtree query (2nd call) filters to active rows only. deleteTenant
+    // The subtree query (3rd call) filters to active rows only. deleteTenant
     // sets status='archived' alongside deleted_at, so this one predicate drops
     // both archived and soft-deleted descendants — matching getChildren.
-    const subtreeSql = mockQuery.mock.calls[1][0] as string;
+    const subtreeSql = mockQuery.mock.calls[2][0] as string;
     expect(subtreeSql).toContain("status = 'active'");
   });
 
   it("includes descendants of any status when includeArchived is true", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
@@ -621,7 +625,7 @@ describe("getDescendants", () => {
 
     await tenantService.getDescendants(pool, "parent-id", true);
 
-    const subtreeSql = mockQuery.mock.calls[1][0] as string;
+    const subtreeSql = mockQuery.mock.calls[2][0] as string;
     expect(subtreeSql).not.toContain("status = 'active'");
   });
 
@@ -629,7 +633,8 @@ describe("getDescendants", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "leaf-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/parent-id" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
@@ -644,7 +649,7 @@ describe("getDescendants", () => {
 
   it("throws TenantNotFoundError for unknown tenant", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [] });
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;

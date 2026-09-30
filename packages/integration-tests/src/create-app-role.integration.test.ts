@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { scaffoldProject } from "./helpers/create-cli.js";
 
 /**
  * Generates a postgres-rls project with the built `@stratum-hq/create`, runs
@@ -13,9 +12,6 @@ import pg from "pg";
  * with the generated DATABASE_URL to check that row-level security applies
  * to the role the app uses.
  */
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CREATE = path.resolve(__dirname, "../../create/dist/index.js");
 
 const BASE_URL =
   process.env.DATABASE_URL ||
@@ -38,13 +34,9 @@ function withDb(url: string, db: string): string {
 
 beforeAll(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-create-role-"));
-  const res = spawnSync(process.execPath, [CREATE, PROJECT, "--preset", "postgres-rls-pg-express", "--skip-install"], {
-    cwd: tmp,
-    encoding: "utf8",
-  });
-  expect(res.status, res.stderr).toBe(0);
+  const project = scaffoldProject(tmp, PROJECT, "postgres-rls-pg-express");
 
-  const env = fs.readFileSync(path.join(tmp, PROJECT, ".env.example"), "utf8");
+  const env = fs.readFileSync(path.join(project, ".env.example"), "utf8");
   const generated = new URL(env.match(/^DATABASE_URL=(.*)$/m)![1]);
   appRole = decodeURIComponent(generated.username);
   // Point the generated credentials at the test server.
@@ -55,7 +47,7 @@ beforeAll(async () => {
 
   // The postgres image creates POSTGRES_USER as a superuser. Recreate that
   // here from the generated compose file.
-  const compose = fs.readFileSync(path.join(tmp, PROJECT, "docker-compose.yml"), "utf8");
+  const compose = fs.readFileSync(path.join(project, "docker-compose.yml"), "utf8");
   bootstrapUser = compose.match(/POSTGRES_USER: (\S+)/)![1];
   const bootstrapPassword = compose.match(/POSTGRES_PASSWORD: (\S+)/)![1];
 
@@ -67,7 +59,7 @@ beforeAll(async () => {
   await admin.query(`CREATE ROLE ${bootstrapUser} WITH LOGIN SUPERUSER PASSWORD '${bootstrapPassword}'`);
   await admin.query(`CREATE DATABASE ${DB_NAME} OWNER ${bootstrapUser}`);
 
-  const initSql = fs.readFileSync(path.join(tmp, PROJECT, "init.sql"), "utf8");
+  const initSql = fs.readFileSync(path.join(project, "init.sql"), "utf8");
   const bootUrl = new URL(withDb(BASE_URL, DB_NAME));
   bootUrl.username = bootstrapUser;
   bootUrl.password = bootstrapPassword;

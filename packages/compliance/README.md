@@ -41,7 +41,7 @@ const result = scoreCoverage(baseline, resolved);
 // }
 ```
 
-- `status` is `"compliant"` (matches), `"drift"` (present but wrong), or `"missing"` (no resolved entry for that key).
+- `status` is `"compliant"` (matches), `"drift"` (present but wrong), or `"missing"` (no own resolved entry for that key).
 - `score` is `round(compliant / total * 100)`. An **empty baseline scores 100** — nothing is required, so nothing is out of compliance.
 
 ### Equality

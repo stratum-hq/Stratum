@@ -26,13 +26,18 @@ class ExitError extends Error {
  * so every "add column / enable RLS / create policy / create index" branch
  * in migrateTable fires.
  */
-function makeFakePool(opts: { tableExists?: boolean; tenantsExists?: boolean } = {}) {
-  const { tableExists = true, tenantsExists = false } = opts;
+function makeFakePool(
+  opts: { tableExists?: boolean; tenantsExists?: boolean; rowCount?: number } = {},
+) {
+  const { tableExists = true, tenantsExists = false, rowCount = 0 } = opts;
   const queries: string[] = [];
 
   const client = {
     query: vi.fn((sql: string, params?: unknown[]) => {
       queries.push(sql.trim());
+      if (sql.includes("count(*)")) {
+        return Promise.resolve({ rows: [{ n: rowCount }] });
+      }
       if (sql.includes("pg_tables") && params && params.length > 0) {
         // table-existence check
         return Promise.resolve({ rows: tableExists ? [{ n: 1 }] : [] });
@@ -104,6 +109,68 @@ describe("migrate", () => {
     expect(queries.join("\n")).toMatch(/ADD CONSTRAINT fk_orders_tenant_id/);
   });
 
+  it("adds tenant_id without a default, then adds the foreign key NOT VALID and validates it", async () => {
+    const { pool, queries } = makeFakePool({ tenantsExists: true });
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([]);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await migrate(["orders"], {});
+
+    const joined = queries.join("\n");
+    expect(joined).not.toContain("00000000-0000-0000-0000-000000000000");
+    expect(queries).toContain("ALTER TABLE orders ADD COLUMN tenant_id UUID");
+    expect(joined).toMatch(/REFERENCES tenants\(id\) ON DELETE CASCADE NOT VALID/);
+    const addColumn = queries.indexOf("ALTER TABLE orders ADD COLUMN tenant_id UUID");
+    const addConstraint = queries.findIndex((q) =>
+      q.startsWith("ALTER TABLE orders ADD CONSTRAINT fk_orders_tenant_id"),
+    );
+    const validate = queries.indexOf("ALTER TABLE orders VALIDATE CONSTRAINT fk_orders_tenant_id");
+    expect(addColumn).toBeGreaterThan(-1);
+    expect(addConstraint).toBeGreaterThan(addColumn);
+    expect(validate).toBeGreaterThan(addConstraint);
+  });
+
+  it("rolls back before adding tenant_id when the table has rows and --tenant is absent", async () => {
+    const { pool, queries } = makeFakePool({ rowCount: 3 });
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([]);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await expect(migrate(["orders"], {})).rejects.toThrow(/--tenant <uuid>/);
+    expect(queries.join("\n")).not.toMatch(/ADD COLUMN/);
+    expect(queries).toContain("ROLLBACK");
+  });
+
+  it("assigns existing rows to the --tenant tenant before it sets tenant_id NOT NULL", async () => {
+    const tenant = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const { pool, client, queries } = makeFakePool({ rowCount: 3 });
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([]);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await migrate(["orders"], { tenant });
+
+    const update = queries.indexOf("UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL");
+    const setNotNull = queries.indexOf("ALTER TABLE orders ALTER COLUMN tenant_id SET NOT NULL");
+    expect(update).toBeGreaterThan(-1);
+    expect(setNotNull).toBeGreaterThan(update);
+    expect(client.query).toHaveBeenCalledWith(
+      "UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL",
+      [tenant],
+    );
+    expect(queries[queries.length - 1]).toBe("COMMIT");
+  });
+
+  it.each([
+    ["no value", true, /needs a value/],
+    ["a value that is not a UUID", "acme", /Expected a UUID/],
+    ["the nil UUID", "00000000-0000-0000-0000-000000000000", /nil UUID/],
+  ])("rejects --tenant with %s before it connects", async (_label, tenant, message) => {
+    await expect(migrate(["orders"], { tenant })).rejects.toThrow(message);
+    expect(connectDb).not.toHaveBeenCalled();
+  });
+
   it("rolls back and rethrows when the target table does not exist", async () => {
     const { pool, queries } = makeFakePool({ tableExists: false });
     (connectDb as Mock).mockResolvedValue(pool);
@@ -126,6 +193,21 @@ describe("migrate", () => {
     expect(client.query).not.toHaveBeenCalled();
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["tenants", "usage_events"])(
+    "rejects the Stratum table %s before it opens a transaction",
+    async (table) => {
+      const { pool } = makeFakePool();
+      (connectDb as Mock).mockResolvedValue(pool);
+      (scanTables as Mock).mockResolvedValue([]);
+      (confirm as Mock).mockResolvedValue(true);
+
+      await expect(migrate([table], {})).rejects.toThrow(/is a Stratum table/);
+      expect(pool.connect).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(pool.end).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("does nothing when the target table is already fully migrated", async () => {
     const { pool, client } = makeFakePool();
