@@ -20,8 +20,8 @@ const DELIVERY_BATCH_SIZE = 10;
 const DELIVERY_LEASE_MS = 60_000;
 
 /**
- * Reserved, private, loopback, link-local, and cloud-metadata ranges a webhook
- * must never target (SSRF protection). BlockList compares parsed address bytes,
+ * Reserved, private, loopback, link-local, and cloud-metadata ranges, plus the
+ * IANA special-purpose ranges, that a webhook must never target (SSRF protection). BlockList compares parsed address bytes,
  * so it matches every textual notation of an address, and it also checks an
  * IPv4-mapped IPv6 literal against the IPv4 rules.
  */
@@ -34,14 +34,33 @@ BLOCKED_IP_RANGES.addSubnet("127.0.0.0", 8, "ipv4"); // loopback
 BLOCKED_IP_RANGES.addSubnet("169.254.0.0", 16, "ipv4"); // link-local, incl. cloud metadata
 BLOCKED_IP_RANGES.addSubnet("172.16.0.0", 12, "ipv4"); // RFC 1918
 BLOCKED_IP_RANGES.addSubnet("192.0.0.0", 24, "ipv4"); // IETF protocol assignments
+BLOCKED_IP_RANGES.addSubnet("192.0.2.0", 24, "ipv4"); // documentation (TEST-NET-1)
+BLOCKED_IP_RANGES.addSubnet("192.31.196.0", 24, "ipv4"); // AS112-v4
+BLOCKED_IP_RANGES.addSubnet("192.52.193.0", 24, "ipv4"); // AMT
+BLOCKED_IP_RANGES.addSubnet("192.88.99.0", 24, "ipv4"); // deprecated 6to4 relay anycast
 BLOCKED_IP_RANGES.addSubnet("192.168.0.0", 16, "ipv4"); // RFC 1918
+BLOCKED_IP_RANGES.addSubnet("192.175.48.0", 24, "ipv4"); // direct delegation AS112
 BLOCKED_IP_RANGES.addSubnet("198.18.0.0", 15, "ipv4"); // benchmarking
+BLOCKED_IP_RANGES.addSubnet("198.51.100.0", 24, "ipv4"); // documentation (TEST-NET-2)
+BLOCKED_IP_RANGES.addSubnet("203.0.113.0", 24, "ipv4"); // documentation (TEST-NET-3)
+BLOCKED_IP_RANGES.addSubnet("224.0.0.0", 4, "ipv4"); // multicast
+BLOCKED_IP_RANGES.addSubnet("240.0.0.0", 4, "ipv4"); // reserved, incl. limited broadcast
 // IPv6
-BLOCKED_IP_RANGES.addAddress("::", "ipv6"); // unspecified
-BLOCKED_IP_RANGES.addAddress("::1", "ipv6"); // loopback
+BLOCKED_IP_RANGES.addSubnet("::", 96, "ipv6"); // unspecified, loopback, deprecated IPv4-compatible
 BLOCKED_IP_RANGES.addSubnet("64:ff9b::", 96, "ipv6"); // NAT64 well-known prefix (maps to IPv4)
+BLOCKED_IP_RANGES.addSubnet("64:ff9b:1::", 48, "ipv6"); // local-use NAT64 (maps to IPv4)
+BLOCKED_IP_RANGES.addSubnet("100::", 64, "ipv6"); // discard-only
+BLOCKED_IP_RANGES.addSubnet("100:0:0:1::", 64, "ipv6"); // dummy prefix
+BLOCKED_IP_RANGES.addSubnet("2001::", 23, "ipv6"); // IETF protocol assignments, incl. Teredo (maps to IPv4)
+BLOCKED_IP_RANGES.addSubnet("2001:db8::", 32, "ipv6"); // documentation
+BLOCKED_IP_RANGES.addSubnet("2002::", 16, "ipv6"); // 6to4 (maps to IPv4)
+BLOCKED_IP_RANGES.addSubnet("2620:4f:8000::", 48, "ipv6"); // direct delegation AS112
+BLOCKED_IP_RANGES.addSubnet("3fff::", 20, "ipv6"); // documentation
+BLOCKED_IP_RANGES.addSubnet("5f00::", 16, "ipv6"); // SRv6 SIDs
 BLOCKED_IP_RANGES.addSubnet("fc00::", 7, "ipv6"); // unique-local (covers fc00::/8 and fd00::/8)
 BLOCKED_IP_RANGES.addSubnet("fe80::", 10, "ipv6"); // link-local
+BLOCKED_IP_RANGES.addSubnet("fec0::", 10, "ipv6"); // deprecated site-local
+BLOCKED_IP_RANGES.addSubnet("ff00::", 8, "ipv6"); // multicast
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
