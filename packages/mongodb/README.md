@@ -4,8 +4,14 @@ MongoDB tenant isolation adapters for Stratum.
 
 Three isolation strategies:
 - **Shared collection** — tenant_id field injection via Collection Proxy
-- **Collection-per-tenant** — `{collection}_{slug}` naming convention. Pass `baseCollections` (every base collection name) to `MongoCollectionAdapter`; `purgeTenantData` requires it and purges exactly `{base}_{slug}` for each entry
+- **Collection-per-tenant** — `{collection}_{slug}` naming convention. Pass `baseCollections` (every base collection name) to `MongoCollectionAdapter`; `scopedCollection` and `purgeTenantData` require it, and `purgeTenantData` purges exactly `{base}_{slug}` for each entry
 - **Database-per-tenant** — dedicated database with MongoPoolManager LRU cache
+
+## Mongoose plugin scope
+
+`stratumPlugin` scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a change stream that starts with `$match: { "fullDocument.tenant_id": <tenant> }`. `fullDocument` defaults to `"updateLookup"` so update events carry the document; events without a `fullDocument` (such as deletes) are filtered out. An `Aggregate` cannot be changed after it has run.
+
+`Model.collection`, `Model.db`, `connection.db` and `connection.watch()` are the raw driver objects and are **not** scoped: they see every tenant's data. Use them only for admin work, never with tenant input.
 
 ## Installation
 

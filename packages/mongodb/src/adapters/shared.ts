@@ -108,6 +108,8 @@ export function createTenantScopedCollection(
                 { $match: { tenant_id: tenantId } },
                 ...safePipeline,
               ]),
+              tenantId,
+              safePipeline,
             );
           };
 
@@ -157,7 +159,8 @@ function overrideCursorMethod(
 
 /**
  * Keeps a find cursor scoped after it is returned: any later replacement of the
- * cursor's filter (e.g. via `.filter()`) still carries tenant_id, and clones are
+ * cursor's filter (e.g. via `.filter()`) still carries tenant_id, reading the
+ * filter returns a copy (so editing it in place has no effect), and clones are
  * guarded the same way.
  */
 function guardFindCursor<T>(cursor: T, tenantId: string): T {
@@ -168,7 +171,7 @@ function guardFindCursor<T>(cursor: T, tenantId: string): T {
     Object.defineProperty(c, "cursorFilter", {
       configurable: false,
       enumerable: true,
-      get: () => current,
+      get: () => ({ ...current, tenant_id: tenantId }),
       set: (value: Record<string, unknown>) => {
         current = { ...value, tenant_id: tenantId };
       },
@@ -184,19 +187,36 @@ function guardFindCursor<T>(cursor: T, tenantId: string): T {
  * Keeps an aggregation cursor safe after it is returned: stages appended later
  * (via `.addStage()` or builder methods such as `.lookup()`) are validated, and
  * clones are guarded the same way.
+ *
+ * The validated stages are held here, not on the cursor. Reading the cursor's
+ * `pipeline` returns a fresh copy that starts with the tenant $match, so
+ * editing that array or its stages in place cannot change what runs.
  */
-function guardAggregationCursor<T>(cursor: T): T {
+function guardAggregationCursor<T>(
+  cursor: T,
+  tenantId: string,
+  validatedStages: Record<string, unknown>[],
+): T {
   if (cursor === null || typeof cursor !== "object") return cursor;
   const c = cursor as unknown as CursorRecord;
+  const stages = [...validatedStages];
   overrideCursorMethod(c, "addStage", (original) => function (this: unknown, stage: unknown) {
     const [safeStage] = assertSafeAggregatePipeline([stage as Record<string, unknown>]);
-    return original.call(this, safeStage);
+    // The driver's own checks run first; the stage it appends lands on a
+    // discarded copy of the pipeline.
+    const result = original.call(this, safeStage);
+    stages.push(safeStage);
+    return result;
   });
   overrideCursorMethod(c, "clone", (original) => function (this: unknown) {
-    return guardAggregationCursor(original.call(this));
+    return guardAggregationCursor(original.call(this), tenantId, stages);
   });
   if ("pipeline" in c) {
-    Object.defineProperty(c, "pipeline", { writable: false, configurable: false });
+    Object.defineProperty(c, "pipeline", {
+      configurable: false,
+      enumerable: true,
+      get: () => [{ $match: { tenant_id: tenantId } }, ...assertSafeAggregatePipeline(stages)],
+    });
   }
   return cursor;
 }

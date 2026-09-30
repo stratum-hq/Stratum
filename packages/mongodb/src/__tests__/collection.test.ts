@@ -55,7 +55,12 @@ describe("MongoCollectionAdapter", () => {
 
   describe("scopedCollection", () => {
     it("returns collection with correct naming convention", () => {
-      adapter.scopedCollection("acme", "users");
+      const registered = new MongoCollectionAdapter({
+        client: createMockClient(mockDb),
+        databaseName: "testdb",
+        baseCollections: ["users"],
+      });
+      registered.scopedCollection("acme", "users");
       expect(mockDb.collection).toHaveBeenCalledWith("users_acme");
     });
 

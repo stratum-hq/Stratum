@@ -48,7 +48,11 @@ describe("assertMongoIsolation", () => {
   });
 
   it("passes for the collection-per-tenant adapter", async () => {
-    const adapter = new MongoCollectionAdapter({ client: client as unknown as MongoClientLike, databaseName: dbName });
+    const adapter = new MongoCollectionAdapter({
+      client: client as unknown as MongoClientLike,
+      databaseName: dbName,
+      baseCollections: ["iso"],
+    });
     await assertMongoIsolation((t) => adapter.scopedCollection(t, "iso"), "tenanta", "tenantb", {
       strategy: "COLLECTION_PER_TENANT",
     });
