@@ -102,6 +102,8 @@ await stratum.grantConsent(tenantId, {
 });
 ```
 
+`expires_at` is an ISO 8601 datetime with a time zone, either `Z` or an offset such as `+02:00`. `GrantConsentInputSchema` rejects any other string, which includes PostgreSQL special values such as `infinity`. The control plane returns `400 VALIDATION_ERROR` for such a value.
+
 ### Check Active Consent
 
 ```typescript
