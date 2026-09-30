@@ -5,6 +5,7 @@ import {
   TenantNotFoundError,
   TenantSuspendedError,
   UnauthorizedError,
+  WebhookNotFoundError,
 } from "@stratum-hq/core";
 import type { ResolvedTenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 import { LRUCache } from "./cache.js";
@@ -18,11 +19,27 @@ export interface StratumClientOptions {
    * Time limit in milliseconds for each control plane request, including the
    * response body. A request that exceeds it rejects with a `TimeoutError`
    * DOMException. Default: 10000.
+   *
+   * The value must be an integer from 1 to 4294967295, or `Infinity`.
+   * `Infinity` turns the time limit off. Any other value makes the
+   * constructor throw a `RangeError`.
    */
   timeoutMs?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+// The largest delay that AbortSignal.timeout accepts.
+const MAX_TIMEOUT_MS = 4_294_967_295;
+
+function validTimeoutMs(value: number): number {
+  if (value === Number.POSITIVE_INFINITY) return value;
+  if (!Number.isInteger(value) || value < 1 || value > MAX_TIMEOUT_MS) {
+    throw new RangeError(
+      `timeoutMs must be an integer from 1 to ${MAX_TIMEOUT_MS}, or Infinity to turn the time limit off. Received ${value}`,
+    );
+  }
+  return value;
+}
 
 interface ErrorBody {
   error?: { code?: string; message?: string; details?: { tenant_id?: unknown } };
@@ -39,15 +56,21 @@ function withMessage<E extends Error>(err: E, message: string | undefined): E {
 
 /**
  * Map a failed control plane response to the core error class for its status
- * and error code. A status without a typed error becomes a plain Error.
+ * and error code. A response without a typed error becomes a plain Error.
  */
 function responseError(status: number, body: ErrorBody): Error {
-  const code = body.error?.code;
-  const message = body.error?.message;
-  const rawTenantId = body.error?.details?.tenant_id;
+  // Fastify's default 404 body has a string `error`, so it has no code.
+  const error = typeof body.error === "object" && body.error !== null ? body.error : undefined;
+  const code = error?.code;
+  const message = error?.message;
+  const rawTenantId = error?.details?.tenant_id;
   const tenantId = typeof rawTenantId === "string" ? rawTenantId : "unknown";
-  if (status === 404) {
+  // Every route can answer 404, so only the error code tells what is missing.
+  if (status === 404 && code === ErrorCode.TENANT_NOT_FOUND) {
     return withMessage(new TenantNotFoundError(tenantId), message);
+  }
+  if (status === 404 && code === ErrorCode.WEBHOOK_NOT_FOUND) {
+    return withMessage(new WebhookNotFoundError("unknown"), message);
   }
   if (status === 403) {
     return code === ErrorCode.TENANT_SUSPENDED
@@ -112,7 +135,7 @@ export class StratumClient {
     this.apiKey = options.apiKey;
     this.regionUrl = options.regionUrl?.replace(/\/$/, "");
     this.cacheEnabled = options.cache?.enabled !== false;
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.timeoutMs = validTimeoutMs(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     this.cache = new LRUCache<string, ResolvedTenantContext>({
       ttlMs: options.cache?.ttlMs,
       maxSize: options.cache?.maxSize,
@@ -123,7 +146,7 @@ export class StratumClient {
     const url = `${this.baseUrl}${path}`;
     const response = await globalThis.fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: this.timeoutMs === Number.POSITIVE_INFINITY ? undefined : AbortSignal.timeout(this.timeoutMs),
       headers: {
         // The control plane rejects the JSON content type on an empty body.
         ...(init?.body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -235,13 +258,20 @@ export class StratumClient {
    *
    * @param tenantId - The id of the tenant to purge. The tenant must have no children.
    * @returns A promise that rejects when the control plane refuses the purge, for example
-   * because the tenant has children or the API key does not have the `admin` scope.
+   * because the tenant has children, or with `ForbiddenError` because the API key does not
+   * have the `admin` scope. A rejection with a `TimeoutError` does not mean that the purge
+   * failed: the control plane can complete it after the client stops waiting. Call
+   * `getTenant` to find out whether the tenant still exists.
    */
   async purgeTenant(tenantId: string): Promise<void> {
-    await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}/purge`, {
-      method: "POST",
-    });
-    this.cache.invalidate(cacheKey(tenantId));
+    try {
+      await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}/purge`, {
+        method: "POST",
+      });
+    } finally {
+      // A failed request can still have purged the tenant, so the cached context goes either way.
+      this.cache.invalidate(cacheKey(tenantId));
+    }
   }
 
   invalidateCache(tenantId: string): void {

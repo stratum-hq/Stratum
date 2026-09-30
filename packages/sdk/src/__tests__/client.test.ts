@@ -6,6 +6,7 @@ import {
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  WebhookNotFoundError,
 } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ const API_KEY = "sk-test-key-123";
 
 function makeClient(options?: {
   cache?: { enabled?: boolean; ttlMs?: number; maxSize?: number };
+  timeoutMs?: number;
 }) {
   return new StratumClient({
     controlPlaneUrl: CONTROL_PLANE_URL,
@@ -188,19 +190,17 @@ describe("StratumClient", () => {
       );
     });
 
-    it("throws TenantNotFoundError on 404", async () => {
+    it("throws TenantNotFoundError on a 404 with code TENANT_NOT_FOUND", async () => {
       const client = makeClient();
 
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
         mockFetchResponse(
-          { error: { message: "Tenant not found: t-missing" } },
+          { error: { code: "TENANT_NOT_FOUND", message: "Tenant not found: t-missing" } },
           404,
         ),
       );
 
-      await expect(client.resolveTenant("t-missing")).rejects.toThrow(
-        "Tenant not found: t-missing",
-      );
+      await expect(client.resolveTenant("t-missing")).rejects.toBeInstanceOf(TenantNotFoundError);
     });
 
     it("throws generic error on other HTTP failures", async () => {
@@ -286,6 +286,48 @@ describe("StratumClient", () => {
   });
 
   // -----------------------------------------------------------------------
+  // 404 mapping by error code
+  // -----------------------------------------------------------------------
+
+  // A 404 can come from any route, so only the error code identifies what is missing.
+  describe("404 mapping by error code", () => {
+    it("throws WebhookNotFoundError on a 404 with code WEBHOOK_NOT_FOUND", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "WEBHOOK_NOT_FOUND", message: "Webhook not found: w-1" } }, 404),
+      );
+
+      const err = await client.getWebhook("w-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(WebhookNotFoundError);
+      expect((err as Error).message).toBe("Webhook not found: w-1");
+    });
+
+    it("keeps the message of a 404 with another code and does not throw TenantNotFoundError", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } }, 404),
+      );
+
+      const err = await client.rotateApiKey("k-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(TenantNotFoundError);
+      expect((err as Error).message).toBe("API key not found or already revoked");
+    });
+
+    it("does not throw TenantNotFoundError on a 404 without an error code", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ message: "Route GET:/api/v1/regions/x not found" }, 404),
+      );
+
+      const err = await client.deleteRegion("x").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(TenantNotFoundError);
+      expect((err as Error).message).toBe("HTTP 404");
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Request timeout
   // -----------------------------------------------------------------------
 
@@ -323,6 +365,24 @@ describe("StratumClient", () => {
 
       const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
       expect((err as Error).name).toBe("TimeoutError");
+    });
+
+    for (const value of [0, -1, Number.NaN, 1.5, 2 ** 32]) {
+      it(`rejects timeoutMs ${value} with a RangeError from the constructor`, () => {
+        expect(() => makeClient({ timeoutMs: value })).toThrow(RangeError);
+      });
+    }
+
+    it("sends no abort signal when timeoutMs is Infinity", async () => {
+      const client = makeClient({ timeoutMs: Number.POSITIVE_INFINITY });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(makeResolvedTenantContext("t-1")),
+      );
+
+      await client.resolveTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect((init as RequestInit).signal).toBeUndefined();
     });
   });
 
@@ -571,9 +631,25 @@ describe("StratumClient", () => {
   // URL normalization
   // -----------------------------------------------------------------------
 
-  // The request shape is the contract with the control plane. These tests do
-  // not assert an error class, because the error mapping belongs to #334.
+  // The request shape is the contract with the control plane. The error
+  // mapping has its own tests in the resolveTenant and 404 mapping blocks.
   describe("tenant removal requests", () => {
+    // A timeout does not prove that the purge failed, so the cached context must go either way.
+    it("purgeTenant removes the cached context when the request fails", async () => {
+      const client = makeClient({ cache: { enabled: true } });
+      const ctx = makeResolvedTenantContext("t-purge");
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(mockFetchResponse(ctx))
+        .mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError"))
+        .mockResolvedValueOnce(mockFetchResponse(ctx));
+
+      await client.resolveTenant("t-purge");
+      await expect(client.purgeTenant("t-purge")).rejects.toThrow("The operation timed out.");
+      await client.resolveTenant("t-purge");
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    });
+
     it("purgeTenant sends POST to the purge route with the encoded id", async () => {
       const client = makeClient({ cache: { enabled: false } });
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
