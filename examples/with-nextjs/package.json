@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@stratum-hq/lib": "latest",
+    "jose": "^6.2.12",
     "next": "^15.5.16",
     "pg": "^8.11.0",
     "react": "^19.0.0",

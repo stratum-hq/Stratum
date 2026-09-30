@@ -18,6 +18,7 @@ describe("TenantEvent", () => {
     expect(TenantEvent.TENANT_RESUMED).toBe("tenant.resumed");
     expect(TenantEvent.TENANT_ARCHIVED).toBe("tenant.archived");
     expect(TenantEvent.TENANT_PURGED).toBe("tenant.purged");
+    expect(TenantEvent.TENANT_ACTIVATED).toBe("tenant.activated");
     expect(TenantEvent.CONFIG_UPDATED).toBe("config.updated");
     expect(TenantEvent.CONFIG_DELETED).toBe("config.deleted");
     expect(TenantEvent.PERMISSION_CREATED).toBe("permission.created");
@@ -25,8 +26,8 @@ describe("TenantEvent", () => {
     expect(TenantEvent.PERMISSION_DELETED).toBe("permission.deleted");
   });
 
-  it("has 13 event types", () => {
-    expect(Object.keys(TenantEvent)).toHaveLength(13);
+  it("has 14 event types", () => {
+    expect(Object.keys(TenantEvent)).toHaveLength(14);
   });
 });
 
@@ -102,6 +103,11 @@ describe("CreateWebhookInputSchema", () => {
   it("rejects empty events array", () => {
     const result = CreateWebhookInputSchema.safeParse({ ...validInput, events: [] });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts a subscription to tenant.activated", () => {
+    const result = CreateWebhookInputSchema.safeParse({ ...validInput, events: ["tenant.activated"] });
+    expect(result.success).toBe(true);
   });
 
   it("rejects invalid event type", () => {

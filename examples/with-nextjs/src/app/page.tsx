@@ -1,30 +1,33 @@
 /**
  * Home page — Server Component
  *
- * Reads the tenant slug injected by middleware, looks up the tenant from
- * Stratum, and renders a simple tenant info card. Works for both subdomain
- * routing (acme.app.example.com) and header-based routing (X-Tenant-ID).
+ * Reads the tenant that middleware resolved, looks up the tenant from
+ * Stratum, and renders a simple tenant info card. Works for both a verified
+ * bearer token and subdomain routing (acme.app.example.com).
  */
 import { headers } from "next/headers";
+import { TenantNotFoundError } from "@stratum-hq/lib";
 import { stratum } from "../lib/stratum";
+import { TENANT_ID_HEADER, TENANT_SLUG_HEADER } from "../lib/tenant-headers";
 
 async function resolveTenantFromRequest() {
   const headerList = await headers();
 
-  // Option 1: explicit tenant ID forwarded by middleware
-  const tenantId = headerList.get("x-tenant-id");
+  // Option 1: tenant ID from the verified token, set by middleware
+  const tenantId = headerList.get(TENANT_ID_HEADER);
   if (tenantId) {
     return stratum.getTenant(tenantId);
   }
 
   // Option 2: slug from subdomain, resolved to full TenantNode
-  const slug = headerList.get("x-tenant-slug");
+  const slug = headerList.get(TENANT_SLUG_HEADER);
   if (slug) {
-    // In a real app you'd add a getTenantBySlug method or a DB index lookup.
-    // For the example, scan the first page (works for demos with few tenants).
-    const all = await stratum.listTenants({ limit: 200, offset: 0 });
-    const match = all.data.find((t) => t.slug === slug);
-    if (match) return match;
+    // An unknown subdomain shows the landing page, not an error.
+    try {
+      return await stratum.getTenantBySlug(slug);
+    } catch (err) {
+      if (!(err instanceof TenantNotFoundError)) throw err;
+    }
   }
 
   return null;
@@ -39,8 +42,8 @@ export default async function HomePage() {
         <h1>Welcome to Stratum + Next.js</h1>
         <p>
           No tenant detected. Try accessing via subdomain (
-          <code>acme.app.example.com</code>) or pass an{" "}
-          <code>X-Tenant-ID</code> header.
+          <code>acme.app.example.com</code>) or send an{" "}
+          <code>Authorization: Bearer</code> token with a <code>tenant_id</code> claim.
         </p>
       </main>
     );

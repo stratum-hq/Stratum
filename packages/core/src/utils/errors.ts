@@ -140,16 +140,33 @@ export class TenantPendingError extends StratumError {
 }
 
 /**
- * Raised when a new tenant's schema or database could not be provisioned. The
- * tenant is left `pending`; purge it to remove it, then create it again.
+ * Raised when a new tenant with its own schema or database could not be made
+ * ready. The tenant is left `pending`; purge it to remove it, then create it
+ * again.
+ *
+ * `details.stage` names the step that failed. At `"provisioning"` no storage
+ * was created. At `"activation"` the storage was created and then removed
+ * again; `details.storage_removed` is `false` if that removal also failed, and
+ * an operator must drop the storage by hand.
  */
 export class TenantProvisioningError extends StratumError {
-  constructor(tenantId: string) {
+  constructor(
+    tenantId: string,
+    failure: { stage: "provisioning" } | { stage: "activation"; storageRemoved: boolean } = { stage: "provisioning" },
+  ) {
     super(
       ErrorCode.TENANT_PROVISIONING_FAILED,
-      `Storage provisioning failed for tenant ${tenantId}; the tenant was left pending`,
+      failure.stage === "provisioning"
+        ? `Storage provisioning failed for tenant ${tenantId}; the tenant was left pending`
+        : `Activation failed for tenant ${tenantId}; ${
+            failure.storageRemoved
+              ? "its provisioned storage was removed"
+              : "its provisioned storage could not be removed"
+          } and the tenant was left pending`,
       500,
-      { tenant_id: tenantId, status: "pending" },
+      failure.stage === "provisioning"
+        ? { tenant_id: tenantId, status: "pending", stage: "provisioning" }
+        : { tenant_id: tenantId, status: "pending", stage: "activation", storage_removed: failure.storageRemoved },
     );
     this.name = "TenantProvisioningError";
   }

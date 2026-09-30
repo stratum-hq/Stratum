@@ -26,7 +26,13 @@
       "outputs": []
     },
     "//#test:root": {
-      "inputs": ["$TURBO_DEFAULT$", "packages/*/package.json", "scripts/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "packages/*/package.json",
+        "packages/{core,lib,sdk,hono}/src/**",
+        "examples/**",
+        "scripts/**"
+      ],
       "outputs": []
     },
     "dev": {

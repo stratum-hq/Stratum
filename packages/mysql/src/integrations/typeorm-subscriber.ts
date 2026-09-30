@@ -15,18 +15,35 @@ export interface UpdateEvent {
   metadata?: { columns: { propertyName: string; databaseName: string }[] };
 }
 
+export interface BeforeQueryEvent {
+  /** The SQL text that TypeORM is about to send to MySQL. */
+  query: string;
+}
+
 export interface EntitySubscriberInterface {
   beforeInsert?(event: InsertEvent): void | Promise<void>;
   beforeUpdate?(event: UpdateEvent): void | Promise<void>;
+  beforeQuery?(event: BeforeQueryEvent): void | Promise<void>;
 }
+
+/** The part of a TypeORM `DataSource` that the registration helper uses. */
+export interface TypeOrmDataSourceLike {
+  readonly isInitialized: boolean;
+  readonly subscribers: unknown[];
+}
+
+// TypeORM writes an upsert on MySQL as INSERT ... ON DUPLICATE KEY UPDATE and
+// quotes each column with backticks.
+const UPSERT_CLAUSE = /\bON\s+DUPLICATE\s+KEY\s+UPDATE\b/i;
+const TENANT_ASSIGNMENT = /`tenant_id`\s*=/i;
 
 /**
  * TypeORM subscriber that injects tenant_id into inserted entities via ALS and
  * never lets an update change tenant_id.
  *
- * Register an instance after the data source is initialized:
- * `dataSource.subscribers.push(new StratumTypeOrmSubscriber())`. TypeORM's
- * `subscribers` option only loads classes decorated with `@EventSubscriber()`.
+ * Register it with `registerStratumSubscriber(dataSource)` after
+ * `dataSource.initialize()`. TypeORM's `subscribers` option only loads classes
+ * decorated with `@EventSubscriber()`, so it does not load this class.
  *
  * Known limitation: TypeORM subscribers cannot intercept query filtering.
  * This subscriber handles writes only. Use the shared-table adapter's
@@ -68,4 +85,53 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
       }
     }
   }
+
+  /**
+   * Rejects an upsert that writes tenant_id on a key conflict.
+   *
+   * A conflict update must never change the tenant of an existing row. A
+   * subscriber cannot remove one column from the conflict update, so the
+   * statement fails before it runs.
+   *
+   * @throws Error when the ON DUPLICATE KEY UPDATE clause assigns tenant_id.
+   */
+  beforeQuery(event: BeforeQueryEvent): void {
+    const clause = event.query.split(UPSERT_CLAUSE)[1];
+    if (clause !== undefined && TENANT_ASSIGNMENT.test(clause)) {
+      throw new Error(
+        "Stratum: an upsert must not update tenant_id on conflict. " +
+          "Remove tenant_id from the entity values or from the orUpdate() columns.",
+      );
+    }
+  }
+}
+
+/**
+ * Returns the one StratumTypeOrmSubscriber on the data source, and adds it first when it is missing.
+ *
+ * A second call returns the subscriber that the first call added, so the
+ * data source never runs the subscriber twice.
+ *
+ * @param dataSource - An initialized TypeORM `DataSource`.
+ * @throws Error when the data source is not initialized. `initialize()` replaces
+ *   the subscriber list, so an earlier registration has no effect.
+ */
+export function registerStratumSubscriber(
+  dataSource: TypeOrmDataSourceLike,
+): StratumTypeOrmSubscriber {
+  if (!dataSource.isInitialized) {
+    throw new Error(
+      "Stratum: call registerStratumSubscriber() after dataSource.initialize(). " +
+        "initialize() replaces the subscriber list.",
+    );
+  }
+  const existing = dataSource.subscribers.find(
+    (subscriber): subscriber is StratumTypeOrmSubscriber =>
+      subscriber instanceof StratumTypeOrmSubscriber,
+  );
+  if (existing) return existing;
+
+  const subscriber = new StratumTypeOrmSubscriber();
+  dataSource.subscribers.push(subscriber);
+  return subscriber;
 }

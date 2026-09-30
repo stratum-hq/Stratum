@@ -164,6 +164,7 @@ stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
 ```
 
+- `validateApiKey(key)` -- on success, sets the key's `last_used_at` before the promise resolves, so `listDormantKeys` called next does not report the key. A failure of that update does not fail the validation.
 - `getApiKey(id)` -- look up a single API key by id, including its owning tenant; returns `null` when no key has that id. The primitive for authorizing an operation that targets a key by id whose owning tenant is not otherwise in the request.
 
 ### Webhooks
@@ -270,13 +271,9 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 
 ### Encryption
 
+Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`. The package does not export the encryption functions; use the `Stratum` method below to change the key.
+
 ```typescript
-import { encrypt, decrypt, reEncrypt } from "@stratum-hq/lib";
-
-encrypt(plaintext: string): string           // "v1:iv:tag:ciphertext"
-decrypt(ciphertext: string): string
-reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
-
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
 

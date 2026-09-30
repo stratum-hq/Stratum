@@ -87,7 +87,7 @@ A purge has these conditions and effects:
 - The tenant must have no children, of any status.
 - The control plane deletes the tenant row and the tenant's records in the Stratum tables: config, permissions, API keys, roles, webhooks, consent records and audit logs.
 - For a tenant with its own schema or database, the control plane also drops that schema or database.
-- For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed.
+- For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed. A tenant-scoped key can purge a pending tenant in its own subtree.
 - Rows in your own tables that share a database with other tenants stay. Delete them yourself.
 - If the request times out, the purge can still complete. See [Request timeout](#request-timeout).
 
@@ -116,7 +116,6 @@ await client.purgeTenant(tenantId);
     app.use(expressMiddleware(client, {
       jwtClaimPath: "tenant_id",
       jwtSecret: process.env.JWT_SECRET,
-      headerName: "X-Tenant-ID",
       onError: (err, req) => console.error(err),
     }));
 
@@ -181,6 +180,7 @@ interface MiddlewareOptions {
   jwtSecret?: string;            // JWT verification secret (HS256)
   jwtVerify?: (token: string) => Record<string, unknown> | null;
   headerName?: string;           // Default: "X-Tenant-ID"
+  trustTenantHeader?: boolean;   // Read the header when JWT is configured. Default: false
   resolvers?: TenantResolver[];  // Custom resolution functions
   onError?: (err: Error, req: unknown) => void;
 }
@@ -191,14 +191,16 @@ interface MiddlewareOptions {
 The middleware resolves the tenant ID in this order:
 
 1. **JWT** -- extracts tenant ID from a Bearer token claim at `jwtClaimPath`
-2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`)
+2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`). When JWT verification is configured, this step runs only with `trustTenantHeader: true`.
 3. **Custom resolvers** -- your async functions, tried in order
 
 If no tenant ID is found, returns `400 MISSING_TENANT`.
 
 <Aside type="note">
   JWT resolution is only active when `jwtSecret` or `jwtVerify` is provided.
-  Without either, Bearer tokens are ignored.
+  Without either, Bearer tokens are ignored. When it is active, the verified JWT is
+  the tenant binding. A Bearer token that fails verification returns
+  `401 INVALID_TOKEN`, and the middleware does not try the header or the resolvers.
 </Aside>
 
 ### Custom Resolvers

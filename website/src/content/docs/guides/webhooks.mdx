@@ -15,6 +15,11 @@ Register webhooks to receive HTTP callbacks when tenants, config, or permissions
 | `tenant.updated` | Tenant properties changed |
 | `tenant.deleted` | Tenant archived |
 | `tenant.moved` | Tenant moved in hierarchy |
+| `tenant.activated` | Pending tenant activated after its storage is provisioned |
+| `tenant.suspended` | Tenant suspended |
+| `tenant.resumed` | Suspended or archived tenant resumed |
+| `tenant.archived` | Tenant archived |
+| `tenant.purged` | Tenant and its data permanently deleted |
 | `config.updated` | Config key set or overridden |
 | `config.deleted` | Config key removed |
 | `permission.created` | Permission policy created |
@@ -201,6 +206,7 @@ Webhook URLs are validated to prevent Server-Side Request Forgery:
 - DNS rebinding attacks are mitigated by resolving the hostname at delivery time
 
 <Aside type="note">
-  In development mode (`NODE_ENV=development`), `localhost` and private IPs are
-  allowed for local testing.
+  These checks apply in every environment, including `NODE_ENV=development`.
+  Stratum rejects a `localhost` or private-IP webhook URL. To receive deliveries on a
+  local machine, expose the receiver at a public URL.
 </Aside>

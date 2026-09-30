@@ -10,9 +10,9 @@ import {
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // API key lifecycle against a REAL Postgres: what rotation carries over, which
-// tenant states a key authenticates under, that the background key updates land
-// for a role subject to row-level security, and that validation completes on a
-// single pooled connection.
+// tenant states a key authenticates under, that the key updates made during
+// validation land for a role subject to row-level security, and that validation
+// completes on a single pooled connection.
 
 const HMAC_ENV_NAME = "STRATUM_API_KEY_HMAC_SECRET";
 const APP_ROLE = "stratum_it_keys_app";
@@ -20,16 +20,6 @@ const APP_ROLE = "stratum_it_keys_app";
 const TEST_DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgresql://stratum_test:stratum_test@localhost:5433/stratum_test";
-
-/** Poll until fn() returns truthy, for writes the service does not await. */
-async function waitFor<T>(fn: () => Promise<T>, tries = 40, delayMs = 25): Promise<T> {
-  let last: T = await fn();
-  for (let i = 0; i < tries && !last; i++) {
-    await new Promise((r) => setTimeout(r, delayMs));
-    last = await fn();
-  }
-  return last;
-}
 
 async function keyRow(id: string): Promise<{
   tenant_id: string | null;
@@ -182,32 +172,27 @@ describe("API key lifecycle (integration)", () => {
       await appPool.end();
     });
 
-    it("stamps last_used_at on a successful validation", async () => {
+    it("stamps last_used_at before validateApiKey resolves", async () => {
       const tenant = await stratum.createTenant({ name: "rls", slug: uniqueSlug("rls") });
       const key = await stratum.createApiKey(tenant.id, "k");
 
       expect(await appStratum.validateApiKey(key.plaintext_key)).not.toBeNull();
-      const stamped = await waitFor(async () => (await keyRow(key.id)).last_used_at);
-      expect(stamped).not.toBeNull();
+      expect((await keyRow(key.id)).last_used_at).not.toBeNull();
     });
 
-    it("upgrades a legacy SHA-256 hash to HMAC on a successful validation", async () => {
+    it("upgrades a legacy SHA-256 hash to HMAC before validateApiKey resolves", async () => {
       const tenant = await stratum.createTenant({ name: "rlsu", slug: uniqueSlug("rlsu") });
       const key = await stratum.createApiKey(tenant.id, "legacy");
       expect((await keyRow(key.id)).hash_version).toBe(1);
 
       process.env[HMAC_ENV_NAME] = "a8-upgrade-secret";
       expect(await appStratum.validateApiKey(key.plaintext_key)).not.toBeNull();
-      const version = await waitFor(async () => {
-        const v = (await keyRow(key.id)).hash_version;
-        return v === 2 ? v : 0;
-      });
-      expect(version).toBe(2);
+      expect((await keyRow(key.id)).hash_version).toBe(2);
     });
   });
 
   describe("pool usage", () => {
-    it("validates a role-bound key on a pool with a single connection", async () => {
+    it("validates and stamps a role-bound key on a pool with a single connection", async () => {
       const tenant = await stratum.createTenant({ name: "pool", slug: uniqueSlug("pool") });
       const key = await stratum.createApiKey(tenant.id, "k");
       const role = await stratum.createRole({ name: "pool-readers", scopes: ["read"], tenant_id: tenant.id });
@@ -219,6 +204,8 @@ describe("API key lifecycle (integration)", () => {
       try {
         const result = await new Stratum({ pool: onePool }).validateApiKey(key.plaintext_key);
         expect(result!.scopes).toEqual(["read"]);
+        // The stamp takes the one connection only after validation releases it.
+        expect((await keyRow(key.id)).last_used_at).not.toBeNull();
       } finally {
         await onePool.end();
       }

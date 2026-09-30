@@ -9,6 +9,7 @@ export const TenantEvent = {
   TENANT_RESUMED: "tenant.resumed",
   TENANT_ARCHIVED: "tenant.archived",
   TENANT_PURGED: "tenant.purged",
+  TENANT_ACTIVATED: "tenant.activated",
   CONFIG_UPDATED: "config.updated",
   CONFIG_DELETED: "config.deleted",
   PERMISSION_CREATED: "permission.created",
