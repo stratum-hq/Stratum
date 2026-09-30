@@ -14,30 +14,24 @@ npm install -D @stratum-hq/test-utils
 ## Quick Start
 
 ```typescript
-import { assertIsolation } from "@stratum-hq/test-utils";
+import { assertIsolation, assertConfigInheritance } from "@stratum-hq/test-utils";
 
 describe("tenant isolation", () => {
   it("tenantA cannot read tenantB data", async () => {
-    await assertIsolation({
-      pool,
-      tenantA: "acme",
-      tenantB: "globex",
-      table: "users",
-      setup: async (pool, tenantId) => {
-        // Insert test data for each tenant
-        await pool.query(
-          "INSERT INTO users (tenant_id, name) VALUES ($1, $2)",
-          [tenantId, `User for ${tenantId}`],
-        );
-      },
-    });
+    // Connect `pool` as your application's role; a superuser ignores RLS.
+    await assertIsolation(pool, tenantAId, tenantBId, "orders");
+  });
+
+  it("config inherits and locks down the tree", async () => {
+    // `stratum` is a Stratum instance from @stratum-hq/lib.
+    await assertConfigInheritance(stratum, parentId, childId, "test.inheritance_key");
   });
 });
 ```
 
 ## Features
 
-- **`assertIsolation()`** -- verifies that tenantA cannot read tenantB's data via parameterized SQL
-- **`assertConfigInheritance()`** -- verifies config values flow correctly through the tenant hierarchy
+- **`assertIsolation(pool, tenantA, tenantB, table, options?)`** -- inserts a row as tenantB, checks tenantB can read it back, and asserts tenantA cannot, then rolls back
+- **`assertConfigInheritance(stratum, parentId, childId, key)`** -- verifies inheritance, child override and parent locks through Stratum's config API
 - **Descriptive error messages** -- clear failure output showing exactly which isolation boundary was breached
 - **Database-agnostic** -- works with PostgreSQL, MongoDB, and MySQL

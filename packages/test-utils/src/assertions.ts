@@ -1,14 +1,26 @@
+import { randomUUID } from "node:crypto";
 import type pg from "pg";
 
 export interface IsolationOptions {
-  /** Column name to use for the test row. Defaults to "id". */
+  /**
+   * Column that receives the test marker. Defaults to "id". The marker is a
+   * random UUID, so it fits UUID and text columns.
+   */
   testColumn?: string;
+  /** Column holding the owning tenant. Defaults to "tenant_id". */
+  tenantColumn?: string;
 }
 
 /**
  * Verifies that tenantA cannot read tenantB's data in the given table.
- * Inserts a test row as tenantB, then queries as tenantA and asserts 0 rows returned.
- * Cleans up after itself.
+ *
+ * Inserts a test row as tenantB (setting `tenantColumn` to tenantB), checks
+ * that tenantB can read it back (positive control, so a policy that hides
+ * every row cannot pass), then queries as tenantA and asserts 0 rows.
+ * Everything runs in one transaction that is rolled back.
+ *
+ * Connect `pool` as the role your application uses: a superuser or BYPASSRLS
+ * role ignores RLS, and the check then fails as it should.
  */
 export async function assertIsolation(
   pool: pg.Pool,
@@ -18,7 +30,8 @@ export async function assertIsolation(
   options?: IsolationOptions,
 ): Promise<void> {
   const column = options?.testColumn ?? "id";
-  const testValue = `__stratum_isolation_test_${Date.now()}`;
+  const tenantColumn = options?.tenantColumn ?? "tenant_id";
+  const testValue = randomUUID();
   const client = await pool.connect();
 
   try {
@@ -29,9 +42,20 @@ export async function assertIsolation(
       tenantB,
     ]);
     await client.query(
-      `INSERT INTO ${escapeIdentifier(table)} (${escapeIdentifier(column)}) VALUES ($1)`,
+      `INSERT INTO ${escapeIdentifier(table)} (${escapeIdentifier(tenantColumn)}, ${escapeIdentifier(column)}) VALUES ($1, $2)`,
+      [tenantB, testValue],
+    );
+
+    // Positive control: tenantB must see its own row, or the check proves nothing
+    const own = await client.query(
+      `SELECT 1 FROM ${escapeIdentifier(table)} WHERE ${escapeIdentifier(column)} = $1`,
       [testValue],
     );
+    if ((own.rowCount ?? 0) !== 1) {
+      throw new Error(
+        `Tenant '${tenantB}' could not read back its own test row in table '${table}' -- the isolation check is inconclusive (positive control failed)`,
+      );
+    }
 
     // Switch to tenantA and attempt to read tenantB's row
     await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
@@ -56,114 +80,96 @@ export async function assertIsolation(
 }
 
 /**
- * Verifies that child tenant inherits config from parent tenant.
- * Sets config on parent, reads from child, asserts match.
- * Also tests: child override takes precedence, locked config cannot be overridden.
+ * The part of a Stratum instance (`new Stratum({ pool })` from
+ * `@stratum-hq/lib`) that assertConfigInheritance uses.
+ */
+export interface ConfigInheritanceTarget {
+  setConfig(tenantId: string, key: string, input: { value: unknown; locked?: boolean }): Promise<unknown>;
+  deleteConfig(tenantId: string, key: string): Promise<unknown>;
+  resolveConfig(tenantId: string): Promise<Record<string, { value: unknown } | undefined>>;
+}
+
+function isConfigLockedError(err: unknown): boolean {
+  const e = err as { code?: unknown; name?: unknown } | null;
+  return e?.code === "CONFIG_LOCKED" || e?.name === "ConfigLockedError";
+}
+
+/**
+ * Verifies config inheritance through Stratum's own config API: a value set on
+ * the parent resolves on the child, a child override takes precedence, and a
+ * key the parent locks cannot be overridden by the child (the override must be
+ * rejected with ConfigLockedError; any other error fails the assertion).
+ *
+ * Writes `key` on both tenants and deletes it again afterwards, so pass a key
+ * that is not otherwise in use.
  */
 export async function assertConfigInheritance(
-  pool: pg.Pool,
+  stratum: ConfigInheritanceTarget,
   parentId: string,
   childId: string,
   key: string,
 ): Promise<void> {
+  if (typeof stratum?.setConfig !== "function" || typeof stratum?.resolveConfig !== "function") {
+    throw new TypeError(
+      "assertConfigInheritance expects a Stratum instance (new Stratum({ pool }) from @stratum-hq/lib).",
+    );
+  }
+  const existing = (await stratum.resolveConfig(childId))[key];
+  if (existing !== undefined) {
+    throw new Error(
+      `Config key '${key}' already resolves for tenant '${childId}' -- pass a key that is not in use`,
+    );
+  }
+
   const parentValue = `__stratum_parent_${Date.now()}`;
   const childOverride = `__stratum_child_${Date.now()}`;
-  const client = await pool.connect();
+  let parentWritten = false;
+  let childWritten = false;
 
   try {
-    await client.query("BEGIN");
-
     // Step 1: Set config on parent, verify child inherits it
-    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
-      parentId,
-    ]);
-    await client.query(
-      `INSERT INTO tenant_config (tenant_id, key, value) VALUES ($1, $2, $3)
-       ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value`,
-      [parentId, key, parentValue],
-    );
-
-    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
-      childId,
-    ]);
-    const inherited = await client.query(
-      `SELECT value FROM tenant_config_resolved WHERE tenant_id = $1 AND key = $2`,
-      [childId, key],
-    );
-
-    if ((inherited.rowCount ?? 0) === 0 || inherited.rows[0].value !== parentValue) {
-      const actual = (inherited.rowCount ?? 0) === 0 ? "no value" : inherited.rows[0].value;
+    await stratum.setConfig(parentId, key, { value: parentValue });
+    parentWritten = true;
+    const inherited = (await stratum.resolveConfig(childId))[key];
+    if (inherited?.value !== parentValue) {
       throw new Error(
-        `Child tenant '${childId}' did not inherit config key '${key}' from parent '${parentId}' — expected '${parentValue}', got '${actual}'`,
+        `Child tenant '${childId}' did not inherit config key '${key}' from parent '${parentId}' — expected '${parentValue}', got '${inherited === undefined ? "no value" : String(inherited.value)}'`,
       );
     }
 
     // Step 2: Child override takes precedence
-    await client.query(
-      `INSERT INTO tenant_config (tenant_id, key, value) VALUES ($1, $2, $3)
-       ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value`,
-      [childId, key, childOverride],
-    );
-
-    const overridden = await client.query(
-      `SELECT value FROM tenant_config_resolved WHERE tenant_id = $1 AND key = $2`,
-      [childId, key],
-    );
-
-    if ((overridden.rowCount ?? 0) === 0 || overridden.rows[0].value !== childOverride) {
-      const actual = (overridden.rowCount ?? 0) === 0 ? "no value" : overridden.rows[0].value;
+    await stratum.setConfig(childId, key, { value: childOverride });
+    childWritten = true;
+    const overridden = (await stratum.resolveConfig(childId))[key];
+    if (overridden?.value !== childOverride) {
       throw new Error(
-        `Child tenant '${childId}' override for key '${key}' did not take precedence — expected '${childOverride}', got '${actual}'`,
+        `Child tenant '${childId}' override for key '${key}' did not take precedence — expected '${childOverride}', got '${overridden === undefined ? "no value" : String(overridden.value)}'`,
       );
     }
 
     // Step 3: Locked config cannot be overridden by child
-    // Remove child override first, then lock at parent level
-    await client.query(
-      `DELETE FROM tenant_config WHERE tenant_id = $1 AND key = $2`,
-      [childId, key],
-    );
-    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
-      parentId,
-    ]);
-    await client.query(
-      `UPDATE tenant_config SET locked = true WHERE tenant_id = $1 AND key = $2`,
-      [parentId, key],
-    );
+    await stratum.deleteConfig(childId, key);
+    childWritten = false;
+    await stratum.setConfig(parentId, key, { value: parentValue, locked: true });
 
-    // Attempt to override as child — should fail or be ignored
-    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [
-      childId,
-    ]);
-
-    let lockedOverrideFailed = false;
+    let rejectedByLock = false;
     try {
-      await client.query(
-        `INSERT INTO tenant_config (tenant_id, key, value) VALUES ($1, $2, $3)
-         ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value`,
-        [childId, key, childOverride],
-      );
-      // If insert succeeded, check that resolved value still matches parent
-      const resolved = await client.query(
-        `SELECT value FROM tenant_config_resolved WHERE tenant_id = $1 AND key = $2`,
-        [childId, key],
-      );
-      if ((resolved.rowCount ?? 0) > 0 && resolved.rows[0].value === parentValue) {
-        lockedOverrideFailed = true; // locked config correctly prevented override
-      }
-    } catch {
-      // A constraint violation or trigger error means the lock worked
-      lockedOverrideFailed = true;
+      await stratum.setConfig(childId, key, { value: childOverride });
+      childWritten = true;
+    } catch (err) {
+      // Only the lock itself counts. Any other failure is not evidence.
+      if (!isConfigLockedError(err)) throw err;
+      rejectedByLock = true;
     }
-
-    if (!lockedOverrideFailed) {
+    const resolved = (await stratum.resolveConfig(childId))[key];
+    if (!rejectedByLock || resolved?.value !== parentValue) {
       throw new Error(
         `Child tenant '${childId}' was able to override locked config key '${key}' from parent '${parentId}' — lock is not enforced`,
       );
     }
   } finally {
-    await client.query("ROLLBACK");
-    client.release();
+    if (childWritten) await stratum.deleteConfig(childId, key).catch(() => undefined);
+    if (parentWritten) await stratum.deleteConfig(parentId, key).catch(() => undefined);
   }
 }
 
