@@ -190,6 +190,40 @@ describe("audit-write API against real Postgres (integration)", () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
+  it("records again a source_ip that queryAuditLogs returned", async () => {
+    const tenant = await stratum.createTenant(
+      { name: "Reread", slug: uniqueSlug("awr") },
+      actor,
+    );
+
+    for (const sourceIp of ["203.0.113.7", "2001:db8::1", "10.0.0.0/8", "2001:db8::/32"]) {
+      await stratum.recordAuditEvent({
+        tenantId: tenant.id,
+        actorId: "user-1",
+        action: "ip.first",
+        resourceType: "ip",
+        resourceId: sourceIp,
+        sourceIp,
+      });
+    }
+    const first = await stratum.queryAuditLogs({ tenant_id: tenant.id, action: "ip.first", limit: 10 });
+    const readBack = first.map((row) => row.source_ip as string).sort();
+    expect(readBack).toEqual(["10.0.0.0/8", "2001:db8::/32", "2001:db8::1/128", "203.0.113.7/32"]);
+
+    for (const sourceIp of readBack) {
+      await stratum.recordAuditEvent({
+        tenantId: tenant.id,
+        actorId: "user-1",
+        action: "ip.again",
+        resourceType: "ip",
+        resourceId: sourceIp,
+        sourceIp,
+      });
+    }
+    const again = await stratum.queryAuditLogs({ tenant_id: tenant.id, action: "ip.again", limit: 10 });
+    expect(again.map((row) => row.source_ip).sort()).toEqual(readBack);
+  });
+
   it("rejects an invalid actor_type via the CHECK constraint (raw backstop)", async () => {
     await expect(
       getPool().query(
