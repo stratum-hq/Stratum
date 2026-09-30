@@ -32,6 +32,8 @@ interface PoolEntry {
  */
 export class DatabasePoolManager {
   private readonly pools: Map<string, PoolEntry> = new Map();
+  /** Holds that callers still have on pools that closePool or closeAll removed, by pool key. */
+  private readonly closedHolds: Map<string, number> = new Map();
   private readonly baseConfig: pg.PoolConfig;
   private readonly maxPools: number;
   private readonly idleTimeoutMs: number;
@@ -75,13 +77,9 @@ export class DatabasePoolManager {
     entry.lastUsed = Date.now();
     entry.refCount++;
     if (victim) {
-      try {
-        await victim.end();
-      } catch (err) {
-        // The caller gets no pool, so it will not call releasePool.
-        entry.refCount--;
-        throw err;
-      }
+      // The evicted pool belongs to a different tenant. Its end error must not
+      // fail this request, which already has a usable pool.
+      await victim.end().catch(() => undefined);
     }
     return entry.pool;
   }
@@ -89,9 +87,27 @@ export class DatabasePoolManager {
   /**
    * Ends one hold on the pool that getPool returned for the same arguments.
    * Call it once for each getPool call. No-op if the pool is not tracked.
+   *
+   * Without a regionId, a bare slug also matches one region-prefixed pool
+   * (`regionId:slug`), as closePool does. If the slug matches pools in more
+   * than one region, the call releases nothing, because the manager cannot
+   * tell which pool the caller holds. Pass the regionId in that case.
    */
   releasePool(tenantSlug: string, regionId?: string): void {
-    const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
+    const poolKey = this.resolveHeldKey(tenantSlug, regionId);
+    if (poolKey === undefined) return;
+
+    // The caller passes a key, not the pool, so the manager cannot tell a
+    // hold on a closed pool from a hold on its replacement. It ends holds on
+    // closed pools first. The replacement then counts as held for longer than
+    // it is, which is safe: eviction never ends a pool that is in use.
+    const closed = this.closedHolds.get(poolKey);
+    if (closed !== undefined) {
+      if (closed === 1) this.closedHolds.delete(poolKey);
+      else this.closedHolds.set(poolKey, closed - 1);
+      return;
+    }
+
     const entry = this.pools.get(poolKey);
     if (!entry || entry.refCount === 0) return;
     entry.refCount--;
@@ -116,6 +132,7 @@ export class DatabasePoolManager {
     const entry = this.pools.get(resolvedKey);
     if (!entry) return;
     this.pools.delete(resolvedKey);
+    this.recordClosedHolds(resolvedKey, entry);
     await entry.pool.end();
   }
 
@@ -123,7 +140,30 @@ export class DatabasePoolManager {
   async closeAll(): Promise<void> {
     const entries = Array.from(this.pools.entries());
     this.pools.clear();
+    for (const [key, entry] of entries) this.recordClosedHolds(key, entry);
     await Promise.all(entries.map(([, entry]) => entry.pool.end()));
+  }
+
+  /** Keeps the holds of a removed pool, so that their releases do not reach a later pool for the key. */
+  private recordClosedHolds(poolKey: string, entry: PoolEntry): void {
+    if (entry.refCount === 0) return;
+    this.closedHolds.set(poolKey, (this.closedHolds.get(poolKey) ?? 0) + entry.refCount);
+  }
+
+  /**
+   * Returns the key that releasePool acts on: the exact key when the manager
+   * tracks it, else the one region-prefixed key for a bare slug. Returns
+   * undefined when no key or more than one key matches.
+   */
+  private resolveHeldKey(tenantSlug: string, regionId?: string): string | undefined {
+    const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
+    if (this.pools.has(poolKey) || this.closedHolds.has(poolKey) || regionId) return poolKey;
+
+    const matches = new Set<string>();
+    for (const key of [...this.pools.keys(), ...this.closedHolds.keys()]) {
+      if (key.endsWith(`:${tenantSlug}`)) matches.add(key);
+    }
+    return matches.size === 1 ? [...matches][0] : undefined;
   }
 
   /** Returns a snapshot of current pool statistics. */

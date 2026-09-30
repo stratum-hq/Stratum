@@ -220,7 +220,6 @@ describe("DatabasePoolManager", () => {
     it("keeps pools for the same slug in different regions apart", async () => {
       const mgr = makeManager(1);
       await mgr.getPool("acme", "eu");
-      mgr.releasePool("acme");
 
       await mgr.getPool("acme", "us");
 
@@ -228,6 +227,61 @@ describe("DatabasePoolManager", () => {
       mgr.releasePool("acme", "eu");
       await mgr.getPool("globex");
       expect(mockPoolEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps serving the new tenant when ending the evicted pool fails", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
+      mockPoolEnd.mockRejectedValueOnce(new Error("end failed"));
+
+      const pool = (await mgr.getPool("tenant_b")) as unknown as { database: string };
+
+      expect(pool.database).toBe("stratum_tenant_tenant_b");
+      expect(mgr.getStats().poolCount).toBe(1);
+      mgr.releasePool("tenant_b");
+      await mgr.getPool("tenant_c");
+      expect(mockPoolEnd).toHaveBeenLastCalledWith("stratum_tenant_tenant_b");
+    });
+  });
+
+  describe("releasePool", () => {
+    it("releases a region-prefixed pool when called with the bare slug", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("acme", "eu");
+
+      mgr.releasePool("acme");
+      await mgr.getPool("globex");
+
+      expect(mockPoolEnd).toHaveBeenCalledWith("stratum_tenant_acme");
+    });
+
+    it("releases nothing when the bare slug matches pools in more than one region", async () => {
+      const mgr = makeManager(2);
+      await mgr.getPool("acme", "eu");
+      await mgr.getPool("acme", "us");
+
+      mgr.releasePool("acme");
+      await mgr.getPool("globex");
+
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+    });
+
+    it("does not release a new pool for a hold on a pool that closePool removed", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("acme");
+      await mgr.closePool("acme");
+      await mgr.getPool("acme");
+      mockPoolEnd.mockClear();
+
+      // This release ends the hold on the closed pool, not on the new one.
+      mgr.releasePool("acme");
+      await mgr.getPool("globex");
+
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+      mgr.releasePool("acme");
+      await mgr.getPool("initech");
+      expect(mockPoolEnd).toHaveBeenCalledWith("stratum_tenant_acme");
     });
   });
 

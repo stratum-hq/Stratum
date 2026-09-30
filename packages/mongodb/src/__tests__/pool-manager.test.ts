@@ -174,6 +174,124 @@ describe("MongoPoolManager", () => {
     });
   });
 
+  describe("eviction when close fails", () => {
+    it("keeps serving the new tenant when closing the evicted client fails", async () => {
+      await manager.getClient("aaa");
+      manager.releaseClient("aaa");
+      vi.mocked(clients[0].close).mockRejectedValueOnce(new Error("close failed"));
+      await manager.getClient("bbb");
+      await manager.getClient("ccc");
+
+      const client = await manager.getClient("ddd");
+
+      expect(client).toBe(clients[3]);
+      expect(clients[0].close).toHaveBeenCalled();
+      expect(manager.getStats().clientCount).toBe(3);
+    });
+  });
+
+  describe("releaseClient after closeClient", () => {
+    it("does not release a new client for a hold on a client that closeClient removed", async () => {
+      await manager.getClient("aaa");
+      await manager.closeClient("aaa");
+      await manager.getClient("aaa");
+      await manager.getClient("bbb");
+      await manager.getClient("ccc");
+
+      // This release ends the hold on the closed client, not on the new one.
+      manager.releaseClient("aaa");
+      await manager.getClient("ddd");
+
+      expect(clients[1].close).not.toHaveBeenCalled();
+      manager.releaseClient("aaa");
+      await manager.getClient("eee");
+      expect(clients[1].close).toHaveBeenCalled();
+    });
+
+    it("drops the hold of a closed client whose creation failed", async () => {
+      let rejectCreate: (err: Error) => void = () => undefined;
+      let calls = 0;
+      const mgr = new MongoPoolManager({
+        createClient: () => {
+          calls++;
+          if (calls === 1) {
+            return new Promise<MongoClientLike>((_resolve, reject) => {
+              rejectCreate = reject;
+            });
+          }
+          const client = createMockClient();
+          clients.push(client);
+          return client;
+        },
+        baseUri: "mongodb://localhost:27017/default",
+        maxClients: 1,
+      });
+      const pending = mgr.getClient("aaa");
+      const closing = mgr.closeClient("aaa");
+      rejectCreate(new Error("connect failed"));
+      await expect(pending).rejects.toThrow("connect failed");
+      await closing;
+
+      await mgr.getClient("aaa");
+      mgr.releaseClient("aaa");
+      await mgr.getClient("bbb");
+
+      expect(clients[0].close).toHaveBeenCalled();
+      await mgr.closeAll();
+    });
+  });
+
+  describe("idleTimeoutMs validation", () => {
+    function makeWithTimeout(idleTimeoutMs: number) {
+      return new MongoPoolManager({
+        createClient: async () => createMockClient(),
+        baseUri: "mongodb://localhost:27017/default",
+        idleTimeoutMs,
+      });
+    }
+
+    it.each([0, Infinity])("starts no idle check when idleTimeoutMs is %s", async (value) => {
+      vi.useFakeTimers();
+      const mgr = makeWithTimeout(value);
+
+      expect(vi.getTimerCount()).toBe(0);
+      await mgr.closeAll();
+    });
+
+    it("never closes an idle client when the idle check is off", async () => {
+      vi.useFakeTimers();
+      const mgr = new MongoPoolManager({
+        createClient: async () => {
+          const client = createMockClient();
+          clients.push(client);
+          return client;
+        },
+        baseUri: "mongodb://localhost:27017/default",
+        idleTimeoutMs: 0,
+      });
+      await mgr.getClient("acme");
+      mgr.releaseClient("acme");
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(clients[0].close).not.toHaveBeenCalled();
+      await mgr.closeAll();
+    });
+
+    it("limits the idle check interval to the largest delay a timer accepts", async () => {
+      const spy = vi.spyOn(globalThis, "setInterval");
+      const mgr = makeWithTimeout(2 ** 31);
+
+      expect(spy).toHaveBeenCalledWith(expect.any(Function), 2 ** 31 - 1);
+      spy.mockRestore();
+      await mgr.closeAll();
+    });
+
+    it.each([-1, Number.NaN])("rejects idleTimeoutMs %s", (value) => {
+      expect(() => makeWithTimeout(value)).toThrow(RangeError);
+    });
+  });
+
   describe("idle timeout", () => {
     function makeIdleManager() {
       return new MongoPoolManager({

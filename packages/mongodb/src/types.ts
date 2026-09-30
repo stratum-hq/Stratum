@@ -77,8 +77,14 @@ export interface MongoDatabaseAdapterOptions {
   createClient: (uri: string) => MongoClientLike | Promise<MongoClientLike>;
   /** Base connection URI (database name will be replaced per-tenant). */
   baseUri: string;
-  /** Pool manager options. */
+  /** Maximum number of cached clients. Default: 20. */
   maxClients?: number;
+  /**
+   * Milliseconds a client that no caller holds can stay unused before the
+   * manager closes it. The manager also checks at this interval, capped at
+   * 2^31 - 1. `0` or `Infinity` turns the idle check off. A negative value or
+   * NaN throws a RangeError. Default: 60000.
+   */
   idleTimeoutMs?: number;
 }
 
@@ -91,7 +97,9 @@ export interface MongoPoolManagerOptions {
   maxClients?: number;
   /**
    * Milliseconds a client that no caller holds can stay unused before the
-   * manager closes it. The manager also checks at this interval. Default: 60000.
+   * manager closes it. The manager also checks at this interval, capped at
+   * 2^31 - 1. `0` or `Infinity` turns the idle check off. A negative value or
+   * NaN throws a RangeError. Default: 60000.
    */
   idleTimeoutMs?: number;
 }
