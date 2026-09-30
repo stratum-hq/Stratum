@@ -280,8 +280,9 @@ export class Stratum {
    * parent is not active.
    */
   async activateTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
-    return traced("tenant.activate", { tenant_id: id }, async () => {
+    return traced("tenant.activate", { tenant_id: id }, async (span) => {
       const tenant = await tenantService.activateTenant(this.pool, id);
+      this.emitEvent(TenantEvent.TENANT_ACTIVATED, id, { tenant }, span);
       if (audit) {
         await auditService.createAuditEntry(
           this.pool, audit, "tenant.activated", "tenant", id, id,
