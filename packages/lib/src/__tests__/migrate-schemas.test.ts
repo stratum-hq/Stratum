@@ -28,7 +28,7 @@ function createMockClient(schemas: string[] = []) {
       // Check if migration already applied
       if (
         typeof sql === "string" &&
-        sql.includes("SELECT 1 FROM _migrations") &&
+        sql.includes("_migrations WHERE name = $1") &&
         params
       ) {
         const name = params[0] as string;
@@ -40,7 +40,7 @@ function createMockClient(schemas: string[] = []) {
       // Record applied migration
       if (
         typeof sql === "string" &&
-        sql.includes("INSERT INTO _migrations") &&
+        sql.includes("_migrations (name) VALUES") &&
         params
       ) {
         applied.add(params[0] as string);
@@ -135,6 +135,9 @@ describe("migrateAllSchemas", () => {
       (s: string) => typeof s === "string" && s.includes("search_path"),
     );
     expect(searchPathCalls.some((s: string) => s.includes("tenant_acme"))).toBe(true);
+
+    // Migration bookkeeping is qualified with the tenant schema.
+    expect(allCalls.some((s: string) => typeof s === "string" && s.includes(`INSERT INTO "tenant_acme"._migrations`))).toBe(true);
   });
 
   it("continue-on-error: collects failures in result.failed[]", async () => {
@@ -205,7 +208,7 @@ describe("migrateAllSchemas", () => {
       client.query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
         if (
           typeof sql === "string" &&
-          sql.includes("SELECT 1 FROM _migrations") &&
+          sql.includes("_migrations WHERE name = $1") &&
           params
         ) {
           return Promise.resolve({ rows: [{ "?column?": 1 }] });
@@ -226,7 +229,7 @@ describe("migrateAllSchemas", () => {
         c.query.mock.calls.map((call: unknown[]) => call[0]),
     );
     const inserts = allCalls.filter(
-      (s: string) => typeof s === "string" && s.includes("INSERT INTO _migrations"),
+      (s: string) => typeof s === "string" && s.includes("_migrations (name) VALUES"),
     );
     expect(inserts).toHaveLength(0);
   });
