@@ -235,6 +235,8 @@ export function createTenantScopeEnforcer(stratum: Stratum) {
     _reply: FastifyReply,
   ): Promise<void> {
     if (isUnauthenticatedPath(request.url)) return;
+    // A request that matched no route reaches only the not-found handler.
+    if (request.is404) return;
 
     const declaration = request.routeOptions?.config?.tenantScope;
     if (declaration === undefined) {
