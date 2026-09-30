@@ -15,14 +15,19 @@ npm install @stratum-hq/hono @stratum-hq/sdk @stratum-hq/core
 
 ```typescript
 import { Hono } from "hono";
+import { jwt } from "hono/jwt";
 import { stratumMiddleware } from "@stratum-hq/hono";
 import { getTenantContext } from "@stratum-hq/sdk";
 
 const app = new Hono();
 
+// hono/jwt rejects a missing or invalid bearer token with 401.
+// It stores the verified claims as jwtPayload.
+app.use("*", jwt({ secret: process.env.JWT_SECRET!, alg: "HS256" }));
+
 app.use("*", stratumMiddleware({
-  // Extract tenant from a header (or use jwtClaim / pathParam)
-  header: "x-tenant-id",
+  // Read the tenant from the verified `tenant_id` claim
+  jwtClaim: "tenant_id",
   // Optional: resolve full tenant context
   resolve: async (tenantId) => sdkClient.resolveTenant(tenantId),
 }));
@@ -34,9 +39,26 @@ app.get("/users", async (c) => {
 });
 ```
 
+`stratumMiddleware` does not verify a token. The `jwtClaim` option reads the `jwtPayload` that Hono's JWT middleware sets. Therefore, register `jwt()` before `stratumMiddleware`.
+
+## Read the tenant from a header
+
+Without `jwtClaim` or `pathParam`, the middleware reads the `x-tenant-id` header. Any client can send that header and select another tenant.
+
+Use the `header` option only when all of these are true:
+
+- A gateway that you control sets the header.
+- That gateway removes any copy of the header that the client sent.
+- Clients cannot reach this server except through that gateway.
+
+```typescript
+// Only the gateway you control sets x-tenant-id. It removes any client copy.
+app.use("*", stratumMiddleware({ header: "x-tenant-id" }));
+```
+
 ## Features
 
-- **Tenant extraction** -- from header, JWT claim, or URL path parameter
+- **Tenant extraction** -- from a verified JWT claim, a URL path parameter, or a header that a trusted gateway sets
 - **ALS context** -- sets tenant context via `runWithTenantContext` for downstream handlers
 - **Optional resolve callback** -- fetch full tenant context from the control plane
 - **Lightweight** -- no heavy dependencies, structural types only

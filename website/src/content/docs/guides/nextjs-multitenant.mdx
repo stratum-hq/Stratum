@@ -5,13 +5,13 @@ description: Build a multi-tenant Next.js app with subdomain routing, server com
 
 import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
-This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). Tenant resolution happens in Next.js middleware, server components read the tenant context from headers, and PostgreSQL RLS enforces data isolation at the database level.
+This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). Next.js middleware resolves the tenant. Server components read the result from a request header that only the middleware sets. PostgreSQL RLS enforces data isolation at the database level.
 
 ## Architecture Overview
 
 The setup has three layers:
 
-1. **Middleware** resolves the tenant from the subdomain (or header, or path) and forwards the tenant ID to downstream handlers
+1. **Middleware** reads the tenant ID from a verified JWT and the tenant slug from the subdomain, then forwards them to downstream handlers
 2. **Server components and API routes** read the tenant ID from headers and use Stratum to resolve config and permissions
 3. **Database queries** run through Stratum's `prismaWithTenant()` wrapper, which sets the PostgreSQL session variable for RLS
 
@@ -31,7 +31,7 @@ cd my-saas
 ### 2. Install Dependencies
 
 ```bash
-npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client
+npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client jose
 npm install -D prisma @types/pg
 ```
 
@@ -61,29 +61,70 @@ CREATE POLICY tenant_isolation ON orders
 
 ## Tenant Resolution Middleware
 
-Create `middleware.ts` in your project root (not inside `src/`). This middleware extracts the tenant identifier from the subdomain, a custom header, or the URL path, then forwards it as an `x-tenant-id` header to all downstream handlers.
+The middleware resolves the tenant in two ways:
+
+- A bearer token gives the tenant ID. The middleware verifies the token with `jose` and reads its `tenant_id` claim.
+- A subdomain gives the tenant slug. A subdomain only selects which tenant's public page to show. It does not prove that the caller belongs to that tenant.
+
+The middleware forwards the result in two request headers. First, define their names in one module:
 
 ```typescript
-// middleware.ts
+// src/lib/tenant-headers.ts
+// src/middleware.ts deletes any client copy of these headers before it sets
+// them, so a handler that reads them sees only values that the middleware set.
+export const TENANT_ID_HEADER = "x-stratum-tenant-id";
+export const TENANT_SLUG_HEADER = "x-stratum-tenant-slug";
+```
+
+Then create `src/middleware.ts`. With the `--src-dir` layout, Next.js reads the middleware file from `src/`, next to `app/`.
+
+```typescript
+// src/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
+import { TENANT_ID_HEADER, TENANT_SLUG_HEADER } from "./lib/tenant-headers";
 
-export function middleware(request: NextRequest) {
-  // Strategy 1: Subdomain-based (acme.yourapp.com)
-  const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
+/** Return the tenant_id claim of a token that verifies with JWT_SECRET, or null. */
+async function verifiedTenantId(token: string): Promise<string | null> {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is required to verify bearer tokens.");
+  }
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      algorithms: ["HS256"],
+    });
+    return typeof payload.tenant_id === "string" ? payload.tenant_id : null;
+  } catch {
+    return null;
+  }
+}
 
-  // Strategy 2: Header-based (x-tenant-id)
-  const headerTenantId = request.headers.get("x-tenant-id");
-
-  // Strategy 3: Path-based (/tenant/acme/dashboard)
-  const pathTenantId = request.nextUrl.pathname.match(/^\/tenant\/([^/]+)/)?.[1];
-
-  const tenantId = headerTenantId || pathTenantId || subdomain;
-
-  // Forward tenant ID to API routes and server components
+export async function middleware(request: NextRequest) {
+  // Only this middleware may set the tenant headers.
   const requestHeaders = new Headers(request.headers);
-  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
-    requestHeaders.set("x-tenant-id", tenantId);
+  requestHeaders.delete(TENANT_ID_HEADER);
+  requestHeaders.delete(TENANT_SLUG_HEADER);
+
+  // 1. Bearer token: the verified tenant_id claim.
+  //    A token that does not verify is rejected, never ignored.
+  const authorization = request.headers.get("authorization");
+  if (authorization?.startsWith("Bearer ")) {
+    const tenantId = await verifiedTenantId(authorization.slice("Bearer ".length));
+    if (!tenantId) {
+      return NextResponse.json({ error: "Invalid bearer token" }, { status: 401 });
+    }
+    requestHeaders.set(TENANT_ID_HEADER, tenantId);
+  }
+
+  // 2. Subdomain: "acme" from "acme.yourapp.com". Strip the port for local development.
+  const hostname = (request.headers.get("host") ?? "").split(":")[0];
+  const rootDomain = process.env.ROOT_DOMAIN ?? "yourapp.com";
+  if (hostname.endsWith(`.${rootDomain}`)) {
+    const subdomain = hostname.slice(0, hostname.length - rootDomain.length - 1);
+    if (subdomain && subdomain !== "www") {
+      requestHeaders.set(TENANT_SLUG_HEADER, subdomain);
+    }
   }
 
   return NextResponse.next({
@@ -99,10 +140,11 @@ export const config = {
 };
 ```
 
-<Aside type="tip">
-  For local development, use header-based resolution (`x-tenant-id`) since
-  subdomains require DNS setup. In production, subdomain-based resolution is
-  the standard SaaS pattern.
+<Aside type="caution">
+  Do not read the tenant ID from a client header such as `x-tenant-id`. Any
+  client can send that header and select another tenant. Forward a tenant
+  header only when a gateway you control sets it and removes any copy that the
+  client sent.
 </Aside>
 
 ## Stratum Client Library
@@ -115,6 +157,7 @@ import { Pool } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { Stratum } from "@stratum-hq/lib";
 import { prismaWithTenant } from "@stratum-hq/db-adapters";
+import { TENANT_ID_HEADER } from "./tenant-headers";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -128,8 +171,10 @@ export function getTenantPrisma(tenantId: string) {
   return prismaWithTenant(prisma, () => tenantId, pool);
 }
 
+// The tenant ID comes only from a verified token. A subdomain alone does not
+// give access to tenant data.
 export async function getTenantFromHeaders(headers: Headers) {
-  const tenantId = headers.get("x-tenant-id");
+  const tenantId = headers.get(TENANT_ID_HEADER);
   if (!tenantId) return null;
 
   const [config, permissions] = await Promise.all([
@@ -147,7 +192,7 @@ export async function getTenantFromHeaders(headers: Headers) {
 
 ## Server Components
 
-Server components can read the tenant context directly from headers using Next.js's `headers()` function.
+Server components read the tenant context from the request headers with Next.js's `headers()` function.
 
 ```typescript
 // src/app/dashboard/page.tsx
@@ -159,7 +204,7 @@ export default async function DashboardPage() {
   const tenant = await getTenantFromHeaders(headerList);
 
   if (!tenant) {
-    return <div>No tenant context. Use a tenant subdomain or set x-tenant-id.</div>;
+    return <div>No tenant context. Send a bearer token with a tenant_id claim.</div>;
   }
 
   const tenantPrisma = getTenantPrisma(tenant.tenant_id);
@@ -199,12 +244,13 @@ API routes follow the same pattern: read the tenant ID from headers, create a sc
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { getTenantPrisma } from "@/lib/stratum";
+import { TENANT_ID_HEADER } from "@/lib/tenant-headers";
 
 export async function GET() {
   const headerList = await headers();
-  const tenantId = headerList.get("x-tenant-id");
+  const tenantId = headerList.get(TENANT_ID_HEADER);
   if (!tenantId) {
-    return NextResponse.json({ error: "Missing tenant" }, { status: 400 });
+    return NextResponse.json({ error: "Missing bearer token" }, { status: 401 });
   }
 
   const tenantPrisma = getTenantPrisma(tenantId);
@@ -217,9 +263,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const headerList = await headers();
-  const tenantId = headerList.get("x-tenant-id");
+  const tenantId = headerList.get(TENANT_ID_HEADER);
   if (!tenantId) {
-    return NextResponse.json({ error: "Missing tenant" }, { status: 400 });
+    return NextResponse.json({ error: "Missing bearer token" }, { status: 401 });
   }
 
   const body = await request.json();
@@ -272,11 +318,27 @@ export default async function SettingsPage() {
 }
 ```
 
-## Local Development with Subdomains
+## Local Development
 
-For local development, you have two options:
+For local development, you have two options.
 
-### Option 1: /etc/hosts (simplest)
+### Option 1: Bearer token (no DNS changes)
+
+Start the server with `JWT_SECRET` set, for example to the output of `openssl rand -hex 32`. Your identity provider issues the tokens in a real application. For local tests, sign one token for each tenant with the same secret:
+
+```bash
+# Sign a token that carries the tenant ID in its tenant_id claim
+TOKEN_A=$(node --input-type=module -e 'import { SignJWT } from "jose"; console.log(await new SignJWT({ tenant_id: process.argv[1] }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode(process.env.JWT_SECRET)))' "$TENANT_A_ID")
+TOKEN_B=$(node --input-type=module -e 'import { SignJWT } from "jose"; console.log(await new SignJWT({ tenant_id: process.argv[1] }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("1h").sign(new TextEncoder().encode(process.env.JWT_SECRET)))' "$TENANT_B_ID")
+
+# Test as Acme tenant
+curl http://localhost:3000/api/orders -H "Authorization: Bearer $TOKEN_A"
+
+# Test as Globex tenant
+curl http://localhost:3000/api/orders -H "Authorization: Bearer $TOKEN_B"
+```
+
+### Option 2: /etc/hosts (subdomains)
 
 Add entries to `/etc/hosts`:
 
@@ -285,19 +347,7 @@ Add entries to `/etc/hosts`:
 127.0.0.1 globex.localhost
 ```
 
-Then access `http://acme.localhost:3000` and `http://globex.localhost:3000`.
-
-### Option 2: Header-based (no DNS changes)
-
-Use `curl` or your API client with the `x-tenant-id` header:
-
-```bash
-# Test as Acme tenant
-curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_A_ID"
-
-# Test as Globex tenant
-curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_B_ID"
-```
+Set `ROOT_DOMAIN=localhost`. Then `http://acme.localhost:3000` sets the tenant slug `acme`. A public page can resolve the slug with `stratum.getTenantBySlug()`. Pages that show tenant data still need a bearer token.
 
 ## Production Deployment
 
@@ -305,7 +355,7 @@ For production with real subdomains:
 
 1. **DNS**: Add a wildcard A record: `*.yourapp.com` pointing to your server
 2. **TLS**: Use a wildcard certificate for `*.yourapp.com` (Let's Encrypt supports this via DNS-01 challenge)
-3. **Middleware**: The middleware above works as-is since it reads from the `host` header
+3. **Middleware**: Set `ROOT_DOMAIN` to `yourapp.com`. The middleware reads the subdomain from the `host` header
 
 ```typescript
 // In middleware.ts, add domain validation for production

@@ -169,3 +169,53 @@ describe("@stratum-hq/lib imports in the website docs", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("tenant header use in the website docs", () => {
+  // Any client can send an x-tenant-id header, so a server that trusts it lets
+  // the client choose its tenant. With JWT verification configured, the SDK
+  // reads the header only when trustTenantHeader is true. A snippet that uses
+  // the header must therefore say that only a gateway can set it.
+  const HEADER_USE =
+    /(?:\[\s*|\.get\(\s*|\.header\(\s*|header\s*:\s*|-H\s+)["'`]x-tenant-id\b/gi;
+  const CAVEAT = /gateway (?:that )?you control/i;
+  // The caveat must be near the use, so that a reader who copies one snippet
+  // also reads the caveat for it.
+  const WINDOW = 20;
+
+  /** Return the line numbers of header uses that have no caveat near them. */
+  function uncaveated(text) {
+    const lines = text.split("\n");
+    const found = [];
+    for (const match of text.matchAll(HEADER_USE)) {
+      const line = lineOf(text, match.index);
+      const near = lines.slice(Math.max(0, line - 1 - WINDOW), line + WINDOW).join("\n");
+      if (!CAVEAT.test(near)) found.push(line);
+    }
+    return found;
+  }
+
+  it("finds each form of a tenant header use in a sample", () => {
+    const sample = [
+      'const a = req.headers["x-tenant-id"];',
+      "const b = request.headers.get('X-Tenant-ID');",
+      'const c = headerList.get("x-tenant-id");',
+      'const d = ctx.req.header("x-tenant-id");',
+      'stratumMiddleware({ header: "x-tenant-id" });',
+      'curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_A"',
+    ].join("\n");
+    expect(uncaveated(sample)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(uncaveated(`${sample}\n// Only a gateway you control sets this header.`)).toEqual([]);
+  });
+
+  it("states the gateway caveat near every use of x-tenant-id", () => {
+    const missing = [];
+    let uses = 0;
+    for (const { name, text } of docs) {
+      uses += [...text.matchAll(HEADER_USE)].length;
+      for (const line of uncaveated(text)) missing.push(`${name}:${line}`);
+    }
+    // Zero uses means that the pattern no longer matches the docs, not that the docs are safe.
+    expect(uses).toBeGreaterThan(0);
+    expect(missing).toEqual([]);
+  });
+});
