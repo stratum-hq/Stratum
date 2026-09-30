@@ -182,6 +182,8 @@ export {
   ValidationError,
   UnauthorizedError,
   ForbiddenError,
+  RegionInUseError,
+  RegionNotActiveError,
   WebhookNotFoundError,
   WebhookDeliveryError,
   WebhookUrlValidationError,

@@ -92,6 +92,8 @@ The migration checks:
 - Target region exists
 - Target region status is `active` (not `draining` or `inactive`)
 
+If the target region is not `active`, the migration throws `RegionNotActiveError`. The control plane answers `409` with the code `REGION_NOT_ACTIVE`.
+
 ## Managing Regions
 
 ### List
@@ -114,7 +116,7 @@ curl -X PATCH http://localhost:3001/api/v1/regions/REGION_UUID \
 
 ### Delete
 
-Deletion fails if any active tenants are assigned to the region:
+If active tenants are still assigned to the region, the deletion fails with `RegionInUseError`. The control plane answers `409` with the code `REGION_IN_USE`:
 
 ```bash
 curl -X DELETE http://localhost:3001/api/v1/regions/REGION_UUID \

@@ -22,6 +22,8 @@ export enum ErrorCode {
   VALIDATION_ERROR = "VALIDATION_ERROR",
   UNAUTHORIZED = "UNAUTHORIZED",
   FORBIDDEN = "FORBIDDEN",
+  REGION_IN_USE = "REGION_IN_USE",
+  REGION_NOT_ACTIVE = "REGION_NOT_ACTIVE",
   WEBHOOK_NOT_FOUND = "WEBHOOK_NOT_FOUND",
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
   WEBHOOK_URL_INVALID = "WEBHOOK_URL_INVALID",
@@ -294,6 +296,37 @@ export class ForbiddenError extends StratumError {
   constructor(message: string = "Access denied") {
     super(ErrorCode.FORBIDDEN, message, 403);
     this.name = "ForbiddenError";
+  }
+}
+
+/**
+ * Raised when a region cannot be deleted because active tenants are still
+ * assigned to it.
+ */
+export class RegionInUseError extends StratumError {
+  constructor(regionId: string) {
+    super(
+      ErrorCode.REGION_IN_USE,
+      `Cannot delete region ${regionId}: active tenants are still assigned to it`,
+      409,
+      { region_id: regionId },
+    );
+    this.name = "RegionInUseError";
+  }
+}
+
+/**
+ * Raised when a tenant migrates to a region whose status is not `active`.
+ */
+export class RegionNotActiveError extends StratumError {
+  constructor(regionId: string) {
+    super(
+      ErrorCode.REGION_NOT_ACTIVE,
+      `Cannot migrate to region ${regionId}: region is not active`,
+      409,
+      { region_id: regionId },
+    );
+    this.name = "RegionNotActiveError";
   }
 }
 
