@@ -41,10 +41,40 @@ function expectScriptsResolve(projectDir: string, entry: string): void {
   expect(pkg.devDependencies["tsx"]).toBeDefined();
   expect(fs.existsSync(path.join(projectDir, "src", `${entry}.ts`))).toBe(true);
 
-  // tsc writes rootDir/<entry>.ts to outDir/<entry>.js.
-  expect(start).toBe(`node dist/${entry}.js`);
-  expect(compilerOptions.rootDir).toBe("src");
+  // tsc writes <rootDir>/<path>.ts to <outDir>/<path>.js.
   expect(compilerOptions.outDir).toBe("dist");
+  const emitted = path.posix.relative(compilerOptions.rootDir, `src/${entry}`);
+  expect(start).toBe(`node dist/${emitted}.js`);
+
+  // tsc rejects a source file outside rootDir with TS6059.
+  const rootDir = path.resolve(projectDir, compilerOptions.rootDir);
+  for (const imported of relativeImports(path.join(projectDir, "src"))) {
+    expect(fs.existsSync(imported)).toBe(true);
+    expect(path.relative(rootDir, imported).startsWith("..")).toBe(false);
+  }
+}
+
+/**
+ * Return the TypeScript file behind each relative import in the .ts files under a directory.
+ *
+ * @param dir - The directory to read. The function reads its subdirectories too.
+ */
+function relativeImports(dir: string): string[] {
+  const found: string[] = [];
+  for (const dirent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, dirent.name);
+    if (dirent.isDirectory()) {
+      found.push(...relativeImports(file));
+      continue;
+    }
+    if (!file.endsWith(".ts")) continue;
+    const source = fs.readFileSync(file, "utf8");
+    // NodeNext resolution needs the .js extension; the source file is the .ts next to it.
+    for (const match of source.matchAll(/from "(\.{1,2}\/[^"]+)\.js"/g)) {
+      found.push(path.resolve(path.dirname(file), `${match[1]}.ts`));
+    }
+  }
+  return found;
 }
 
 function expectReadmeRunsDevScript(projectDir: string): void {
@@ -90,6 +120,8 @@ describe("generated package scripts", () => {
     [{ database: "postgres", strategy: "rls", orm: "pg", framework: "express" }, "index"],
     [{ database: "postgres", strategy: "rls", orm: "pg", framework: "none" }, "index"],
     [{ database: "mysql", strategy: "table-prefix", orm: "sequelize", framework: "nestjs" }, "main"],
+    [{ database: "postgres", strategy: "rls", orm: "knex", framework: "express" }, "index"],
+    [{ database: "mysql", strategy: "database", orm: "knex", framework: "nestjs" }, "main"],
   ];
   for (const [preset, entry] of presets) {
     const label = `${preset.database}-${preset.strategy}-${preset.orm}-${preset.framework}`;
