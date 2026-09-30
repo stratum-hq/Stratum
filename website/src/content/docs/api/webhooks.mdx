@@ -62,7 +62,7 @@ POST /api/v1/webhooks
 | `events` | string[] | Yes | Event types to subscribe to |
 | `secret` | string | No | HMAC-SHA256 signing secret (encrypted at rest) |
 
-**Supported events:** `tenant.created`, `tenant.updated`, `tenant.deleted`, `tenant.moved`, `config.updated`, `config.deleted`, `permission.created`, `permission.updated`, `permission.deleted`
+**Supported events:** `tenant.created`, `tenant.updated`, `tenant.deleted`, `tenant.moved`, `tenant.activated`, `tenant.suspended`, `tenant.resumed`, `tenant.archived`, `tenant.purged`, `config.updated`, `config.deleted`, `permission.created`, `permission.updated`, `permission.deleted`
 
 **Response:** `201 Created` -- returns the webhook object.
 

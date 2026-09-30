@@ -109,6 +109,40 @@ describe("pending tenant status (integration)", () => {
     await expect(stratum.activateTenant(t.id)).rejects.toBeInstanceOf(InvalidTenantStateError);
   });
 
+  it("emits exactly one tenant.activated event per successful activation", async () => {
+    const slug = uniqueSlug("i348");
+    const t = await stratum.createTenant({ name: slug, slug, isolation_strategy: "SCHEMA_PER_TENANT" });
+    await stratum.activateTenant(t.id);
+    // A second call fails, so it must not add a second event.
+    await expect(stratum.activateTenant(t.id)).rejects.toBeInstanceOf(InvalidTenantStateError);
+
+    // emitEvent does not block the caller, so the insert can land after activateTenant returns.
+    await new Promise((r) => setTimeout(r, 250));
+    const events = await getPool().query<{ tenant_id: string; status: string }>(
+      `SELECT tenant_id, data->'tenant'->>'status' AS status FROM webhook_events
+       WHERE type = 'tenant.activated' AND tenant_id = $1`,
+      [t.id],
+    );
+    expect(events.rows).toEqual([{ tenant_id: t.id, status: "active" }]);
+  });
+
+  it("emits no tenant.activated event when activation fails", async () => {
+    const root = await create("SHARED_RLS");
+    const slug = uniqueSlug("i348");
+    const child = await stratum.createTenant({
+      name: slug, slug, parent_id: root.id, isolation_strategy: "SCHEMA_PER_TENANT",
+    });
+    await stratum.suspendTenant(root.id);
+    await expect(stratum.activateTenant(child.id)).rejects.toMatchObject({ code: "TENANT_SUSPENDED" });
+
+    await new Promise((r) => setTimeout(r, 250));
+    const events = await getPool().query(
+      `SELECT 1 FROM webhook_events WHERE type = 'tenant.activated' AND tenant_id = $1`,
+      [child.id],
+    );
+    expect(events.rowCount).toBe(0);
+  });
+
   it("refuses to activate a pending tenant under a suspended parent", async () => {
     const root = await create("SHARED_RLS");
     const child = await create("SCHEMA_PER_TENANT", root.id);
