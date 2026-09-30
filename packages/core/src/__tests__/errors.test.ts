@@ -9,6 +9,8 @@ import {
   IsolationViolationError,
   PermissionLockedError,
   ConfigLockedError,
+  RegionInUseError,
+  RegionNotActiveError,
   ValidationError,
   UnauthorizedError,
   ForbiddenError,
@@ -113,6 +115,22 @@ describe("error hierarchy", () => {
     const err = new ForbiddenError();
     expect(err.code).toBe(ErrorCode.FORBIDDEN);
     expect(err.statusCode).toBe(403);
+  });
+
+  it("RegionInUseError has 409 status and names the region", () => {
+    const err = new RegionInUseError("region-id");
+    expect(err).toBeInstanceOf(StratumError);
+    expect(err.code).toBe(ErrorCode.REGION_IN_USE);
+    expect(err.statusCode).toBe(409);
+    expect(err.message).toBe("Cannot delete region region-id: active tenants are still assigned to it");
+  });
+
+  it("RegionNotActiveError has 409 status and names the region", () => {
+    const err = new RegionNotActiveError("region-id");
+    expect(err).toBeInstanceOf(StratumError);
+    expect(err.code).toBe(ErrorCode.REGION_NOT_ACTIVE);
+    expect(err.statusCode).toBe(409);
+    expect(err.message).toBe("Cannot migrate to region region-id: region is not active");
   });
 
   it("ForbiddenError accepts custom message", () => {

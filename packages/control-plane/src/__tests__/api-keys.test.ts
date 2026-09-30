@@ -66,6 +66,22 @@ describe("API Key Routes", () => {
       expect(body.error.code).toBe("VALIDATION_ERROR");
     });
 
+    it("returns the validation issues in error.details.issues", async () => {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/api-keys",
+        headers: authHeaders(),
+        payload: { name: "No Tenant" },
+      });
+
+      const body = response.json();
+      expect(body.error.details.issues).toEqual([
+        { path: ["tenant_id"], message: expect.any(String), code: "invalid_type" },
+      ]);
+      // The deprecated top-level alias carries the same issues for one release.
+      expect(body.details).toEqual(body.error.details.issues);
+    });
+
     it("returns 400 for invalid tenant_id (not UUID)", async () => {
       const response = await app.inject({
         method: "POST",

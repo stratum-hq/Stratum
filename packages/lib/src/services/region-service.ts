@@ -1,6 +1,11 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import { RegionNotFoundError, TenantNotFoundError } from "@stratum-hq/core";
+import {
+  RegionInUseError,
+  RegionNotActiveError,
+  RegionNotFoundError,
+  TenantNotFoundError,
+} from "@stratum-hq/core";
 import type { Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 
 export async function createRegion(pool: pg.Pool, input: CreateRegionInput): Promise<Region> {
@@ -98,7 +103,7 @@ export async function deleteRegion(pool: pg.Pool, id: string): Promise<void> {
       [id],
     );
     if (parseInt(tenantCheck.rows[0].count as string, 10) > 0) {
-      throw new Error(`Cannot delete region ${id}: active tenants are still assigned to it`);
+      throw new RegionInUseError(id);
     }
 
     const res = await client.query(`DELETE FROM regions WHERE id = $1`, [id]);
@@ -122,7 +127,7 @@ export async function migrateRegion(pool: pg.Pool, tenantId: string, newRegionId
       throw new RegionNotFoundError(newRegionId);
     }
     if ((regionRes.rows[0] as { status: string }).status !== "active") {
-      throw new Error(`Cannot migrate to region ${newRegionId}: region is not active`);
+      throw new RegionNotActiveError(newRegionId);
     }
 
     await client.query(

@@ -43,12 +43,42 @@
             "type": "object",
             "properties": {
               "code": { "type": "string" },
-              "message": { "type": "string" }
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "description": "More data about the error, for example the region_id of a REGION_IN_USE error. A 400 VALIDATION_ERROR puts one item per failed field in issues.",
+                "properties": {
+                  "issues": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/ValidationIssue" }
+                  }
+                },
+                "additionalProperties": true
+              },
+              "issues": {
+                "type": "array",
+                "deprecated": true,
+                "description": "A copy of details.issues for older clients. It goes away in the next major release.",
+                "items": { "$ref": "#/components/schemas/ValidationIssue" }
+              }
             },
             "required": ["code", "message"]
           }
         },
         "required": ["error"]
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "array",
+            "description": "The keys from the request body root to the field that failed.",
+            "items": { "oneOf": [{ "type": "string" }, { "type": "integer" }] }
+          },
+          "message": { "type": "string" },
+          "code": { "type": "string", "description": "The zod issue code." }
+        },
+        "required": ["path", "message", "code"]
       },
       "Tenant": {
         "type": "object",
@@ -947,7 +977,15 @@
             }
           },
           "404": {
-            "description": "Tenant or region not found",
+            "description": "Tenant not found (TENANT_NOT_FOUND) or region not found (REGION_NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "The target region is not active (REGION_NOT_ACTIVE)",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -2023,6 +2061,14 @@
           "204": { "description": "Region deleted" },
           "404": {
             "description": "Region not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": {
+            "description": "The region still has active tenants (REGION_IN_USE)",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }

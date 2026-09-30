@@ -56,10 +56,17 @@ export class DataController {
 ### forRoot (synchronous)
 
 ```typescript
+// Without jwtSecret, the guard does not verify tokens and reads the tenant
+// from the X-Tenant-ID header, which any client can send.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 StratumModule.forRoot({
   controlPlaneUrl: "http://localhost:3001",
   apiKey: "sk_live_your_key",
-  jwtSecret: process.env.JWT_SECRET,      // Optional: enables JWT verification
+  jwtSecret,                              // Optional: enables JWT verification
   jwtClaimPath: "tenant_id",              // Optional: JWT claim path
 })
 ```
@@ -70,11 +77,17 @@ For configuration that depends on other providers (e.g., ConfigService):
 
 ```typescript
 StratumModule.forRootAsync({
-  useFactory: (config: ConfigService) => ({
-    controlPlaneUrl: config.get("STRATUM_URL"),
-    apiKey: config.get("STRATUM_API_KEY"),
-    jwtSecret: config.get("JWT_SECRET"),
-  }),
+  useFactory: (config: ConfigService) => {
+    const jwtSecret = config.get("JWT_SECRET");
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET is required to verify bearer tokens.");
+    }
+    return {
+      controlPlaneUrl: config.get("STRATUM_URL"),
+      apiKey: config.get("STRATUM_API_KEY"),
+      jwtSecret,
+    };
+  },
   inject: [ConfigService],
 })
 ```

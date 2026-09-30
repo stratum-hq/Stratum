@@ -16,12 +16,19 @@ Peer dependencies: `@nestjs/common >= 10`, `@nestjs/core >= 10`, `reflect-metada
 import { Module } from "@nestjs/common";
 import { StratumModule } from "@stratum-hq/nestjs";
 
+// Without jwtSecret, the guard does not verify tokens and reads the tenant
+// from the X-Tenant-ID header, which any client can send.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 @Module({
   imports: [
     StratumModule.forRoot({
       controlPlaneUrl: "http://localhost:3001",
       apiKey: "sk_live_your_key",
-      jwtSecret: process.env.JWT_SECRET, // optional: enables JWT verification
+      jwtSecret, // optional: enables JWT verification
       jwtClaimPath: "tenant_id",
     }),
   ],

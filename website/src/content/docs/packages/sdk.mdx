@@ -10,8 +10,10 @@ import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 ## Installation
 
 ```bash
-npm install @stratum-hq/sdk @stratum-hq/core
+npm install @stratum-hq/sdk @stratum-hq/core jsonwebtoken
 ```
+
+`jsonwebtoken` is an optional peer dependency. The middleware needs it to verify tokens with `jwtSecret`. If you give `jwtVerify` instead, you do not need it.
 
 ## Quick Start
 
@@ -23,12 +25,20 @@ const s = stratum({
   apiKey: "sk_live_your_key",
 });
 
+// The tenant binding comes from a signed token, so the server does not start
+// without the key that verifies it. Without jwtSecret, the middleware reads
+// the tenant from the X-Tenant-ID header instead.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 // Express
 // Reads the tenant from the verified `tenant_id` claim of the bearer token
-app.use(s.middleware({ jwtSecret: process.env.JWT_SECRET }));
+app.use(s.middleware({ jwtSecret }));
 
 // Fastify
-app.register(s.plugin({ jwtSecret: process.env.JWT_SECRET }));
+app.register(s.plugin({ jwtSecret }));
 ```
 
 ## StratumClient
@@ -114,9 +124,14 @@ await client.purgeTenant(tenantId);
       apiKey: "sk_live_your_key",
     });
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET is required to verify bearer tokens.");
+    }
+
     app.use(expressMiddleware(client, {
       jwtClaimPath: "tenant_id",
-      jwtSecret: process.env.JWT_SECRET,
+      jwtSecret,
       onError: (err, req) => console.error(err),
     }));
 
@@ -140,10 +155,15 @@ await client.purgeTenant(tenantId);
       apiKey: "sk_live_your_key",
     });
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET is required to verify bearer tokens.");
+    }
+
     app.register(fastifyPlugin, {
       client,
       jwtClaimPath: "tenant_id",
-      jwtSecret: process.env.JWT_SECRET,
+      jwtSecret,
     });
 
     app.get("/data", (request, reply) => {
@@ -161,11 +181,16 @@ await client.purgeTenant(tenantId);
       apiKey: "sk_live_your_key",
     });
 
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET is required to verify bearer tokens.");
+    }
+
     // Express
-    app.use(s.middleware({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
+    app.use(s.middleware({ jwtClaimPath: "tenant_id", jwtSecret }));
 
     // Fastify
-    app.register(s.plugin({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
+    app.register(s.plugin({ jwtClaimPath: "tenant_id", jwtSecret }));
 
     // Direct client access
     const ctx = await s.client.resolveTenant("tenant-uuid");
@@ -267,10 +292,15 @@ The SDK throws typed errors from `@stratum-hq/core`:
 ```typescript
 import {
   ForbiddenError,
+  RegionInUseError,
+  RegionNotActiveError,
+  RegionNotFoundError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
   UnauthorizedError,
+  ValidationError,
+  WebhookNotFoundError,
 } from "@stratum-hq/core";
 
 try {
@@ -288,18 +318,29 @@ try {
   if (err instanceof UnauthorizedError) {
     // The control plane rejected the API key.
   }
+  if (err instanceof ValidationError) {
+    // The control plane rejected the request body. details.issues lists each failed field.
+    console.log(err.details?.issues);
+  }
 }
 ```
 
 | Control plane response | Error |
 |---|---|
+| 400 `VALIDATION_ERROR` | `ValidationError`, with the issues in `details.issues` |
+| 400, any other code | `Error`, with the control plane's message |
 | 401 | `UnauthorizedError` |
 | 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
 | 403, any other code | `ForbiddenError` |
 | 404 `TENANT_NOT_FOUND` | `TenantNotFoundError` |
 | 404 `WEBHOOK_NOT_FOUND` | `WebhookNotFoundError` |
+| 404 `REGION_NOT_FOUND` | `RegionNotFoundError` |
 | 404, any other code | `Error`, with the control plane's message |
+| 409 `REGION_IN_USE` | `RegionInUseError`, with the region ID in `details.region_id` |
+| 409 `REGION_NOT_ACTIVE` | `RegionNotActiveError`, with the region ID in `details.region_id`. Only `POST /api/v1/tenants/{id}/migrate-region` sends this code, and the SDK has no method for that route yet. |
 | 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
+
+Each item in `details.issues` has a `path` (the field, as an array of keys), a `message`, and a zod issue `code`. A 400 `VALIDATION_ERROR` that is not about one field, for example a batch that is too large, has no `details.issues`. If the control plane sends other `details`, the `ValidationError` keeps them in `details`.
 
 An API key that is scoped to a tenant gets 403 `FORBIDDEN` for a descendant that is suspended or archived. The scope check stops the request before the control plane reads the tenant status. Only a key that is not scoped to a tenant gets `TenantSuspendedError` or `TenantArchivedError`.
 

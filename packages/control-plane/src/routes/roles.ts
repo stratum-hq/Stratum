@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
 import { buildAuditContext } from "./audit-logs.js";
+import { legacyValidationErrorBody } from "../middleware/error-handler.js";
 import {
   assertOperator,
   assertTenantInScope,
@@ -41,7 +42,7 @@ export function createRoleRoutes(stratum: Stratum) {
     app.post("/", { config: { tenantScope: fromBodyTenantId } }, async (request, reply) => {
       const parsed = createRoleSchema.safeParse(request.body);
       if (!parsed.success) {
-        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid request body" }, details: parsed.error.issues });
+        reply.status(400).send(legacyValidationErrorBody("Invalid request body", parsed.error.issues));
         return;
       }
       // Global roles (no tenant) are operator-only. A tenant-scoped caller that
@@ -79,7 +80,7 @@ export function createRoleRoutes(stratum: Stratum) {
     app.patch<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const parsed = updateRoleSchema.safeParse(request.body);
       if (!parsed.success) {
-        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid request body" }, details: parsed.error.issues });
+        reply.status(400).send(legacyValidationErrorBody("Invalid request body", parsed.error.issues));
         return;
       }
       const existing = await stratum.getRole(request.params.id);

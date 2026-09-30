@@ -4,9 +4,12 @@ import { StratumClient, expressMiddleware, getTenantContext } from "@stratum-hq/
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import {
   ForbiddenError,
+  RegionInUseError,
+  RegionNotFoundError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  ValidationError,
   WebhookNotFoundError,
 } from "@stratum-hq/core";
 import {
@@ -233,6 +236,51 @@ describe("SDK against the real control plane (integration)", () => {
       expect(err).toBeInstanceOf(Error);
       expect(err).not.toBeInstanceOf(TenantNotFoundError);
       expect((err as Error).message).toBe("API key not found or already revoked");
+    });
+  });
+
+  // A route can reject a body itself or leave it to the error handler. The SDK
+  // must get the issues in error.details.issues from both paths.
+  describe("validation error mapping", () => {
+    it("maps an invalid createTenant body to ValidationError with the issues", async () => {
+      const client = await operatorClient();
+
+      const err = await client.createTenant({ name: "No Slug" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.issues).toEqual([
+        { path: ["slug"], message: expect.any(String), code: "invalid_type" },
+      ]);
+    });
+
+    it("maps an invalid createRegion body to ValidationError with the issues", async () => {
+      const client = await operatorClient();
+
+      const err = await client.createRegion({ display_name: "EU", slug: "Not A Slug" }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details?.issues).toEqual([
+        { path: ["slug"], message: expect.any(String), code: "invalid_string" },
+      ]);
+    });
+  });
+
+  describe("region error mapping", () => {
+    it("maps a missing region to RegionNotFoundError", async () => {
+      const missingId = "00000000-0000-4000-8000-000000000000";
+      const client = await operatorClient();
+
+      const err = await client.deleteRegion(missingId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RegionNotFoundError);
+      expect((err as Error).message).toBe(`Region not found: ${missingId}`);
+    });
+
+    it("maps the deletion of a region in use to RegionInUseError", async () => {
+      const region = await stratum.createRegion({ display_name: "InUse", slug: uniqueSlug("inuse") });
+      await stratum.migrateRegion(childId, region.id);
+      const client = await operatorClient();
+
+      const err = await client.deleteRegion(region.id).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RegionInUseError);
+      expect((err as RegionInUseError).details).toEqual({ region_id: region.id });
     });
   });
 
