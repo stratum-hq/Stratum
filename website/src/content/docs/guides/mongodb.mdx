@@ -115,19 +115,49 @@ The plugin hooks into `find`, `findOne`, `findOneAndUpdate`, `updateMany`, `dele
 
 ### ALS Context Setup
 
-Wire the ALS context in your web framework middleware:
+Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header:
 
 ```typescript
+import jwt from "jsonwebtoken";
 import { setTenantContext } from "@stratum-hq/mongodb";
 
-// Express example
+// Express example. jwtSecret is the key that verifies the bearer token.
 app.use(async (req, res, next) => {
-  const tenantId = req.headers["x-tenant-id"] as string;
+  const authorization = req.headers.authorization;
+  if (!authorization?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Missing bearer token" });
+    return;
+  }
+
+  let claims: string | jwt.JwtPayload;
+  try {
+    claims = jwt.verify(authorization.slice("Bearer ".length), jwtSecret, {
+      algorithms: ["HS256"],
+    });
+  } catch {
+    res.status(401).json({ error: "Invalid bearer token" });
+    return;
+  }
+
+  const tenantId = typeof claims === "object" ? claims.tenant_id : undefined;
+  if (typeof tenantId !== "string") {
+    res.status(401).json({ error: "Token has no tenant_id claim" });
+    return;
+  }
+
   // Resolve tenant from your control plane
   const tenant = await stratum.getTenant(tenantId);
   setTenantContext({ tenantId: tenant.id, tenantSlug: tenant.slug }, next);
 });
 ```
+
+<Aside type="caution">
+  Do not read the tenant from a request header such as `x-tenant-id`. Any client
+  can send that header and select another tenant. Read a header only when a
+  gateway you control sets it and removes any copy that the client sent. The SDK
+  middleware applies the same rule: with `jwtSecret` set, it reads the header
+  only with `trustTenantHeader: true`.
+</Aside>
 
 Once the middleware is in place, all Mongoose queries inside the request are automatically scoped:
 

@@ -112,6 +112,19 @@ export interface ValidatedApiKey {
   rate_limit_window: string | null;
 }
 
+/**
+ * A validation stamps last_used_at only when the stored value is older than
+ * this. Concurrent requests with one key then do not all wait on its row lock.
+ * The cost: last_used_at can lag the latest use by up to this interval.
+ */
+const STAMP_INTERVAL_SECONDS = 60;
+
+/**
+ * The longest time a validation waits for its last_used_at stamp. A stamp
+ * that waits on a row lock then cannot delay authentication for longer.
+ */
+const STAMP_TIMEOUT_MS = 1000;
+
 export async function validateApiKey(
   pool: pg.Pool,
   key: string,
@@ -131,8 +144,9 @@ export async function validateApiKey(
     for (const candidate of candidates) {
       // A tenant-bound key authenticates only while its tenant and every
       // ancestor are active. Global keys (tenant_id NULL) have no tenant.
-      const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null }>(
-        `SELECT ak.id, ak.tenant_id, ak.key_hash, ak.key_prefix, ak.name, ak.created_at, ak.last_used_at, ak.revoked_at, ak.expires_at, ak.scopes, ak.rate_limit_max, ak.rate_limit_window, ak.hash_version
+      const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null; stamp_due: boolean }>(
+        `SELECT ak.id, ak.tenant_id, ak.key_hash, ak.key_prefix, ak.name, ak.created_at, ak.last_used_at, ak.revoked_at, ak.expires_at, ak.scopes, ak.rate_limit_max, ak.rate_limit_window, ak.hash_version,
+                (ak.last_used_at IS NULL OR ak.last_used_at < now() - make_interval(secs => $2)) AS stamp_due
          FROM api_keys ak
          LEFT JOIN tenants t ON t.id = ak.tenant_id
          WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
@@ -144,7 +158,7 @@ export async function validateApiKey(
                  AND anc.status <> 'active'
              )
            ))`,
-        [candidate.hash],
+        [candidate.hash, STAMP_INTERVAL_SECONDS],
       );
 
       if (res.rows.length === 0) continue;
@@ -172,21 +186,30 @@ export async function validateApiKey(
 
   // The bookkeeping starts only after the validation connection is released,
   // so a single-connection pool cannot deadlock. withClient gives it the RLS bypass.
-  // We await it so that a read made after validateApiKey resolves sees the new
-  // last_used_at. Without the await, listDormantKeys can report a just-used key.
+  // When a stamp is due, we await it so that a read made after validateApiKey
+  // resolves sees the new last_used_at. Without the await, listDormantKeys can
+  // report a just-used key.
   // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is
   // available, re-hash with HMAC and update the stored hash in-place.
   const { row } = found;
   const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
-  await withClient(pool, (client) =>
-    upgrade
+  if (!upgrade && !row.stamp_due) return found.validated;
+  await withClient(pool, async (client) => {
+    // SET LOCAL ends with this transaction, so the pooled connection keeps its own timeout.
+    await client.query(`SET LOCAL statement_timeout = ${STAMP_TIMEOUT_MS}`);
+    return upgrade
       ? client.query(
           `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
           [hmacHash(key, hmacSecret), HASH_V2_HMAC, row.id],
         )
-      : client.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]),
-  ).catch(() => {
-    // A failed stamp must not fail authentication. The next request retries it.
+      : // The condition repeats the check, so a concurrent request that stamped first wins.
+        client.query(
+          `UPDATE api_keys SET last_used_at = now()
+           WHERE id = $1 AND (last_used_at IS NULL OR last_used_at < now() - make_interval(secs => $2))`,
+          [row.id, STAMP_INTERVAL_SECONDS],
+        );
+  }).catch(() => {
+    // A failed or timed-out stamp must not fail authentication. A later request retries it.
   });
 
   return found.validated;
@@ -303,6 +326,12 @@ export async function getApiKey(
   });
 }
 
+/**
+ * List the unrevoked keys not used for `dormantDays` days.
+ * validateApiKey refreshes last_used_at at most once a minute, so a key can
+ * look up to one minute older than its latest use. That does not change a
+ * result measured in days.
+ */
 export async function listDormantKeys(
   pool: pg.Pool,
   dormantDays: number = 90,

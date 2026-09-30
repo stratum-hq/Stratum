@@ -24,10 +24,11 @@ const s = stratum({
 });
 
 // Express
-app.use(s.middleware());
+// Reads the tenant from the verified `tenant_id` claim of the bearer token
+app.use(s.middleware({ jwtSecret: process.env.JWT_SECRET }));
 
 // Fastify
-app.register(s.plugin());
+app.register(s.plugin({ jwtSecret: process.env.JWT_SECRET }));
 ```
 
 ## StratumClient
@@ -161,10 +162,10 @@ await client.purgeTenant(tenantId);
     });
 
     // Express
-    app.use(s.middleware({ jwtClaimPath: "tenant_id" }));
+    app.use(s.middleware({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
 
     // Fastify
-    app.register(s.plugin({ jwtClaimPath: "tenant_id" }));
+    app.register(s.plugin({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
 
     // Direct client access
     const ctx = await s.client.resolveTenant("tenant-uuid");

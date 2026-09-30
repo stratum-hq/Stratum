@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
+import { RegionNotFoundError, TenantNotFoundError } from "@stratum-hq/core";
 import type { Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 
 export async function createRegion(pool: pg.Pool, input: CreateRegionInput): Promise<Region> {
@@ -22,7 +23,7 @@ export async function getRegion(pool: pg.Pool, id: string): Promise<Region> {
       [id],
     );
     if (res.rows.length === 0) {
-      throw new Error(`Region not found: ${id}`);
+      throw new RegionNotFoundError(id);
     }
     return res.rows[0] as Region;
   });
@@ -42,7 +43,7 @@ export async function updateRegion(pool: pg.Pool, id: string, input: UpdateRegio
   return withTransaction(pool, async (client) => {
     const existing = await client.query(`SELECT id FROM regions WHERE id = $1`, [id]);
     if (existing.rows.length === 0) {
-      throw new Error(`Region not found: ${id}`);
+      throw new RegionNotFoundError(id);
     }
 
     const sets: string[] = [];
@@ -102,7 +103,7 @@ export async function deleteRegion(pool: pg.Pool, id: string): Promise<void> {
 
     const res = await client.query(`DELETE FROM regions WHERE id = $1`, [id]);
     if (res.rowCount === 0) {
-      throw new Error(`Region not found: ${id}`);
+      throw new RegionNotFoundError(id);
     }
   });
 }
@@ -112,13 +113,13 @@ export async function migrateRegion(pool: pg.Pool, tenantId: string, newRegionId
     // Verify tenant exists
     const tenantRes = await client.query(`SELECT id FROM tenants WHERE id = $1 AND status != 'archived'`, [tenantId]);
     if (tenantRes.rows.length === 0) {
-      throw new Error(`Tenant not found: ${tenantId}`);
+      throw new TenantNotFoundError(tenantId);
     }
 
     // Verify target region exists and is active
     const regionRes = await client.query(`SELECT id, status FROM regions WHERE id = $1`, [newRegionId]);
     if (regionRes.rows.length === 0) {
-      throw new Error(`Region not found: ${newRegionId}`);
+      throw new RegionNotFoundError(newRegionId);
     }
     if ((regionRes.rows[0] as { status: string }).status !== "active") {
       throw new Error(`Cannot migrate to region ${newRegionId}: region is not active`);
