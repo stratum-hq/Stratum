@@ -108,8 +108,7 @@ itself, whose fixtures are deliberately credential-shaped.
 
 ## Self-check
 
-`npm test` is `turbo test` over the workspaces, so there is no root test runner for a
-`scripts/` unit test to live in. Rather than add one, `check-secrets.mjs` runs the fixture
+`check-secrets.mjs` does not rely on `npm test` to check its rules. It runs the fixture
 table from `secret-rules.mjs` on every invocation. It is pure regex over a dozen short
 strings and costs well under a millisecond, and it means a rule cannot be loosened or
 tightened without the fixture covering it failing first:
