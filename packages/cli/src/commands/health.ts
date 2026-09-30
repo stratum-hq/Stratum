@@ -69,9 +69,16 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
         t.has_tenant_id ? "yes" : "—",
         t.rls_enabled ? "yes" : "—",
         t.rls_forced ? "yes" : "—",
-        t.has_policy ? "yes" : "—",
+        t.has_policy ? "yes" : t.policy_issue ? "no filter" : "—",
       ]);
       log.table([header, ...rows]);
+
+      const withPolicyIssue = tables.filter((t) => t.policy_issue);
+      if (withPolicyIssue.length > 0) {
+        console.log();
+        log.warn(`${withPolicyIssue.length} table(s) have policies that do not isolate tenants:`);
+        withPolicyIssue.forEach((t) => log.dim(`  ${t.table_name} — ${t.policy_issue}`));
+      }
 
       const unmigrated = tables.filter((t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy);
       if (unmigrated.length > 0) {

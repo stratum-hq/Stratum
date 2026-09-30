@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
+import { nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
 
 interface ProjectInfo {
   framework: string;
@@ -165,6 +166,10 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   if (info.framework === "express" || info.framework === "fastify") {
     // The generated middleware verifies the tenant JWT with jsonwebtoken.
     packages.push("jsonwebtoken");
+  }
+  if (info.framework === "nextjs") {
+    // The generated Next.js middleware verifies the tenant JWT with jose.
+    packages.push("jose");
   }
 
   log.info(`1. Install packages:`);
@@ -459,39 +464,8 @@ process.on("SIGTERM", () => pool.end());
       writeFile(path.join(outDir, "stratum-plugin.ts"), content, force);
     }
   } else if (info.framework === "nextjs") {
-    // Next.js middleware for tenant resolution from subdomain/header
-    const middlewareContent = `// middleware.ts (place in project root)
-// Next.js middleware for Stratum tenant resolution
-
-import { NextRequest, NextResponse } from "next/server";
-
-export function middleware(request: NextRequest) {
-  // The tenant comes from the subdomain the request was routed to. Once you
-  // add authentication, check that the signed-in user belongs to this tenant.
-  const hostname = request.headers.get("host") || "";
-  const tenantId = hostname.split(".")[0];
-
-  // Forward tenant ID to API routes and server components. Any x-tenant-id the
-  // client sent is removed first, so lib/stratum.ts only ever reads the value
-  // set here.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("x-tenant-id");
-  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
-    requestHeaders.set("x-tenant-id", tenantId);
-  }
-
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-}
-
-export const config = {
-  matcher: [
-    // Match all paths except static files
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
-};
-`;
+    // Next.js middleware: the tenant comes from a verified JWT, never the subdomain.
+    const middlewareContent = nextjsMiddleware();
     writeFile(path.join(outDir, "middleware.ts"), middlewareContent, force);
 
     // Next.js API route helper

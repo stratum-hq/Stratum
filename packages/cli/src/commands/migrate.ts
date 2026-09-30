@@ -170,6 +170,18 @@ async function migrateTable(
   }
 }
 
+/** Lists tables whose existing policies do not filter by tenant. */
+function logPolicyIssues(tables: TableInfo[]): void {
+  const withIssue = tables.filter((t) => t.policy_issue);
+  if (withIssue.length === 0) return;
+  console.log();
+  log.warn(
+    `${withIssue.length} table(s) have policies that do not isolate tenants. ` +
+      "Correct or drop those policies by hand; stratum migrate does not replace them:",
+  );
+  withIssue.forEach((t) => log.dim(`  ${t.table_name} — ${t.policy_issue}`));
+}
+
 export async function migrate(
   args: string[],
   flags: Record<string, string | boolean>,
@@ -196,11 +208,12 @@ export async function migrate(
           t.has_tenant_id ? "yes" : "—",
           t.rls_enabled ? "yes" : "—",
           t.rls_forced ? "yes" : "—",
-          t.has_policy ? "yes" : "—",
+          t.has_policy ? "yes" : t.policy_issue ? "no filter" : "—",
           ready ? "\x1b[32mready\x1b[0m" : "\x1b[33mneeds migration\x1b[0m",
         ];
       });
       log.table([header, ...rows]);
+      logPolicyIssues(tables);
 
       const unmigrated = tables.filter(
         (t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy,
@@ -226,8 +239,15 @@ export async function migrate(
         return;
       }
 
-      log.info(`Found ${unmigrated.length} table(s) to migrate:`);
-      unmigrated.forEach((t) => log.dim(`  ${t.table_name}`));
+      // Adding a policy cannot fix these: PostgreSQL ORs permissive policies.
+      logPolicyIssues(unmigrated);
+      const migratable = unmigrated.filter((t) => !t.policy_issue);
+      if (migratable.length === 0) {
+        return;
+      }
+
+      log.info(`Found ${migratable.length} table(s) to migrate:`);
+      migratable.forEach((t) => log.dim(`  ${t.table_name}`));
       console.log();
 
       const proceed = await confirm("Proceed with migration?");
@@ -236,14 +256,14 @@ export async function migrate(
         return;
       }
 
-      for (const table of unmigrated) {
+      for (const table of migratable) {
         console.log();
         log.heading(`Migrating: ${table.table_name}`);
         await migrateTable(pool, table.table_name, table, tenantId);
       }
 
       console.log();
-      log.success(`Migrated ${unmigrated.length} table(s).`);
+      log.success(`Migrated ${migratable.length} table(s).`);
     } else if (args.length > 0) {
       // Migrate specific table
       const tableName = args[0];
@@ -261,6 +281,11 @@ export async function migrate(
       if (info && info.has_tenant_id && info.rls_enabled && info.rls_forced && info.has_policy) {
         log.success(`${tableName} is already fully migrated.`);
         return;
+      }
+      if (info?.policy_issue) {
+        throw new Error(
+          `${tableName}: ${info.policy_issue}. Correct or drop that policy by hand, then run again.`,
+        );
       }
 
       const proceed = await confirm(

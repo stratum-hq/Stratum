@@ -18,6 +18,8 @@ interface ScanResult {
   needsTenantId: TableInfo[];
   needsRLS: TableInfo[];
   needsPolicy: TableInfo[];
+  /** Tables whose existing policies do not filter by tenant. */
+  badPolicy: TableInfo[];
   needsForce: TableInfo[];
   alreadyIsolated: TableInfo[];
   skipped: string[];
@@ -28,6 +30,7 @@ function analyzeTables(tables: TableInfo[], exclude: string[]): ScanResult {
     needsTenantId: [],
     needsRLS: [],
     needsPolicy: [],
+    badPolicy: [],
     needsForce: [],
     alreadyIsolated: [],
     skipped: [],
@@ -43,6 +46,8 @@ function analyzeTables(tables: TableInfo[], exclude: string[]): ScanResult {
       result.needsTenantId.push(table);
     } else if (!table.rls_enabled) {
       result.needsRLS.push(table);
+    } else if (table.policy_issue) {
+      result.badPolicy.push(table);
     } else if (!table.has_policy) {
       result.needsPolicy.push(table);
     } else if (!table.rls_forced) {
@@ -58,7 +63,13 @@ function analyzeTables(tables: TableInfo[], exclude: string[]): ScanResult {
 
 /** Every table the scan found work for. */
 function tablesNeedingWork(result: ScanResult): TableInfo[] {
-  return [...result.needsTenantId, ...result.needsRLS, ...result.needsPolicy, ...result.needsForce];
+  return [
+    ...result.needsTenantId,
+    ...result.needsRLS,
+    ...result.needsPolicy,
+    ...result.badPolicy,
+    ...result.needsForce,
+  ];
 }
 
 function generateMigrationSQL(result: ScanResult): string {
@@ -101,8 +112,10 @@ function generateMigrationSQL(result: ScanResult): string {
 
   // Step 3: Create RLS policies. CREATE POLICY fails when the policy exists,
   // and that error rolls back the whole script, so skip tables that have one.
+  // A table whose existing policies do not filter by tenant is skipped too:
+  // PostgreSQL ORs permissive policies, so adding one would not isolate it.
   const tablesNeedingPolicy = [...result.needsTenantId, ...result.needsRLS, ...result.needsPolicy]
-    .filter((t) => !t.has_policy);
+    .filter((t) => !t.has_policy && !t.policy_issue);
   if (tablesNeedingPolicy.length > 0) {
     lines.push("-- Step 3: Create tenant isolation policies");
     for (const table of tablesNeedingPolicy) {
@@ -121,6 +134,16 @@ function generateMigrationSQL(result: ScanResult): string {
       lines.push(
         `CREATE INDEX ${quoteIdent(`idx_${table.table_name}_tenant`)} ON ${quoteIdent(table.table_name)}(tenant_id);`,
       );
+    }
+    lines.push("");
+  }
+
+  const tablesWithPolicyIssue = tablesNeedingWork(result).filter((t) => t.policy_issue);
+  if (tablesWithPolicyIssue.length > 0) {
+    lines.push("-- Not handled here: these tables have policies that do not filter by tenant.");
+    lines.push("-- Correct or drop those policies by hand, then run stratum scan again.");
+    for (const table of tablesWithPolicyIssue) {
+      lines.push(`--   ${table.table_name.replace(/\s+/g, " ")}: ${table.policy_issue}`);
     }
     lines.push("");
   }
@@ -160,6 +183,7 @@ export async function scan(
       result.needsTenantId.length +
       result.needsRLS.length +
       result.needsPolicy.length +
+      result.badPolicy.length +
       result.needsForce.length;
 
     // Report
@@ -193,6 +217,14 @@ export async function scan(
       log.warn(`  ${result.needsPolicy.length} have RLS enabled but no policy:`);
       for (const t of result.needsPolicy) {
         log.dim(`    ⚠ ${t.table_name} — RLS enabled, no tenant_isolation policy`);
+      }
+      console.log();
+    }
+
+    if (result.badPolicy.length > 0) {
+      log.warn(`  ${result.badPolicy.length} have policies that do not isolate tenants:`);
+      for (const t of result.badPolicy) {
+        log.dim(`    ⚠ ${t.table_name} — ${t.policy_issue}`);
       }
       console.log();
     }

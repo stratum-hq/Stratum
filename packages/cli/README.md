@@ -44,6 +44,8 @@ If the table already has rows, each row needs a tenant. Give that tenant with `-
 
 The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables.
 
+A table counts as isolated only when RLS is enabled and forced and its policies filter rows by tenant: every permissive policy on the table must compare `tenant_id` with `current_setting('app.current_tenant_id')`, in `USING` and in any `WITH CHECK`. The policy's name does not matter. PostgreSQL combines permissive policies with OR, so one policy that admits other rows opens the whole table. `scan`, `migrate` and `health` report such a table with the policy that fails the check, and `migrate` does not replace policies you wrote: correct or drop that policy, then run the command again.
+
 ### `stratum generate api-key`
 
 ```bash
@@ -59,7 +61,7 @@ Generate framework-specific integration code without the full wizard:
 ```bash
 stratum scaffold express   # SDK middleware + example routes
 stratum scaffold fastify   # SDK plugin
-stratum scaffold nextjs    # edge middleware + server helpers + layout
+stratum scaffold nextjs    # JWT-verifying edge middleware + server helpers + layout
 stratum scaffold react     # provider + guards + hooks
 stratum scaffold prisma    # tenant-scoped Prisma client
 stratum scaffold docker    # Docker Compose for Stratum + PostgreSQL

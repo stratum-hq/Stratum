@@ -3,6 +3,7 @@ import * as path from "path";
 import crypto from "node:crypto";
 import * as log from "../utils/log.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
+import { nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
 
 function writeFile(filePath: string, content: string, force: boolean): void {
   if (fs.existsSync(filePath) && !force) {
@@ -161,30 +162,7 @@ export { fastifyPlugin };
 }
 
 function scaffoldNextjs(outDir: string, force: boolean): void {
-  writeFile(path.join(outDir, "middleware.ts"), `// Next.js edge middleware for tenant resolution
-import { NextRequest, NextResponse } from "next/server";
-
-export function middleware(request: NextRequest) {
-  // The tenant comes from the subdomain the request was routed to. Any
-  // x-tenant-id the client sent is removed first, so lib/stratum.ts only ever
-  // reads the value set here. Once you add authentication, check that the
-  // signed-in user belongs to this tenant.
-  const hostname = request.headers.get("host") || "";
-  const tenantId = hostname.split(".")[0];
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("x-tenant-id");
-  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
-    requestHeaders.set("x-tenant-id", tenantId);
-  }
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
-`, force);
+  writeFile(path.join(outDir, "middleware.ts"), nextjsMiddleware(), force);
 
   writeFile(path.join(outDir, "lib/stratum.ts"), `// Stratum helpers for Next.js
 import { StratumClient } from "@stratum-hq/sdk";
@@ -237,7 +215,8 @@ function TenantBoundary({ children }: { children: React.ReactNode }) {
 
   writeFile(path.join(outDir, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
 
-  log.info("Place middleware.ts in your Next.js project root.");
+  log.info("Install: npm install @stratum-hq/sdk @stratum-hq/react jose");
+  log.info("Place middleware.ts in your Next.js project root. It needs JWT_SECRET set.");
   log.info("Place lib/stratum.ts in your lib/ directory.");
   log.info("Wrap layouts with <TenantLayout>.");
   log.info("Implement authorize() in app/api/stratum/[...path]/route.ts; it denies every request until you do.");
