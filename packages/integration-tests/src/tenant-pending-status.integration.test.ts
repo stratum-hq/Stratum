@@ -178,8 +178,7 @@ describe("pending tenant status (integration)", () => {
     // A second call fails, so it must not add a second event.
     await expect(stratum.activateTenant(t.id)).rejects.toBeInstanceOf(InvalidTenantStateError);
 
-    // emitEvent does not block the caller, so the insert can land after activateTenant returns.
-    await new Promise((r) => setTimeout(r, 250));
+    await awaitLaterActivationEvent();
     const events = await getPool().query<{ tenant_id: string; status: string }>(
       `SELECT tenant_id, data->'tenant'->>'status' AS status FROM webhook_events
        WHERE type = 'tenant.activated' AND tenant_id = $1`,
