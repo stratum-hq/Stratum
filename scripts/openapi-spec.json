@@ -133,11 +133,43 @@
           "tenant_id": { "type": "string", "format": "uuid" },
           "ancestry_path": { "type": "string" },
           "depth": { "type": "integer" },
-          "isolation_strategy": { "type": "string", "nullable": true },
-          "resolved_config": { "type": "object", "additionalProperties": true },
-          "resolved_permissions": { "type": "array", "items": { "$ref": "#/components/schemas/PermissionPolicy" } }
+          "isolation_strategy": { "type": "string", "enum": ["SHARED_RLS", "SCHEMA_PER_TENANT", "DB_PER_TENANT"] },
+          "resolved_config": {
+            "type": "object",
+            "description": "Resolved config entries, keyed by config key.",
+            "additionalProperties": { "$ref": "#/components/schemas/ResolvedConfigEntry" }
+          },
+          "resolved_permissions": {
+            "type": "object",
+            "description": "Resolved permissions, keyed by permission key.",
+            "additionalProperties": { "$ref": "#/components/schemas/ResolvedPermission" }
+          }
         },
-        "required": ["tenant_id", "ancestry_path", "depth", "resolved_config", "resolved_permissions"]
+        "required": ["tenant_id", "ancestry_path", "depth", "resolved_config", "resolved_permissions", "isolation_strategy"]
+      },
+      "ResolvedConfigEntry": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": {},
+          "source_tenant_id": { "type": "string", "format": "uuid" },
+          "inherited": { "type": "boolean" },
+          "locked": { "type": "boolean" }
+        },
+        "required": ["key", "value", "source_tenant_id", "inherited", "locked"]
+      },
+      "ResolvedPermission": {
+        "type": "object",
+        "properties": {
+          "policy_id": { "type": "string", "format": "uuid" },
+          "key": { "type": "string" },
+          "value": {},
+          "mode": { "type": "string" },
+          "source_tenant_id": { "type": "string", "format": "uuid" },
+          "locked": { "type": "boolean" },
+          "delegated": { "type": "boolean" }
+        },
+        "required": ["policy_id", "key", "value", "mode", "source_tenant_id", "locked", "delegated"]
       },
       "TenantExportData": {
         "type": "object",
