@@ -285,3 +285,21 @@ All errors follow this format:
   }
 }
 ```
+
+A `VALIDATION_ERROR` about the request fields lists each failed field in `error.details.issues`:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Validation failed",
+    "details": {
+      "issues": [
+        { "path": ["slug"], "message": "Required", "code": "invalid_type" }
+      ]
+    }
+  }
+}
+```
+
+The response also has `error.issues`, a copy of `error.details.issues`. It is deprecated and goes away in the next major release, so read `error.details.issues`.
