@@ -138,6 +138,8 @@ Inside the callback, for every model with a `tenant_id` attribute:
 - `upsert()`, `bulkCreate()` with `updateOnDuplicate`, `truncate()` and `include: { all: true }` are refused, and a model query that bypasses these methods (for example a direct `queryInterface` call) throws.
 - `hooks: false` does not skip the filter.
 
+`upsert()` on a model with a `tenant_id` attribute is always refused inside the callback, because MySQL applies `ON DUPLICATE KEY UPDATE` on any unique key, so a conflict could update another tenant's row. Look the row up with `findOne()` and then `update()` or `create()` it instead.
+
 The helper also sets `@stratum_tenant_id` on the transaction's connection and clears it in a `finally` block. Pass the transaction to queries that must run in it.
 
 **Not scoped:** raw `sequelize.query()`, models without a `tenant_id` attribute, the through (junction) model of a many-to-many include, and any code outside the callback. The helper throws when it is given something other than a Sequelize v6 instance.
