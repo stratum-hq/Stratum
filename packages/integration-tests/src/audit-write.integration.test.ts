@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
-import { Stratum } from "@stratum-hq/lib";
+import { Stratum, ValidationError } from "@stratum-hq/lib";
 import type { AuditContext } from "@stratum-hq/core";
 import {
   getPool,
@@ -172,7 +172,7 @@ describe("audit-write API against real Postgres (integration)", () => {
     ).rejects.toThrow();
   });
 
-  it("rejects an invalid source_ip via the INET column type", async () => {
+  it("rejects an invalid source_ip before the INET column sees it", async () => {
     const tenant = await stratum.createTenant(
       { name: "BadIp", slug: uniqueSlug("awi") },
       actor,
@@ -187,7 +187,7 @@ describe("audit-write API against real Postgres (integration)", () => {
         resourceId: null,
         sourceIp: "not-an-ip",
       }),
-    ).rejects.toThrow(/invalid input syntax for type inet|inet/i);
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("rejects an invalid actor_type via the CHECK constraint (raw backstop)", async () => {

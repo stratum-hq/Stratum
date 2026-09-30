@@ -112,3 +112,27 @@ describe("datetime inputs stored in TIMESTAMPTZ columns", () => {
     expect(RecordAuditEventInputSchema.safeParse(auditEvent(yearZero)).success).toBe(false);
   });
 });
+
+describe("sourceIp stored in the audit_logs INET column", () => {
+  const auditEvent = (sourceIp: string | null) => ({
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "a",
+    action: "x",
+    resourceType: "r",
+    resourceId: null,
+    sourceIp,
+  });
+
+  it("accepts an IPv4 address, an IPv6 address, and null", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("203.0.113.7")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("2001:db8::1")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("::1")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent(null)).success).toBe(true);
+  });
+
+  it("rejects a value that is not an IP address", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("not-an-ip")).success).toBe(false);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("")).success).toBe(false);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("999.0.0.1")).success).toBe(false);
+  });
+});

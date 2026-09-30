@@ -8,7 +8,7 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as auditService from "../audit-service.js";
-import type { AuditContext, AuditEntry, RecordAuditEventInput } from "@stratum-hq/core";
+import { ValidationError, type AuditContext, type AuditEntry, type RecordAuditEventInput } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -289,6 +289,25 @@ describe("recordAuditEvent", () => {
 
     await expect(auditService.recordAuditEvent(pool, bad)).rejects.toThrow();
     expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it("throws a ValidationError that carries the zod issues for an invalid sourceIp", async () => {
+    const err = await auditService
+      .recordAuditEvent(makeMockPool(), {
+        tenantId: "550e8400-e29b-41d4-a716-446655440000",
+        actorId: "u",
+        action: "x",
+        resourceType: "y",
+        resourceId: null,
+        sourceIp: "not-an-ip",
+      })
+      .catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).details?.issues).toEqual([
+      expect.objectContaining({ path: ["sourceIp"] }),
+    ]);
+    expect(poolHelpers.withClient).not.toHaveBeenCalled();
   });
 });
 
