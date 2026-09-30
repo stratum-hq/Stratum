@@ -53,14 +53,18 @@ describe("RLS policy snippets in the website docs", () => {
 
   it("reads app.current_tenant_id only through NULLIF with missing_ok", () => {
     const unsafe = [];
+    let reads = 0;
     for (const { name, text } of docs) {
       for (const match of text.matchAll(/current_setting\('app\.current_tenant_id'/g)) {
+        reads += 1;
         const start = match.index - "NULLIF(".length;
         if (text.slice(start, start + SAFE_READ.length) !== SAFE_READ) {
           unsafe.push(`${name}:${lineOf(text, match.index)}`);
         }
       }
     }
+    // Zero reads means that the pattern no longer matches the docs, not that the docs are safe.
+    expect(reads).toBeGreaterThan(0);
     expect(unsafe).toEqual([]);
   });
 });
@@ -150,14 +154,18 @@ describe("@stratum-hq/lib imports in the website docs", () => {
     // another package never joins a later import from @stratum-hq/lib.
     const IMPORT = /import\s+(?:type\s+)?\{((?:(?!\bimport\b)[\s\S])*?)\}\s*from\s*["']@stratum-hq\/lib["']/g;
     const missing = [];
+    let imports = 0;
     for (const { name, text } of docs) {
       for (const match of text.matchAll(IMPORT)) {
+        imports += 1;
         for (const id of identifiers(match[1])) {
           const imported = id.split(/\s+as\s+/)[0];
           if (!exported.has(imported)) missing.push(`${name}:${lineOf(text, match.index)} ${imported}`);
         }
       }
     }
+    // Zero imports means that the pattern no longer matches the docs, not that the docs are correct.
+    expect(imports).toBeGreaterThan(0);
     expect(missing).toEqual([]);
   });
 });

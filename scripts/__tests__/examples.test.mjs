@@ -95,12 +95,29 @@ describe("framework examples", () => {
     const exampleDir = join(EXAMPLES_DIR, name);
 
     it("does not read the tenant from the X-Tenant-ID header in code", () => {
+      const files = sourceFiles(join(exampleDir, "src"));
+      // An empty list makes this check pass without reading any code.
+      expect(files.length).toBeGreaterThan(0);
+      const offenders = [];
+      for (const file of files) {
+        readFileSync(file, "utf8")
+          .split("\n")
+          .forEach((line, i) => {
+            if (!isComment(line) && /x-tenant-id/i.test(line)) {
+              offenders.push(`${relative(ROOT, file)}:${i + 1}: ${line.trim()}`);
+            }
+          });
+      }
+      expect(offenders).toEqual([]);
+    });
+
+    it("reads each key and secret from the environment without a literal fallback", () => {
       const offenders = [];
       for (const file of sourceFiles(join(exampleDir, "src"))) {
         readFileSync(file, "utf8")
           .split("\n")
           .forEach((line, i) => {
-            if (!isComment(line) && /x-tenant-id/i.test(line)) {
+            if (!isComment(line) && /process\.env\.\w*(KEY|SECRET)\w*\s*(\?\?|\|\|)/.test(line)) {
               offenders.push(`${relative(ROOT, file)}:${i + 1}: ${line.trim()}`);
             }
           });
@@ -154,5 +171,33 @@ describe("framework examples", () => {
       },
       180_000,
     );
+  });
+});
+
+describe("tenant creation in the framework examples", () => {
+  /** Return the parent_id value of each createTenant({ ... }) call, or null when it has none. */
+  function createTenantParents(source) {
+    return [...source.matchAll(/createTenant\(\{([^}]*)\}\)/g)].map(
+      (match) => match[1].match(/parent_id:\s*([^,\n]+)/)?.[1]?.trim() ?? null,
+    );
+  }
+
+  const calls = FRAMEWORK_EXAMPLES.flatMap((name) =>
+    sourceFiles(join(EXAMPLES_DIR, name, "src")).flatMap((file) =>
+      createTenantParents(readFileSync(file, "utf8")).map((parent) => ({ file: relative(ROOT, file), parent })),
+    ),
+  );
+
+  it("finds at least one createTenant call to check", () => {
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  // The verified caller's tenant is the only parent that the request proves it
+  // belongs to. A parent_id from the request body, or no parent, has no such proof.
+  it("creates each tenant under the tenant of the verified caller", () => {
+    const offenders = calls
+      .filter(({ parent }) => !parent || /\bbody\b|\bparent_id\b|\bnull\b/.test(parent))
+      .map(({ file, parent }) => `${file}: parent_id: ${parent}`);
+    expect(offenders).toEqual([]);
   });
 });

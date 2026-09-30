@@ -141,4 +141,23 @@ describe(".githooks/pre-push", () => {
     expect(result.stderr).not.toContain("push blocked");
     expect(result.status).toBe(0);
   });
+
+  it("blocks a new branch with a fetch hint when no merge base with the default branch is known", () => {
+    const tip = commit("src/clean.js", "export const x = 1;\n");
+    git("update-ref", "-d", "refs/remotes/origin/main");
+    const result = prePush(tip, ZERO_SHA);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("git fetch origin");
+    expect(result.stdout).not.toContain("scanning");
+  });
+
+  it("finds the merge base through the remote HEAD when it names a branch other than main", () => {
+    git("update-ref", "refs/remotes/origin/dev", base);
+    git("update-ref", "-d", "refs/remotes/origin/main");
+    git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/dev");
+    const tip = commit("src/clean.js", "export const x = 1;\n");
+    const result = prePush(tip, ZERO_SHA);
+    expect(result.stdout).toContain(`${base}..${tip}`);
+    expect(result.status).toBe(0);
+  });
 });
