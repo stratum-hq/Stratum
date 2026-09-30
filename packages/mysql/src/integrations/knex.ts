@@ -36,6 +36,7 @@ const NOT_SCOPED = "because the tenant filter does not apply to the rows it adds
 const REFUSED_METHODS = new Map<string, string>([
   ["upsert", NOT_FILTERED],
   ["truncate", NOT_FILTERED],
+  ["modify", "because the tenant rules for insert, update and onConflict do not apply inside its callback"],
   ...[
     "join",
     "innerJoin",
@@ -81,6 +82,9 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * UPDATE never changes tenant_id: the column is dropped from the update data.
  * onConflict().merge(), upsert() and truncate() throw, because MySQL applies
  * none of them through the WHERE clause. onConflict().ignore() is allowed.
+ *
+ * modify() throws, because its callback would call the builder's methods
+ * without the insert, update and onConflict rules above.
  *
  * Joins (join, innerJoin, leftJoin, crossJoin, joinRaw and the other forms)
  * and union() / unionAll() throw, because the tenant filter covers only this

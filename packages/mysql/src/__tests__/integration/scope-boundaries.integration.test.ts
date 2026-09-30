@@ -126,6 +126,24 @@ describe("Knex withTenantScope joins and unions", () => {
     ).rejects.toThrow(/joinRaw\(\) is not allowed on a tenant-scoped builder/);
   });
 
+  it("refuses modify() on a tenant-scoped builder, so its callback cannot skip the tenant rules", async () => {
+    type Builder = Knex.QueryBuilder;
+    const callbacks: Array<(qb: Builder) => unknown> = [
+      (qb) => qb.insert({ id: 3, tenant_id: "tenant-b", name: "x", email: "x@b.test" }),
+      (qb) => qb.insert({ id: 2, name: "x", email: "x@a.test" }).onConflict("id").merge(),
+      (qb) => qb.where("id", 1).update({ tenant_id: "tenant-b" }),
+    ];
+    for (const callback of callbacks) {
+      await expect(
+        (async () => scopedKnex("tenant-a")("users").modify(callback))(),
+      ).rejects.toThrow(/modify\(\) is not allowed on a tenant-scoped builder/);
+    }
+    expect(await rows<{ id: number; tenant_id: string }>(`SELECT id, tenant_id FROM \`${DB}\`.\`users\` ORDER BY id`)).toEqual([
+      { id: 1, tenant_id: "tenant-a" },
+      { id: 2, tenant_id: "tenant-b" },
+    ]);
+  });
+
   it("still allows a tenant-scoped subquery in whereIn", async () => {
     const result = await scopedKnex("tenant-a")("users").whereIn(
       "id",
@@ -383,6 +401,28 @@ describe("StratumTypeOrmSubscriber updates and deletes", () => {
         await repo.remove(other);
       }),
     );
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("save() of a row that belongs to another tenant is refused without copying that tenant onto the entity", async () => {
+    const entity: Partial<Note> = { id: 2, name: "changed" };
+    await expect(
+      asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).save(entity)),
+    ).rejects.toThrow(/another tenant/);
+    expect(entity.tenant_id).toBeUndefined();
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("refuses clear() and clearTable() on a tenant table", async () => {
+    await expect(asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).clear())).rejects.toThrow(
+      /TRUNCATE/,
+    );
+    const runner = dataSource.createQueryRunner();
+    try {
+      await expect(asTenant("tenant-a", () => runner.clearTable("notes"))).rejects.toThrow(/TRUNCATE/);
+    } finally {
+      await runner.release();
+    }
     expect(await notes()).toEqual(untouched);
   });
 

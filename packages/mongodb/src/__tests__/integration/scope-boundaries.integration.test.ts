@@ -186,6 +186,27 @@ describe("stratumPlugin watch() and aggregate (real Mongoose)", () => {
     await expect(as("tenant-a", () => agg.exec())).rejects.toThrow(/blocked/);
   });
 
+  it("aggregate on a discriminator model can run more than once", async () => {
+    const Special = OrderModel.discriminator("P2Special", new Schema({ extra: String }));
+    await conn.db!.collection("orders").insertMany([
+      { name: "a-special", __t: "P2Special", tenant_id: "tenant-a" },
+      { name: "b-special", __t: "P2Special", tenant_id: "tenant-b" },
+    ]);
+    const agg = Special.aggregate([{ $project: { _id: 0, name: 1 } }]);
+    const first = await as("tenant-a", () => agg.exec());
+    const second = await as("tenant-a", () => agg.exec());
+    expect(first).toEqual([{ name: "a-special" }]);
+    expect(second).toEqual([{ name: "a-special" }]);
+  });
+
+  it("stratumPlugin refuses a schema that already defines a watch() static", () => {
+    const schema = new Schema({ name: String });
+    schema.static("watch", function () {
+      return null;
+    });
+    expect(() => schema.plugin(stratumPlugin as unknown as (s: Schema) => void)).toThrow(/watch/);
+  });
+
   it("aggregate cursor does not run a stage pushed onto the driver cursor's pipeline", async () => {
     let seen: string[] | "rejected";
     try {

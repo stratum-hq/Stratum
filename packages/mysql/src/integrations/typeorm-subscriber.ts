@@ -62,6 +62,11 @@ const TENANT_ASSIGNMENT = /`tenant_id`\s*=/i;
 const INSERT_TARGET = /^\s*INSERT\s+(?:IGNORE\s+)?INTO\s+(?:`((?:[^`]|``)+)`\.)?`((?:[^`]|``)+)`/i;
 
 const UPDATE_OR_DELETE = /^\s*(?:UPDATE|DELETE)\b/i;
+// The target of a TRUNCATE, as TypeORM writes it: `table` or `schema`.`table`.
+const TRUNCATE_TARGET = /^\s*TRUNCATE\s+(?:TABLE\s+)?(?:`((?:[^`]|``)+)`\.)?`?((?:[^`\s;]|``)+)`?/i;
+const TENANT_COLUMN_SQL =
+  "SELECT COUNT(*) AS n FROM information_schema.COLUMNS " +
+  "WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ? AND LOWER(COLUMN_NAME) = 'tenant_id'";
 const TENANT_PARAMETER = "stratumTenantId";
 const SCOPED_EXECUTE = Symbol("stratum.tenantScopedExecute");
 /** Data sources whose update and delete query builders are tenant-scoped. */
@@ -101,10 +106,34 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
    * so the column is unchanged; on a repository or query builder update the
    * column is dropped from the SET values (MySQL column names are
    * case-insensitive, so any letter case is dropped).
+   *
+   * @throws Error when save() loaded a row whose tenant_id is not the current
+   *   tenant's. The loaded tenant_id is not copied onto the entity.
    */
   beforeUpdate(event: UpdateEvent): void {
     const entity = event.entity;
     if (!entity) return;
+
+    const loaded = event.databaseEntity;
+    if (loaded) {
+      const loadedProps = new Set(
+        Object.keys(loaded).filter((key) => key.toLowerCase() === "tenant_id"),
+      );
+      for (const column of event.metadata?.columns ?? []) {
+        if (column.databaseName.toLowerCase() === "tenant_id" && column.propertyName in loaded) {
+          loadedProps.add(column.propertyName);
+        }
+      }
+      if (loadedProps.size > 0) {
+        const context = getTenantContext();
+        assertTenantId(context.tenant_id);
+        for (const prop of loadedProps) {
+          if (loaded[prop] !== context.tenant_id) {
+            throw new Error("Stratum: save() refused, because the row belongs to another tenant.");
+          }
+        }
+      }
+    }
 
     const tenantProps = new Set(
       Object.keys(entity).filter((key) => key.toLowerCase() === "tenant_id"),
@@ -154,6 +183,7 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
           "which scopes updates and deletes to the current tenant.",
       );
     }
+    if (/^\s*TRUNCATE\b/i.test(event.query)) return assertNotTenantTable(event);
     const clause = event.query.split(UPSERT_CLAUSE)[1];
     if (clause === undefined) return;
     if (TENANT_ASSIGNMENT.test(clause)) {
@@ -219,6 +249,30 @@ function scopeWriteBuilders(dataSource: TypeOrmDataSourceLike): void {
     proto[SCOPED_EXECUTE] = true;
   }
   scopedDataSources.add(dataSource);
+}
+
+/**
+ * Refuses a TRUNCATE (Repository.clear(), QueryRunner.clearTable()) of a table
+ * with a tenant_id column, because it would empty the table for every tenant.
+ * A TRUNCATE whose table cannot be checked is refused too.
+ */
+async function assertNotTenantTable(event: BeforeQueryEvent): Promise<void> {
+  const target = TRUNCATE_TARGET.exec(event.query);
+  const unquote = (name: string | undefined) => (name === undefined ? null : name.replace(/``/g, "`"));
+  const table = target ? unquote(target[2]) : null;
+  let isTenantTable = true;
+  if (table && event.queryRunner) {
+    const rows = (await event.queryRunner.query(TENANT_COLUMN_SQL, [unquote(target?.[1]), table])) as {
+      n: number | string;
+    }[];
+    isTenantTable = Number(rows[0]?.n ?? 1) > 0;
+  }
+  if (isTenantTable) {
+    throw new Error(
+      `Stratum: TRUNCATE of "${table ?? "unknown table"}" is refused, because it would remove every tenant's rows. ` +
+        "Delete the current tenant's rows instead.",
+    );
+  }
 }
 
 async function assertUniqueKeysIncludeTenant(event: BeforeQueryEvent): Promise<void> {
