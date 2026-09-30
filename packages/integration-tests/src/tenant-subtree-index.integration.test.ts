@@ -122,16 +122,26 @@ describe("subtree queries on ancestry_path (integration)", () => {
   }
 
   /**
-   * Plan `query` with sequential scans disabled and return every plan node.
-   * The seeded table is small, so the planner prefers a sequential scan when it
-   * can. Disabling it shows whether an index is usable at all.
+   * Add active root tenants outside every subtree, then refresh the planner
+   * statistics. On a table of a few rows the planner prefers any scan, so the
+   * plan says nothing. At this size a subtree query that cannot use the
+   * ancestry_path index must scan far more rows than it returns.
    */
+  async function seedInstallation() {
+    await getPool().query(
+      `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug)
+       SELECT NULL, '/', 0, 'filler', 'filler_' || g
+       FROM generate_series(1, 5000) AS g`,
+    );
+    await getPool().query(`ANALYZE tenants`);
+  }
+
+  /** Plan `query` with the planner's default settings and return every plan node. */
   async function planNodes(query: RecordedQuery): Promise<PlanNode[]> {
     const client = await getPool().connect();
     try {
       await client.query("BEGIN");
       await client.query("SET LOCAL app.bypass_rls = 'on'");
-      await client.query("SET LOCAL enable_seqscan = off");
       const res = await client.query<{ "QUERY PLAN": { Plan: PlanNode }[] }>(
         `EXPLAIN (FORMAT JSON) ${query.text}`,
         query.values,
@@ -236,6 +246,7 @@ describe("subtree queries on ancestry_path (integration)", () => {
 
   it("getDescendants uses the ancestry_path index, with and without includeArchived", async () => {
     const t = await seedForest();
+    await seedInstallation();
 
     for (const includeArchived of [false, true]) {
       const queries = await recordQueries(() =>
@@ -247,6 +258,7 @@ describe("subtree queries on ancestry_path (integration)", () => {
 
   it("CASCADE permission revocation uses the ancestry_path index", async () => {
     const t = await seedForest();
+    await seedInstallation();
     const created = await stratum.createPermission(t.a1.id, {
       key: "feature:plan",
       mode: PermissionMode.INHERITED,
@@ -261,6 +273,7 @@ describe("subtree queries on ancestry_path (integration)", () => {
 
   it("CASCADE ABAC revocation uses the ancestry_path index", async () => {
     const t = await seedForest();
+    await seedInstallation();
     const created = await stratum.createAbacPolicy(t.a1.id, {
       name: "plan_gate",
       resource_type: "report",
