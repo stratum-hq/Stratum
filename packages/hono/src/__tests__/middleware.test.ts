@@ -2,9 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { stratumMiddleware } from "../middleware.js";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 
-// Mock runWithTenantContext from SDK — execute the callback so downstream handlers run
-vi.mock("@stratum-hq/sdk", () => ({
+// Mock runWithTenantContext from SDK — execute the callback so downstream handlers run.
+// The tenant error mapping stays real, so the tests check the shared mapping.
+vi.mock("@stratum-hq/sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@stratum-hq/sdk")>()),
   runWithTenantContext: vi.fn((_ctx: unknown, fn: () => unknown) => fn()),
 }));
 
@@ -132,5 +140,41 @@ describe("stratumMiddleware", () => {
 
     const res = await app.request("/test");
     expect(res.status).toBe(400);
+  });
+
+  describe("tenant errors from resolve", () => {
+    const cases = [
+      { error: () => new TenantNotFoundError("t-1"), status: 404, code: "TENANT_NOT_FOUND" },
+      { error: () => new TenantSuspendedError("t-1"), status: 403, code: "TENANT_SUSPENDED" },
+      { error: () => new TenantArchivedError("t-1"), status: 410, code: "TENANT_ARCHIVED" },
+      { error: () => new ForbiddenError(), status: 403, code: "FORBIDDEN" },
+    ];
+
+    for (const tc of cases) {
+      it(`answers ${tc.status} ${tc.code} when resolve rejects with ${tc.error().name}`, async () => {
+        const handler = vi.fn((c: Context) => c.json({ ok: true }));
+        const app = new Hono();
+        app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(tc.error()) }));
+        app.get("/test", handler);
+
+        const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
+
+        expect(res.status).toBe(tc.status);
+        expect(await res.json()).toEqual({ error: expect.objectContaining({ code: tc.code }) });
+        expect(handler).not.toHaveBeenCalled();
+      });
+    }
+
+    it("passes any other resolve error to the Hono error handler", async () => {
+      const app = new Hono();
+      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(new Error("boom")) }));
+      app.get("/test", (c) => c.json({ ok: true }));
+      app.onError((err, c) => c.json({ caught: err.message }, 500));
+
+      const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ caught: "boom" });
+    });
   });
 });

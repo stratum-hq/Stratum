@@ -6,6 +6,7 @@ import {
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  UnauthorizedError,
 } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
@@ -339,6 +340,77 @@ describe("fastifyPlugin", () => {
       });
 
       expect(onError).toHaveBeenCalledWith(error, request);
+    });
+  });
+
+  describe("control plane failures", () => {
+    /** Runs the hook and settles on the first reply or done() call. */
+    async function runHook(client: ReturnType<typeof makeClient>, options: Record<string, unknown>, request: unknown) {
+      const { hook } = registerPlugin(client, options);
+      const reply = makeReply();
+      const done = vi.fn();
+      await new Promise<void>((resolve) => {
+        (reply.send as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          resolve();
+          return reply;
+        });
+        done.mockImplementation(() => resolve());
+        hook(request, reply, done);
+      });
+      return { reply, done };
+    }
+
+    it("answers 504 CONTROL_PLANE_TIMEOUT when the control plane request times out", async () => {
+      const error = new DOMException("The operation timed out.", "TimeoutError");
+      const onError = vi.fn();
+      const request = makeRequest({ "x-tenant-id": "t-1" });
+
+      const { reply, done } = await runHook(makeClient({ resolveTenant: vi.fn().mockRejectedValue(error) }), { onError }, request);
+
+      expect(reply.status).toHaveBeenCalledWith(504);
+      expect(reply.send).toHaveBeenCalledWith({ error: expect.objectContaining({ code: "CONTROL_PLANE_TIMEOUT" }) });
+      expect(onError).toHaveBeenCalledWith(error, request);
+      expect(done).not.toHaveBeenCalled();
+    });
+
+    it("answers 500 and logs the cause when the control plane rejects the SDK API key", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(new UnauthorizedError("Invalid or missing API key")) });
+
+      const { reply, done } = await runHook(client, {}, makeRequest({ "x-tenant-id": "t-1" }));
+
+      expect(reply.status).toHaveBeenCalledWith(500);
+      expect(reply.send).toHaveBeenCalledWith({ error: expect.objectContaining({ code: "CONTROL_PLANE_AUTH_FAILED" }) });
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("rejected the SDK API key"));
+      expect(done).not.toHaveBeenCalled();
+      log.mockRestore();
+    });
+
+    it("answers 504 when the impersonation target request times out", async () => {
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(makeResolvedTenantContext("caller-tenant"))
+          .mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError")),
+      });
+
+      const { reply } = await runHook(
+        client,
+        { impersonation: { enabled: true, authorize: () => true } },
+        makeRequest({ "x-tenant-id": "caller-tenant", "x-impersonate-tenant": "target-tenant" }),
+      );
+
+      expect(reply.status).toHaveBeenCalledWith(504);
+    });
+
+    it("answers a tenant error inline and does not call onError", async () => {
+      const onError = vi.fn();
+      const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(new TenantNotFoundError("t-1")) });
+
+      const { reply } = await runHook(client, { onError }, makeRequest({ "x-tenant-id": "t-1" }));
+
+      expect(reply.status).toHaveBeenCalledWith(404);
+      expect(onError).not.toHaveBeenCalled();
     });
   });
 

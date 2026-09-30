@@ -4,7 +4,7 @@ import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
 import { assertJwtSupport } from "../resolvers/jwt.js";
 import { resolveTenantId } from "../resolvers/resolve.js";
-import { tenantErrorResponse } from "./tenant-errors.js";
+import { controlPlaneErrorResponse, tenantErrorResponse } from "./tenant-errors.js";
 
 // Minimal structural types for the Fastify surface this plugin touches, so the
 // SDK does not take a hard dependency on `fastify` types in its published API.
@@ -42,6 +42,22 @@ export function fastifyPlugin(
   fastify.decorateRequest("originalTenantId", null);
 
   fastify.addHook("onRequest", (request: FastifyRequestLike, reply: FastifyReplyLike, done: DoneFn) => {
+    /** Send the response for a known resolution error. Return false for any other error. */
+    const answerResolutionError = (err: unknown, tenantId: string): boolean => {
+      const response = tenantErrorResponse(err, tenantId);
+      if (response) {
+        reply.status(response.status).send(response.body);
+        return true;
+      }
+      const failure = controlPlaneErrorResponse(err);
+      if (!failure) return false;
+      if (middlewareOptions.onError && err instanceof Error) {
+        middlewareOptions.onError(err, request);
+      }
+      reply.status(failure.status).send(failure.body);
+      return true;
+    };
+
     const resolveAndRun = async () => {
       // Resolve tenant ID: JWT → header → custom resolvers
       const resolution = await resolveTenantId(request, middlewareOptions);
@@ -62,11 +78,7 @@ export function fastifyPlugin(
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
-        const response = tenantErrorResponse(err, tenantId);
-        if (response) {
-          reply.status(response.status).send(response.body);
-          return;
-        }
+        if (answerResolutionError(err, tenantId)) return;
         if (middlewareOptions.onError && err instanceof Error) {
           middlewareOptions.onError(err, request);
         }
@@ -97,11 +109,7 @@ export function fastifyPlugin(
           try {
             impersonatedContext = await client.resolveTenant(impersonateTenantId);
           } catch (err) {
-            const response = tenantErrorResponse(err, impersonateTenantId);
-            if (response) {
-              reply.status(response.status).send(response.body);
-              return;
-            }
+            if (answerResolutionError(err, impersonateTenantId)) return;
             throw err;
           }
           request.tenant = impersonatedContext;

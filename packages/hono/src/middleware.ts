@@ -1,5 +1,6 @@
 import type { Context, Next, MiddlewareHandler } from "hono";
-import { runWithTenantContext } from "@stratum-hq/sdk";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { runWithTenantContext, tenantErrorResponse } from "@stratum-hq/sdk";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { IsolationStrategy } from "@stratum-hq/core";
 
@@ -14,6 +15,10 @@ export interface StratumMiddlewareOptions {
    * Optional callback to resolve a full tenant context from the tenant ID.
    * When provided, the middleware will call this to obtain ancestry, config,
    * and permissions instead of using placeholder values.
+   *
+   * If the callback rejects with a tenant error from `@stratum-hq/core`, for
+   * example from `StratumClient.resolveTenant`, the middleware answers 404,
+   * 403 or 410. Other errors go to the Hono error handler.
    */
   resolve?: (tenantId: string) => Promise<ResolvedTenantContext> | ResolvedTenantContext;
 }
@@ -60,21 +65,28 @@ export function stratumMiddleware(
 
     c.set("tenantId", tenantId);
 
-    const ctx: ResolvedTenantContext = options.resolve
-      ? await options.resolve(tenantId)
-      : /**
-         * @warning Placeholder context — ancestry_path, resolved_config, and
-         * resolved_permissions are stub values. Provide a `resolve` callback
-         * to populate real tenant data.
-         */
-        {
-          tenant_id: tenantId,
-          ancestry_path: tenantId,
-          depth: 0,
-          resolved_config: {},
-          resolved_permissions: {},
-          isolation_strategy: IsolationStrategy.SHARED_RLS,
-        };
+    let ctx: ResolvedTenantContext;
+    try {
+      ctx = options.resolve
+        ? await options.resolve(tenantId)
+        : /**
+           * @warning Placeholder context — ancestry_path, resolved_config, and
+           * resolved_permissions are stub values. Provide a `resolve` callback
+           * to populate real tenant data.
+           */
+          {
+            tenant_id: tenantId,
+            ancestry_path: tenantId,
+            depth: 0,
+            resolved_config: {},
+            resolved_permissions: {},
+            isolation_strategy: IsolationStrategy.SHARED_RLS,
+          };
+    } catch (err) {
+      const response = tenantErrorResponse(err, tenantId);
+      if (!response) throw err;
+      return c.json(response.body, response.status as ContentfulStatusCode);
+    }
 
     return runWithTenantContext(ctx, () => next());
   };
