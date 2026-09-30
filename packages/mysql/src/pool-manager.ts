@@ -99,6 +99,8 @@ export class MysqlPoolManager {
     if (entry.refCount > 0) {
       entry.refCount--;
     }
+    // The idle timeout counts from the end of the last use, not from its start.
+    entry.lastUsed = Date.now();
   }
 
   /** Closes and removes the pool for the given slug. No-op if not found. */
@@ -183,7 +185,9 @@ export class MysqlPoolManager {
       }
     }
 
-    await Promise.all(toClose.map((slug) => this.closePool(slug)));
+    // The timer awaits nothing, so a rejection here would be unhandled. One
+    // pool that fails to end must not stop the others from closing.
+    await Promise.allSettled(toClose.map((slug) => this.closePool(slug)));
   }
 
   /** Builds the MySQL connection URI with the given database name. */

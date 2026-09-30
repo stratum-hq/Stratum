@@ -273,5 +273,58 @@ describe("MysqlPoolManager", () => {
 
       await idleManager.closeAll();
     });
+
+    it("counts a pool as used until the caller releases it", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const idleManager = new MysqlPoolManager({
+        createPool: vi.fn(async () => createMockPool()),
+        baseUri: "mysql://localhost:3306/default",
+        idleTimeoutMs: 5000,
+      });
+
+      const pool = await idleManager.getPool("acme");
+      // The cleanup at t=5000 uses the cutoff 0 and keeps the pool.
+      await vi.advanceTimersByTimeAsync(9000);
+      idleManager.releasePool("acme");
+
+      // The cleanup at t=10000 uses the cutoff 5000. The release at 9000 is after it.
+      await vi.advanceTimersByTimeAsync(1001);
+      await idleManager._lastCleanup;
+
+      expect(pool.end).not.toHaveBeenCalled();
+      expect(idleManager.getStats().poolCount).toBe(1);
+
+      await idleManager.closeAll();
+    });
+
+    it("closes the other idle pools when one pool fails to end", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const created: MysqlPoolLike[] = [];
+      const idleManager = new MysqlPoolManager({
+        createPool: vi.fn(async () => {
+          const pool = createMockPool();
+          created.push(pool);
+          return pool;
+        }),
+        baseUri: "mysql://localhost:3306/default",
+        idleTimeoutMs: 5000,
+      });
+
+      for (const slug of ["aaa", "bbb"]) {
+        await idleManager.getPool(slug);
+        idleManager.releasePool(slug);
+      }
+      vi.mocked(created[0].end).mockRejectedValue(new Error("end failed"));
+
+      await vi.advanceTimersByTimeAsync(10001);
+
+      await expect(idleManager._lastCleanup).resolves.toBeUndefined();
+      expect(created[1].end).toHaveBeenCalled();
+      expect(idleManager.getStats().poolCount).toBe(0);
+
+      await idleManager.closeAll();
+    });
   });
 });
