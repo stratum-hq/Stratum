@@ -202,6 +202,25 @@ describe("MongoPoolManager", () => {
       await idle.closeAll();
     });
 
+    it("survives an idle client whose close fails", async () => {
+      vi.useFakeTimers();
+      const idle = new MongoPoolManager({
+        createClient: async () => ({
+          db: vi.fn(),
+          close: vi.fn().mockRejectedValue(new Error("close failed")),
+        }),
+        baseUri: "mongodb://localhost:27017/default",
+        idleTimeoutMs: 1000,
+      });
+      await idle.getClient("acme");
+      idle.releaseClient("acme");
+
+      await vi.advanceTimersByTimeAsync(2500);
+
+      expect(idle.getStats().clientCount).toBe(0);
+      await idle.closeAll();
+    });
+
     it("stops the idle check when closeAll runs", async () => {
       vi.useFakeTimers();
       const idle = makeIdleManager();

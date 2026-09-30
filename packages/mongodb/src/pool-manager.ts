@@ -141,7 +141,8 @@ export class MongoPoolManager {
         idle.push(entry);
       }
     }
-    await Promise.all(idle.map(closeEntry));
+    // The timer discards this promise, so a rejection here would be unhandled.
+    await Promise.allSettled(idle.map(closeEntry));
   }
 
   /** Builds the MongoDB connection URI with the given database name. */
