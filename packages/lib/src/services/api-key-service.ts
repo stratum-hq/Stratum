@@ -170,13 +170,15 @@ export async function validateApiKey(
 
   if (!found) return null;
 
-  // Fire-and-forget bookkeeping, started only after the validation connection
-  // is released, and run through withClient so it carries the RLS bypass.
+  // The bookkeeping starts only after the validation connection is released,
+  // so a single-connection pool cannot deadlock. withClient gives it the RLS bypass.
+  // We await it so that a read made after validateApiKey resolves sees the new
+  // last_used_at. Without the await, listDormantKeys can report a just-used key.
   // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is
   // available, re-hash with HMAC and update the stored hash in-place.
   const { row } = found;
   const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
-  withClient(pool, (client) =>
+  await withClient(pool, (client) =>
     upgrade
       ? client.query(
           `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
@@ -184,7 +186,7 @@ export async function validateApiKey(
         )
       : client.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]),
   ).catch(() => {
-    // Non-critical: the stamp or upgrade happens on the next request
+    // A failed stamp must not fail authentication. The next request retries it.
   });
 
   return found.validated;
