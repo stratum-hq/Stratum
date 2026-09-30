@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import Fastify, { FastifyInstance } from "fastify";
 import type { Stratum } from "@stratum-hq/lib";
 import { createAuthMiddleware } from "../middleware/auth.js";
-import { createAuthorizeMiddleware } from "../middleware/authorize.js";
+import { createAuthorizeMiddleware, declareRequiredScope } from "../middleware/authorize.js";
 import {
   createTenantScopeEnforcer,
   declareTenantScope,
@@ -77,6 +77,7 @@ describe("default-deny authorization", () => {
   it("admits a route explicitly declared as global", async () => {
     const app = await buildApp((app) => {
       declareTenantScope(app, "global");
+      declareRequiredScope(app, "read");
       app.get("/api/v1/ops", async (_req, reply) =>
         reply.status(200).send({ ok: true }),
       );
@@ -94,6 +95,7 @@ describe("default-deny authorization", () => {
   it("enforces a declared extractor: own tenant allowed, others denied", async () => {
     const app = await buildApp((app) => {
       declareTenantScope(app, fromParamId);
+      declareRequiredScope(app, "read");
       app.get<{ Params: { id: string } }>(
         "/api/v1/tenants/:id/thing",
         async (_req, reply) => reply.status(200).send({ ok: true }),
@@ -113,5 +115,85 @@ describe("default-deny authorization", () => {
 
     expect(own.statusCode).toBe(200);
     expect(other.statusCode).toBe(403);
+  });
+});
+
+describe("default-deny required scope", () => {
+  it("refuses a route that declares no required scope, even for an admin key", async () => {
+    const app = await buildApp((app) => {
+      // Tenant scope is declared, but the route's required scope is not.
+      declareTenantScope(app, "global");
+      app.get("/api/v1/undeclared-scope", async (_req, reply) =>
+        reply.status(200).send({ reached: true }),
+      );
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/undeclared-scope",
+      headers: authHeaders(),
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("admits a route whose declared required scope the caller holds", async () => {
+    const app = await buildApp((app) => {
+      declareTenantScope(app, "global");
+      declareRequiredScope(app, "read");
+      app.get("/api/v1/declared-scope", async (_req, reply) =>
+        reply.status(200).send({ ok: true }),
+      );
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/declared-scope",
+      headers: authHeaders(),
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("refuses a caller that lacks the declared required scope", async () => {
+    (stratum.validateApiKey as ReturnType<typeof vi.fn>).mockResolvedValue({
+      key_id: "write-key",
+      tenant_id: SCOPED_TENANT,
+      scopes: ["read", "write"],
+      rate_limit_max: null,
+      rate_limit_window: null,
+    });
+    const app = await buildApp((app) => {
+      declareTenantScope(app, "global");
+      app.get("/api/v1/admin-only", { config: { requiredScope: "admin" } }, async (_req, reply) =>
+        reply.status(200).send({ ok: true }),
+      );
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/admin-only",
+      headers: authHeaders(),
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("refuses a tenant-scoped admin key on a route that requires operator", async () => {
+    const app = await buildApp((app) => {
+      declareTenantScope(app, "global");
+      declareRequiredScope(app, "operator");
+      app.post("/api/v1/operator-only", async (_req, reply) =>
+        reply.status(200).send({ ok: true }),
+      );
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/operator-only",
+      headers: authHeaders(),
+    });
+
+    expect(res.statusCode).toBe(403);
   });
 });

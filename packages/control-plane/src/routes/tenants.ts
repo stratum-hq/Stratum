@@ -23,6 +23,7 @@ import {
 import { buildAuditContext } from "./audit-logs.js";
 import { validationErrorBody } from "../middleware/error-handler.js";
 import { createTenantScopeGuard, createTenantCreateGuard, createTenantBatchCreateGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   // A move must authorize BOTH ends. The plugin-level guard below only covers
@@ -39,6 +40,7 @@ export function createTenantRoutes(stratum: Stratum) {
   return async function tenantRoutes(app: FastifyInstance): Promise<void> {
     // Tenant-scoped keys can only access their own tenant subtree
     declareTenantScope(app, fromParamId);
+    declareRequiredScope(app, { read: "read", write: "write" });
     // GET /api/v1/tenants — List tenants (with cursor pagination)
     app.get("/", async (request, reply) => {
       const scopedTenantId = request.apiKey?.tenant_id;
@@ -229,7 +231,7 @@ export function createTenantRoutes(stratum: Stratum) {
     });
 
     // POST /api/v1/tenants/:id/migrate-region — Migrate tenant to a new region
-    app.post<{ Params: { id: string } }>("/:id/migrate-region", async (request, reply) => {
+    app.post<{ Params: { id: string } }>("/:id/migrate-region", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const { region_id } = MigrateRegionInputSchema.parse(request.body);
       await stratum.migrateRegion(request.params.id, region_id, buildAuditContext(request));
       reply.status(200).send({ success: true });
@@ -238,19 +240,19 @@ export function createTenantRoutes(stratum: Stratum) {
     // POST /api/v1/tenants/:id/purge — GDPR Article 17: hard-delete all tenant data
     // A scoped key may purge its own pending child, for example after a failed
     // storage provisioning.
-    app.post<{ Params: { id: string } }>("/:id/purge", { config: { tenantScopeIncludesPending: true } }, async (request, reply) => {
+    app.post<{ Params: { id: string } }>("/:id/purge", { config: { tenantScopeIncludesPending: true, requiredScope: "admin" } }, async (request, reply) => {
       await stratum.purgeTenant(request.params.id, buildAuditContext(request));
       reply.status(204).send();
     });
 
     // GET /api/v1/tenants/:id/export — GDPR Article 20: export all tenant data
-    app.get<{ Params: { id: string } }>("/:id/export", async (request, reply) => {
+    app.get<{ Params: { id: string } }>("/:id/export", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const data = await stratum.exportTenantData(request.params.id);
       reply.status(200).send(data);
     });
 
     // GET /api/v1/tenants/:id/context — Resolve the flat ResolvedTenantContext (admin scope)
-    app.get<{ Params: { id: string } }>("/:id/context", async (request, reply) => {
+    app.get<{ Params: { id: string } }>("/:id/context", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const { tenant, config, permissions } = await stratum.getTenantContext(request.params.id);
       const context: ResolvedTenantContext = {
         tenant_id: tenant.id,

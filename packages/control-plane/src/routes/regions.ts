@@ -3,12 +3,14 @@ import { CreateRegionInputSchema, UpdateRegionInputSchema } from "@stratum-hq/co
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { declareTenantScope } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 export function createRegionRoutes(stratum: Stratum) {
   return async function regionRoutes(app: FastifyInstance): Promise<void> {
     // The region registry is shared by all tenants: changing it is limited to
     // global operator keys. Reads declare "global" below.
     declareTenantScope(app, "operator");
+    declareRequiredScope(app, { read: "admin", write: "operator" });
 
     // POST /api/v1/regions — Create region
     app.post("/", async (request, reply) => {
