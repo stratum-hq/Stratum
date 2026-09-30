@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
-import { ForbiddenError } from "@stratum-hq/core";
+import { ForbiddenError, ValidationError } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 
 /** Reads the target tenant id from a request, or null when there is none to check. */
@@ -151,6 +151,9 @@ export function createTenantCreateGuard(stratum: Stratum) {
   };
 }
 
+/** Maximum number of tenants in one batch create. */
+const MAX_BATCH_TENANTS = 100;
+
 /**
  * Guard for POST /tenants/batch: every tenant in the batch is authorized the
  * same way a single create is, so the batch route cannot sidestep the subtree
@@ -165,8 +168,13 @@ export function createTenantBatchCreateGuard(stratum: Stratum) {
       tenants?: Array<{ parent_id?: string | null }>;
     } | null;
     const tenants = Array.isArray(body?.tenants) ? body.tenants : [];
-    for (const tenant of tenants) {
-      await authorizeCreateUnder(stratum, request, tenant?.parent_id ?? null);
+    if (tenants.length > MAX_BATCH_TENANTS) {
+      throw new ValidationError(`Batch limited to ${MAX_BATCH_TENANTS} tenants`);
+    }
+    // Authorize each distinct parent once.
+    const parentIds = new Set(tenants.map((tenant) => tenant?.parent_id ?? null));
+    for (const parentId of parentIds) {
+      await authorizeCreateUnder(stratum, request, parentId);
     }
   };
 }
