@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { execSync } from "child_process";
 import type { StackPreset } from "./matrix.js";
 import { generatePresetDockerCompose } from "./generators/docker-compose.js";
-import { generatePresetInitSql } from "./generators/init-sql.js";
+import { generatePresetInitSql, postgresAppRole, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
 import { generateDbSetup } from "./generators/db-setup.js";
 import { generateMiddleware } from "./generators/middleware.js";
 import { generatePresetPackageJson } from "./generators/package-json.js";
@@ -24,9 +24,14 @@ function generatePresetEnv(projectName: string, preset: StackPreset): string {
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
 
   let dbUrl: string;
+  let adminUrlLine = "";
   switch (preset.database) {
     case "postgres":
-      dbUrl = `postgres://${dbName}:dev_password@localhost:5432/${dbName}`;
+      // The app connects as the non-superuser role created in init.sql, so
+      // row-level security applies to it. The superuser URL is for bootstrap
+      // and migrations only.
+      dbUrl = `postgres://${postgresAppRole(dbName)}:${POSTGRES_APP_PASSWORD}@localhost:5432/${dbName}`;
+      adminUrlLine = `\n# Superuser: bootstrap and migrations only. It bypasses row-level security.\nDATABASE_ADMIN_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}\n`;
       break;
     case "mongodb":
       dbUrl = `mongodb://${dbName}:dev_password@localhost:27017/${dbName}?authSource=admin`;
@@ -43,7 +48,7 @@ function generatePresetEnv(projectName: string, preset: StackPreset): string {
 
 # Database
 ${urlKey}=${dbUrl}
-
+${adminUrlLine}
 # Authentication
 JWT_SECRET=${jwtSecret}
 

@@ -33,11 +33,13 @@ const port = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
-// Tenant extraction middleware
+// Tenant extraction middleware. The tenant comes from the subdomain the
+// request was routed to. Do not take it from a client-supplied header such as
+// x-tenant-id: any caller can set one and pick another tenant. Once you add
+// authentication, check that the signed-in user belongs to this tenant, or
+// derive the tenant from the verified session or JWT instead.
 app.use((req, _res, next) => {
-  const tenantId =
-    req.headers["x-tenant-id"] as string ||
-    req.hostname.split(".")[0];
+  const tenantId = req.hostname.split(".")[0];
   (req as any).tenantId = tenantId;
   next();
 });
@@ -68,12 +70,14 @@ function generateFastifyMiddleware(projectName: string): MiddlewareFile[] {
 const fastify = Fastify({ logger: true });
 const port = Number(process.env.PORT) || 3000;
 
-// Tenant extraction plugin
+// Tenant extraction hook. The tenant comes from the subdomain the
+// request was routed to. Do not take it from a client-supplied header such as
+// x-tenant-id: any caller can set one and pick another tenant. Once you add
+// authentication, check that the signed-in user belongs to this tenant, or
+// derive the tenant from the verified session or JWT instead.
 fastify.decorateRequest("tenantId", "");
 fastify.addHook("onRequest", async (request) => {
-  const tenantId =
-    (request.headers["x-tenant-id"] as string) ||
-    (request.hostname?.split(".")[0] ?? "");
+  const tenantId = request.hostname?.split(".")[0] ?? "";
   (request as any).tenantId = tenantId;
 });
 
@@ -105,14 +109,15 @@ function generateNextjsMiddleware(projectName: string): MiddlewareFile[] {
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // The tenant comes from the subdomain the request was routed to. Any
+  // x-tenant-id the client sent is removed first, so server code that reads
+  // x-tenant-id only ever sees the value set here. Once you add
+  // authentication, check that the signed-in user belongs to this tenant.
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
-  const headerTenantId = request.headers.get("x-tenant-id");
-  const pathTenantId = request.nextUrl.pathname.match(/^\\/tenant\\/([^/]+)/)?.[1];
-
-  const tenantId = headerTenantId || pathTenantId || subdomain;
+  const tenantId = hostname.split(".")[0];
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-id");
   if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
     requestHeaders.set("x-tenant-id", tenantId);
   }
@@ -135,7 +140,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>Access tenant context via <code>x-tenant-id</code> header</li>
+        <li>Tenant is resolved from the subdomain in <code>middleware.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>
@@ -155,11 +160,13 @@ import { serve } from "@hono/node-server";
 
 const app = new Hono();
 
-// Tenant extraction middleware
+// Tenant extraction middleware. The tenant comes from the subdomain the
+// request was routed to. Do not take it from a client-supplied header such as
+// x-tenant-id: any caller can set one and pick another tenant. Once you add
+// authentication, check that the signed-in user belongs to this tenant, or
+// derive the tenant from the verified session or JWT instead.
 app.use("*", async (c, next) => {
-  const tenantId =
-    c.req.header("x-tenant-id") ||
-    new URL(c.req.url).hostname.split(".")[0];
+  const tenantId = new URL(c.req.url).hostname.split(".")[0];
   c.set("tenantId", tenantId);
   await next();
 });
@@ -239,9 +246,11 @@ export class AppController {
 export class TenantGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const tenantId =
-      request.headers["x-tenant-id"] ||
-      request.hostname?.split(".")[0];
+    // The tenant comes from the subdomain the request was routed to. Do not
+    // take it from a client-supplied header such as x-tenant-id: any caller
+    // can set one and pick another tenant. Once you add authentication, check
+    // that the signed-in user belongs to this tenant here.
+    const tenantId = request.hostname?.split(".")[0];
     request.tenantId = tenantId || null;
     return true;
   }
