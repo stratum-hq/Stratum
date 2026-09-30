@@ -1,8 +1,9 @@
 import type { StackPreset } from "../matrix.js";
+import { STRATUM_RANGES } from "../stratum-versions.js";
 
 export function generatePresetPackageJson(projectName: string, preset: StackPreset): string {
   const deps: Record<string, string> = {
-    "@stratum-hq/lib": "^0.2.0",
+    "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
   };
   const devDeps: Record<string, string> = {
     typescript: "^5.3.0",
@@ -142,19 +143,19 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
 
 function addStratumDeps(deps: Record<string, string>, preset: StackPreset): void {
   if (preset.database === "postgres" && preset.orm !== "mongoose") {
-    deps["@stratum-hq/db-adapters"] = "^0.2.0";
+    deps["@stratum-hq/db-adapters"] = STRATUM_RANGES["@stratum-hq/db-adapters"];
   }
   if (preset.database === "mongodb") {
-    deps["@stratum-hq/mongodb"] = "^0.2.0";
+    deps["@stratum-hq/mongodb"] = STRATUM_RANGES["@stratum-hq/mongodb"];
   }
   if (preset.database === "mysql") {
-    deps["@stratum-hq/mysql"] = "^0.2.0";
+    deps["@stratum-hq/mysql"] = STRATUM_RANGES["@stratum-hq/mysql"];
   }
   if (preset.framework === "hono") {
-    deps["@stratum-hq/hono"] = "^0.2.0";
+    deps["@stratum-hq/hono"] = STRATUM_RANGES["@stratum-hq/hono"];
   }
   if (preset.framework === "nestjs") {
-    deps["@stratum-hq/nestjs"] = "^0.2.0";
+    deps["@stratum-hq/nestjs"] = STRATUM_RANGES["@stratum-hq/nestjs"];
   }
 }
 
