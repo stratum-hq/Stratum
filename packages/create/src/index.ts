@@ -7,6 +7,7 @@ import { createPresetProject } from "./preset-project.js";
 import { STRATUM_RANGES } from "./stratum-versions.js";
 import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
 import { generateTsconfig } from "./generators/tsconfig.js";
+import { nextjsTenantMiddleware } from "./generators/middleware.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,8 @@ function generatePackageJson(projectName: string, template: Template): string {
       "react-dom": "^19.0.0",
       "@types/react": "^19.0.0",
       "@types/react-dom": "^19.0.0",
+      // The middleware verifies the tenant JWT with jose.
+      jose: "^6.2.12",
     },
   };
 
@@ -301,39 +304,12 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>Tenant is resolved from the subdomain in <code>middleware.ts</code></li>
+        <li>The tenant comes from a verified JWT in <code>middleware.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>
   );
 }
-`;
-}
-
-function generateNextjsMiddleware(): string {
-  return `// middleware.ts — tenant resolution via subdomain
-import { NextRequest, NextResponse } from "next/server";
-
-export function middleware(request: NextRequest) {
-  // The tenant comes from the subdomain the request was routed to. Any
-  // x-tenant-id the client sent is removed first, so server code that reads
-  // x-tenant-id only ever sees the value set here. Once you add
-  // authentication, check that the signed-in user belongs to this tenant.
-  const hostname = request.headers.get("host") || "";
-  const tenantId = hostname.split(".")[0];
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("x-tenant-id");
-  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
-    requestHeaders.set("x-tenant-id", tenantId);
-  }
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
 `;
 }
 
@@ -384,7 +360,7 @@ ${template === "nextjs" ? "" : "├── tsconfig.json\n"}└── package.jso
 
 This project uses Stratum for hierarchical multi-tenancy:
 
-- **Tenant resolution** — via subdomain (see \`middleware.ts\`); bind it to the signed-in user once you add authentication
+- **Tenant resolution** — from the \`tenant_id\` claim of a bearer token verified with \`JWT_SECRET\` (see \`middleware.ts\`); the subdomain is only a display slug
 - **Config inheritance** — settings flow down the tenant tree with override support
 - **Permission ABAC** — role-based permissions with tenant-scoped enforcement
 
@@ -426,7 +402,7 @@ export function createProject(
     writeFile(path.join(targetDir, "tsconfig.json"), generateTsconfig(template));
   } else if (template === "nextjs") {
     writeFile(path.join(targetDir, "src", "app", "page.tsx"), generateNextjsPage(projectName));
-    writeFile(path.join(targetDir, "middleware.ts"), generateNextjsMiddleware());
+    writeFile(path.join(targetDir, "middleware.ts"), nextjsTenantMiddleware());
   }
 
   // README
