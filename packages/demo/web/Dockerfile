@@ -22,6 +22,8 @@ COPY packages/db-adapters/ packages/db-adapters/
 COPY packages/react-ui/ packages/react-ui/
 COPY packages/demo/ packages/demo/
 COPY tsconfig.base.json ./
+# The react postbuild script runs this helper to copy its styles into dist.
+COPY scripts/copy-dir.mjs scripts/
 
 RUN npm run build --workspace=@stratum-hq/core && \
     npm run build --workspace=@stratum-hq/sdk && \

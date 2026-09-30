@@ -38,8 +38,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@stratum-hq/core": "*",
-    "@stratum-hq/sdk": "*"
+    "@stratum-hq/core": "^1.3.0",
+    "@stratum-hq/sdk": "^1.1.0"
   },
   "peerDependencies": {
     "mysql2": "^3.0.0",
