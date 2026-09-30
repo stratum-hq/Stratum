@@ -65,6 +65,24 @@ console.log(result.reason);         // "explicit_allow"
 console.log(result.matched_policy); // the policy that matched
 ```
 
+### Attribute Namespaces
+
+Subject and resource attributes live in separate namespaces. A condition can
+name either side explicitly with `subject.<name>` or `resource.<name>`:
+
+```typescript
+conditions: [
+  { attribute: "subject.role", operator: "eq", value: "admin" },
+  { attribute: "resource.role", operator: "eq", value: "member" },
+]
+```
+
+A bare `<name>` reads whichever side carries that attribute. If both the
+subject and the resource carry it, the reference is ambiguous and the request is
+denied with reason `ambiguous_attribute`. Use the qualified form whenever the
+resource can carry an attribute with the same name as the subject (for example,
+a `user` resource with a `role` field).
+
 ### Evaluation Rules
 
 1. **Deny overrides allow** -- if any deny policy matches, the request is denied regardless of allow policies

@@ -189,11 +189,40 @@ export async function evaluateAbac(
     return { allowed: false, reason: "no_matching_policy" };
   }
 
-  // Build flat context from subject + resource attributes
-  const context: Record<string, unknown> = {
-    ...request.subject,
-    ...request.resource,
-  };
+  // Build the attribute context. Subject and resource keep separate namespaces:
+  // `subject.<name>` and `resource.<name>` always read their own side. A bare
+  // `<name>` reads whichever side carries it; when both do, the reference is
+  // ambiguous and the request is denied rather than letting one side's value
+  // stand in for the other's.
+  const context: Record<string, unknown> = {};
+  const ambiguous = new Set<string>();
+  const isQualified = (key: string) =>
+    key.startsWith("subject.") || key.startsWith("resource.");
+  for (const [key, value] of Object.entries(request.subject)) {
+    if (!isQualified(key)) context[key] = value;
+  }
+  for (const [key, value] of Object.entries(request.resource)) {
+    if (isQualified(key)) continue;
+    if (Object.prototype.hasOwnProperty.call(request.subject, key)) {
+      ambiguous.add(key);
+      delete context[key];
+    } else {
+      context[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(request.subject)) {
+    context[`subject.${key}`] = value;
+  }
+  for (const [key, value] of Object.entries(request.resource)) {
+    context[`resource.${key}`] = value;
+  }
+
+  const usesAmbiguousAttribute = matching.some(({ policy }) =>
+    policy.conditions.some((c) => ambiguous.has(c.attribute)),
+  );
+  if (usesAmbiguousAttribute) {
+    return { allowed: false, reason: "ambiguous_attribute" };
+  }
 
   // Sort by priority descending
   const sorted = [...matching].sort(
