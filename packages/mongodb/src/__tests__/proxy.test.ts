@@ -167,6 +167,75 @@ describe("createTenantScopedCollection", () => {
     });
   });
 
+  describe("aggregate validation", () => {
+    it("rejects blocked stages nested inside $facet", () => {
+      expect(() =>
+        scoped.aggregate([{ $facet: { x: [{ $lookup: { from: "other", pipeline: [], as: "o" } }] } }]),
+      ).toThrow("Aggregate stage '$lookup' is blocked");
+      expect(mock.aggregate).not.toHaveBeenCalled();
+    });
+
+    it("rejects blocked stages nested inside $lookup sub-pipelines", () => {
+      expect(() =>
+        scoped.aggregate([{ $lookup: { from: "x", pipeline: [{ $unionWith: { coll: "y" } }], as: "o" } }]),
+      ).toThrow("is blocked");
+    });
+
+    it("passes a copy of the pipeline so later caller mutation has no effect", () => {
+      const facet: Record<string, unknown[]> = { x: [] };
+      scoped.aggregate([{ $facet: facet }]);
+      facet.x.push({ $unionWith: { coll: "y" } });
+      expect(mock.aggregate).toHaveBeenCalledWith([
+        { $match: { tenant_id: tenantId } },
+        { $facet: { x: [] } },
+      ]);
+    });
+  });
+
+  describe("update sanitization", () => {
+    it("strips tenant_id from $setOnInsert and other operators", () => {
+      scoped.updateOne({}, { $setOnInsert: { tenant_id: "other", a: 1 }, $push: { tenant_id: "x" } });
+      expect(mock.updateOne).toHaveBeenCalledWith(
+        { tenant_id: tenantId },
+        { $setOnInsert: { a: 1 }, $push: {} },
+        undefined,
+      );
+    });
+
+    it("strips a top-level tenant_id even when operators are present", () => {
+      scoped.updateMany({}, { tenant_id: "other", "tenant_id.x": 1, $set: { a: 1 } });
+      expect(mock.updateMany).toHaveBeenCalledWith({ tenant_id: tenantId }, { $set: { a: 1 } }, undefined);
+    });
+
+    it("rejects $rename onto tenant_id", () => {
+      expect(() => scoped.updateOne({}, { $rename: { note: "tenant_id" } })).toThrow("tenant_id");
+      expect(mock.updateOne).not.toHaveBeenCalled();
+    });
+
+    it("rejects pipeline-style updates", () => {
+      expect(() => scoped.updateOne({}, [{ $set: { a: 1 } }] as unknown as Record<string, unknown>)).toThrow(
+        "Pipeline-style updates",
+      );
+    });
+  });
+
+  describe("bulkWrite validation", () => {
+    it("injects tenant_id into the legacy insertOne shape", () => {
+      scoped.bulkWrite([{ insertOne: { name: "a", tenant_id: "other" } }]);
+      expect(mock.bulkWrite).toHaveBeenCalledWith([
+        { insertOne: { document: { name: "a", tenant_id: tenantId } } },
+      ]);
+    });
+
+    it("rejects unknown operation types", () => {
+      expect(() => scoped.bulkWrite([{ insertMany: { documents: [] } }])).toThrow("not supported");
+    });
+
+    it("rejects filter-bearing operations without a filter", () => {
+      expect(() => scoped.bulkWrite([{ deleteMany: {} }])).toThrow("requires a filter");
+    });
+  });
+
   describe("tenantId validation", () => {
     it("throws for null tenantId", () => {
       expect(() =>
