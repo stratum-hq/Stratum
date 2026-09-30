@@ -11,11 +11,24 @@ if (!jwtSecretEnv) {
   }
 }
 
+// Optional JWT audience / issuer binding. When set, a Bearer token is accepted
+// only if its `aud` (and `iss`) claim matches, so tokens minted for another
+// application that shares JWT_SECRET are refused. Unset keeps the previous
+// behavior (no aud / iss check) for deployments whose tokens do not carry them.
+const jwtAudienceEnv = process.env.JWT_AUDIENCE || undefined;
+const jwtIssuerEnv = process.env.JWT_ISSUER || undefined;
+
+if (!jwtAudienceEnv && (nodeEnv === "production" || nodeEnv === "staging")) {
+  console.warn("[stratum] JWT_AUDIENCE not set — Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
+}
+
 export const config = {
   port: parseInt(process.env.PORT || "3001"),
   databaseUrl: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
   nodeEnv,
   jwtSecret: jwtSecretEnv || crypto.randomBytes(32).toString("hex"),
+  jwtAudience: jwtAudienceEnv,
+  jwtIssuer: jwtIssuerEnv,
   allowedOrigins: process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
     : ["http://localhost:3000", "http://localhost:3300"],

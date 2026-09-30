@@ -353,6 +353,8 @@ services:
     environment:
       DATABASE_URL: postgres://stratum:stratum_dev@stratum-db:5432/stratum
       JWT_SECRET: \${JWT_SECRET:-change-me-in-production}
+      # Bearer tokens must carry this audience (aud) to be accepted.
+      JWT_AUDIENCE: \${JWT_AUDIENCE:-stratum-control-plane}
       NODE_ENV: \${NODE_ENV:-development}
       PORT: "3001"
     ports:

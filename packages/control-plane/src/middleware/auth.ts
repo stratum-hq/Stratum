@@ -62,7 +62,12 @@ export function createAuthMiddleware(stratum: Stratum) {
     if (authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       try {
-        const payload = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as jwt.JwtPayload;
+        const payload = jwt.verify(token, config.jwtSecret, {
+          algorithms: ["HS256"],
+          // Enforced only when configured (JWT_AUDIENCE / JWT_ISSUER).
+          ...(config.jwtAudience ? { audience: config.jwtAudience } : {}),
+          ...(config.jwtIssuer ? { issuer: config.jwtIssuer } : {}),
+        }) as jwt.JwtPayload;
 
         // JWT must contain a tenant_id claim — JWTs without one are not allowed
         // global access (only API keys may have null tenant_id).

@@ -141,19 +141,25 @@ export async function removeRoleFromKey(pool: pg.Pool, keyId: string): Promise<b
  * asks. Assigning a role therefore governs authorization everywhere.
  */
 export async function resolveEffectiveScopes(pool: pg.Pool, keyId: string): Promise<string[]> {
-  return withClient(pool, async (client) => {
-    const res = await client.query<{ scopes: string[] | null; role_scopes: string[] | null }>(
-      `SELECT ak.scopes, r.scopes as role_scopes
-       FROM api_keys ak
-       LEFT JOIN roles r ON r.id = ak.role_id
-       WHERE ak.id = $1 AND ak.revoked_at IS NULL`,
-      [keyId],
-    );
-    if (res.rows.length === 0) return ["read"];
-    const row = res.rows[0];
-    // Role scopes override key scopes when a role is assigned.
-    return row.role_scopes ?? row.scopes ?? ["read"];
-  });
+  return withClient(pool, (client) => resolveEffectiveScopesOnClient(client, keyId));
+}
+
+/**
+ * {@link resolveEffectiveScopes} on a client the caller already holds, so a
+ * caller inside withClient does not need a second pool connection.
+ */
+export async function resolveEffectiveScopesOnClient(client: pg.PoolClient, keyId: string): Promise<string[]> {
+  const res = await client.query<{ scopes: string[] | null; role_scopes: string[] | null }>(
+    `SELECT ak.scopes, r.scopes as role_scopes
+     FROM api_keys ak
+     LEFT JOIN roles r ON r.id = ak.role_id
+     WHERE ak.id = $1 AND ak.revoked_at IS NULL`,
+    [keyId],
+  );
+  if (res.rows.length === 0) return ["read"];
+  const row = res.rows[0];
+  // Role scopes override key scopes when a role is assigned.
+  return row.role_scopes ?? row.scopes ?? ["read"];
 }
 
 /**

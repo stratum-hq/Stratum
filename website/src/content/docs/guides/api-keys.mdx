@@ -29,6 +29,8 @@ curl http://localhost:3001/api/v1/tenants \
 
 JWTs are verified using the `JWT_SECRET` environment variable. Without a `scopes` claim, tokens default to read-only access.
 
+Set `JWT_AUDIENCE` (and optionally `JWT_ISSUER`) to require a matching `aud` (and `iss`) claim. When they are unset the claims are not checked, so set `JWT_AUDIENCE` whenever `JWT_SECRET` is also used to sign tokens for another application.
+
 ## Scopes
 
 Three scopes control access:

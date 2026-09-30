@@ -35,9 +35,18 @@ export function parseWindow(window: string): number {
   }
 }
 
-export function createPerKeyRateLimitMiddleware() {
-  const globalMax = config.rateLimitMax;
-  const globalWindowMs = parseWindow(config.rateLimitWindow);
+/**
+ * The bucket a request is counted in. API keys count per key id. A JWT `sub`
+ * is only unique within its tenant, so JWT callers count per tenant and subject.
+ */
+export function rateLimitBucket(request: FastifyRequest): string {
+  const apiKey = request.apiKey!;
+  return request.authMethod === "jwt" ? `jwt:${apiKey.tenant_id}:${apiKey.id}` : apiKey.id;
+}
+
+export function createPerKeyRateLimitMiddleware(defaults?: { maxRequests: number; windowMs: number }) {
+  const globalMax = defaults?.maxRequests ?? config.rateLimitMax;
+  const globalWindowMs = defaults?.windowMs ?? parseWindow(config.rateLimitWindow);
 
   return async function perKeyRateLimitMiddleware(
     request: FastifyRequest,
@@ -46,7 +55,7 @@ export function createPerKeyRateLimitMiddleware() {
     // Skip for unauthenticated requests (health endpoint)
     if (!request.apiKey) return;
 
-    const keyId = request.apiKey.id;
+    const keyId = rateLimitBucket(request);
     const max = request.apiKey.rate_limit_max ?? globalMax;
     const windowMs = request.apiKey.rate_limit_window
       ? parseWindow(request.apiKey.rate_limit_window)
