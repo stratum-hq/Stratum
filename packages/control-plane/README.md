@@ -26,7 +26,7 @@ On startup the server runs database migrations, then listens on `PORT` (default 
 |----------|---------|-------------|
 | `PORT` | `3001` | Listen port |
 | `DATABASE_URL` | `postgres://stratum:stratum_dev@localhost:5432/stratum` | PostgreSQL connection string |
-| `JWT_SECRET` | dev fallback | JWT signing secret — **required** in production/staging (server refuses to start without it). In production it must be at least 32 bytes and not a placeholder such as `change-me-in-production` |
+| `JWT_SECRET` | dev fallback | JWT signing secret — **required** whenever `NODE_ENV` is not `development` or `test` (server refuses to start without it). There it must also be at least 32 bytes and not a placeholder such as `change-me-in-production` |
 | `JWT_AUDIENCE` | — | Optional; when set, Bearer tokens must carry this `aud` claim (for example `stratum-control-plane`). Recommended whenever `JWT_SECRET` is shared with another application |
 | `JWT_ISSUER` | — | Optional; when set, Bearer tokens must carry this `iss` claim |
 | `ALLOWED_ORIGINS` | `localhost:3000,3300` | Comma-separated CORS allowlist |
