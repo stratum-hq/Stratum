@@ -6,12 +6,14 @@ import {
   type UpdateTenantInput,
   type PaginationInput,
   type PaginatedResult,
+  type TenantStatus,
   TenantNotFoundError,
   TenantAlreadyExistsError,
   TenantHasChildrenError,
   TenantCycleDetectedError,
   TenantArchivedError,
   TenantSuspendedError,
+  TenantPendingError,
   InvalidTenantStateError,
   ValidationError,
   appendToPath,
@@ -55,7 +57,20 @@ async function loadActiveParent(client: pg.PoolClient, parentId: string): Promis
   if (parent.status === "suspended") {
     throw new TenantSuspendedError(parentId);
   }
+  if (parent.status === "pending") {
+    throw new TenantPendingError(parentId);
+  }
   return parent;
+}
+
+/**
+ * A tenant with its own schema or database starts `pending` and is activated
+ * (activateTenant) once that storage has been provisioned, so it is never
+ * usable without it. SHARED_RLS tenants need no storage and start `active`.
+ */
+function initialStatus(input: CreateTenantInput): TenantStatus {
+  const strategy = input.isolation_strategy ?? "SHARED_RLS";
+  return strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT" ? "pending" : "active";
 }
 
 export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Promise<TenantNode> {
@@ -70,7 +85,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
 
       const res = await client.query<TenantNode>(
         `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
         [
           input.parent_id,
@@ -81,6 +96,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          initialStatus(input),
           regionId,
         ],
       );
@@ -92,7 +108,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
 
       const res = await client.query<TenantNode>(
         `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
+         VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [
           input.name,
@@ -100,6 +116,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
           JSON.stringify(input.config ?? {}),
           JSON.stringify(input.metadata ?? {}),
           input.isolation_strategy ?? "SHARED_RLS",
+          initialStatus(input),
           rootRegionId,
         ],
       );
@@ -136,11 +153,14 @@ export async function getTenant(
     if (!includeArchived && tenant.status === "archived") {
       throw new TenantArchivedError(id);
     }
-    // Suspended tenants are blocked from normal access too. `includeArchived`
-    // is the "give me the row whatever its state" escape hatch and bypasses
-    // both non-active states.
+    // Suspended and pending tenants are blocked from normal access too.
+    // `includeArchived` is the "give me the row whatever its state" escape
+    // hatch and bypasses every non-active state.
     if (!includeArchived && tenant.status === "suspended") {
       throw new TenantSuspendedError(id);
+    }
+    if (!includeArchived && tenant.status === "pending") {
+      throw new TenantPendingError(id);
     }
     return tenant;
   });
@@ -154,7 +174,7 @@ export async function getTenant(
  *
  * Mirrors getTenant's not-found and state contract: throws TenantNotFoundError
  * when no row matches, and — unless `includeArchived` is set — TenantArchivedError
- * / TenantSuspendedError for a non-active row. `includeArchived` is the "give me
+ * / TenantSuspendedError / TenantPendingError for a non-active row. `includeArchived` is the "give me
  * the row whatever its state" escape hatch and bypasses both non-active states.
  */
 export async function getTenantBySlug(
@@ -178,13 +198,21 @@ export async function getTenantBySlug(
     if (!includeArchived && tenant.status === "suspended") {
       throw new TenantSuspendedError(tenant.id);
     }
+    if (!includeArchived && tenant.status === "pending") {
+      throw new TenantPendingError(tenant.id);
+    }
     return tenant;
   });
 }
 
+/**
+ * List tenants in one status, `active` by default. Pending, suspended and
+ * archived tenants appear only when that status is asked for.
+ */
 export async function listTenants(
   pool: pg.Pool,
   pagination: PaginationInput,
+  status: TenantStatus = "active",
 ): Promise<PaginatedResult<TenantNode>> {
   return withClient(pool, async (client) => {
     const limit = pagination.limit ?? 50;
@@ -193,18 +221,18 @@ export async function listTenants(
     if (pagination.cursor) {
       res = await client.query<TenantNode>(
         `SELECT * FROM tenants
-         WHERE status = 'active' AND id > $1
+         WHERE status = $3 AND id > $1
          ORDER BY id ASC
          LIMIT $2`,
-        [pagination.cursor, limit + 1],
+        [pagination.cursor, limit + 1, status],
       );
     } else {
       res = await client.query<TenantNode>(
         `SELECT * FROM tenants
-         WHERE status = 'active'
+         WHERE status = $2
          ORDER BY id ASC
          LIMIT $1`,
-        [limit + 1],
+        [limit + 1, status],
       );
     }
 
@@ -293,8 +321,10 @@ export async function updateTenant(
 // ---------------------------------------------------------------------------
 // Tenant lifecycle
 //
-// States: active -> {suspended, archived} -> (purged). Transitions:
-//   createTenant   (none)               -> active
+// States: [pending ->] active -> {suspended, archived} -> (purged). Transitions:
+//   createTenant   (none)               -> active, or pending for a tenant with
+//                                          its own schema or database
+//   activateTenant pending              -> active      (storage provisioned)
 //   suspendTenant  active               -> suspended  (reversible, blocks access)
 //   resumeTenant   suspended | archived -> active      (reverses suspend/archive)
 //   archiveTenant  active | suspended   -> archived    (soft delete, reversible)
@@ -307,8 +337,8 @@ export async function updateTenant(
 // Descendant rules, tested against real Postgres in packages/integration-tests:
 //   * suspend / archive block when the tenant has an ACTIVE child
 //     (TenantHasChildrenError). They act leaf-first and never cascade.
-//   * resume / create require the parent to be ACTIVE, so the invariant "an
-//     active tenant's parent is active" always holds.
+//   * resume / activate / create / move require the parent to be ACTIVE, so
+//     the invariant "an active tenant's parent is active" always holds.
 //   * purge requires an empty subtree (no children of ANY status).
 // ---------------------------------------------------------------------------
 
@@ -414,6 +444,27 @@ export async function resumeTenant(pool: pg.Pool, id: string): Promise<TenantNod
     }
     const res = await client.query<TenantNode>(
       `UPDATE tenants SET status = 'active', deleted_at = NULL, updated_at = now() WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return res.rows[0];
+  });
+}
+
+/**
+ * Activate a pending tenant once its schema or database has been provisioned.
+ * Rejects if the tenant is not pending, or if its parent is not active.
+ */
+export async function activateTenant(pool: pg.Pool, id: string): Promise<TenantNode> {
+  return withTransaction(pool, async (client) => {
+    const tenant = await loadForTransition(client, id);
+    if (tenant.status !== "pending") {
+      throw new InvalidTenantStateError(id, tenant.status, "activate", ["pending"]);
+    }
+    if (tenant.parent_id) {
+      await loadActiveParent(client, tenant.parent_id);
+    }
+    const res = await client.query<TenantNode>(
+      `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1 RETURNING *`,
       [id],
     );
     return res.rows[0];
@@ -557,7 +608,7 @@ export async function batchCreateTenants(
 
           const res = await client.query<TenantNode>(
             `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING *`,
             [
               parentId,
@@ -568,6 +619,7 @@ export async function batchCreateTenants(
               JSON.stringify(input.config ?? {}),
               JSON.stringify(input.metadata ?? {}),
               input.isolation_strategy ?? "SHARED_RLS",
+              initialStatus(input),
               regionId,
             ],
           );
@@ -579,7 +631,7 @@ export async function batchCreateTenants(
           const rootRegionId = (input as Record<string, unknown>).region_id ?? null;
           const res = await client.query<TenantNode>(
             `INSERT INTO tenants (parent_id, ancestry_path, depth, name, slug, config, metadata, isolation_strategy, status, region_id)
-             VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, 'active', $6)
+             VALUES (NULL, '/', 0, $1, $2, $3, $4, $5, $6, $7)
              RETURNING *`,
             [
               input.name,
@@ -587,6 +639,7 @@ export async function batchCreateTenants(
               JSON.stringify(input.config ?? {}),
               JSON.stringify(input.metadata ?? {}),
               input.isolation_strategy ?? "SHARED_RLS",
+              initialStatus(input),
               rootRegionId,
             ],
           );

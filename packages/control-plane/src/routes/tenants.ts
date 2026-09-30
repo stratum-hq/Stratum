@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import {
   CreateTenantInputSchema,
   UpdateTenantInputSchema,
@@ -8,6 +9,8 @@ import {
   IsolationStrategyUnsupportedError,
   isSupportedIsolationStrategy,
   getAncestorIds,
+  TenantStatus,
+  TenantProvisioningError,
 } from "@stratum-hq/core";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
@@ -43,7 +46,11 @@ export function createTenantRoutes(stratum: Stratum) {
         return;
       }
       const query = PaginationSchema.parse(request.query);
-      const result = await stratum.listTenants(query);
+      // Active tenants by default; `?status=` lists pending, suspended or
+      // archived ones instead (for example to find a tenant whose storage
+      // provisioning failed).
+      const { status } = z.object({ status: z.nativeEnum(TenantStatus).optional() }).parse(request.query);
+      const result = await stratum.listTenants(query, { status });
       reply.status(200).send(result);
     });
 
@@ -63,20 +70,25 @@ export function createTenantRoutes(stratum: Stratum) {
 
       const tenant = await stratum.createTenant(input, buildAuditContext(request));
 
-      // Provision isolation resources based on strategy. If that fails, remove
-      // the tenant again so no tenant exists without its own storage.
+      // A tenant with its own schema or database is created pending, which
+      // blocks every use of it. Provision its storage, then activate it. If
+      // provisioning fails the tenant stays pending: purge it to remove it
+      // (purging a pending tenant never drops storage), then create it again.
       const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
-      try {
-        if (strategy === "SCHEMA_PER_TENANT") {
-          await setupSchemaForTenant(tenant.slug);
-        } else if (strategy === "DB_PER_TENANT") {
-          await setupDatabaseForTenant(tenant.slug);
+      if (strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT") {
+        try {
+          if (strategy === "SCHEMA_PER_TENANT") {
+            await setupSchemaForTenant(tenant.slug);
+          } else {
+            await setupDatabaseForTenant(tenant.slug);
+          }
+        } catch (err) {
+          request.log.error({ err, tenant_id: tenant.id }, "tenant storage provisioning failed; tenant left pending");
+          throw new TenantProvisioningError(tenant.id);
         }
-      } catch (err) {
-        await stratum.purgeTenant(tenant.id, buildAuditContext(request)).catch((purgeErr: unknown) => {
-          request.log.error({ err: purgeErr, tenant_id: tenant.id }, "failed to remove tenant after provisioning failure");
-        });
-        throw err;
+        const active = await stratum.activateTenant(tenant.id, buildAuditContext(request));
+        reply.status(201).send(active);
+        return;
       }
 
       reply.status(201).send(tenant);

@@ -36,9 +36,9 @@ describe("Tenant isolation provisioning", () => {
     ["SCHEMA_PER_TENANT", setupSchemaForTenant],
     ["DB_PER_TENANT", setupDatabaseForTenant],
   ] as const)(
-    "removes the new %s tenant when provisioning its storage fails",
+    "leaves the new %s tenant pending when provisioning its storage fails",
     async (strategy, provision) => {
-      const tenant = { ...SAMPLE_TENANT, isolation_strategy: strategy };
+      const tenant = { ...SAMPLE_TENANT, isolation_strategy: strategy, status: "pending" };
       (stratum.createTenant as Mock).mockResolvedValue(tenant);
       (provision as Mock).mockRejectedValue(new Error("provisioning failed"));
 
@@ -50,15 +50,18 @@ describe("Tenant isolation provisioning", () => {
       });
 
       expect(response.statusCode).toBe(500);
-      expect(stratum.purgeTenant).toHaveBeenCalledOnce();
-      expect((stratum.purgeTenant as Mock).mock.calls[0][0]).toBe(tenant.id);
+      expect(response.json().error.code).toBe("TENANT_PROVISIONING_FAILED");
+      expect(response.json().error.details.tenant_id).toBe(tenant.id);
+      expect(stratum.activateTenant).not.toHaveBeenCalled();
+      expect(stratum.purgeTenant).not.toHaveBeenCalled();
     },
   );
 
-  it("keeps the tenant when provisioning succeeds", async () => {
-    const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT" };
+  it("activates the tenant once provisioning succeeds", async () => {
+    const tenant = { ...SAMPLE_TENANT, isolation_strategy: "SCHEMA_PER_TENANT", status: "pending" };
     (stratum.createTenant as Mock).mockResolvedValue(tenant);
     (setupSchemaForTenant as Mock).mockResolvedValue(undefined);
+    (stratum.activateTenant as Mock).mockResolvedValue({ ...tenant, status: "active" });
 
     const response = await app.inject({
       method: "POST",
@@ -68,6 +71,8 @@ describe("Tenant isolation provisioning", () => {
     });
 
     expect(response.statusCode).toBe(201);
+    expect(response.json().status).toBe("active");
+    expect((stratum.activateTenant as Mock).mock.calls[0][0]).toBe(tenant.id);
     expect(stratum.purgeTenant).not.toHaveBeenCalled();
   });
 
