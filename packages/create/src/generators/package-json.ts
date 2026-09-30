@@ -10,7 +10,10 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
     typescript: "^5.3.0",
     "@types/node": "^20.11.0",
   };
-  if (preset.framework !== "nextjs") {
+  // NestJS injection needs the decorator metadata that tsc emits and tsx does not.
+  if (preset.framework === "nestjs") {
+    devDeps["tsc-watch"] = "^7.2.0";
+  } else if (preset.framework !== "nextjs") {
     devDeps["tsx"] = "^4.7.0";
   }
 
@@ -164,15 +167,16 @@ function getScripts(preset: StackPreset): Record<string, string> {
   if (preset.framework === "nextjs") {
     return { dev: "next dev", build: "next build", start: "next start" };
   }
-  // Node 20 cannot run a .ts file, so dev runs the source through tsx.
   const entry = preset.framework === "nestjs" ? "main" : "index";
   // When tsc compiles from the project root, src/ is emitted to dist/src/.
   const emittedDir = rootSources(preset).length > 0 ? "dist/src" : "dist";
-  return {
-    dev: `tsx watch --env-file=.env src/${entry}.ts`,
-    build: "tsc",
-    start: `node ${emittedDir}/${entry}.js`,
-  };
+  // Node 20 cannot run a .ts file. NestJS compiles with tsc, which keeps the
+  // decorator metadata its injection needs; the other frameworks run through tsx.
+  const dev =
+    preset.framework === "nestjs"
+      ? `tsc-watch --onSuccess "node --env-file=.env ${emittedDir}/${entry}.js"`
+      : `tsx watch --env-file=.env src/${entry}.ts`;
+  return { dev, build: "tsc", start: `node ${emittedDir}/${entry}.js` };
 }
 
 function sortKeys(obj: Record<string, string>): Record<string, string> {
