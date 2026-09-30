@@ -25,6 +25,9 @@
     "//#lint:root": {
       "outputs": []
     },
+    "//#test:root": {
+      "outputs": []
+    },
     "dev": {
       "cache": false,
       "persistent": true

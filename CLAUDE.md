@@ -111,7 +111,7 @@ Not workspace packages, but present at the repo root: `website/` (Starlight docs
 ```bash
 npm install          # or npm ci
 npm run build        # turbo build, 15 tasks
-npm test             # turbo test, unit tests only, no database needed
+npm test             # turbo test test:root, unit tests only, no database needed
 npm run lint         # turbo lint lint:root, which is ESLint per package plus the root, 17 tasks
 npm run typecheck    # turbo typecheck, tsc --noEmit per package
 npm run verify       # lint + typecheck + test + build; the pre-push hook runs this
@@ -135,8 +135,9 @@ failure but is not one. Use `npx turbo test --force --concurrency=2` if that hap
 
 ## 4. The testing contract, and what the tests do not prove
 
-`npm test` runs **1,062 unit tests across 15 packages** (counted 2026-09-30). Read the
-next section before you treat that number as reassurance.
+`npm test` runs **1,062 unit tests across 15 packages** (counted 2026-09-30), plus the
+root `test:root` task, which runs the repository policy tests in `scripts/__tests__/`.
+Read the next section before you treat that number as reassurance.
 
 | Package | Tests |
 |---|---|
