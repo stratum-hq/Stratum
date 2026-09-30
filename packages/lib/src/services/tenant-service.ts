@@ -38,31 +38,33 @@ export async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusiv
 }
 
 /**
- * Load the parent for a tenant being created or moved, and require it to be
- * active: a suspended or archived subtree must not grow, so an active tenant
- * always has an active parent. FOR SHARE holds the parent row until commit, so
- * a concurrent suspend or archive of the parent (which locks it FOR UPDATE)
- * waits for this transaction and then sees the new child.
+ * Load a tenant that is about to be written to, and require it to be active.
+ * Used for the parent of a tenant being created or moved (a suspended or
+ * archived subtree must not grow, so an active tenant always has an active
+ * parent) and for the tenant that owns a config, permission, webhook or consent
+ * write. FOR SHARE holds the row until commit, so a concurrent suspend or
+ * archive (which locks it FOR UPDATE) waits for this transaction and then sees
+ * what it wrote.
  */
-async function loadActiveParent(client: pg.PoolClient, parentId: string): Promise<TenantNode> {
+export async function loadActiveTenant(client: pg.PoolClient, id: string): Promise<TenantNode> {
   const res = await client.query<TenantNode>(
     `SELECT * FROM tenants WHERE id = $1 FOR SHARE`,
-    [parentId],
+    [id],
   );
   if (res.rows.length === 0) {
-    throw new TenantNotFoundError(parentId);
+    throw new TenantNotFoundError(id);
   }
-  const parent = res.rows[0];
-  if (parent.status === "archived") {
-    throw new TenantArchivedError(parentId);
+  const tenant = res.rows[0];
+  if (tenant.status === "archived") {
+    throw new TenantArchivedError(id);
   }
-  if (parent.status === "suspended") {
-    throw new TenantSuspendedError(parentId);
+  if (tenant.status === "suspended") {
+    throw new TenantSuspendedError(id);
   }
-  if (parent.status === "pending") {
-    throw new TenantPendingError(parentId);
+  if (tenant.status === "pending") {
+    throw new TenantPendingError(id);
   }
-  return parent;
+  return tenant;
 }
 
 /**
@@ -79,7 +81,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
   return withTransaction(pool, async (client) => {
     if (input.parent_id) {
       await lockTree(client, "shared");
-      const parent = await loadActiveParent(client, input.parent_id);
+      const parent = await loadActiveTenant(client, input.parent_id);
       const ancestry_path = appendToPath(parent.ancestry_path, parent.id);
 
       // Inherit region_id from parent if not explicitly provided
@@ -463,7 +465,7 @@ export async function activateTenant(pool: pg.Pool, id: string): Promise<TenantN
       throw new InvalidTenantStateError(id, tenant.status, "activate", ["pending"]);
     }
     if (tenant.parent_id) {
-      await loadActiveParent(client, tenant.parent_id);
+      await loadActiveTenant(client, tenant.parent_id);
     }
     const res = await client.query<TenantNode>(
       `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1 RETURNING *`,
@@ -501,7 +503,7 @@ export async function moveTenant(
     }
     const tenant = tenantRes.rows[0];
 
-    const newParent = await loadActiveParent(client, newParentId);
+    const newParent = await loadActiveTenant(client, newParentId);
 
     // Cycle detection: newParent must not be a descendant of tenant.
     // Check if the moving tenant's ID appears in the new parent's ancestry_path
@@ -602,7 +604,7 @@ export async function batchCreateTenants(
           if (batchParent) {
             parentNode = batchParent;
           } else {
-            parentNode = await loadActiveParent(client, parentId);
+            parentNode = await loadActiveTenant(client, parentId);
           }
 
           const ancestry_path = appendToPath(parentNode.ancestry_path, parentNode.id);
