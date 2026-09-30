@@ -106,7 +106,7 @@ const orderSchema = new mongoose.Schema({
 });
 
 // Apply once per schema -- injects tenant_id and auto-filters queries
-orderSchema.plugin(stratumPlugin, { strategy: "SHARED_COLLECTION" });
+orderSchema.plugin(stratumPlugin);
 
 export const Order = mongoose.model("Order", orderSchema);
 ```
@@ -115,11 +115,14 @@ The plugin hooks into `find`, `findOne`, `findOneAndUpdate`, `updateMany`, `dele
 
 ### ALS Context Setup
 
-Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header:
+Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header.
+
+The plugin reads the context from the ALS store of `@stratum-hq/sdk`. Set the context with `runWithTenantContext` from that package:
 
 ```typescript
 import jwt from "jsonwebtoken";
-import { setTenantContext } from "@stratum-hq/mongodb";
+import { runWithTenantContext } from "@stratum-hq/sdk";
+import type { ResolvedTenantContext } from "@stratum-hq/sdk";
 
 // Express example. jwtSecret is the key that verifies the bearer token.
 app.use(async (req, res, next) => {
@@ -147,7 +150,17 @@ app.use(async (req, res, next) => {
 
   // Resolve tenant from your control plane
   const tenant = await stratum.getTenant(tenantId);
-  setTenantContext({ tenantId: tenant.id, tenantSlug: tenant.slug }, next);
+  const context: ResolvedTenantContext = {
+    tenant_id: tenant.id,
+    ancestry_path: tenant.ancestry_path,
+    depth: tenant.depth,
+    resolved_config: await stratum.resolveConfig(tenant.id),
+    resolved_permissions: await stratum.resolvePermissions(tenant.id),
+    isolation_strategy: tenant.isolation_strategy,
+  };
+
+  // Queries on plugin models inside next() see this tenant.
+  runWithTenantContext(context, next);
 });
 ```
 
