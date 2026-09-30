@@ -30,6 +30,8 @@ export function printHelp(): void {
 
     --database-url, -d <url>      PostgreSQL connection string
                                   (default: DATABASE_URL env or localhost)
+    --tenant <uuid>               Tenant for the existing rows of a migrated table
+                                  (migrate command; required when the table has rows)
     --name <name>                 Name for generated API key
     --out <dir>                   Output directory for scaffolded files
                                   (default: current directory)
@@ -44,6 +46,7 @@ export function printHelp(): void {
     $ stratum init
     $ stratum health --database-url postgres://user:pass@host:5432/mydb
     $ stratum migrate orders
+    $ stratum migrate orders --tenant 7c9e6679-7425-40de-944b-e07fc1f90ae7
     $ stratum migrate --scan
     $ stratum generate api-key --name "my-service"
     $ stratum scaffold express --out src/middleware
