@@ -1,5 +1,36 @@
 # @stratum-hq/nestjs
 
+## 1.2.0
+
+### Minor Changes
+
+- e7e7b74: `StratumClient` maps a 404 by its error code. `TENANT_NOT_FOUND` becomes `TenantNotFoundError`, `WEBHOOK_NOT_FOUND` becomes `WebhookNotFoundError`, and any other 404 becomes a plain `Error` with the control plane's message. Before this change, every 404 became `TenantNotFoundError`, also on the webhook, API key and region routes.
+
+  The Express and Fastify middleware answer a control plane timeout with 504 `CONTROL_PLANE_TIMEOUT`. They answer an `UnauthorizedError` for the SDK's own API key with 500 `CONTROL_PLANE_AUTH_FAILED` and write the cause to `console.error`. They call `onError` for both. Before this change, both errors went to the framework's error handler: a timeout became a 500, and the default Express and Fastify error handlers answered a rejected SDK key with a 401, as if the caller had sent a bad credential.
+
+  The SDK exports `tenantErrorResponse` and `controlPlaneErrorResponse`, so other adapters can use the same mapping.
+
+  The NestJS `StratumGuard` throws `NotFoundException` (404) for a tenant that does not exist, instead of `UnauthorizedException` (401). This matches the Express and Fastify middleware. It throws `GatewayTimeoutException` (504) for a control plane timeout and `InternalServerErrorException` (500) for a rejected SDK API key. A request with no tenant ID still gets 401.
+
+  The Hono `stratumMiddleware` answers a tenant error from its `resolve` callback with 404, 403 or 410, as the Express and Fastify middleware do. It answers a control plane timeout with 504 `CONTROL_PLANE_TIMEOUT`, and an `UnauthorizedError` for the SDK's own API key with 500 `CONTROL_PLANE_AUTH_FAILED` and a `console.error` line. Before this change, all of these errors went to the Hono error handler.
+
+  The `timeoutMs` option must be an integer from 1 to 4294967295, or `Infinity` to turn the time limit off. The constructor throws a `RangeError` for any other value. Before this change, an invalid value made every request throw.
+
+  `purgeTenant` removes the tenant from the client cache also when the request fails. A timeout does not mean that the purge failed: the control plane can complete it after the client stops waiting.
+
+### Patch Changes
+
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- ac561f9: `StratumClient` has a new `timeoutMs` option (default 10000). A control plane request that takes longer rejects with a `TimeoutError` `DOMException`. Before this change, a request had no time limit.
+
+  `StratumClient` now maps a 403 `TENANT_SUSPENDED` response to `TenantSuspendedError`, any other 403 to `ForbiddenError`, and a 410 `TENANT_ARCHIVED` response to `TenantArchivedError`. Before this change, these became a plain `Error`. A `TenantNotFoundError` now keeps the control plane's message, without a second "Tenant not found:" prefix.
+
+  The Express and Fastify middleware answer a suspended tenant with 403 `TENANT_SUSPENDED`, an archived tenant with 410 `TENANT_ARCHIVED`, and a denied tenant with 403 `FORBIDDEN`, instead of a 500. The Nest `StratumGuard` throws `ForbiddenException` or `GoneException`. These rules also apply to an impersonation target. In the Express and Fastify middleware, an impersonation target that does not exist now gets a 404 instead of a 500. The middleware answers these tenant errors itself, so they no longer reach `onError` or the framework's error handler.
+
+  An API key without the `admin` scope now gets `ForbiddenError` from `purgeTenant` and the other admin operations. An API key that is scoped to a tenant gets 403 `FORBIDDEN` for a descendant that is suspended or archived, not `TENANT_SUSPENDED` or `TENANT_ARCHIVED`, because the scope check runs first.
+
+  `StratumClient` sends `Content-Type: application/json` only with a request body. Before this change, the control plane answered `archiveTenant`, `deleteTenant`, `deleteWebhook` and `deleteRegion` with 400, because it rejects that content type on an empty body.
+
 ## 1.1.0
 
 ### Minor Changes

@@ -1,5 +1,22 @@
 # @stratum-hq/create
 
+## 0.4.1
+
+### Patch Changes
+
+- 7ac4283: `npx @stratum-hq/create <name>` now runs the scaffolder. Before this fix, the command exited 0 and did nothing when npm ran the bin through its `node_modules/.bin` symlink. The `create-stratum` bin is now `dist/bin.js`, which always calls `main()`.
+- 7ac4283: Generated projects now depend on the current `@stratum-hq/*` releases. The CLI took the dependency ranges from a hardcoded `^0.2.0`, which installs releases from before 1.0. The build now reads the ranges from the workspace package versions.
+- 7ac4283: Fix the database setup that the pg, knex and mongoose presets generate, so that it compiles and runs against the published packages.
+
+  - The PostgreSQL `pg` preset passes a tenant function to `createTenantPool`, which expects `() => string`.
+  - The PostgreSQL `knex` preset sets `app.current_tenant_id` with `set_config(..., true)` inside `knex.transaction`. PostgreSQL does not accept a bind parameter in `SET`, and the RLS policies read `app.current_tenant_id`.
+  - The `mongoose` presets no longer import `createTenantConnection`, which `@stratum-hq/mongodb` does not export. They use Mongoose directly, with the database and collection names of the `@stratum-hq/mongodb` adapters.
+  - The MySQL `pg` preset types its query parameters so that `pool.execute` accepts them.
+  - The generated README names the `app.current_tenant_id` setting.
+  - The RLS policy example in the generated `init.sql` uses `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`. A pooled connection reads the setting as an empty string after a tenant transaction ends, and the old example raised an error there instead of returning no rows.
+
+- 7ac4283: Generated projects now run with the scripts they ship. The express and fastify templates now write a `tsconfig.json`, so `npm run build` compiles `src/` to `dist/` and `npm start` runs `dist/index.js`. The `dev` script of the templates and of every preset except Next.js and NestJS is now `tsx watch --env-file=.env src/<entry>.ts`, because Node 20 cannot run a `.ts` file. The NestJS preset `dev` script is now `tsc-watch --onSuccess "node --env-file=.env dist/main.js"`, because NestJS injection needs the decorator metadata that `tsc` emits. Before this fix, `dev` pointed at `src/index.js`, which the scaffold never wrote. Knex presets now compile from the project root, because `src/stratum-knex.ts` imports `knexfile.ts` from there. Their `start` script runs `dist/src/<entry>.js`. The generated README and the success message now tell you to run `npm run dev`.
+
 ## 0.4.0
 
 ### Minor Changes

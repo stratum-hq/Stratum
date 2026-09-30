@@ -1,5 +1,42 @@
 # @stratum-hq/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- b47f84f: `stratum migrate <table>` now works on a table that already has rows. Before, the migration always rolled back on such a table, because it gave every existing row a placeholder tenant that the foreign key to `tenants` rejects.
+
+  The new `--tenant <uuid>` flag assigns every existing row to that tenant. The flag is required when the table has rows; without it, the migration stops and changes nothing. The tenant must exist in the `tenants` table, and the nil UUID is rejected.
+
+### Patch Changes
+
+- b47f84f: `stratum migrate <table>` now rejects the name of a table that Stratum's own migrations create, such as `tenants` or `usage_events`. Before, the command added `tenant_id` and a `tenant_isolation` policy to that table.
+- b47f84f: `@stratum-hq/lib` exports `STRATUM_TABLES`, the list of tables that Stratum's migrations create. `stratum scan` and `stratum migrate --all` now read this list to skip Stratum's own tables, so they no longer report `abac_policies`, `usage_events`, or `principal_roles` as application tables. `stratum scan --generate` no longer emits `CREATE POLICY` for a table that already has a `tenant_isolation` policy, so the generated script applies without error.
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- e7e7b74: Every `tenant_isolation` policy that Stratum generates now reads the tenant with `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`, the same form as the policies in Stratum's own migrations. This applies to `createPolicy` and `createIsolationPolicy` in `@stratum-hq/db-adapters`, to `stratum migrate` and the SQL from `stratum scan --generate`, and to `setupRLSForTable` in the control plane.
+
+  On a pooled connection, the setting reads as `''` after the transaction that set it ends. Before, a query on that connection with no tenant context failed with `invalid input syntax for type uuid: ""`. Now the query returns no rows.
+
+  Policies that already exist in a database do not change. To update one, drop it and create it again with the new expression.
+
+- Updated dependencies [9ed3e01]
+- Updated dependencies [b47f84f]
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [329cb16]
+- Updated dependencies [b47f84f]
+- Updated dependencies [b47f84f]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [329cb16]
+- Updated dependencies [cd7b950]
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [9ed3e01]
+- Updated dependencies [694a3d3]
+- Updated dependencies [694a3d3]
+- Updated dependencies [cd7b950]
+- Updated dependencies [694a3d3]
+  - @stratum-hq/lib@1.4.0
+  - @stratum-hq/core@1.4.0
+
 ## 0.5.0
 
 ### Minor Changes

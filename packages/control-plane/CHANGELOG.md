@@ -1,5 +1,102 @@
 # @stratum-hq/control-plane
 
+## 1.2.0
+
+### Minor Changes
+
+- 329cb16: Every 400 `VALIDATION_ERROR` about request fields now lists the failed fields in `error.details.issues`. Each item has `path`, `message` and `code`. Before, a zod failure used `error.issues`, a library `ValidationError` used `error.details.issues`, and the key and role routes used a top-level `details`. The old fields stay as deprecated copies for one release: `error.issues` on every such response, and the top-level `details` on the key and role routes. The deprecated copies now carry the same trimmed issues as `error.details.issues`, with only `path`, `message` and `code`. Before, they carried the raw zod issues, which have more fields that differ per issue code.
+
+  The error handler now finds a `StratumError` by its shape, not by `instanceof`. An error from a second copy of `@stratum-hq/core` keeps its status code, code and details.
+
+- 7e9ebcf: Input schemas are now stricter, and the control plane rejects some requests that it accepted before. This is a deliberate tightening. Some of the values that the schemas now reject were valid in PostgreSQL and succeeded before this release.
+
+  The control plane returns `400 VALIDATION_ERROR` for these values:
+
+  - `CreateAbacPolicyInputSchema.priority` must be in the `INTEGER` range, -2147483648 to 2147483647. Before this release, a value outside that range caused a `500`.
+  - `GrantConsentInputSchema.expires_at` must be an ISO 8601 datetime with a time zone (`Z` or an offset such as `+02:00`). `POST /api/v1/tenants/:tenantId/consent` returned `201` for these forms before, and now returns `400`:
+    - a date without a time, such as `2027-12-31`
+    - a datetime without a time zone, such as `2027-12-31T00:00:00`
+    - the PostgreSQL special values `infinity` and `epoch`
+
+    Send a full datetime with a time zone, such as `2027-12-31T00:00:00Z`.
+
+  - `RecordUsageInputSchema.quantity` must be at most `Number.MAX_SAFE_INTEGER` (2^53 - 1). Before this release, a quantity from 2^53 up to the `BIGINT` limit (about 9.2e18) succeeded, and a larger quantity caused a `500`.
+  - The datetime fields of `GrantConsentInputSchema`, `RecordUsageInputSchema`, `UsageAggregateQuerySchema`, `AuditLogQuerySchema`, and `RecordAuditEventInputSchema` reject year 0000, which PostgreSQL has no value for.
+
+### Patch Changes
+
+- 7e9ebcf: Request spans now carry the `stratum.tenant_id` attribute for authenticated callers, with API keys and with JWTs. The hook read the tenant before authentication ran, so the attribute was never set. Spans also record the request path without its query string in the span name, `http.url`, and `http.route`. If a client disconnects before the response, the span now ends with an error status. Before this change, it stayed open.
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- e7e7b74: Report invalid input as a validation error, not as a server or database error.
+
+  Breaking for some callers: `@stratum-hq/lib` now rejects input that it stored before, and `recordAuditEvent` throws a different error class.
+
+  - `@stratum-hq/lib`: `grantConsent` validates its input with `GrantConsentInputSchema`. It now throws a `ValidationError` and writes no row for:
+    - an empty `subject_id` or `purpose`.
+    - an `expires_at` that is only a date (`2026-12-31`), or a date and time without a time zone offset (`2026-12-31T00:00:00`). Before, PostgreSQL stored these values, and it read a time without an offset in the time zone of the database session.
+    - an `expires_at` that PostgreSQL cannot store, such as `infinity`. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/lib`: `createAbacPolicy` validates its input with `CreateAbacPolicyInputSchema`. It now throws a `ValidationError` and writes no row for:
+    - an empty `name`, `resource_type` or `action`, or a condition with an empty `attribute` or an unknown `operator`. Before, the policy was stored.
+    - a `priority` that is not an integer from -2147483648 to 2147483647. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/lib`: `recordAuditEvent` now throws a `ValidationError` for invalid input, with the zod issues in `details.issues`. Before, it threw a `ZodError`. A check such as `err instanceof ZodError` no longer matches. Check `err instanceof ValidationError` instead.
+  - `@stratum-hq/lib`: `recordAuditEvent` now throws a `ValidationError` for a `sourceIp` that is not an IP address. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/core`: `RecordAuditEventInputSchema.sourceIp` now accepts only an IPv4 or IPv6 address, with an optional `/prefix` (`203.0.113.7`, `10.0.0.0/8`, `2001:db8::1/128`). This matches the `INET` column. The `source_ip` value that `queryAuditLogs` returns, such as `203.0.113.7/32`, is accepted. The schema rejects an IPv6 zone index (`fe80::1%eth0`) and an IPv4 address with leading zeros (`010.0.0.1`). Before, the schema accepted any string.
+  - `@stratum-hq/control-plane`: the error handler identifies a `ZodError` by its shape, so a `ZodError` from another copy of zod now gets a `400 VALIDATION_ERROR` response instead of a `500`.
+
+- 329cb16: Region conflicts now throw typed errors instead of a plain `Error`:
+
+  - `deleteRegion` throws `RegionInUseError` (code `REGION_IN_USE`, status code 409) when active tenants are still assigned to the region.
+  - `migrateRegion` throws `RegionNotActiveError` (code `REGION_NOT_ACTIVE`, status code 409) when the target region is not `active`.
+
+  `@stratum-hq/lib` now exports `RegionInUseError` and `RegionNotActiveError`. The thrown class changes from `Error` to these `StratumError` subclasses, so a caller can check the class or the `code`. The error messages do not change.
+
+  The control plane now answers `409` with these codes for `DELETE /api/v1/regions/:id` and `POST /api/v1/tenants/:id/migrate-region`. Before, it answered `500 INTERNAL_SERVER_ERROR`.
+
+- cd7b950: A missing region now gives a typed not-found error. Core adds `RegionNotFoundError` with the code `REGION_NOT_FOUND`. Lib re-exports it, the lib region functions throw it, and `migrateRegion` throws `TenantNotFoundError` for a missing tenant. The control plane answers 404 instead of 500 for these requests.
+- 7e9ebcf: `rotateEncryptionKey` can now resume after a partial failure.
+
+  The rotation commits in batches. Before this change, a run that failed partway could not be repeated: the second run failed on the first value that was already on the new key. Now the run keeps a value that already decrypts with the new key. It also continues past a value that decrypts with neither key.
+
+  `KeyRotationResult` has two new fields:
+
+  - `already_rotated`: the number of values that already decrypt with the new key.
+  - `unreadable`: the rows (`table` and `id`) whose value decrypts with neither key. The run leaves them unchanged.
+
+  `config_entries_rotated` and `webhooks_rotated` now count only the values that this run re-encrypted. A value that was already on the new key counts in `already_rotated`, not in these two fields.
+
+  A rotation with the wrong old key still fails, so the new tolerance for unreadable rows cannot hide a wrong key. If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. When some rows decrypt and some do not, the run completes and logs the warning `encryption key rotation left unreadable rows` with the count and the rows.
+
+  The control plane `POST /api/v1/maintenance/rotate-encryption-key` response now has these fields: `config_entries_rotated`, `webhooks_rotated`, `already_rotated`, and `unreadable`. The OpenAPI spec documented a `re_encrypted_count` field, which the endpoint never returned; the spec now shows the real response. The endpoint returns `400 VALIDATION_ERROR` when encrypted values exist and none of them decrypts with either key.
+
+- e7e7b74: Every `tenant_isolation` policy that Stratum generates now reads the tenant with `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`, the same form as the policies in Stratum's own migrations. This applies to `createPolicy` and `createIsolationPolicy` in `@stratum-hq/db-adapters`, to `stratum migrate` and the SQL from `stratum scan --generate`, and to `setupRLSForTable` in the control plane.
+
+  On a pooled connection, the setting reads as `''` after the transaction that set it ends. Before, a query on that connection with no tenant context failed with `invalid input syntax for type uuid: ""`. Now the query returns no rows.
+
+  Policies that already exist in a database do not change. To update one, drop it and create it again with the new expression.
+
+- 694a3d3: A tenant-scoped API key can now purge a pending child tenant in its own subtree, for example after storage provisioning fails. Before, only an operator key could remove it. `DELETE /api/v1/tenants/:id` on such a tenant now returns the tenant state error (409) instead of 403. Archived and suspended tenants are still refused by the scope check.
+- 694a3d3: `POST /api/v1/tenants` now removes the schema or database it provisioned when activation of the new tenant fails. Before this change, the storage stayed behind, and purging the pending tenant did not remove it. The tenant stays `pending`, and the response is `TENANT_PROVISIONING_FAILED` with `details.stage` set to `"activation"`. If the removal also fails, `details.storage_removed` is `false`, and an operator must drop the storage by hand. If the activation reports an error but the tenant is `active`, the route returns the active tenant and keeps its storage. If the route cannot read the tenant after the activation error, it also keeps the storage and returns the original error. Check the tenant's status: if it is `pending`, purge it and drop its storage by hand.
+
+  `TenantProvisioningError` has a new optional second argument that names the failed stage. Its `details` now include `stage` (`"provisioning"` or `"activation"`), and `storage_removed` for the activation stage.
+
+- Updated dependencies [9ed3e01]
+- Updated dependencies [b47f84f]
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [329cb16]
+- Updated dependencies [b47f84f]
+- Updated dependencies [b47f84f]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [329cb16]
+- Updated dependencies [cd7b950]
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [9ed3e01]
+- Updated dependencies [694a3d3]
+- Updated dependencies [694a3d3]
+- Updated dependencies [cd7b950]
+- Updated dependencies [694a3d3]
+  - @stratum-hq/lib@1.4.0
+  - @stratum-hq/core@1.4.0
+
 ## 1.1.0
 
 ### Minor Changes
