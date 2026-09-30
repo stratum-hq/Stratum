@@ -82,15 +82,18 @@ await adapter.closeAll();
 ### TypeORM Subscriber (writes only)
 
 ```typescript
-import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
+import { registerStratumSubscriber } from "@stratum-hq/mysql";
 
-// Register an instance once the data source is initialized. (TypeORM's
-// `subscribers` option only loads @EventSubscriber()-decorated classes.)
 await dataSource.initialize();
-dataSource.subscribers.push(new StratumTypeOrmSubscriber());
+// Adds one StratumTypeOrmSubscriber. A second call adds nothing.
+registerStratumSubscriber(dataSource);
 ```
 
+Call `registerStratumSubscriber()` after `dataSource.initialize()`. It throws before that, because `initialize()` replaces the subscriber list. Do not put `StratumTypeOrmSubscriber` in the `subscribers` option: TypeORM only loads classes decorated with `@EventSubscriber()` from that option.
+
 Inserts get the current tenant's `tenant_id`. Updates never change `tenant_id`: `save()` keeps the loaded value, and `update()` / query builder updates drop it from the SET values.
+
+Upserts (`repository.upsert()` and `.orUpdate()`) also get the current tenant's `tenant_id` on insert. If the conflict update writes `tenant_id`, the subscriber rejects the statement before it runs. To upsert, leave `tenant_id` out of the entity values and out of the `orUpdate()` columns.
 
 **Limitation:** TypeORM subscribers can intercept writes but not reads. Use the shared-table adapter's structured methods for tenant-scoped reads.
 

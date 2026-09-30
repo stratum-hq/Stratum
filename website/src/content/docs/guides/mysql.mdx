@@ -128,15 +128,26 @@ await adapter.closeAll();
 Auto-injects `tenant_id` on every insert using AsyncLocalStorage context, and never lets an update change `tenant_id` (`save()` keeps the loaded value; `update()` and query builder updates drop it from the SET values):
 
 ```typescript
-import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
+import { registerStratumSubscriber } from "@stratum-hq/mysql";
 
 const dataSource = new DataSource({
   // ... your TypeORM config
 });
 await dataSource.initialize();
-// TypeORM's `subscribers` option only loads @EventSubscriber()-decorated
-// classes, so register an instance directly.
-dataSource.subscribers.push(new StratumTypeOrmSubscriber());
+// Adds one StratumTypeOrmSubscriber. A second call adds nothing.
+registerStratumSubscriber(dataSource);
+```
+
+Call `registerStratumSubscriber()` after `dataSource.initialize()`. It throws before that, because `initialize()` replaces the subscriber list. Do not put `StratumTypeOrmSubscriber` in the `subscribers` option: TypeORM only loads classes decorated with `@EventSubscriber()` from that option.
+
+Upserts (`repository.upsert()` and `.orUpdate()`) also get the current tenant's `tenant_id` on insert. If the conflict update writes `tenant_id`, the subscriber rejects the statement before it runs. To upsert, leave `tenant_id` out of the entity values and out of the `orUpdate()` columns:
+
+```typescript
+// Allowed: the conflict update writes `name` only.
+await repo.upsert({ id: 1, name: "Renamed" }, ["id"]);
+
+// Rejected: the conflict update would write `tenant_id`.
+await repo.upsert({ id: 1, tenant_id: "other", name: "Renamed" }, ["id"]);
 ```
 
 <Aside type="caution">
