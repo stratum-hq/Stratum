@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import net from "node:net";
 import Fastify, { FastifyInstance } from "fastify";
 import { trace } from "@opentelemetry/api";
 import type { Stratum } from "@stratum-hq/lib";
@@ -10,11 +11,12 @@ import { errorHandler } from "../middleware/error-handler.js";
 import { createTenantRoutes } from "../routes/tenants.js";
 import { createMockStratum, authHeaders, jwtHeaders, SAMPLE_TENANT } from "./test-helpers.js";
 
-/** One span as the recording tracer saw it: its name and its final attributes. */
+/** One span as the recording tracer saw it: its name, its final attributes, and its end() calls. */
 interface RecordedSpan {
   name: string;
   attributes: Record<string, unknown>;
   ended: boolean;
+  endCalls: number;
 }
 
 const spans: RecordedSpan[] = [];
@@ -25,7 +27,7 @@ const recordingProvider = {
   getTracer() {
     return {
       startSpan(name: string, options?: { attributes?: Record<string, unknown> }) {
-        const recorded: RecordedSpan = { name, attributes: { ...options?.attributes }, ended: false };
+        const recorded: RecordedSpan = { name, attributes: { ...options?.attributes }, ended: false, endCalls: 0 };
         spans.push(recorded);
         const span = {
           setAttribute(key: string, value: unknown) {
@@ -38,6 +40,7 @@ const recordingProvider = {
           recordException() {},
           end() {
             recorded.ended = true;
+            recorded.endCalls += 1;
           },
         };
         return span;
@@ -134,5 +137,64 @@ describe("telemetry span attributes", () => {
     expect(spans[0].name).toBe("HTTP GET /api/v1/unknown");
     expect(spans[0].attributes["http.route"]).toBe("/api/v1/unknown");
     expect(spans[0].attributes["http.url"]).toBe("/api/v1/unknown");
+  });
+});
+
+describe("telemetry span lifecycle", () => {
+  it("ends a span exactly once for a normal request", async () => {
+    vi.mocked(stratum.validateApiKey).mockResolvedValue({
+      key_id: "tenant-key-id",
+      tenant_id: SAMPLE_TENANT.id,
+      scopes: ["read"],
+      rate_limit_max: null,
+      rate_limit_window: null,
+    } as never);
+
+    await app.inject({ method: "GET", url, headers: authHeaders() });
+
+    expect(spans).toHaveLength(1);
+    expect(spans[0].endCalls).toBe(1);
+  });
+
+  it("ends a span exactly once when the client disconnects before the response", async () => {
+    // A real socket is necessary: inject() cannot close the connection mid-request.
+    const abortApp = Fastify({ logger: false });
+    registerTelemetryHooks(abortApp);
+
+    let releaseHandler!: () => void;
+    const handlerReleased = new Promise<void>((resolve) => (releaseHandler = resolve));
+    let signalHandlerStarted!: () => void;
+    const handlerStarted = new Promise<void>((resolve) => (signalHandlerStarted = resolve));
+    let signalAbortSeen!: () => void;
+    const abortSeen = new Promise<void>((resolve) => (signalAbortSeen = resolve));
+
+    abortApp.addHook("onRequestAbort", async (_request) => signalAbortSeen());
+    abortApp.get("/slow", async () => {
+      signalHandlerStarted();
+      await handlerReleased;
+      return { ok: true };
+    });
+    await abortApp.listen({ port: 0, host: "127.0.0.1" });
+
+    try {
+      const { port } = abortApp.server.address() as net.AddressInfo;
+      const socket = net.connect(port, "127.0.0.1");
+      socket.on("error", () => {});
+      socket.write("GET /slow HTTP/1.1\r\nHost: localhost\r\n\r\n");
+      await handlerStarted;
+      socket.destroy();
+      await abortSeen;
+
+      // The handler finishes after the client is gone, as a slow query would.
+      releaseHandler();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(spans).toHaveLength(1);
+      expect(spans[0].ended).toBe(true);
+      expect(spans[0].endCalls).toBe(1);
+    } finally {
+      releaseHandler();
+      await abortApp.close();
+    }
   });
 });
