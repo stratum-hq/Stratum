@@ -89,9 +89,9 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   /**
    * Rejects an upsert that writes tenant_id on a key conflict.
    *
-   * On a conflict, MySQL assigns the inserted tenant_id to the existing row,
-   * and that row can belong to another tenant. A subscriber cannot remove one
-   * column from the conflict update, so the statement fails before it runs.
+   * A conflict update must never change the tenant of an existing row. A
+   * subscriber cannot remove one column from the conflict update, so the
+   * statement fails before it runs.
    *
    * @throws Error when the ON DUPLICATE KEY UPDATE clause assigns tenant_id.
    */
