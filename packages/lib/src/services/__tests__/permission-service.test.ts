@@ -316,7 +316,7 @@ describe("deletePermission", () => {
     // Verify descendant deletion query was called
     const descendantDeleteCall = mockQuery.mock.calls[2];
     expect(descendantDeleteCall[0]).toContain("DELETE FROM permission_policies");
-    expect(descendantDeleteCall[1]).toEqual([["child-1", "child-2"], "can_access_reports"]);
+    expect(descendantDeleteCall[1]).toEqual([["child-1", "child-2"], "can_access_reports", "PERMANENT"]);
 
     // Verify parent policy deletion
     const parentDeleteCall = mockQuery.mock.calls[3];

@@ -5,6 +5,7 @@ import { ForbiddenError } from "@stratum-hq/core";
 import { declareTenantScope, fromBodyTenantId, isOperator } from "../middleware/tenant-scope.js";
 import { parseWindow } from "../middleware/per-key-rate-limit.js";
 import { config } from "../config.js";
+import { buildAuditContext } from "./audit-logs.js";
 
 const createApiKeySchema = z.object({
   tenant_id: z.string().uuid(),
@@ -44,7 +45,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
           name,
           rateLimitMax: rate_limit_max,
           rateLimitWindow: rate_limit_window,
-        });
+        }, undefined, buildAuditContext(request));
         reply.status(201).send(result);
       },
     );
@@ -84,7 +85,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       }
       const rotateSchema = z.object({ name: z.string().max(255).optional() });
       const parsed = rotateSchema.parse(request.body ?? {});
-      const result = await stratum.rotateApiKey(request.params.id, parsed.name);
+      const result = await stratum.rotateApiKey(request.params.id, parsed.name, buildAuditContext(request));
       reply.status(201).send(result);
     });
 
@@ -98,7 +99,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
           return;
         }
       }
-      const revoked = await stratum.revokeApiKey(request.params.id);
+      const revoked = await stratum.revokeApiKey(request.params.id, buildAuditContext(request));
       if (!revoked) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;

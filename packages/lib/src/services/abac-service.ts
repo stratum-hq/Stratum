@@ -123,55 +123,37 @@ export async function resolveAbacPolicies(
     }
 
     // Walk root→leaf applying LOCKED/INHERITED/DELEGATED mode semantics.
-    // We track locked policy ids by (resource_type + action + name) composite key
-    // so that descendants cannot override a LOCKED policy.
-    const resolvedMap = new Map<string, ResolvedAbacPolicy>();
+    // We track policies by (resource_type + action + name) composite key so
+    // that descendants cannot override a LOCKED policy. A descendant's policies
+    // replace an ancestor's for the same composite, but every policy a single
+    // tenant holds for that composite is kept, so a same-name deny is never
+    // dropped in favour of a same-name allow from the same tenant.
+    const resolvedMap = new Map<string, ResolvedAbacPolicy[]>();
 
     for (const currentTenantId of allIds) {
       const policies = byTenant.get(currentTenantId) ?? [];
 
       for (const policy of policies) {
         const compositeKey = `${policy.resource_type}:${policy.action}:${policy.name}`;
-        const existing = resolvedMap.get(compositeKey);
+        const existing = resolvedMap.get(compositeKey) ?? [];
 
-        if (existing?.locked) {
+        if (existing.some((r) => r.locked && r.source_tenant_id !== currentTenantId)) {
           // Locked by an ancestor — descendants cannot override it
           continue;
         }
 
-        switch (policy.mode) {
-          case "LOCKED":
-            resolvedMap.set(compositeKey, {
-              policy,
-              source_tenant_id: currentTenantId,
-              locked: true,
-              delegated: false,
-            });
-            break;
-
-          case "DELEGATED":
-            resolvedMap.set(compositeKey, {
-              policy,
-              source_tenant_id: currentTenantId,
-              locked: false,
-              delegated: true,
-            });
-            break;
-
-          case "INHERITED":
-          default:
-            resolvedMap.set(compositeKey, {
-              policy,
-              source_tenant_id: currentTenantId,
-              locked: false,
-              delegated: false,
-            });
-            break;
-        }
+        const resolvedPolicy: ResolvedAbacPolicy = {
+          policy,
+          source_tenant_id: currentTenantId,
+          locked: policy.mode === "LOCKED",
+          delegated: policy.mode === "DELEGATED",
+        };
+        const sameTenant = existing.filter((r) => r.source_tenant_id === currentTenantId);
+        resolvedMap.set(compositeKey, [...sameTenant, resolvedPolicy]);
       }
     }
 
-    return Array.from(resolvedMap.values());
+    return Array.from(resolvedMap.values()).flat();
   });
 }
 
@@ -207,11 +189,40 @@ export async function evaluateAbac(
     return { allowed: false, reason: "no_matching_policy" };
   }
 
-  // Build flat context from subject + resource attributes
-  const context: Record<string, unknown> = {
-    ...request.subject,
-    ...request.resource,
-  };
+  // Build the attribute context. Subject and resource keep separate namespaces:
+  // `subject.<name>` and `resource.<name>` always read their own side. A bare
+  // `<name>` reads whichever side carries it; when both do, the reference is
+  // ambiguous and the request is denied rather than letting one side's value
+  // stand in for the other's.
+  const context: Record<string, unknown> = {};
+  const ambiguous = new Set<string>();
+  const isQualified = (key: string) =>
+    key.startsWith("subject.") || key.startsWith("resource.");
+  for (const [key, value] of Object.entries(request.subject)) {
+    if (!isQualified(key)) context[key] = value;
+  }
+  for (const [key, value] of Object.entries(request.resource)) {
+    if (isQualified(key)) continue;
+    if (Object.prototype.hasOwnProperty.call(request.subject, key)) {
+      ambiguous.add(key);
+      delete context[key];
+    } else {
+      context[key] = value;
+    }
+  }
+  for (const [key, value] of Object.entries(request.subject)) {
+    context[`subject.${key}`] = value;
+  }
+  for (const [key, value] of Object.entries(request.resource)) {
+    context[`resource.${key}`] = value;
+  }
+
+  const usesAmbiguousAttribute = matching.some(({ policy }) =>
+    policy.conditions.some((c) => ambiguous.has(c.attribute)),
+  );
+  if (usesAmbiguousAttribute) {
+    return { allowed: false, reason: "ambiguous_attribute" };
+  }
 
   // Sort by priority descending
   const sorted = [...matching].sort(

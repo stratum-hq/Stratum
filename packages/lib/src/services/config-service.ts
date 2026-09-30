@@ -177,14 +177,17 @@ export async function batchSetConfig(
     const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
     const keys = entries.map((e) => e.key);
 
-    // Batch-load all ancestor locks in a single query
+    // Batch-load all ancestor locks in a single query.
+    // Only enforce locks from non-archived ancestors — consistent with setConfig.
     const lockedKeys = new Map<string, string>();
     if (ancestorIds.length > 0 && keys.length > 0) {
       const lockedRes = await client.query<ConfigEntry>(
-        `SELECT * FROM config_entries
-         WHERE tenant_id = ANY($1)
-           AND key = ANY($2)
-           AND locked = true`,
+        `SELECT ce.* FROM config_entries ce
+         JOIN tenants t ON t.id = ce.tenant_id
+         WHERE ce.tenant_id = ANY($1)
+           AND ce.key = ANY($2)
+           AND ce.locked = true
+           AND t.status != 'archived'`,
         [ancestorIds, keys],
       );
       for (const row of lockedRes.rows) {
@@ -277,9 +280,14 @@ export async function getConfigWithInheritance(
     const ancestorIds = parseAncestryPath(ancestryPath);
     const allIds = [...ancestorIds, tenantId];
 
+    // Archived ancestors do not participate in inheritance or locking —
+    // consistent with resolveConfig and setConfig.
     const entriesRes = await client.query<ConfigEntry>(
-      `SELECT * FROM config_entries WHERE tenant_id = ANY($1)`,
-      [allIds],
+      `SELECT ce.* FROM config_entries ce
+       JOIN tenants t ON t.id = ce.tenant_id
+       WHERE ce.tenant_id = ANY($1)
+         AND (ce.tenant_id = $2 OR t.status != 'archived')`,
+      [allIds, tenantId],
     );
 
     // Group entries by tenant_id for ordered traversal

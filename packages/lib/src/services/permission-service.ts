@@ -208,6 +208,16 @@ export async function updatePermission(
       }
     }
 
+    // A PERMANENT policy cannot be deleted, so it must not be possible to
+    // switch it to a deletable revocation mode either.
+    if (
+      current.revocation_mode === RevocationMode.PERMANENT &&
+      input.revocation_mode !== undefined &&
+      input.revocation_mode !== RevocationMode.PERMANENT
+    ) {
+      throw new PermissionRevocationDeniedError(current.key);
+    }
+
     const sets: string[] = [];
     const values: unknown[] = [];
     let idx = 1;
@@ -277,11 +287,13 @@ export async function deletePermission(
         );
         const descendantIds = descendantsRes.rows.map((r) => r.id);
 
+        // A descendant's own PERMANENT policy on the same key is not
+        // revocable, so the cascade leaves it in place.
         if (descendantIds.length > 0) {
           await client.query(
             `DELETE FROM permission_policies
-             WHERE tenant_id = ANY($1) AND key = $2`,
-            [descendantIds, policy.key],
+             WHERE tenant_id = ANY($1) AND key = $2 AND revocation_mode != $3`,
+            [descendantIds, policy.key, RevocationMode.PERMANENT],
           );
         }
 
