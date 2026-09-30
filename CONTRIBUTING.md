@@ -34,7 +34,9 @@ Tests use [Vitest](https://vitest.dev/). Integration tests in `packages/integrat
 
 ## The Verification Gate
 
-`npm run verify` runs the four checks CI runs, in order:
+`npm run verify` runs four of the five checks CI runs, in order. CI also
+runs a secret scan, which `verify` does not include; run `npm run lint:secrets`
+for it.
 
 ```bash
 npm run verify   # lint, then typecheck, then test, then build
@@ -42,11 +44,12 @@ npm run verify   # lint, then typecheck, then test, then build
 
 It stops at the first failure and exits non-zero. The order is deliberate:
 lint needs no build and finishes in a couple of seconds, so the cheapest and
-most common failures surface first. A full cold run of all four stages takes
-roughly 25 seconds; repeat runs are near instant because Turbo caches them.
+most common failures surface first. Repeat runs are near instant because Turbo
+caches them.
 
 `npm install` points `core.hooksPath` at `.githooks/`, which installs a
-**pre-push hook** that runs `npm run verify` and blocks the push if it fails.
+**pre-push hook** that scans the pushed commits for secrets, then runs
+`npm run verify`, and blocks the push if either fails.
 This happens automatically on a fresh clone, so there is no setup step.
 
 If you need to push despite a failure, for example when the failure is

@@ -121,7 +121,7 @@ ALTER TABLE orders FORCE ROW LEVEL SECURITY;
 
 -- RLS policy: only show rows matching the session tenant
 CREATE POLICY tenant_isolation ON orders
-  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+  USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 
 -- Index for performance
 CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);

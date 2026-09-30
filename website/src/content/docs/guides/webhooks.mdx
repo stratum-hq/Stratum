@@ -206,6 +206,7 @@ Webhook URLs are validated to prevent Server-Side Request Forgery:
 - DNS rebinding attacks are mitigated by resolving the hostname at delivery time
 
 <Aside type="note">
-  In development mode (`NODE_ENV=development`), `localhost` and private IPs are
-  allowed for local testing.
+  These checks apply in every environment, including `NODE_ENV=development`.
+  Stratum rejects a `localhost` or private-IP webhook URL. To receive deliveries on a
+  local machine, expose the receiver at a public URL.
 </Aside>
