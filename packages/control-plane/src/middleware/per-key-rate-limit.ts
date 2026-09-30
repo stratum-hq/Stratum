@@ -22,7 +22,7 @@ interface RateLimitEntry {
 const keyLimits = new Map<string, RateLimitEntry>();
 
 /** Parse a duration string like "1 minute", "30 seconds", "1 hour" into milliseconds. */
-function parseWindow(window: string): number {
+export function parseWindow(window: string): number {
   const match = window.match(/^(\d+)\s*(second|minute|hour|day)s?$/i);
   if (!match) return 60_000; // default 1 minute
   const value = parseInt(match[1], 10);

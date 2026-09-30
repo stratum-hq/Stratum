@@ -7,6 +7,7 @@ import {
   PaginationSchema,
   IsolationStrategyUnsupportedError,
   isSupportedIsolationStrategy,
+  getAncestorIds,
 } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import {
@@ -131,6 +132,19 @@ export function createTenantRoutes(stratum: Stratum) {
     // GET /api/v1/tenants/:id/ancestors — Get ancestors
     app.get<{ Params: { id: string } }>("/:id/ancestors", async (request, reply) => {
       const ancestors = await stratum.getAncestors(request.params.id);
+      // A tenant-scoped caller gets full rows only for ancestors inside its own
+      // subtree; for those above it, only identifying fields.
+      const scopedTenantId = request.apiKey?.tenant_id;
+      if (scopedTenantId) {
+        reply.status(200).send(
+          ancestors.map((a) =>
+            a.id === scopedTenantId || getAncestorIds(a.ancestry_path).includes(scopedTenantId)
+              ? a
+              : { id: a.id, parent_id: a.parent_id, name: a.name, slug: a.slug, depth: a.depth },
+          ),
+        );
+        return;
+      }
       reply.status(200).send(ancestors);
     });
 

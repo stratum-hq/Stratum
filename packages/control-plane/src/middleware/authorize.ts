@@ -26,16 +26,23 @@ const ADMIN_ROUTES = [
   /^\/api\/v1\/tenants\/[^/]+\/context$/,
 ];
 
-function getRequiredScope(method: string, url: string): ScopeRequirement {
-  // Match on the request path. Take everything before the first "?" so the
-  // route match is evaluated on the normalized path alone.
-  const path = url.split("?", 1)[0];
+// Route patterns whose mutations require admin scope. Managing roles changes
+// the scopes that API keys resolve to, so it is an admin operation.
+const ADMIN_MUTATION_ROUTES = [
+  /^\/api\/v1\/roles/,
+];
+
+function getRequiredScope(method: string, path: string): ScopeRequirement {
   for (const pattern of ADMIN_ROUTES) {
     if (pattern.test(path)) {
       return "admin";
     }
   }
-  return methodToScope(method);
+  const scope = methodToScope(method);
+  if (scope === "write" && ADMIN_MUTATION_ROUTES.some((pattern) => pattern.test(path))) {
+    return "admin";
+  }
+  return scope;
 }
 
 export function createAuthorizeMiddleware() {
@@ -57,7 +64,11 @@ export function createAuthorizeMiddleware() {
       throw new UnauthorizedError("Authentication required");
     }
 
-    const requiredScope = getRequiredScope(request.method, request.url);
+    // Decide the scope from the route pattern that was matched (for example
+    // "/api/v1/tenants/:id/purge"), so it is a property of the route rather than
+    // of the request URL. With no matched route there is no handler to reach.
+    const routePath = request.routeOptions?.url ?? request.url.split("?", 1)[0];
+    const requiredScope = getRequiredScope(request.method, routePath);
     const scopes = request.apiKey.scopes ?? ["read"];
 
     // Hierarchical scopes: admin implies write implies read. A granted scope
