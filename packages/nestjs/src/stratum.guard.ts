@@ -1,7 +1,7 @@
 import { Inject, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import type { StratumClient } from "@stratum-hq/sdk";
-import { resolveFromHeader, resolveFromJwt } from "@stratum-hq/sdk";
+import { assertJwtSupport, resolveTenantId } from "@stratum-hq/sdk";
 import { TenantNotFoundError } from "@stratum-hq/core";
 import { STRATUM_CLIENT, STRATUM_OPTIONS } from "./constants.js";
 import type { StratumModuleOptions } from "./stratum.module.js";
@@ -11,7 +11,9 @@ export class StratumGuard implements CanActivate {
   constructor(
     @Inject(STRATUM_CLIENT) private readonly client: StratumClient,
     @Inject(STRATUM_OPTIONS) private readonly options: StratumModuleOptions,
-  ) {}
+  ) {
+    assertJwtSupport(options);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Record<string, unknown> & {
@@ -22,33 +24,20 @@ export class StratumGuard implements CanActivate {
     }>();
 
     // 1. Resolve tenant ID: JWT (verified) → header → custom resolvers.
-    //    The verified JWT is authoritative; the header is only a fallback when
-    //    no JWT tenant is present, so it can never override a verified identity.
+    //    When JWT verification is configured, a token that fails verification
+    //    is rejected, and the header is only read if trustTenantHeader is set.
     //    Order mirrors express.ts.
-    let tenantId: string | null = null;
+    const resolution = await resolveTenantId(req, this.options);
 
-    tenantId = resolveFromJwt(req, this.options.jwtClaimPath, {
-      secret: this.options.jwtSecret,
-      verify: this.options.jwtVerify,
-    });
-
-    if (!tenantId) {
-      tenantId = resolveFromHeader(req);
+    if (resolution.status === "invalid_token") {
+      throw new UnauthorizedException("Bearer token could not be verified");
     }
 
-    if (!tenantId && this.options.resolvers) {
-      for (const resolver of this.options.resolvers) {
-        const result = await resolver.resolve(req);
-        if (result) {
-          tenantId = result;
-          break;
-        }
-      }
-    }
-
-    if (!tenantId) {
+    if (resolution.status === "missing") {
       throw new UnauthorizedException("Tenant ID could not be resolved from request");
     }
+
+    const tenantId = resolution.tenantId;
 
     // 2. Resolve caller tenant context
     let callerContext;
