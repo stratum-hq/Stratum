@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { withClient } from "./pool-helpers.js";
 
 export interface MigrateSchemasOptions {
   pool: pg.Pool;
@@ -25,9 +26,12 @@ export async function migrateAllSchemas(
 ): Promise<MigrateSchemasResult> {
   const { pool, concurrency = 5, onProgress, enforceRls } = options;
 
-  // Discover tenant schemas
-  const { rows } = await pool.query<{ slug: string }>(
-    `SELECT slug FROM tenants WHERE isolation_strategy = 'SCHEMA_PER_TENANT' AND (deleted_at IS NULL) ORDER BY slug`,
+  // Discover tenant schemas. The tenants registry is under FORCE RLS, so
+  // discovery runs under the control-plane bypass like every other lib read.
+  const { rows } = await withClient(pool, (client) =>
+    client.query<{ slug: string }>(
+      `SELECT slug FROM tenants WHERE isolation_strategy = 'SCHEMA_PER_TENANT' AND (deleted_at IS NULL) ORDER BY slug`,
+    ),
   );
 
   const schemas = rows.map((r) => `tenant_${r.slug}`);

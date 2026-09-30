@@ -13,10 +13,14 @@ vi.mock("node:fs", () => ({
   },
 }));
 
-function createMockClient() {
+function createMockClient(schemas: string[] = []) {
   const applied = new Set<string>();
   return {
     query: vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
+      // Tenant schema discovery (runs through withClient)
+      if (typeof sql === "string" && sql.includes("SELECT slug FROM tenants")) {
+        return Promise.resolve({ rows: schemas.map((s) => ({ slug: s })) });
+      }
       // Track SET search_path calls
       if (typeof sql === "string" && sql.includes("search_path")) {
         return Promise.resolve({ rows: [] });
@@ -61,7 +65,7 @@ function createMockPool(schemas: string[], opts?: { failSchema?: string }) {
       return Promise.resolve({ rows: [] });
     }),
     connect: vi.fn().mockImplementation(() => {
-      const client = createMockClient();
+      const client = createMockClient(schemas);
 
       if (opts?.failSchema) {
         const origQuery = client.query;
@@ -101,12 +105,18 @@ beforeEach(() => {
 });
 
 describe("migrateAllSchemas", () => {
-  it("discovers schemas from tenants table", async () => {
+  it("discovers schemas from tenants table under the RLS bypass", async () => {
     const pool = createMockPool(["acme", "globex"]);
     await migrateAllSchemas({ pool });
-    expect(pool.query).toHaveBeenCalledWith(
-      expect.stringContaining("SELECT slug FROM tenants"),
+    const discovery = pool._clients.find((c: ReturnType<typeof createMockClient>) =>
+      c.query.mock.calls.some((call: unknown[]) => String(call[0]).includes("SELECT slug FROM tenants")),
     );
+    expect(discovery).toBeDefined();
+    const sqls = discovery!.query.mock.calls.map((call: unknown[]) => String(call[0]));
+    const bypassAt = sqls.findIndex((q: string) => q.includes("app.bypass_rls = 'on'"));
+    const selectAt = sqls.findIndex((q: string) => q.includes("SELECT slug FROM tenants"));
+    expect(bypassAt).toBeGreaterThanOrEqual(0);
+    expect(bypassAt).toBeLessThan(selectAt);
   });
 
   it("runs migrations per schema with correct search_path", async () => {
@@ -132,7 +142,7 @@ describe("migrateAllSchemas", () => {
     const pool = createMockPool(["acme", "badco"]);
     // Override connect to fail for badco's migration
     pool.connect = vi.fn().mockImplementation(() => {
-      const client = createMockClient();
+      const client = createMockClient(["acme", "badco"]);
 
       // Make every other set of clients fail for badco
       const origQuery = client.query;
@@ -189,7 +199,7 @@ describe("migrateAllSchemas", () => {
     // Create pool with a client that reports migrations as already applied
     const pool = createMockPool(["acme"]);
     pool.connect = vi.fn().mockImplementation(() => {
-      const client = createMockClient();
+      const client = createMockClient(["acme"]);
       // Override: all migrations already applied
       const origQuery = client.query;
       client.query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
