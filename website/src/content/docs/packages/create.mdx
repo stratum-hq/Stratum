@@ -64,11 +64,14 @@ cd my-app
 # Start the database
 docker compose up -d
 
+# Create the env file that npm run dev reads
+cp .env.example .env
+
 # Run the app
 npm run dev
 ```
 
-The generated project uses `autoMigrate: true`, so Stratum creates its tables automatically on first run -- no separate migration step needed.
+The generated starter code does not create a `Stratum` instance, so it does not create Stratum's tables. To create them, construct `Stratum` with `autoMigrate: true` and call `initialize()` once at startup.
 
 ## What Gets Generated
 
@@ -76,10 +79,10 @@ The generated project uses `autoMigrate: true`, so Stratum creates its tables au
 my-app/
   package.json          # Dependencies + scripts
   docker-compose.yml    # PostgreSQL 16 with extensions
-  docker/
-    init.sql            # CREATE EXTENSION uuid-ossp, ltree
+  init.sql              # CREATE EXTENSION uuid-ossp, ltree
   .env.example          # DATABASE_URL, JWT_SECRET
+  tsconfig.json         # Compiles src/ to dist/ (express and fastify)
   src/
-    server.ts           # Framework-specific starter with Stratum
+    index.ts            # Framework-specific starter with Stratum
   README.md             # Getting started instructions
 ```

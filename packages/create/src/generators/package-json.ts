@@ -1,16 +1,24 @@
 import type { StackPreset } from "../matrix.js";
+import { rootSources } from "./tsconfig.js";
+import { STRATUM_RANGES } from "../stratum-versions.js";
 
 export function generatePresetPackageJson(projectName: string, preset: StackPreset): string {
   const deps: Record<string, string> = {
-    "@stratum-hq/lib": "^0.2.0",
+    "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
   };
   const devDeps: Record<string, string> = {
     typescript: "^5.3.0",
     "@types/node": "^20.11.0",
   };
+  // NestJS injection needs the decorator metadata that tsc emits and tsx does not.
+  if (preset.framework === "nestjs") {
+    devDeps["tsc-watch"] = "^7.2.0";
+  } else if (preset.framework !== "nextjs") {
+    devDeps["tsx"] = "^4.7.0";
+  }
 
   // Database driver deps
-  addDatabaseDeps(deps, preset);
+  addDatabaseDeps(deps, devDeps, preset);
 
   // ORM deps
   addOrmDeps(deps, devDeps, preset);
@@ -41,9 +49,14 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
   );
 }
 
-function addDatabaseDeps(deps: Record<string, string>, preset: StackPreset): void {
+function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, string>, preset: StackPreset): void {
   switch (preset.database) {
     case "postgres":
+      // The generated code for these ORMs imports pg itself. The strict tsc
+      // build fails with TS7016 when the pg types are not installed.
+      if (preset.orm === "pg" || preset.orm === "prisma" || preset.orm === "drizzle") {
+        devDeps["@types/pg"] = "^8.11.0";
+      }
       if (preset.orm !== "prisma" && preset.orm !== "drizzle" && preset.orm !== "sequelize") {
         deps["pg"] = "^8.11.0";
       }
@@ -139,19 +152,19 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
 
 function addStratumDeps(deps: Record<string, string>, preset: StackPreset): void {
   if (preset.database === "postgres" && preset.orm !== "mongoose") {
-    deps["@stratum-hq/db-adapters"] = "^0.2.0";
+    deps["@stratum-hq/db-adapters"] = STRATUM_RANGES["@stratum-hq/db-adapters"];
   }
   if (preset.database === "mongodb") {
-    deps["@stratum-hq/mongodb"] = "^0.2.0";
+    deps["@stratum-hq/mongodb"] = STRATUM_RANGES["@stratum-hq/mongodb"];
   }
   if (preset.database === "mysql") {
-    deps["@stratum-hq/mysql"] = "^0.2.0";
+    deps["@stratum-hq/mysql"] = STRATUM_RANGES["@stratum-hq/mysql"];
   }
   if (preset.framework === "hono") {
-    deps["@stratum-hq/hono"] = "^0.2.0";
+    deps["@stratum-hq/hono"] = STRATUM_RANGES["@stratum-hq/hono"];
   }
   if (preset.framework === "nestjs") {
-    deps["@stratum-hq/nestjs"] = "^0.2.0";
+    deps["@stratum-hq/nestjs"] = STRATUM_RANGES["@stratum-hq/nestjs"];
   }
 }
 
@@ -159,10 +172,16 @@ function getScripts(preset: StackPreset): Record<string, string> {
   if (preset.framework === "nextjs") {
     return { dev: "next dev", build: "next build", start: "next start" };
   }
-  if (preset.framework === "nestjs") {
-    return { dev: "node --watch src/main.ts", build: "tsc", start: "node dist/main.js" };
-  }
-  return { dev: "node --watch src/index.js", build: "tsc", start: "node dist/index.js" };
+  const entry = preset.framework === "nestjs" ? "main" : "index";
+  // When tsc compiles from the project root, src/ is emitted to dist/src/.
+  const emittedDir = rootSources(preset).length > 0 ? "dist/src" : "dist";
+  // Node 20 cannot run a .ts file. NestJS compiles with tsc, which keeps the
+  // decorator metadata its injection needs; the other frameworks run through tsx.
+  const dev =
+    preset.framework === "nestjs"
+      ? `tsc-watch --onSuccess "node --env-file=.env ${emittedDir}/${entry}.js"`
+      : `tsx watch --env-file=.env src/${entry}.ts`;
+  return { dev, build: "tsc", start: `node ${emittedDir}/${entry}.js` };
 }
 
 function sortKeys(obj: Record<string, string>): Record<string, string> {

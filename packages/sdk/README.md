@@ -63,6 +63,15 @@ JWT resolution activates only when `jwtSecret` or `jwtVerify` is provided; other
 
 `headerName` replaces the default `X-Tenant-ID` header: when it is set, only that header is read.
 
+## Archive or purge a tenant
+
+`archiveTenant` and `purgeTenant` do different things. Choose the correct one before you call it.
+
+- `archiveTenant(id)` is a soft delete. The tenant row and its data stay in the database, and the archive is reversible.
+- `purgeTenant(id)` permanently deletes the tenant and its data (GDPR Article 17). You cannot undo a purge. The API key must have the `admin` scope, and the tenant must have no children. For a tenant with its own schema or database, the control plane also drops that schema or database. Rows in your own tables that share a database with other tenants stay: delete them yourself.
+
+`deleteTenant(id)` is deprecated. It sends the same request as `archiveTenant`, so it does not remove data.
+
 ## Error Handling
 
 The SDK throws typed errors from `@stratum-hq/core`:

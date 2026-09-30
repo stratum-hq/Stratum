@@ -483,6 +483,22 @@ describe("StratumClient", () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
     });
 
+    it("purgeTenant invalidates the cache for that tenant", async () => {
+      const client = makeClient({ cache: { enabled: true } });
+      const ctx = makeResolvedTenantContext("t-purge");
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(mockFetchResponse(ctx))
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204))
+        .mockResolvedValueOnce(mockFetchResponse(ctx));
+
+      await client.resolveTenant("t-purge");
+      await client.purgeTenant("t-purge");
+      await client.resolveTenant("t-purge");
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    });
+
     it("invalidateCache manually removes a cached entry", async () => {
       const client = makeClient({ cache: { enabled: true } });
       const ctx = makeResolvedTenantContext("t-manual");
@@ -526,6 +542,67 @@ describe("StratumClient", () => {
   // -----------------------------------------------------------------------
   // URL normalization
   // -----------------------------------------------------------------------
+
+  // The request shape is the contract with the control plane. These tests do
+  // not assert an error class, because the error mapping belongs to #334.
+  describe("tenant removal requests", () => {
+    it("purgeTenant sends POST to the purge route with the encoded id", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await expect(client.purgeTenant("a/b c")).resolves.toBeUndefined();
+
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      const [url, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect(url).toBe(`${CONTROL_PLANE_URL}/api/v1/tenants/a%2Fb%20c/purge`);
+      expect(init.method).toBe("POST");
+      expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
+    });
+
+    // Fastify rejects a request that has the JSON content type and no body
+    // (FST_ERR_CTP_EMPTY_JSON_BODY), and the client always sends that content type.
+    it("purgeTenant sends a JSON body so that the control plane accepts the request", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await client.purgeTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+      expect(JSON.parse(init.body as string)).toEqual({});
+    });
+
+    it("purgeTenant rejects an id that is a dot segment before it sends a request", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+
+      await expect(client.purgeTenant("..")).rejects.toThrow("Invalid identifier");
+
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it("deleteTenant sends the same archive request as archiveTenant", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204))
+        .mockResolvedValueOnce(mockFetchResponse(undefined, 204));
+
+      await client.archiveTenant("t-1");
+      await client.deleteTenant("t-1");
+
+      const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls as Array<[string, RequestInit]>;
+      expect(calls[0][0]).toBe(`${CONTROL_PLANE_URL}/api/v1/tenants/t-1`);
+      expect(calls[0][1].method).toBe("DELETE");
+      expect(calls[1][0]).toBe(calls[0][0]);
+      expect(calls[1][1].method).toBe(calls[0][1].method);
+    });
+  });
 
   describe("URL handling", () => {
     it("strips trailing slash from controlPlaneUrl", async () => {

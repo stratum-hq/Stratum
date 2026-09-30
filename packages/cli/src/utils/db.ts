@@ -1,4 +1,5 @@
 import pg from "pg";
+import { STRATUM_TABLES } from "@stratum-hq/lib";
 
 export function getConnectionString(flags: Record<string, string | boolean>): string {
   const explicit = flags["database-url"] || flags["d"];
@@ -59,6 +60,12 @@ export interface TableInfo {
   has_policy: boolean;
 }
 
+/**
+ * Returns the application tables in the `public` schema with their isolation state.
+ * Stratum's own tables are left out: Stratum manages their isolation, and some
+ * of them have no `tenant_id` column by design. The list comes from
+ * `@stratum-hq/lib`, so it follows the migrations that lib ships.
+ */
 export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
   const result = await pool.query(`
     SELECT
@@ -80,11 +87,7 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
     FROM pg_tables t
     JOIN pg_class pc ON pc.relname = t.tablename AND pc.relnamespace = 'public'::regnamespace
     WHERE t.schemaname = 'public'
-      AND t.tablename NOT IN (
-        'tenants', 'config_entries', 'permission_policies', 'api_keys',
-        'audit_log', 'audit_logs', 'webhooks', 'webhook_deliveries', 'webhook_events',
-        'consent_records', 'regions', 'roles', '_migrations'
-      )
+      AND NOT (t.tablename = ANY($1::text[]))
       AND t.tablename NOT LIKE 'pg_%'
       -- The doubled backslash matters: this is a JS template literal, so a single
       -- backslash is swallowed and Postgres would see a bare underscore, which is
@@ -92,7 +95,7 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
       -- sends an escaped underscore so only literal-underscore names are skipped.
       AND t.tablename NOT LIKE '\\_%'
     ORDER BY t.tablename;
-  `);
+  `, [STRATUM_TABLES]);
 
   return result.rows;
 }

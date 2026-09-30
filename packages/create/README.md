@@ -37,10 +37,11 @@ npx @stratum-hq/create my-app [options]
 ```bash
 cd my-app
 docker compose up -d   # start PostgreSQL
+cp .env.example .env   # npm run dev reads .env
 npm run dev            # run the app
 ```
 
-The generated project uses `autoMigrate: true`, so Stratum creates its tables automatically on first run — no separate migration step.
+The generated starter code does not create a `Stratum` instance, so it does not create Stratum's tables. To create them, construct `Stratum` with `autoMigrate: true` and call `initialize()` once at startup.
 
 ## Links
 
