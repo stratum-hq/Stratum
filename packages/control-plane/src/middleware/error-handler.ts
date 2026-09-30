@@ -1,7 +1,20 @@
 import { FastifyRequest, FastifyReply, FastifyError } from "fastify";
-import { ZodError } from "zod";
+import type { ZodError } from "zod";
 import { StratumError } from "@stratum-hq/core";
 import { config } from "../config.js";
+
+/**
+ * Returns true when the error has the shape of a ZodError.
+ * The check is structural because a process can load more than one copy of zod.
+ * An instanceof check fails for an error from a copy other than this one.
+ */
+function isZodError(error: unknown): error is ZodError {
+  return (
+    error instanceof Error &&
+    error.name === "ZodError" &&
+    Array.isArray((error as { issues?: unknown }).issues)
+  );
+}
 
 export function errorHandler(
   error: FastifyError | Error,
@@ -17,7 +30,7 @@ export function errorHandler(
     return;
   }
 
-  if (error instanceof ZodError) {
+  if (isZodError(error)) {
     reply.status(400).send({
       error: {
         code: "VALIDATION_ERROR",

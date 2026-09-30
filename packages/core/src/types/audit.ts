@@ -62,7 +62,13 @@ export const RecordAuditEventInputSchema = z.object({
   before: z.record(z.unknown()).nullable().optional(),
   after: z.record(z.unknown()).nullable().optional(),
   metadata: z.record(z.unknown()).default({}),
-  sourceIp: z.string().nullable().optional(),
+  // audit_logs.source_ip is INET. INET rejects an IPv6 zone index ("%eth0"), and zod accepts one.
+  sourceIp: z
+    .string()
+    .ip()
+    .refine((ip) => !ip.includes("%"), "IPv6 zone index is not supported")
+    .nullable()
+    .optional(),
   occurredAt: z
     .union([
       z.string().datetime({ offset: true }).refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE),

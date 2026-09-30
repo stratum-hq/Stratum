@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient } from "../pool-helpers.js";
+import { parseInput } from "../validation.js";
 import { RecordAuditEventInputSchema } from "@stratum-hq/core";
 import type {
   AuditContext,
@@ -57,7 +58,7 @@ export async function recordAuditEvent(
   pool: pg.Pool,
   input: RecordAuditEventInput,
 ): Promise<AuditEntry> {
-  const parsed = RecordAuditEventInputSchema.parse(input);
+  const parsed = parseInput(RecordAuditEventInputSchema, input);
   const context: AuditContext = {
     actor_id: parsed.actorId,
     actor_type: parsed.actorType,

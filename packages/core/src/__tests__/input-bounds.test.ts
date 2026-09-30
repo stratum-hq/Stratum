@@ -135,4 +135,8 @@ describe("sourceIp stored in the audit_logs INET column", () => {
     expect(RecordAuditEventInputSchema.safeParse(auditEvent("")).success).toBe(false);
     expect(RecordAuditEventInputSchema.safeParse(auditEvent("999.0.0.1")).success).toBe(false);
   });
+
+  it("rejects an IPv6 zone index, which INET does not store", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("fe80::1%eth0")).success).toBe(false);
+  });
 });
