@@ -18,6 +18,12 @@ export type TenantScopeDeclaration = TenantIdExtractor | "global" | "operator";
 declare module "fastify" {
   interface FastifyContextConfig {
     tenantScope?: TenantScopeDeclaration;
+    /**
+     * Also accept a pending target in the tenant-scope check. A tenant whose
+     * storage provisioning failed stays pending. The key that created it must
+     * be able to remove it. Archived and suspended targets stay refused.
+     */
+    tenantScopeIncludesPending?: boolean;
   }
 }
 
@@ -31,11 +37,15 @@ declare module "fastify" {
  *
  * Exported for routes whose target tenant is not present in the request and
  * must be resolved first (for example a role's owning tenant, looked up by id).
+ *
+ * @param includePending - also accept a pending target. An active target is
+ *   always accepted. Archived and suspended targets are always refused.
  */
 export async function assertTenantInScope(
   stratum: Stratum,
   request: FastifyRequest,
   tenantId: string | null,
+  includePending = false,
 ): Promise<void> {
   const apiKey = request.apiKey;
   if (!apiKey) return;
@@ -55,9 +65,13 @@ export async function assertTenantInScope(
 
   // Hierarchy check: target must be a descendant of the key's tenant
   try {
-    const target = await stratum.getTenant(tenantId);
+    // With includeArchived set, getTenant returns a row of any status, so the
+    // status check below decides which non-active targets pass.
+    const target = await stratum.getTenant(tenantId, includePending);
+    const statusAllowed =
+      target.status === "active" || (includePending && target.status === "pending");
     const ancestorIds = target.ancestry_path.split("/").filter(Boolean);
-    if (ancestorIds.includes(apiKey.tenant_id)) return;
+    if (statusAllowed && ancestorIds.includes(apiKey.tenant_id)) return;
   } catch {
     // Tenant not found: fail closed for scoped keys
     throw new ForbiddenError(
@@ -89,8 +103,9 @@ async function checkTenantScope(
   stratum: Stratum,
   request: FastifyRequest,
   extractTenantId: TenantIdExtractor,
+  includePending = false,
 ): Promise<void> {
-  await assertTenantInScope(stratum, request, extractTenantId(request));
+  await assertTenantInScope(stratum, request, extractTenantId(request), includePending);
 }
 
 /**
@@ -231,7 +246,8 @@ export function createTenantScopeEnforcer(stratum: Stratum) {
       return;
     }
 
-    await checkTenantScope(stratum, request, declaration);
+    const includePending = request.routeOptions?.config?.tenantScopeIncludesPending === true;
+    await checkTenantScope(stratum, request, declaration, includePending);
   };
 }
 

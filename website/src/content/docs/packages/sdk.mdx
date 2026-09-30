@@ -87,7 +87,7 @@ A purge has these conditions and effects:
 - The tenant must have no children, of any status.
 - The control plane deletes the tenant row and the tenant's records in the Stratum tables: config, permissions, API keys, roles, webhooks, consent records and audit logs.
 - For a tenant with its own schema or database, the control plane also drops that schema or database.
-- For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed.
+- For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed. A tenant-scoped key can purge a pending tenant in its own subtree.
 - Rows in your own tables that share a database with other tenants stay. Delete them yourself.
 
 ```typescript

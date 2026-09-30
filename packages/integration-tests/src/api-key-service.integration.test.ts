@@ -25,20 +25,6 @@ function hmacSha256(input: string, secret: string): string {
   return crypto.createHmac("sha256", secret).update(input).digest("hex");
 }
 
-/** Poll until fn() returns truthy, for fire-and-forget writes the service does not await. */
-async function waitFor<T>(
-  fn: () => Promise<T>,
-  tries = 40,
-  delayMs = 25,
-): Promise<T> {
-  let last: T = await fn();
-  for (let i = 0; i < tries && !last; i++) {
-    await new Promise((r) => setTimeout(r, delayMs));
-    last = await fn();
-  }
-  return last;
-}
-
 async function rawKeyRow(id: string): Promise<{
   key_hash: string;
   key_prefix: string | null;
@@ -189,17 +175,14 @@ describe("API key service (integration)", () => {
       expect(await stratum.validateApiKey(future.plaintext_key)).not.toBeNull();
     });
 
-    it("stamps last_used_at on a successful validation", async () => {
+    it("stamps last_used_at before validateApiKey resolves", async () => {
       const tenant = await makeTenant("apikey_lastused");
       const created = await stratum.createApiKey(tenant.id, "k");
       expect((await rawKeyRow(created.id)).last_used_at).toBeNull();
 
       await stratum.validateApiKey(created.plaintext_key);
-      // The update is fire-and-forget; poll for it.
-      const stamped = await waitFor(
-        async () => (await rawKeyRow(created.id)).last_used_at,
-      );
-      expect(stamped).not.toBeNull();
+      // No polling: the stamp must already be visible to the next query.
+      expect((await rawKeyRow(created.id)).last_used_at).not.toBeNull();
     });
 
     it("returns the scopes column verbatim, including admin", async () => {
@@ -243,12 +226,9 @@ describe("API key service (integration)", () => {
       expect(result).not.toBeNull();
       expect(result!.key_id).toBe(created.id);
 
-      const version = await waitFor(async () => {
-        const row = await rawKeyRow(created.id);
-        return row.hash_version === 2 ? row.hash_version : 0;
-      });
-      expect(version).toBe(2);
+      // No polling: the upgrade must already be visible to the next query.
       const upgraded = await rawKeyRow(created.id);
+      expect(upgraded.hash_version).toBe(2);
       expect(upgraded.key_hash).toBe(
         hmacSha256(created.plaintext_key, "upgrade-secret"),
       );

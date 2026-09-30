@@ -164,6 +164,7 @@ stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
 ```
 
+- `validateApiKey(key)` -- on success, sets the key's `last_used_at` before the promise resolves, so `listDormantKeys` called next does not report the key. A failure of that update does not fail the validation.
 - `getApiKey(id)` -- look up a single API key by id, including its owning tenant; returns `null` when no key has that id. The primitive for authorizing an operation that targets a key by id whose owning tenant is not otherwise in the request.
 
 ### Webhooks

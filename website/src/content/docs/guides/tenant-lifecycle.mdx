@@ -110,7 +110,16 @@ If provisioning fails, the control plane returns `TENANT_PROVISIONING_FAILED`
 with the tenant id and leaves the tenant `pending`. To retry, purge that tenant
 and create it again. Purging a tenant that is still `pending` removes only its
 rows and never drops a schema or database, because its storage was never
-confirmed as its own.
+confirmed as its own. A tenant-scoped API key with the `admin` scope can purge a
+`pending` tenant in its own subtree. You do not need an operator key for it.
+
+If provisioning succeeds but activation fails, the control plane drops the
+schema or database it just created. It then returns `TENANT_PROVISIONING_FAILED`
+with `details.stage` set to `"activation"`, and leaves the tenant `pending`.
+Purge the tenant and create it again, as above. If `details.storage_removed` is
+`false`, the drop also failed: drop that schema or database by hand before you
+create the tenant again. For a failure during provisioning, `details.stage` is
+`"provisioning"`.
 
 <Aside type="caution">
 Blocking is the deliberate, safe default: no operation ever silently changes the
@@ -135,6 +144,6 @@ await stratum.resumeTenant(child.id); // ok
 ## Webhook events
 
 Each lifecycle transition emits an event you can subscribe a webhook to:
-`tenant.suspended`, `tenant.resumed`, `tenant.archived`, and `tenant.purged`
+`tenant.activated`, `tenant.suspended`, `tenant.resumed`, `tenant.archived`, and `tenant.purged`
 (plus `tenant.deleted` from the `deleteTenant` alias). See
 [Webhooks](/guides/webhooks/).
