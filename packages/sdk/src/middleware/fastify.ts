@@ -1,10 +1,10 @@
-import { TenantNotFoundError } from "@stratum-hq/core";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
 import { assertJwtSupport } from "../resolvers/jwt.js";
 import { resolveTenantId } from "../resolvers/resolve.js";
+import { tenantErrorResponse } from "./tenant-errors.js";
 
 // Minimal structural types for the Fastify surface this plugin touches, so the
 // SDK does not take a hard dependency on `fastify` types in its published API.
@@ -62,8 +62,9 @@ export function fastifyPlugin(
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
-        if (err instanceof TenantNotFoundError) {
-          reply.status(404).send({ error: { code: "TENANT_NOT_FOUND", message: `Tenant not found: ${tenantId}` } });
+        const response = tenantErrorResponse(err, tenantId);
+        if (response) {
+          reply.status(response.status).send(response.body);
           return;
         }
         if (middlewareOptions.onError && err instanceof Error) {
@@ -92,7 +93,17 @@ export function fastifyPlugin(
             return;
           }
 
-          const impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          let impersonatedContext: ResolvedTenantContext;
+          try {
+            impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          } catch (err) {
+            const response = tenantErrorResponse(err, impersonateTenantId);
+            if (response) {
+              reply.status(response.status).send(response.body);
+              return;
+            }
+            throw err;
+          }
           request.tenant = impersonatedContext;
           request.impersonating = true;
           request.originalTenantId = tenantId;

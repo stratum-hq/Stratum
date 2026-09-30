@@ -45,6 +45,7 @@ const client = new StratumClient({
     ttlMs: 60000,     // default: 60 seconds
     maxSize: 100,     // default: 100 entries
   },
+  timeoutMs: 10000,   // default: 10 seconds per control plane request
 });
 ```
 
@@ -260,7 +261,12 @@ const client = new StratumClient({
 The SDK throws typed errors from `@stratum-hq/core`:
 
 ```typescript
-import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+import {
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+  UnauthorizedError,
+} from "@stratum-hq/core";
 
 try {
   await client.resolveTenant("bad-id");
@@ -268,8 +274,23 @@ try {
   if (err instanceof TenantNotFoundError) {
     // Tenant doesn't exist
   }
+  if (err instanceof TenantSuspendedError || err instanceof TenantArchivedError) {
+    // Tenant exists but is not active
+  }
   if (err instanceof UnauthorizedError) {
     // Invalid API key
   }
 }
 ```
+
+| Control plane response | Error |
+|---|---|
+| 401 | `UnauthorizedError` |
+| 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
+| 403, any other code | `ForbiddenError` |
+| 404 | `TenantNotFoundError` |
+| 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
+
+The Express and Fastify middleware answer these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target. Other errors go to your framework's error handler.
+
+A control plane request that takes longer than `timeoutMs` rejects with a `TimeoutError` `DOMException`.
