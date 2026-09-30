@@ -3,6 +3,7 @@ import * as path from "path";
 import crypto from "node:crypto";
 import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
+import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
 
 interface ProjectInfo {
   framework: string;
@@ -161,6 +162,10 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   if (info.hasReact) {
     packages.push("@stratum-hq/react");
   }
+  if (info.framework === "express" || info.framework === "fastify") {
+    // The generated middleware verifies the tenant JWT with jsonwebtoken.
+    packages.push("jsonwebtoken");
+  }
 
   log.info(`1. Install packages:`);
   log.dim(`   npm install ${packages.join(" ")}`);
@@ -190,7 +195,8 @@ function generateEnvFile(outDir: string, _info: ProjectInfo, force: boolean): vo
   void _info;
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
   const content = `# Stratum Configuration
-DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
+# Application role (NOSUPERUSER NOBYPASSRLS), so row-level security applies.
+DATABASE_URL=postgres://stratum_app:stratum_dev@localhost:5432/stratum
 JWT_SECRET=${jwtSecret}
 NODE_ENV=development
 
@@ -215,7 +221,7 @@ export const stratumConfig = {
   integration: "${info.integrationPath}" as const,
 
   // Database
-  databaseUrl: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+  databaseUrl: process.env.DATABASE_URL || "postgres://stratum_app:stratum_dev@localhost:5432/stratum",
 
   // Control plane (only needed for SDK integration)
   controlPlaneUrl: process.env.STRATUM_URL || "http://localhost:3001",
@@ -253,10 +259,16 @@ export const stratumClient = new StratumClient({
   cache: stratumConfig.cache,
 });
 
+// The tenant comes from the verified JWT. Without JWT_SECRET the middleware
+// would fall back to the client-supplied tenant header, so refuse to start.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+
 export const tenantMiddleware = expressMiddleware(stratumClient, {
   jwtClaimPath: stratumConfig.tenant.jwtClaimPath,
-  headerName: stratumConfig.tenant.headerName,
-  jwtSecret: process.env.JWT_SECRET,
+  jwtSecret,
 });
 
 // Usage in your app:
@@ -275,6 +287,7 @@ export const tenantMiddleware = expressMiddleware(stratumClient, {
 // Express middleware for Stratum tenant resolution (direct library)
 
 import { Pool } from "pg";
+import jwt from "jsonwebtoken";
 import { Stratum } from "@stratum-hq/lib";
 import type { Request, Response, NextFunction } from "express";
 import { stratumConfig } from "./stratum.config";
@@ -282,15 +295,34 @@ import { stratumConfig } from "./stratum.config";
 const pool = new Pool({ connectionString: stratumConfig.databaseUrl });
 export const stratum = new Stratum({ pool });
 
-// Simple tenant resolution middleware
-export function tenantMiddleware(req: Request, _res: Response, next: NextFunction): void {
-  // Extract tenant ID from header, JWT, or custom logic
-  const tenantId = req.headers["x-tenant-id"] as string | undefined;
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
 
-  if (tenantId) {
-    (req as any).tenantId = tenantId;
+/**
+ * Tenant ID from a verified bearer token, or null. Never read the tenant from
+ * a client-supplied header such as x-tenant-id: any caller can set one.
+ */
+function verifiedTenantId(authorization: string | undefined): string | null {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  try {
+    const claims = jwt.verify(authorization.slice(7), jwtSecret!, { algorithms: ["HS256"] });
+    const tenantId = typeof claims === "object" ? claims[stratumConfig.tenant.jwtClaimPath] : undefined;
+    return typeof tenantId === "string" ? tenantId : null;
+  } catch {
+    return null;
   }
+}
 
+// Tenant resolution middleware: rejects requests without a verified tenant.
+export function tenantMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const tenantId = verifiedTenantId(req.headers.authorization);
+  if (!tenantId) {
+    res.status(401).json({ error: "A valid bearer token with a tenant claim is required" });
+    return;
+  }
+  (req as any).tenantId = tenantId;
   next();
 }
 
@@ -331,15 +363,24 @@ export const stratumClient = new StratumClient({
   cache: stratumConfig.cache,
 });
 
+// The tenant comes from the verified JWT. Without JWT_SECRET the plugin would
+// fall back to the client-supplied tenant header, so refuse to start.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+
+export const stratumPluginOptions = {
+  client: stratumClient,
+  jwtClaimPath: stratumConfig.tenant.jwtClaimPath,
+  jwtSecret,
+};
+
 // Usage:
 // import { fastifyPlugin } from "@stratum-hq/sdk";
-// import { stratumClient } from "./stratum-plugin";
+// import { stratumPluginOptions } from "./stratum-plugin";
 //
-// app.register(fastifyPlugin, {
-//   client: stratumClient,
-//   jwtClaimPath: "tenant_id",
-//   jwtSecret: process.env.JWT_SECRET,
-// });
+// app.register(fastifyPlugin, stratumPluginOptions);
 //
 // app.get("/data", (request, reply) => {
 //   const { tenant_id, resolved_config } = request.tenant;
@@ -354,6 +395,7 @@ export { fastifyPlugin };
 // Fastify plugin for Stratum tenant resolution (direct library)
 
 import { Pool } from "pg";
+import jwt from "jsonwebtoken";
 import { Stratum } from "@stratum-hq/lib";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { stratumConfig } from "./stratum.config";
@@ -361,14 +403,36 @@ import { stratumConfig } from "./stratum.config";
 const pool = new Pool({ connectionString: stratumConfig.databaseUrl });
 export const stratum = new Stratum({ pool });
 
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+
+/**
+ * Tenant ID from a verified bearer token, or null. Never read the tenant from
+ * a client-supplied header such as x-tenant-id: any caller can set one.
+ */
+function verifiedTenantId(authorization: string | undefined): string | null {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  try {
+    const claims = jwt.verify(authorization.slice(7), jwtSecret!, { algorithms: ["HS256"] });
+    const tenantId = typeof claims === "object" ? claims[stratumConfig.tenant.jwtClaimPath] : undefined;
+    return typeof tenantId === "string" ? tenantId : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function stratumPlugin(app: FastifyInstance): Promise<void> {
   app.decorateRequest("tenantId", "");
 
-  app.addHook("preHandler", async (request: FastifyRequest, _reply: FastifyReply) => {
-    const tenantId = request.headers["x-tenant-id"] as string | undefined;
-    if (tenantId) {
-      (request as any).tenantId = tenantId;
+  // Rejects requests without a verified tenant.
+  app.addHook("preHandler", async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = verifiedTenantId(request.headers.authorization);
+    if (!tenantId) {
+      return reply.status(401).send({ error: "A valid bearer token with a tenant claim is required" });
     }
+    (request as any).tenantId = tenantId;
   });
 }
 
@@ -402,20 +466,16 @@ process.on("SIGTERM", () => pool.end());
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
-  // Strategy 1: Subdomain-based tenant resolution
+  // The tenant comes from the subdomain the request was routed to. Once you
+  // add authentication, check that the signed-in user belongs to this tenant.
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
+  const tenantId = hostname.split(".")[0];
 
-  // Strategy 2: Header-based
-  const headerTenantId = request.headers.get("x-tenant-id");
-
-  // Strategy 3: Path-based (e.g., /tenant/acme/dashboard)
-  const pathTenantId = request.nextUrl.pathname.match(/^\\/tenant\\/([^/]+)/)?.[1];
-
-  const tenantId = headerTenantId || pathTenantId || subdomain;
-
-  // Forward tenant ID to API routes and server components
+  // Forward tenant ID to API routes and server components. Any x-tenant-id the
+  // client sent is removed first, so lib/stratum.ts only ever reads the value
+  // set here.
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-id");
   if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
     requestHeaders.set("x-tenant-id", tenantId);
   }
@@ -503,7 +563,7 @@ ${info.integrationPath === "lib"
 import { Stratum } from "@stratum-hq/lib";
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+  connectionString: process.env.DATABASE_URL || "postgres://stratum_app:stratum_dev@localhost:5432/stratum",
 });
 
 export const stratum = new Stratum({ pool });
@@ -585,7 +645,7 @@ ${info.integrationPath === "sdk"
   : ``}
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+  connectionString: process.env.DATABASE_URL || "postgres://stratum_app:stratum_dev@localhost:5432/stratum",
 });
 
 ${info.integrationPath === "sdk"
@@ -607,7 +667,7 @@ export { pool };
   }
 }
 
-function generateReactSetup(outDir: string, _info: ProjectInfo, force: boolean): void {
+function generateReactSetup(outDir: string, info: ProjectInfo, force: boolean): void {
   const providerContent = `// stratum-provider.tsx
 // Stratum React provider for your application
 
@@ -620,10 +680,9 @@ interface AppProviderProps {
 
 export function AppStratumProvider({ children }: AppProviderProps) {
   return (
-    <StratumProvider
-      controlPlaneUrl={process.env.NEXT_PUBLIC_STRATUM_URL || process.env.REACT_APP_STRATUM_URL || "http://localhost:3001"}
-      apiKey={process.env.NEXT_PUBLIC_STRATUM_API_KEY || process.env.REACT_APP_STRATUM_API_KEY || ""}
-    >
+    // Requests go to a server-side proxy at /api/stratum that holds the
+    // control-plane API key. Never give StratumProvider a key in the browser.
+    <StratumProvider controlPlaneUrl="/api/stratum">
       {children}
     </StratumProvider>
   );
@@ -785,4 +844,12 @@ export function useIsRootTenant(): boolean {
   writeFile(path.join(outDir, "stratum-provider.tsx"), providerContent, force);
   writeFile(path.join(outDir, "tenant-guard.tsx"), guardContent, force);
   writeFile(path.join(outDir, "use-tenant.ts"), hooksContent, force);
+
+  // The server-side half: the only place the control-plane API key lives.
+  if (info.framework === "nextjs") {
+    writeFile(path.join(outDir, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
+  } else {
+    writeFile(path.join(outDir, "stratum-proxy.ts"), expressProxy(), force);
+  }
+  log.info("Implement authorize() in the generated Stratum proxy; it denies every request until you do.");
 }

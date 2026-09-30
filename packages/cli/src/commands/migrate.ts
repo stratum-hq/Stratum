@@ -142,7 +142,7 @@ export async function migrate(
       log.table([header, ...rows]);
 
       const unmigrated = tables.filter(
-        (t) => !t.has_tenant_id || !t.rls_enabled || !t.has_policy,
+        (t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy,
       );
       if (unmigrated.length > 0) {
         console.log();
@@ -157,7 +157,7 @@ export async function migrate(
       log.heading("Migrate All Tables");
       const tables = await scanTables(pool);
       const unmigrated = tables.filter(
-        (t) => !t.has_tenant_id || !t.rls_enabled || !t.has_policy,
+        (t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy,
       );
 
       if (unmigrated.length === 0) {

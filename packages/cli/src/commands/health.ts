@@ -73,7 +73,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
       ]);
       log.table([header, ...rows]);
 
-      const unmigrated = tables.filter((t) => !t.has_tenant_id || !t.rls_enabled || !t.has_policy);
+      const unmigrated = tables.filter((t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy);
       if (unmigrated.length > 0) {
         console.log();
         log.info(`${unmigrated.length} table(s) need migration. Run: stratum migrate <table>`);

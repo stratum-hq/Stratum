@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { connectDb, checkStratumTables } from "../utils/db.js";
+import { connectDb, checkStratumTables, withRlsBypass } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
 export async function generateApiKey(flags: Record<string, string | boolean>): Promise<void> {
@@ -26,12 +26,15 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     const keyHash = crypto.createHash("sha256").update(plaintextKey).digest("hex");
     const keyPrefix = plaintextKey.slice(0, 12);
 
-    // Insert into database
-    const result = await pool.query(
-      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, created_at`,
-      [tenantId, keyHash, keyPrefix, name],
+    // Insert into database. api_keys has FORCE RLS, so the insert runs under
+    // the administrative bypass, as the control plane's key creation does.
+    const result = await withRlsBypass(pool, (client) =>
+      client.query(
+        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, created_at`,
+        [tenantId, keyHash, keyPrefix, name],
+      ),
     );
 
     const { id, created_at } = result.rows[0];

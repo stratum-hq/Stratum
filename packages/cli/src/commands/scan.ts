@@ -11,13 +11,14 @@
  *   stratum scan --exclude users,sessions  # exclude specific tables
  */
 
-import { connectDb, scanTables, type TableInfo } from "../utils/db.js";
+import { connectDb, quoteIdent, scanTables, type TableInfo } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
 interface ScanResult {
   needsTenantId: TableInfo[];
   needsRLS: TableInfo[];
   needsPolicy: TableInfo[];
+  needsForce: TableInfo[];
   alreadyIsolated: TableInfo[];
   skipped: string[];
 }
@@ -27,6 +28,7 @@ function analyzeTables(tables: TableInfo[], exclude: string[]): ScanResult {
     needsTenantId: [],
     needsRLS: [],
     needsPolicy: [],
+    needsForce: [],
     alreadyIsolated: [],
     skipped: [],
   };
@@ -43,12 +45,20 @@ function analyzeTables(tables: TableInfo[], exclude: string[]): ScanResult {
       result.needsRLS.push(table);
     } else if (!table.has_policy) {
       result.needsPolicy.push(table);
+    } else if (!table.rls_forced) {
+      // Without FORCE the table owner bypasses every policy.
+      result.needsForce.push(table);
     } else {
       result.alreadyIsolated.push(table);
     }
   }
 
   return result;
+}
+
+/** Every table the scan found work for. */
+function tablesNeedingWork(result: ScanResult): TableInfo[] {
+  return [...result.needsTenantId, ...result.needsRLS, ...result.needsPolicy, ...result.needsForce];
 }
 
 function generateMigrationSQL(result: ScanResult): string {
@@ -64,7 +74,7 @@ function generateMigrationSQL(result: ScanResult): string {
   if (result.needsTenantId.length > 0) {
     lines.push("-- Step 1: Add tenant_id column to tables that need it");
     for (const table of result.needsTenantId) {
-      lines.push(`ALTER TABLE ${table.table_name} ADD COLUMN tenant_id UUID REFERENCES tenants(id);`);
+      lines.push(`ALTER TABLE ${quoteIdent(table.table_name)} ADD COLUMN tenant_id UUID REFERENCES tenants(id);`);
     }
     lines.push("");
   }
@@ -74,7 +84,17 @@ function generateMigrationSQL(result: ScanResult): string {
   if (tablesNeedingRLS.length > 0) {
     lines.push("-- Step 2: Enable Row-Level Security");
     for (const table of tablesNeedingRLS) {
-      lines.push(`ALTER TABLE ${table.table_name} ENABLE ROW LEVEL SECURITY;`);
+      lines.push(`ALTER TABLE ${quoteIdent(table.table_name)} ENABLE ROW LEVEL SECURITY;`);
+    }
+    lines.push("");
+  }
+
+  // Step 2b: Force RLS, so the table owner is subject to the policies too
+  const tablesNeedingForce = tablesNeedingWork(result).filter((t) => !t.rls_forced);
+  if (tablesNeedingForce.length > 0) {
+    lines.push("-- Step 2b: Force Row-Level Security (applies policies to the table owner)");
+    for (const table of tablesNeedingForce) {
+      lines.push(`ALTER TABLE ${quoteIdent(table.table_name)} FORCE ROW LEVEL SECURITY;`);
     }
     lines.push("");
   }
@@ -85,7 +105,7 @@ function generateMigrationSQL(result: ScanResult): string {
     lines.push("-- Step 3: Create tenant isolation policies");
     for (const table of tablesNeedingPolicy) {
       lines.push(
-        `CREATE POLICY tenant_isolation ON ${table.table_name}` +
+        `CREATE POLICY tenant_isolation ON ${quoteIdent(table.table_name)}` +
         `  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);`,
       );
     }
@@ -96,7 +116,9 @@ function generateMigrationSQL(result: ScanResult): string {
   if (result.needsTenantId.length > 0) {
     lines.push("-- Step 4: Add indexes for tenant_id lookups");
     for (const table of result.needsTenantId) {
-      lines.push(`CREATE INDEX idx_${table.table_name}_tenant ON ${table.table_name}(tenant_id);`);
+      lines.push(
+        `CREATE INDEX ${quoteIdent(`idx_${table.table_name}_tenant`)} ON ${quoteIdent(table.table_name)}(tenant_id);`,
+      );
     }
     lines.push("");
   }
@@ -135,7 +157,8 @@ export async function scan(
     const actionNeeded =
       result.needsTenantId.length +
       result.needsRLS.length +
-      result.needsPolicy.length;
+      result.needsPolicy.length +
+      result.needsForce.length;
 
     // Report
     log.info(`Found ${totalTables} tables in public schema.\n`);
@@ -168,6 +191,14 @@ export async function scan(
       log.warn(`  ${result.needsPolicy.length} have RLS enabled but no policy:`);
       for (const t of result.needsPolicy) {
         log.dim(`    ⚠ ${t.table_name} — RLS enabled, no tenant_isolation policy`);
+      }
+      console.log();
+    }
+
+    if (result.needsForce.length > 0) {
+      log.warn(`  ${result.needsForce.length} have RLS enabled but not forced:`);
+      for (const t of result.needsForce) {
+        log.dim(`    ⚠ ${t.table_name} — RLS enabled, not forced (the table owner bypasses it)`);
       }
       console.log();
     }

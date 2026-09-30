@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "node:crypto";
 import * as log from "../utils/log.js";
+import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
 
 function writeFile(filePath: string, content: string, force: boolean): void {
   if (fs.existsSync(filePath) && !force) {
@@ -73,11 +74,18 @@ const client = new StratumClient({
   apiKey: process.env.STRATUM_API_KEY || "",
 });
 
+// The tenant comes from the verified JWT. Without JWT_SECRET the middleware
+// would fall back to the client-supplied tenant header, so refuse to start.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+
 // Drop into your Express app:
 //   app.use(tenantMiddleware);
 export const tenantMiddleware = expressMiddleware(client, {
   jwtClaimPath: "tenant_id",
-  jwtSecret: process.env.JWT_SECRET,
+  jwtSecret,
 });
 
 // In routes, access: req.tenant.tenant_id, req.tenant.resolved_config
@@ -111,6 +119,7 @@ router.get("/features", (req, res) => {
 export default router;
 `, force);
 
+  log.info("Install: npm install @stratum-hq/sdk jsonwebtoken");
   log.info("Add to your app:");
   log.dim('  import { tenantMiddleware } from "./stratum-middleware";');
   log.dim('  import tenantRoutes from "./tenant-routes";');
@@ -127,14 +136,28 @@ export const stratumClient = new StratumClient({
   apiKey: process.env.STRATUM_API_KEY || "",
 });
 
+// The tenant comes from the verified JWT. Without JWT_SECRET the plugin would
+// fall back to the client-supplied tenant header, so refuse to start.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+
+export const stratumPluginOptions = {
+  client: stratumClient,
+  jwtClaimPath: "tenant_id",
+  jwtSecret,
+};
+
 // Register in your Fastify app:
-//   app.register(fastifyPlugin, { client: stratumClient, jwtClaimPath: "tenant_id" });
+//   app.register(fastifyPlugin, stratumPluginOptions);
 export { fastifyPlugin };
 `, force);
 
+  log.info("Install: npm install @stratum-hq/sdk jsonwebtoken");
   log.info("Add to your app:");
-  log.dim('  import { stratumClient, fastifyPlugin } from "./stratum-plugin";');
-  log.dim("  app.register(fastifyPlugin, { client: stratumClient, jwtClaimPath: \"tenant_id\" });");
+  log.dim('  import { stratumPluginOptions, fastifyPlugin } from "./stratum-plugin";');
+  log.dim("  app.register(fastifyPlugin, stratumPluginOptions);");
 }
 
 function scaffoldNextjs(outDir: string, force: boolean): void {
@@ -142,14 +165,15 @@ function scaffoldNextjs(outDir: string, force: boolean): void {
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // The tenant comes from the subdomain the request was routed to. Any
+  // x-tenant-id the client sent is removed first, so lib/stratum.ts only ever
+  // reads the value set here. Once you add authentication, check that the
+  // signed-in user belongs to this tenant.
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
-  const headerTenantId = request.headers.get("x-tenant-id");
-  const pathTenantId = request.nextUrl.pathname.match(/^\\/tenant\\/([^/]+)/)?.[1];
-
-  const tenantId = headerTenantId || pathTenantId || subdomain;
+  const tenantId = hostname.split(".")[0];
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-id");
   if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
     requestHeaders.set("x-tenant-id", tenantId);
   }
@@ -192,10 +216,9 @@ import React from "react";
 
 export function TenantLayout({ children }: { children: React.ReactNode }) {
   return (
-    <StratumProvider
-      controlPlaneUrl={process.env.NEXT_PUBLIC_STRATUM_URL || "http://localhost:3001"}
-      apiKey={process.env.NEXT_PUBLIC_STRATUM_API_KEY || ""}
-    >
+    // Requests go to the server-side proxy in app/api/stratum, which holds the
+    // control-plane API key. Never give StratumProvider a key in the browser.
+    <StratumProvider controlPlaneUrl="/api/stratum">
       <TenantBoundary>{children}</TenantBoundary>
     </StratumProvider>
   );
@@ -212,9 +235,12 @@ function TenantBoundary({ children }: { children: React.ReactNode }) {
 }
 `, force);
 
+  writeFile(path.join(outDir, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
+
   log.info("Place middleware.ts in your Next.js project root.");
   log.info("Place lib/stratum.ts in your lib/ directory.");
   log.info("Wrap layouts with <TenantLayout>.");
+  log.info("Implement authorize() in app/api/stratum/[...path]/route.ts; it denies every request until you do.");
 }
 
 function scaffoldReact(outDir: string, force: boolean): void {
@@ -224,10 +250,9 @@ import { StratumProvider, useStratum } from "@stratum-hq/react";
 
 export function AppStratumProvider({ children }: { children: React.ReactNode }) {
   return (
-    <StratumProvider
-      controlPlaneUrl={process.env.REACT_APP_STRATUM_URL || "http://localhost:3001"}
-      apiKey={process.env.REACT_APP_STRATUM_API_KEY || ""}
-    >
+    // Requests go to a server-side proxy (see stratum-proxy.ts) that holds the
+    // control-plane API key. Never give StratumProvider a key in the browser.
+    <StratumProvider controlPlaneUrl={process.env.REACT_APP_STRATUM_PROXY_URL || "/api/stratum"}>
       {children}
     </StratumProvider>
   );
@@ -287,7 +312,10 @@ export function useIsRootTenant(): boolean {
 }
 `, force);
 
+  writeFile(path.join(outDir, "stratum-proxy.ts"), expressProxy(), force);
+
   log.info("Wrap your app with <AppStratumProvider>.");
+  log.info("Mount stratum-proxy.ts on your backend at /api/stratum and implement authorize(); it denies every request until you do.");
   log.info("Use <PermissionGuard> and <ConfigGuard> for conditional rendering.");
   log.info("Use usePermission() and useConfig() hooks in components.");
 }
@@ -322,6 +350,10 @@ export { prisma, pool };
 
 function scaffoldDocker(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, "docker-compose.stratum.yml"), `# Stratum + PostgreSQL Docker Compose
+#
+# Required environment (for example in a .env file next to this one):
+#   JWT_SECRET   long random value, e.g. the output of: openssl rand -base64 32
+#   STRATUM_REF  Stratum release tag to build the control plane from
 version: "3.8"
 
 services:
@@ -329,12 +361,14 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: stratum
+      # Bootstrap superuser. Used only by stratum-init-db.sql; it bypasses RLS.
       POSTGRES_USER: stratum
       POSTGRES_PASSWORD: stratum_dev
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - stratum_data:/var/lib/postgresql/data
+      - ./stratum-init-db.sql:/docker-entrypoint-initdb.d/stratum-init-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U stratum"]
       interval: 5s
@@ -342,28 +376,42 @@ services:
       retries: 5
 
   stratum-control-plane:
-    image: stratum/control-plane:latest
-    # Or build from source:
-    # build:
-    #   context: ./node_modules/@stratum-hq/control-plane
-    #   dockerfile: Dockerfile
+    # Stratum does not publish a control-plane image. Build it from the
+    # Stratum repository at the release tag in STRATUM_REF.
+    build:
+      context: https://github.com/stratum-hq/Stratum.git#\${STRATUM_REF:?Set STRATUM_REF to a Stratum release tag}
     depends_on:
       stratum-db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://stratum:stratum_dev@stratum-db:5432/stratum
-      JWT_SECRET: \${JWT_SECRET:-change-me-in-production}
+      # stratum_app is NOSUPERUSER NOBYPASSRLS (see stratum-init-db.sql), so
+      # row-level security applies to the control plane's queries.
+      DATABASE_URL: postgres://stratum_app:stratum_dev@stratum-db:5432/stratum
+      JWT_SECRET: \${JWT_SECRET:?Set JWT_SECRET to a long random value}
       # Bearer tokens must carry this audience (aud) to be accepted.
       JWT_AUDIENCE: \${JWT_AUDIENCE:-stratum-control-plane}
       NODE_ENV: \${NODE_ENV:-development}
       PORT: "3001"
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
 
 volumes:
   stratum_data:
 `, force);
 
+  writeFile(path.join(outDir, "stratum-init-db.sql"), `-- Runs once, as the bootstrap superuser, when the database volume is created.
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "ltree";
+
+-- The control plane connects as stratum_app. A superuser or BYPASSRLS role
+-- ignores every row-level security policy, FORCE included, so the bootstrap
+-- superuser is never used by the application.
+CREATE ROLE stratum_app WITH LOGIN PASSWORD 'stratum_dev' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
+GRANT CONNECT, CREATE ON DATABASE stratum TO stratum_app;
+GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
+`, force);
+
+  log.info("Set JWT_SECRET and STRATUM_REF (a Stratum release tag), then:");
   log.info("Start with: docker compose -f docker-compose.stratum.yml up -d");
   log.info("Control plane: http://localhost:3001");
   log.info("Swagger docs: http://localhost:3001/api/docs");
@@ -374,7 +422,8 @@ function scaffoldEnv(outDir: string, force: boolean): void {
   writeFile(path.join(outDir, ".env.stratum"), `# Stratum Environment Variables
 
 # Database
-DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum
+# Application role (NOSUPERUSER NOBYPASSRLS), so row-level security applies.
+DATABASE_URL=postgres://stratum_app:stratum_dev@localhost:5432/stratum
 
 # Authentication
 JWT_SECRET=${jwtSecret}
@@ -383,11 +432,10 @@ JWT_SECRET=${jwtSecret}
 STRATUM_URL=http://localhost:3001
 STRATUM_API_KEY=sk_test_your_key_here
 
-# React/Next.js public vars (if applicable)
-# NEXT_PUBLIC_STRATUM_URL=http://localhost:3001
-# NEXT_PUBLIC_STRATUM_API_KEY=sk_test_your_key_here
-# REACT_APP_STRATUM_URL=http://localhost:3001
-# REACT_APP_STRATUM_API_KEY=sk_test_your_key_here
+# React / Next.js: keep STRATUM_API_KEY server-side. Never copy it into a
+# NEXT_PUBLIC_, REACT_APP_ or VITE_ variable, which the bundler inlines into
+# browser JavaScript. Browser calls go through the server-side proxy that
+# \`stratum scaffold nextjs\` or \`stratum scaffold react\` generates.
 
 # Optional tuning
 NODE_ENV=development
