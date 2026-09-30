@@ -69,7 +69,7 @@ import type {
   UsageAggregate,
   UsageAggregateQuery,
 } from "@stratum-hq/core";
-import { TenantEvent } from "@stratum-hq/core";
+import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
 
 export interface StratumOptions {
@@ -278,10 +278,24 @@ export class Stratum {
    * provisioned. Tenants with their own storage are created pending and are
    * not usable until activated. Rejects if the tenant is not pending or its
    * parent is not active.
+   *
+   * If the database call fails with an error that is not a Stratum error, such
+   * as a dropped connection, the activation can still have committed. The
+   * tenant is then read again, and if it is active, this call succeeds and
+   * emits the event once.
    */
   async activateTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
     return traced("tenant.activate", { tenant_id: id }, async (span) => {
-      const tenant = await tenantService.activateTenant(this.pool, id);
+      let tenant: TenantNode;
+      try {
+        tenant = await tenantService.activateTenant(this.pool, id);
+      } catch (err) {
+        // A Stratum error is a refusal made before any write, so nothing committed.
+        if (err instanceof StratumError) throw err;
+        const current = await tenantService.getTenant(this.pool, id, true).catch(() => undefined);
+        if (current?.status !== "active") throw err;
+        tenant = current;
+      }
       this.emitEvent(TenantEvent.TENANT_ACTIVATED, id, { tenant }, span);
       if (audit) {
         await auditService.createAuditEntry(

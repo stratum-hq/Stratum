@@ -24,10 +24,11 @@ const s = stratum({
 });
 
 // Express
-app.use(s.middleware());
+// Reads the tenant from the verified `tenant_id` claim of the bearer token
+app.use(s.middleware({ jwtSecret: process.env.JWT_SECRET }));
 
 // Fastify
-app.register(s.plugin());
+app.register(s.plugin({ jwtSecret: process.env.JWT_SECRET }));
 ```
 
 ## StratumClient
@@ -45,7 +46,7 @@ const client = new StratumClient({
     ttlMs: 60000,     // default: 60 seconds
     maxSize: 100,     // default: 100 entries
   },
-  timeoutMs: 10000,   // default: 10 seconds per control plane request
+  timeoutMs: 10000,   // default: 10 seconds per control plane request; Infinity turns it off
 });
 ```
 
@@ -89,6 +90,7 @@ A purge has these conditions and effects:
 - For a tenant with its own schema or database, the control plane also drops that schema or database.
 - For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed. A tenant-scoped key can purge a pending tenant in its own subtree.
 - Rows in your own tables that share a database with other tenants stay. Delete them yourself.
+- If the request times out, the purge can still complete. See [Request timeout](#request-timeout).
 
 ```typescript
 // Soft delete: reversible.
@@ -160,10 +162,10 @@ await client.purgeTenant(tenantId);
     });
 
     // Express
-    app.use(s.middleware({ jwtClaimPath: "tenant_id" }));
+    app.use(s.middleware({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
 
     // Fastify
-    app.register(s.plugin({ jwtClaimPath: "tenant_id" }));
+    app.register(s.plugin({ jwtClaimPath: "tenant_id", jwtSecret: process.env.JWT_SECRET }));
 
     // Direct client access
     const ctx = await s.client.resolveTenant("tenant-uuid");
@@ -264,6 +266,7 @@ The SDK throws typed errors from `@stratum-hq/core`:
 
 ```typescript
 import {
+  ForbiddenError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
@@ -274,13 +277,16 @@ try {
   await client.resolveTenant("bad-id");
 } catch (err) {
   if (err instanceof TenantNotFoundError) {
-    // Tenant doesn't exist
+    // The tenant does not exist.
   }
   if (err instanceof TenantSuspendedError || err instanceof TenantArchivedError) {
-    // Tenant exists but is not active
+    // The tenant exists but is not active.
+  }
+  if (err instanceof ForbiddenError) {
+    // The API key cannot access this tenant, or it does not have the scope for the operation.
   }
   if (err instanceof UnauthorizedError) {
-    // Invalid API key
+    // The control plane rejected the API key.
   }
 }
 ```
@@ -290,9 +296,38 @@ try {
 | 401 | `UnauthorizedError` |
 | 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
 | 403, any other code | `ForbiddenError` |
-| 404 | `TenantNotFoundError` |
+| 404 `TENANT_NOT_FOUND` | `TenantNotFoundError` |
+| 404 `WEBHOOK_NOT_FOUND` | `WebhookNotFoundError` |
+| 404, any other code | `Error`, with the control plane's message |
 | 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
 
-The Express and Fastify middleware answer these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target. Other errors go to your framework's error handler.
+An API key that is scoped to a tenant gets 403 `FORBIDDEN` for a descendant that is suspended or archived. The scope check stops the request before the control plane reads the tenant status. Only a key that is not scoped to a tenant gets `TenantSuspendedError` or `TenantArchivedError`.
 
-A control plane request that takes longer than `timeoutMs` rejects with a `TimeoutError` `DOMException`.
+An API key without the `admin` scope gets 403 `FORBIDDEN` from an admin operation, for example `purgeTenant`. The client throws `ForbiddenError`.
+
+### Middleware responses
+
+The Express and Fastify middleware answer these errors from tenant resolution. The same rules apply to an impersonation target.
+
+| Error | Response | `onError` |
+|---|---|---|
+| `TenantNotFoundError` | 404 `TENANT_NOT_FOUND` | Not called |
+| `TenantSuspendedError` | 403 `TENANT_SUSPENDED` | Not called |
+| `TenantArchivedError` | 410 `TENANT_ARCHIVED` | Not called |
+| `ForbiddenError` | 403 `FORBIDDEN` | Not called |
+| `TimeoutError` | 504 `CONTROL_PLANE_TIMEOUT` | Called |
+| `UnauthorizedError` | 500 `CONTROL_PLANE_AUTH_FAILED` | Called |
+
+A tenant error is a normal answer for the request, so it does not go to `onError`. An `UnauthorizedError` means that the control plane rejected the SDK's own API key. The middleware answers 500, because the fault is in the server configuration. It also writes the cause to `console.error`. Other errors go to your framework's error handler.
+
+The `StratumGuard` in `@stratum-hq/nestjs` throws an exception with the same status for each of these errors.
+
+To use the same mapping in another adapter, import `tenantErrorResponse` and `controlPlaneErrorResponse` from `@stratum-hq/sdk`. Each function returns `{ status, body }`, or `null` for an error that it does not map.
+
+### Request timeout
+
+Each control plane request has a time limit of `timeoutMs` milliseconds (default 10000). A request that takes longer rejects with a `TimeoutError` `DOMException`.
+
+The value must be an integer from 1 to 4294967295. To turn the time limit off, set `timeoutMs: Infinity`. Any other value makes the constructor throw a `RangeError`.
+
+A timeout does not mean that the control plane stopped the operation. If `purgeTenant` rejects with a `TimeoutError`, the purge can still complete. Call `getTenant(id)` to find out whether the tenant still exists. The client removes the tenant from its cache in both cases.

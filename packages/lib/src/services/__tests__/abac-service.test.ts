@@ -7,9 +7,9 @@ vi.mock("../../pool-helpers.js", () => ({
 }));
 
 import * as poolHelpers from "../../pool-helpers.js";
-import { deleteAbacPolicy, evaluateCondition, evaluatePolicy } from "../abac-service.js";
+import { createAbacPolicy, deleteAbacPolicy, evaluateCondition, evaluatePolicy } from "../abac-service.js";
 import { makeMockPool } from "./test-helpers.js";
-import { TenantNotFoundError, type AbacCondition, type AbacPolicy } from "@stratum-hq/core";
+import { TenantNotFoundError, ValidationError, type AbacCondition, type AbacPolicy } from "@stratum-hq/core";
 
 function makePolicy(overrides: Partial<AbacPolicy> = {}): AbacPolicy {
   return {
@@ -155,5 +155,27 @@ describe("deleteAbacPolicy", () => {
       TenantNotFoundError,
     );
     expect(mockQuery).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("createAbacPolicy", () => {
+  it("rejects a priority outside the int4 range with a ValidationError before touching the database", async () => {
+    vi.mocked(poolHelpers.withTransaction).mockClear();
+    const input = {
+      name: "p",
+      resource_type: "document",
+      action: "read",
+      effect: "allow" as const,
+      conditions: [],
+      priority: 2147483648,
+    };
+
+    const err = await createAbacPolicy(makeMockPool(), "tenant-1", input).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).details?.issues).toEqual([
+      expect.objectContaining({ path: ["priority"] }),
+    ]);
+    expect(poolHelpers.withTransaction).not.toHaveBeenCalled();
   });
 });

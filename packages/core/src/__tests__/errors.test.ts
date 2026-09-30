@@ -14,6 +14,7 @@ import {
   ValidationError,
   UnauthorizedError,
   ForbiddenError,
+  RegionNotFoundError,
   ErrorCode,
 } from "../utils/errors.js";
 
@@ -135,6 +136,14 @@ describe("error hierarchy", () => {
   it("ForbiddenError accepts custom message", () => {
     const err = new ForbiddenError("insufficient permissions");
     expect(err.message).toBe("insufficient permissions");
+  });
+
+  it("RegionNotFoundError has 404 status and names the region", () => {
+    const err = new RegionNotFoundError("region-id");
+    expect(err).toBeInstanceOf(StratumError);
+    expect(err.code).toBe(ErrorCode.REGION_NOT_FOUND);
+    expect(err.statusCode).toBe(404);
+    expect(err.message).toBe("Region not found: region-id");
   });
 
   it("errors serialize to JSON with nested error envelope", () => {

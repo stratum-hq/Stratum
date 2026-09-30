@@ -27,6 +27,7 @@ export enum ErrorCode {
   WEBHOOK_NOT_FOUND = "WEBHOOK_NOT_FOUND",
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
   WEBHOOK_URL_INVALID = "WEBHOOK_URL_INVALID",
+  REGION_NOT_FOUND = "REGION_NOT_FOUND",
 }
 
 export class StratumError extends Error {
@@ -359,6 +360,13 @@ export class WebhookUrlValidationError extends StratumError {
   constructor(message: string) {
     super(ErrorCode.WEBHOOK_URL_INVALID, message, 400);
     this.name = "WebhookUrlValidationError";
+  }
+}
+
+export class RegionNotFoundError extends StratumError {
+  constructor(regionId: string) {
+    super(ErrorCode.REGION_NOT_FOUND, `Region not found: ${regionId}`, 404);
+    this.name = "RegionNotFoundError";
   }
 }
 

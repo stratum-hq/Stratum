@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resolveFromHeader, resolveFromJwt } from "@stratum-hq/sdk";
 import { StratumGuard } from "../stratum.guard.js";
 
@@ -48,6 +48,7 @@ import {
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  UnauthorizedError,
 } from "@stratum-hq/core";
 import { HttpException } from "@nestjs/common";
 
@@ -116,15 +117,7 @@ async function canActivate(
   }
 
   // 2. Resolve caller tenant context
-  let callerContext;
-  try {
-    callerContext = await client.resolveTenant(tenantId);
-  } catch (err) {
-    if (err instanceof TenantNotFoundError) {
-      throw new UnauthorizedException(`Tenant not found: ${tenantId}`);
-    }
-    throw err;
-  }
+  const callerContext = await client.resolveTenant(tenantId);
 
   req["tenant"] = callerContext;
   req["impersonating"] = false;
@@ -142,15 +135,7 @@ async function canActivate(
         throw new ForbiddenException("Not authorized to impersonate this tenant");
       }
 
-      let impersonatedContext;
-      try {
-        impersonatedContext = await client.resolveTenant(impersonateTenantId);
-      } catch (err) {
-        if (err instanceof TenantNotFoundError) {
-          throw new UnauthorizedException(`Impersonated tenant not found: ${impersonateTenantId}`);
-        }
-        throw err;
-      }
+      const impersonatedContext = await client.resolveTenant(impersonateTenantId);
 
       req["tenant"] = impersonatedContext;
       req["impersonating"] = true;
@@ -270,17 +255,6 @@ describe("StratumGuard", () => {
       await expect(canActivate(client, ctx)).rejects.toThrow(
         "Tenant ID could not be resolved from request",
       );
-    });
-
-    it("throws UnauthorizedException when tenant not found in control plane", async () => {
-      const notFoundClient = makeMockClient(null, new TenantNotFoundError("tenant-missing"));
-      const req: Record<string, unknown> = {
-        headers: { "x-tenant-id": "tenant-missing" },
-      };
-      const ctx = makeExecutionContext(req);
-
-      await expect(canActivate(notFoundClient, ctx)).rejects.toThrow(UnauthorizedException);
-      await expect(canActivate(notFoundClient, ctx)).rejects.toThrow("Tenant not found: tenant-missing");
     });
 
     it("re-throws unexpected errors", async () => {
@@ -459,11 +433,23 @@ describe("StratumGuard (real guard): tenant identity precedence", () => {
 });
 
 describe("StratumGuard (real guard): tenant state and access errors", () => {
+  // The statuses match the Express and Fastify middleware for the same errors.
   const cases = [
-    { name: "suspended", error: () => new TenantSuspendedError("t-1"), status: 403 },
-    { name: "archived", error: () => new TenantArchivedError("t-1"), status: 410 },
-    { name: "forbidden", error: () => new ForbiddenError("Insufficient permissions"), status: 403 },
+    { error: () => new TenantNotFoundError("t-1"), status: 404 },
+    { error: () => new TenantSuspendedError("t-1"), status: 403 },
+    { error: () => new TenantArchivedError("t-1"), status: 410 },
+    { error: () => new ForbiddenError("Insufficient permissions"), status: 403 },
+    { error: () => new DOMException("The operation timed out.", "TimeoutError"), status: 504 },
+    { error: () => new UnauthorizedError("Invalid or missing API key"), status: 500 },
   ];
+
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   function guardFor(resolveTenant: ReturnType<typeof vi.fn>, options: Record<string, unknown> = {}) {
     const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
@@ -476,14 +462,14 @@ describe("StratumGuard (real guard): tenant state and access errors", () => {
   }
 
   for (const c of cases) {
-    it(`throws a ${c.status} exception when the caller tenant is ${c.name}`, async () => {
+    it(`throws a ${c.status} exception when the caller tenant lookup fails with ${c.error().name}`, async () => {
       const guard = guardFor(vi.fn().mockRejectedValue(c.error()));
       const ctx = makeExecutionContext({ headers: { "x-tenant-id": "t-1" } });
 
       expect(await statusOf(guard.canActivate(ctx as unknown as import("@nestjs/common").ExecutionContext))).toBe(c.status);
     });
 
-    it(`throws a ${c.status} exception when the impersonation target is ${c.name}`, async () => {
+    it(`throws a ${c.status} exception when the impersonation target lookup fails with ${c.error().name}`, async () => {
       const resolveTenant = vi
         .fn()
         .mockResolvedValueOnce({ id: "caller-tenant" })

@@ -112,3 +112,44 @@ describe("datetime inputs stored in TIMESTAMPTZ columns", () => {
     expect(RecordAuditEventInputSchema.safeParse(auditEvent(yearZero)).success).toBe(false);
   });
 });
+
+describe("sourceIp stored in the audit_logs INET column", () => {
+  const auditEvent = (sourceIp: string | null) => ({
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "a",
+    action: "x",
+    resourceType: "r",
+    resourceId: null,
+    sourceIp,
+  });
+
+  it("accepts an IPv4 address, an IPv6 address, and null", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("203.0.113.7")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("2001:db8::1")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("::1")).success).toBe(true);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent(null)).success).toBe(true);
+  });
+
+  it("rejects a value that is not an IP address", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("not-an-ip")).success).toBe(false);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("")).success).toBe(false);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("999.0.0.1")).success).toBe(false);
+  });
+
+  it("rejects an IPv6 zone index, which INET does not store", () => {
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("fe80::1%eth0")).success).toBe(false);
+    expect(RecordAuditEventInputSchema.safeParse(auditEvent("fe80::1%eth0/64")).success).toBe(false);
+  });
+
+  it("accepts the address/prefix form that queryAuditLogs returns for source_ip", () => {
+    for (const ip of ["203.0.113.7/32", "10.0.0.0/8", "10.0.0.1/24", "0.0.0.0/0", "::1/128", "2001:db8::/32", "::/0"]) {
+      expect(RecordAuditEventInputSchema.safeParse(auditEvent(ip)).success, ip).toBe(true);
+    }
+  });
+
+  it("rejects a prefix that INET does not accept", () => {
+    for (const ip of ["10.0.0.0/33", "::1/129", "10.0.0.1/", "10.0.0.1/+8", "10.0.0.1/8/8", "not-an-ip/8"]) {
+      expect(RecordAuditEventInputSchema.safeParse(auditEvent(ip)).success, ip).toBe(false);
+    }
+  });
+});

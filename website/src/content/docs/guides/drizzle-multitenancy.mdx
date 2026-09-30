@@ -151,8 +151,8 @@ export const orders = pgTable("orders", {
 ### 4. Install Dependencies
 
 ```bash
-npm install @stratum-hq/lib @stratum-hq/db-adapters pg drizzle-orm
-npm install -D drizzle-kit @types/pg
+npm install @stratum-hq/lib @stratum-hq/db-adapters pg drizzle-orm jsonwebtoken
+npm install -D drizzle-kit @types/pg @types/jsonwebtoken
 ```
 
 ### 5. Express App with Tenant Middleware
@@ -161,6 +161,7 @@ npm install -D drizzle-kit @types/pg
 // src/index.ts
 import express from "express";
 import { Pool } from "pg";
+import jwt from "jsonwebtoken";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Stratum } from "@stratum-hq/lib";
 import { drizzleWithTenant } from "@stratum-hq/db-adapters";
@@ -177,11 +178,33 @@ const pool = new Pool({
 const db = drizzle(pool);
 const stratum = new Stratum({ pool, autoMigrate: true });
 
-// Tenant middleware
-app.use(async (req, res, next) => {
-  const tenantId = req.headers["x-tenant-id"] as string;
+// The tenant binding comes from a signed token, so the server does not start
+// without the key that verifies it.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
+/** Return the tenant_id claim of a bearer token that verifies, or null. */
+function verifiedTenantId(authorization: string | undefined, secret: string): string | null {
+  if (!authorization?.startsWith("Bearer ")) return null;
+  try {
+    const claims = jwt.verify(authorization.slice("Bearer ".length), secret, {
+      algorithms: ["HS256"],
+    });
+    return typeof claims === "object" && typeof claims.tenant_id === "string"
+      ? claims.tenant_id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+// Tenant middleware: resolve the tenant from a verified JWT
+app.use((req, res, next) => {
+  const tenantId = verifiedTenantId(req.headers.authorization, jwtSecret);
   if (!tenantId) {
-    res.status(400).json({ error: "Missing x-tenant-id header" });
+    res.status(401).json({ error: "Missing or invalid bearer token" });
     return;
   }
 
@@ -218,6 +241,14 @@ async function main() {
 main();
 ```
 
+<Aside type="caution">
+  Do not read the tenant from a request header such as `x-tenant-id`. Any client
+  can send that header and select another tenant. Read a header only when a
+  gateway you control sets it and removes any copy that the client sent. The SDK
+  middleware applies the same rule: with `jwtSecret` set, it reads the header
+  only with `trustTenantHeader: true`.
+</Aside>
+
 ### 6. Using Transactions
 
 The wrapped Drizzle instance supports transactions. The tenant context is automatically injected before your callback runs:
@@ -247,24 +278,30 @@ await req.tenantDb.transaction(async (tx) => {
 
 ### 7. Test Isolation
 
+Start the server with `JWT_SECRET` set, for example to the output of `openssl rand -hex 32`. `TENANT_A` and `TENANT_B` hold the IDs of two tenants.
+
 ```bash
+# Sign a token for each tenant with the same JWT_SECRET as the server
+TOKEN_A=$(node -e 'console.log(require("jsonwebtoken").sign({ tenant_id: process.argv[1] }, process.env.JWT_SECRET, { algorithm: "HS256", expiresIn: "1h" }))' "$TENANT_A")
+TOKEN_B=$(node -e 'console.log(require("jsonwebtoken").sign({ tenant_id: process.argv[1] }, process.env.JWT_SECRET, { algorithm: "HS256", expiresIn: "1h" }))' "$TENANT_B")
+
 # Create orders for Tenant A
 curl http://localhost:3000/orders -X POST \
-  -H "x-tenant-id: $TENANT_A" \
+  -H "Authorization: Bearer $TOKEN_A" \
   -H "Content-Type: application/json" \
   -d '{"product": "Widget", "quantity": 5, "total": "49.95"}'
 
 # Create orders for Tenant B
 curl http://localhost:3000/orders -X POST \
-  -H "x-tenant-id: $TENANT_B" \
+  -H "Authorization: Bearer $TOKEN_B" \
   -H "Content-Type: application/json" \
   -d '{"product": "Gadget", "quantity": 2, "total": "29.90"}'
 
 # Tenant A only sees their orders
-curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_A"
+curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_A"
 
 # Tenant B only sees their orders
-curl http://localhost:3000/orders -H "x-tenant-id: $TENANT_B"
+curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_B"
 ```
 
 ## How the Adapter Works

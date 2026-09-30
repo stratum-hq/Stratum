@@ -181,7 +181,7 @@ async function seed() {
   await pool.query(`
     DO $$ BEGIN
       CREATE POLICY tenant_isolation ON security_events
-        USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+        USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
     EXCEPTION WHEN duplicate_object THEN NULL;
     END $$
   `);

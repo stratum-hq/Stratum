@@ -1,7 +1,9 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
 import { lockTree } from "./tenant-service.js";
+import { parseInput } from "../validation.js";
 import {
+  CreateAbacPolicyInputSchema,
   type AbacCondition,
   type AbacPolicy,
   type CreateAbacPolicyInput,
@@ -276,8 +278,9 @@ export async function evaluateAbac(
 export async function createAbacPolicy(
   pool: pg.Pool,
   tenantId: string,
-  input: CreateAbacPolicyInput,
+  rawInput: CreateAbacPolicyInput,
 ): Promise<AbacPolicy> {
+  const input = parseInput(CreateAbacPolicyInputSchema, rawInput);
   return withTransaction(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1`,

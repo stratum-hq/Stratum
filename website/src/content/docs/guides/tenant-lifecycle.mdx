@@ -121,6 +121,13 @@ Purge the tenant and create it again, as above. If `details.storage_removed` is
 create the tenant again. For a failure during provisioning, `details.stage` is
 `"provisioning"`.
 
+The control plane drops the storage only when it can confirm that the tenant is
+still `pending`. If it cannot read the tenant after the activation error, it
+keeps the schema or database and returns the original error. In that case, get
+the tenant with `GET /api/v1/tenants/:id`. If the response is the tenant, it is
+`active` and ready to use. If the response is `TENANT_PENDING`, purge the tenant,
+drop its schema or database by hand, and create it again.
+
 <Aside type="caution">
 Blocking is the deliberate, safe default: no operation ever silently changes the
 state of tenants you did not name. If you need to suspend or archive a whole

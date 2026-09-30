@@ -51,6 +51,7 @@ export {
   WebhookNotFoundError,
   WebhookDeliveryError,
   WebhookUrlValidationError,
+  RegionNotFoundError,
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,

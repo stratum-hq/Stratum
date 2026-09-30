@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import pg from "pg";
 import { Stratum } from "@stratum-hq/lib";
 import { InvalidTenantStateError, StratumError } from "@stratum-hq/core";
 import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
@@ -32,6 +33,67 @@ function create(
 ) {
   const slug = uniqueSlug("a9p");
   return stratum.createTenant({ name: slug, slug, parent_id, isolation_strategy });
+}
+
+async function activatedEventCount(tenantId: string): Promise<number> {
+  const res = await getPool().query(
+    `SELECT 1 FROM webhook_events WHERE type = 'tenant.activated' AND tenant_id = $1`,
+    [tenantId],
+  );
+  return res.rowCount ?? 0;
+}
+
+/**
+ * Activate a new root tenant and wait for its tenant.activated event.
+ * emitEvent does not block its caller. An event that an earlier call emits
+ * starts before this one, so after this event lands, the earlier events had
+ * their chance to land too.
+ */
+async function awaitLaterActivationEvent(): Promise<void> {
+  const slug = uniqueSlug("i404");
+  const sibling = await stratum.createTenant({ name: slug, slug, isolation_strategy: "SCHEMA_PER_TENANT" });
+  await stratum.activateTenant(sibling.id);
+  const deadline = Date.now() + 10_000;
+  while ((await activatedEventCount(sibling.id)) === 0) {
+    if (Date.now() > deadline) throw new Error("the sibling tenant.activated event did not arrive");
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+/**
+ * Wrap the test pool so that the first COMMIT of a tenant activation commits
+ * and then fails, as when the connection drops before the reply arrives.
+ */
+function poolThatLosesActivationCommit(): pg.Pool {
+  const pool = getPool();
+  let armed = true;
+  const bound = (target: object, prop: PropertyKey) => {
+    const value = Reflect.get(target, prop, target);
+    return typeof value === "function" ? value.bind(target) : value;
+  };
+  return new Proxy(pool, {
+    get(target, prop) {
+      if (prop !== "connect") return bound(target, prop);
+      return async () => {
+        const client = await target.connect();
+        let activating = false;
+        return new Proxy(client, {
+          get(c, p) {
+            if (p !== "query") return bound(c, p);
+            return async (text: string, values?: unknown[]) => {
+              if (text.includes("SET status = 'active'")) activating = true;
+              const result = await c.query(text, values);
+              if (armed && activating && text === "COMMIT") {
+                armed = false;
+                throw new Error("Connection terminated unexpectedly");
+              }
+              return result;
+            };
+          },
+        });
+      };
+    },
+  });
 }
 
 async function expectPendingError(p: Promise<unknown>): Promise<void> {
@@ -116,8 +178,7 @@ describe("pending tenant status (integration)", () => {
     // A second call fails, so it must not add a second event.
     await expect(stratum.activateTenant(t.id)).rejects.toBeInstanceOf(InvalidTenantStateError);
 
-    // emitEvent does not block the caller, so the insert can land after activateTenant returns.
-    await new Promise((r) => setTimeout(r, 250));
+    await awaitLaterActivationEvent();
     const events = await getPool().query<{ tenant_id: string; status: string }>(
       `SELECT tenant_id, data->'tenant'->>'status' AS status FROM webhook_events
        WHERE type = 'tenant.activated' AND tenant_id = $1`,
@@ -135,12 +196,20 @@ describe("pending tenant status (integration)", () => {
     await stratum.suspendTenant(root.id);
     await expect(stratum.activateTenant(child.id)).rejects.toMatchObject({ code: "TENANT_SUSPENDED" });
 
-    await new Promise((r) => setTimeout(r, 250));
-    const events = await getPool().query(
-      `SELECT 1 FROM webhook_events WHERE type = 'tenant.activated' AND tenant_id = $1`,
-      [child.id],
-    );
-    expect(events.rowCount).toBe(0);
+    await awaitLaterActivationEvent();
+    expect(await activatedEventCount(child.id)).toBe(0);
+  });
+
+  it("resolves and emits one tenant.activated event when the activation commits but its reply is lost", async () => {
+    const slug = uniqueSlug("i404");
+    const t = await stratum.createTenant({ name: slug, slug, isolation_strategy: "SCHEMA_PER_TENANT" });
+    const flaky = new Stratum({ pool: poolThatLosesActivationCommit() });
+
+    const active = await flaky.activateTenant(t.id);
+    expect(active.status).toBe("active");
+
+    await awaitLaterActivationEvent();
+    expect(await activatedEventCount(t.id)).toBe(1);
   });
 
   it("refuses to activate a pending tenant under a suspended parent", async () => {

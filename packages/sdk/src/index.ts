@@ -31,6 +31,8 @@ export type { StratumClientOptions } from "./client.js";
 export { getTenantContext, runWithTenantContext, setTenantContext } from "./context.js";
 export { expressMiddleware } from "./middleware/express.js";
 export { fastifyPlugin } from "./middleware/fastify.js";
+export { tenantErrorResponse, controlPlaneErrorResponse } from "./middleware/tenant-errors.js";
+export type { TenantErrorResponse } from "./middleware/tenant-errors.js";
 export { resolveFromHeader } from "./resolvers/header.js";
 export { resolveFromJwt, assertJwtSupport } from "./resolvers/jwt.js";
 export { resolveTenantId } from "./resolvers/resolve.js";
