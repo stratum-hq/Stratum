@@ -173,7 +173,7 @@ async function resolveWebhookHost(hostname: string): Promise<LookupAddress[]> {
  * (the client never resolves the name again), so a DNS answer that changes
  * after validation cannot redirect the request. Redirects are not followed.
  */
-async function postWebhook(
+export async function postWebhook(
   url: string,
   headers: Record<string, string>,
   body: string,

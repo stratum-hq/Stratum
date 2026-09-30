@@ -59,6 +59,26 @@ export async function getWebhook(pool: pg.Pool, id: string): Promise<Webhook> {
   });
 }
 
+/**
+ * Load a webhook including its encrypted secret, for signing a delivery.
+ * Internal: the result must never be returned to API callers.
+ */
+export async function getWebhookWithSecret(
+  pool: pg.Pool,
+  id: string,
+): Promise<Webhook> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<Webhook>(
+      `SELECT ${WEBHOOK_PUBLIC_COLS}, secret_hash FROM webhooks WHERE id = $1`,
+      [id],
+    );
+    if (res.rows.length === 0) {
+      throw new WebhookNotFoundError(id);
+    }
+    return res.rows[0];
+  });
+}
+
 export async function listWebhooks(
   pool: pg.Pool,
   tenantId?: string | null,
