@@ -423,6 +423,33 @@ describe("StratumGuard (real guard): tenant identity precedence", () => {
     expect(result).toBe(true);
     expect(resolveTenant).toHaveBeenCalledWith("tenant-header");
   });
+
+  function realGuard(options: Record<string, unknown>) {
+    const resolveTenant = vi.fn(async (id: string) => ({ id, slug: id, name: id }));
+    const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
+    const guard = new StratumGuard(client, options as unknown as import("../stratum.module.js").StratumModuleOptions);
+    const run = (headers: Record<string, string>) =>
+      guard.canActivate(makeExecutionContext({ headers }) as unknown as import("@nestjs/common").ExecutionContext);
+    return { run, resolveTenant };
+  }
+
+  it("rejects an unverifiable bearer token instead of falling back to X-Tenant-ID", async () => {
+    const { run, resolveTenant } = realGuard({ jwtVerify: () => null });
+    await expect(run({ authorization: "Bearer forged", "x-tenant-id": "tenant-header" })).rejects.toThrow();
+    expect(resolveTenant).not.toHaveBeenCalled();
+  });
+
+  it("does not bind X-Tenant-ID when JWT verification is configured and no token is sent", async () => {
+    const { run, resolveTenant } = realGuard({ jwtVerify: () => ({ tenant_id: "tenant-a" }) });
+    await expect(run({ "x-tenant-id": "tenant-header" })).rejects.toThrow();
+    expect(resolveTenant).not.toHaveBeenCalled();
+  });
+
+  it("reads only the configured headerName and ignores X-Tenant-ID", async () => {
+    const { run, resolveTenant } = realGuard({ headerName: "X-Internal-Tenant" });
+    await expect(run({ "x-tenant-id": "tenant-header" })).rejects.toThrow();
+    expect(resolveTenant).not.toHaveBeenCalled();
+  });
 });
 
 describe("@Tenant() decorator", () => {

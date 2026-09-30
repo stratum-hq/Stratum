@@ -9,6 +9,45 @@ export interface StratumClientOptions {
   cache?: { enabled?: boolean; ttlMs?: number; maxSize?: number };
 }
 
+/**
+ * Encode an ID for use as a single URL path segment. Dot segments are refused
+ * because URL parsing would resolve them against the surrounding path.
+ */
+function pathSegment(id: string): string {
+  if (id === "" || id === "." || id === "..") {
+    throw new Error("Invalid identifier");
+  }
+  return encodeURIComponent(id);
+}
+
+function cacheKey(tenantId: string): string {
+  return tenantId.toLowerCase();
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Check that a /context response is a ResolvedTenantContext for the requested
+ * tenant. Anything else fails closed rather than being bound as the request's
+ * tenant.
+ */
+function assertResolvedTenantContext(value: unknown, tenantId: string): asserts value is ResolvedTenantContext {
+  const ok =
+    isObject(value) &&
+    typeof value["tenant_id"] === "string" &&
+    value["tenant_id"].toLowerCase() === tenantId.toLowerCase() &&
+    typeof value["ancestry_path"] === "string" &&
+    typeof value["depth"] === "number" &&
+    isObject(value["resolved_config"]) &&
+    isObject(value["resolved_permissions"]) &&
+    typeof value["isolation_strategy"] === "string";
+  if (!ok) {
+    throw new Error("Control plane returned an invalid tenant context");
+  }
+}
+
 export class StratumClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -55,21 +94,26 @@ export class StratumClient {
   }
 
   async resolveTenant(tenantId: string): Promise<ResolvedTenantContext> {
+    if (tenantId === "" || tenantId === "." || tenantId === "..") {
+      throw new TenantNotFoundError(tenantId);
+    }
+    const path = `/api/v1/tenants/${pathSegment(tenantId)}/context`;
     if (this.cacheEnabled) {
-      const cached = this.cache.get(tenantId);
+      const cached = this.cache.get(cacheKey(tenantId));
       if (cached) return cached;
     }
 
-    const context = await this.fetch<ResolvedTenantContext>(`/api/v1/tenants/${tenantId}/context`);
+    const context = await this.fetch<unknown>(path);
+    assertResolvedTenantContext(context, tenantId);
     if (this.cacheEnabled) {
-      this.cache.set(tenantId, context);
+      this.cache.set(cacheKey(tenantId), context);
     }
     return context;
   }
 
   async getTenantTree(rootId?: string): Promise<TenantNode[]> {
     if (rootId) {
-      return this.fetch<TenantNode[]>(`/api/v1/tenants/${rootId}/descendants`);
+      return this.fetch<TenantNode[]>(`/api/v1/tenants/${pathSegment(rootId)}/descendants`);
     }
     const result = await this.fetch<{ data: TenantNode[] }>(`/api/v1/tenants`);
     return result.data;
@@ -83,43 +127,44 @@ export class StratumClient {
   }
 
   async getTenant(tenantId: string): Promise<TenantNode> {
-    return this.fetch<TenantNode>(`/api/v1/tenants/${tenantId}`);
+    return this.fetch<TenantNode>(`/api/v1/tenants/${pathSegment(tenantId)}`);
   }
 
   async updateTenant(tenantId: string, input: UpdateTenantInput): Promise<TenantNode> {
-    const node = await this.fetch<TenantNode>(`/api/v1/tenants/${tenantId}`, {
+    const node = await this.fetch<TenantNode>(`/api/v1/tenants/${pathSegment(tenantId)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
-    this.cache.invalidate(tenantId);
+    this.cache.invalidate(cacheKey(tenantId));
     return node;
   }
 
   async moveTenant(tenantId: string, input: MoveTenantInput): Promise<TenantNode> {
-    const node = await this.fetch<TenantNode>(`/api/v1/tenants/${tenantId}/move`, {
+    const node = await this.fetch<TenantNode>(`/api/v1/tenants/${pathSegment(tenantId)}/move`, {
       method: "POST",
       body: JSON.stringify(input),
     });
-    this.cache.invalidate(tenantId);
+    // Descendants' cached ancestry, config and permissions change with the move.
+    this.cache.clear();
     return node;
   }
 
   async archiveTenant(tenantId: string): Promise<void> {
-    await this.fetch<void>(`/api/v1/tenants/${tenantId}`, {
+    await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}`, {
       method: "DELETE",
     });
-    this.cache.invalidate(tenantId);
+    this.cache.invalidate(cacheKey(tenantId));
   }
 
   async deleteTenant(tenantId: string): Promise<void> {
-    await this.fetch<void>(`/api/v1/tenants/${tenantId}`, {
+    await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}`, {
       method: "DELETE",
     });
-    this.cache.invalidate(tenantId);
+    this.cache.invalidate(cacheKey(tenantId));
   }
 
   invalidateCache(tenantId: string): void {
-    this.cache.invalidate(tenantId);
+    this.cache.invalidate(cacheKey(tenantId));
   }
 
   clearCache(): void {
@@ -141,24 +186,24 @@ export class StratumClient {
   }
 
   async getWebhook(id: string): Promise<Webhook> {
-    return this.fetch<Webhook>(`/api/v1/webhooks/${id}`);
+    return this.fetch<Webhook>(`/api/v1/webhooks/${pathSegment(id)}`);
   }
 
   async updateWebhook(id: string, input: UpdateWebhookInput): Promise<Webhook> {
-    return this.fetch<Webhook>(`/api/v1/webhooks/${id}`, {
+    return this.fetch<Webhook>(`/api/v1/webhooks/${pathSegment(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
   }
 
   async deleteWebhook(id: string): Promise<void> {
-    await this.fetch<void>(`/api/v1/webhooks/${id}`, {
+    await this.fetch<void>(`/api/v1/webhooks/${pathSegment(id)}`, {
       method: "DELETE",
     });
   }
 
   async rotateApiKey(keyId: string, name?: string): Promise<{ id: string; plaintext_key: string; tenant_id: string | null; name: string | null }> {
-    return this.fetch(`/api/v1/api-keys/${keyId}/rotate`, {
+    return this.fetch(`/api/v1/api-keys/${pathSegment(keyId)}/rotate`, {
       method: "POST",
       body: JSON.stringify(name ? { name } : {}),
     });
@@ -191,14 +236,14 @@ export class StratumClient {
   }
 
   async updateRegion(id: string, input: UpdateRegionInput): Promise<Region> {
-    return this.fetch<Region>(`/api/v1/regions/${id}`, {
+    return this.fetch<Region>(`/api/v1/regions/${pathSegment(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     });
   }
 
   async deleteRegion(id: string): Promise<void> {
-    await this.fetch<void>(`/api/v1/regions/${id}`, {
+    await this.fetch<void>(`/api/v1/regions/${pathSegment(id)}`, {
       method: "DELETE",
     });
   }

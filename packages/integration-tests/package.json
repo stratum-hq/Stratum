@@ -12,10 +12,11 @@
   "devDependencies": {
     "@stratum-hq/control-plane": "*",
     "@stratum-hq/core": "*",
-    "@stratum-hq/lib": "*",
     "@stratum-hq/db-adapters": "*",
+    "@stratum-hq/lib": "*",
+    "@stratum-hq/sdk": "*",
     "pg": "^8.11.0",
-    "vitest": "^4.1.11",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

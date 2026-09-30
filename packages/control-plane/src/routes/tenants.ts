@@ -9,6 +9,7 @@ import {
   isSupportedIsolationStrategy,
   getAncestorIds,
 } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import {
   setupSchemaForTenant,
@@ -179,9 +180,17 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(data);
     });
 
-    // GET /api/v1/tenants/:id/context — Resolve full tenant impersonation context (admin scope)
+    // GET /api/v1/tenants/:id/context — Resolve the flat ResolvedTenantContext (admin scope)
     app.get<{ Params: { id: string } }>("/:id/context", async (request, reply) => {
-      const context = await stratum.getTenantContext(request.params.id);
+      const { tenant, config, permissions } = await stratum.getTenantContext(request.params.id);
+      const context: ResolvedTenantContext = {
+        tenant_id: tenant.id,
+        ancestry_path: tenant.ancestry_path,
+        depth: tenant.depth,
+        resolved_config: config,
+        resolved_permissions: permissions,
+        isolation_strategy: tenant.isolation_strategy,
+      };
       reply.status(200).send(context);
     });
   };
