@@ -1,4 +1,11 @@
-import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+import {
+  ErrorCode,
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+  UnauthorizedError,
+} from "@stratum-hq/core";
 import type { ResolvedTenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
 import { LRUCache } from "./cache.js";
 
@@ -7,6 +14,50 @@ export interface StratumClientOptions {
   apiKey: string;
   regionUrl?: string;
   cache?: { enabled?: boolean; ttlMs?: number; maxSize?: number };
+  /**
+   * Time limit in milliseconds for each control plane request, including the
+   * response body. A request that exceeds it rejects with a `TimeoutError`
+   * DOMException. Default: 10000.
+   */
+  timeoutMs?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 10_000;
+
+interface ErrorBody {
+  error?: { code?: string; message?: string; details?: { tenant_id?: unknown } };
+}
+
+/**
+ * Give a typed error the control plane's own message. The core error
+ * constructors add a prefix, and the control plane message already has it.
+ */
+function withMessage<E extends Error>(err: E, message: string | undefined): E {
+  if (message) err.message = message;
+  return err;
+}
+
+/**
+ * Map a failed control plane response to the core error class for its status
+ * and error code. A status without a typed error becomes a plain Error.
+ */
+function responseError(status: number, body: ErrorBody): Error {
+  const code = body.error?.code;
+  const message = body.error?.message;
+  const rawTenantId = body.error?.details?.tenant_id;
+  const tenantId = typeof rawTenantId === "string" ? rawTenantId : "unknown";
+  if (status === 404) {
+    return withMessage(new TenantNotFoundError(tenantId), message);
+  }
+  if (status === 403) {
+    return code === ErrorCode.TENANT_SUSPENDED
+      ? withMessage(new TenantSuspendedError(tenantId), message)
+      : new ForbiddenError(message);
+  }
+  if (status === 410 && code === ErrorCode.TENANT_ARCHIVED) {
+    return withMessage(new TenantArchivedError(tenantId), message);
+  }
+  return new Error(message ?? `HTTP ${status}`);
 }
 
 /**
@@ -54,12 +105,14 @@ export class StratumClient {
   private readonly regionUrl: string | undefined;
   private readonly cache: LRUCache<string, ResolvedTenantContext>;
   private readonly cacheEnabled: boolean;
+  private readonly timeoutMs: number;
 
   constructor(options: StratumClientOptions) {
     this.baseUrl = options.controlPlaneUrl.replace(/\/$/, "");
     this.apiKey = options.apiKey;
     this.regionUrl = options.regionUrl?.replace(/\/$/, "");
     this.cacheEnabled = options.cache?.enabled !== false;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.cache = new LRUCache<string, ResolvedTenantContext>({
       ttlMs: options.cache?.ttlMs,
       maxSize: options.cache?.maxSize,
@@ -70,6 +123,7 @@ export class StratumClient {
     const url = `${this.baseUrl}${path}`;
     const response = await globalThis.fetch(url, {
       ...init,
+      signal: AbortSignal.timeout(this.timeoutMs),
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": this.apiKey,
@@ -81,12 +135,8 @@ export class StratumClient {
       if (response.status === 401) {
         throw new UnauthorizedError("Invalid or missing API key");
       }
-      if (response.status === 404) {
-        const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
-        throw new TenantNotFoundError(body?.error?.message ?? "unknown");
-      }
-      const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
-      throw new Error(body?.error?.message ?? `HTTP ${response.status}`);
+      const body = await response.json().catch(() => ({})) as ErrorBody | null;
+      throw responseError(response.status, body ?? {});
     }
 
     if (response.status === 204) return undefined as T;

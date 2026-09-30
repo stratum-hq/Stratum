@@ -68,7 +68,29 @@ JWT resolution activates only when `jwtSecret` or `jwtVerify` is provided; other
 The SDK throws typed errors from `@stratum-hq/core`:
 
 ```typescript
-import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+  UnauthorizedError,
+} from "@stratum-hq/core";
+```
+
+| Control plane response | Error |
+|---|---|
+| 401 | `UnauthorizedError` |
+| 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
+| 403, any other code | `ForbiddenError` |
+| 404 | `TenantNotFoundError` |
+| 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
+
+The middleware answers these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target. Other errors go to your framework's error handler.
+
+Each control plane request has a time limit of `timeoutMs` milliseconds (default 10000). A request that takes longer rejects with a `TimeoutError` `DOMException`:
+
+```typescript
+const client = new StratumClient({ controlPlaneUrl, apiKey, timeoutMs: 5000 });
 ```
 
 ## Links

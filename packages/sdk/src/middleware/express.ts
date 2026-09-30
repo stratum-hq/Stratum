@@ -1,9 +1,9 @@
-import { TenantNotFoundError } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
 import { assertJwtSupport } from "../resolvers/jwt.js";
 import { resolveTenantId } from "../resolvers/resolve.js";
+import { tenantErrorResponse } from "./tenant-errors.js";
 
 // Minimal structural types for the Express surface this middleware touches, so
 // the SDK does not take a hard dependency on `express` types in its published API.
@@ -43,8 +43,9 @@ export function expressMiddleware(client: StratumClient, options?: MiddlewareOpt
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
-        if (err instanceof TenantNotFoundError) {
-          res.status(404).json({ error: { code: "TENANT_NOT_FOUND", message: `Tenant not found: ${tenantId}` } });
+        const response = tenantErrorResponse(err, tenantId);
+        if (response) {
+          res.status(response.status).json(response.body);
           return;
         }
         throw err;
@@ -71,7 +72,17 @@ export function expressMiddleware(client: StratumClient, options?: MiddlewareOpt
           }
 
           // Resolve the impersonated tenant's context
-          const impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          let impersonatedContext;
+          try {
+            impersonatedContext = await client.resolveTenant(impersonateTenantId);
+          } catch (err) {
+            const response = tenantErrorResponse(err, impersonateTenantId);
+            if (response) {
+              res.status(response.status).json(response.body);
+              return;
+            }
+            throw err;
+          }
           req.tenant = impersonatedContext;
           req.impersonating = true;
           req.originalTenantId = tenantId;
