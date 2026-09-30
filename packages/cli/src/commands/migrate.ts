@@ -9,10 +9,53 @@ function validateTableName(name: string): string {
   return name;
 }
 
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Returns the tenant that `--tenant` names, or undefined when the flag is absent.
+ * Throws when the flag has no value, is not a UUID, or is the nil UUID.
+ */
+function parseTenantFlag(flags: Record<string, string | boolean>): string | undefined {
+  const value = flags["tenant"];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") {
+    throw new Error("--tenant needs a value: --tenant <uuid>");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error(`Invalid --tenant value: "${value}". Expected a UUID.`);
+  }
+  // Rows assigned to the nil UUID belong to no real tenant.
+  if (value === NIL_UUID) {
+    throw new Error("--tenant cannot be the nil UUID. Give the id of a real tenant.");
+  }
+  return value;
+}
+
+/** Throws unless `tenantId` is a row in the tenants table, when that table exists. */
+async function assertTenantExists(
+  client: import("pg").PoolClient,
+  tenantId: string,
+): Promise<void> {
+  const hasTenants = await client.query(
+    "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tenants'",
+  );
+  if (hasTenants.rows.length === 0) return;
+
+  // Stratum's tenants table has FORCE RLS, so the lookup needs the bypass. The
+  // bypass is switched off again so that it does not apply to the rest of the migration.
+  await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
+  const found = await client.query("SELECT 1 FROM tenants WHERE id = $1", [tenantId]);
+  await client.query("SELECT set_config('app.bypass_rls', 'off', true)");
+  if (found.rows.length === 0) {
+    throw new Error(`Tenant "${tenantId}" does not exist in the tenants table.`);
+  }
+}
+
 async function migrateTable(
   pool: import("pg").Pool,
   tableName: string,
   info?: TableInfo,
+  tenantId?: string,
 ): Promise<void> {
   const safe = validateTableName(tableName);
   const client = await pool.connect();
@@ -37,12 +80,27 @@ async function migrateTable(
         [safe],
       );
       if (hasCol.rows.length === 0) {
+        const countRes = await client.query(`SELECT count(*)::int AS n FROM ${safe}`);
+        const rowCount: number = countRes.rows[0].n;
+        if (rowCount > 0 && !tenantId) {
+          throw new Error(
+            `${safe} has ${rowCount} existing row(s), and each row needs a tenant.\n` +
+              `  Run again with --tenant <uuid> to assign every existing row to that tenant,\n` +
+              `  or add and backfill tenant_id yourself (see "stratum scan --generate").`,
+          );
+        }
+
         log.info(`Adding tenant_id column to ${safe}...`);
-        await client.query(
-          `ALTER TABLE ${safe} ADD COLUMN tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'`,
-        );
-        // Remove default after adding (the default is just to allow adding NOT NULL to existing rows)
-        await client.query(`ALTER TABLE ${safe} ALTER COLUMN tenant_id DROP DEFAULT`);
+        // The column starts nullable so that existing rows get a real tenant, not a placeholder.
+        await client.query(`ALTER TABLE ${safe} ADD COLUMN tenant_id UUID`);
+        if (rowCount > 0) {
+          await assertTenantExists(client, tenantId as string);
+          await client.query(`UPDATE ${safe} SET tenant_id = $1 WHERE tenant_id IS NULL`, [
+            tenantId,
+          ]);
+          log.success(`Assigned ${rowCount} existing row(s) to tenant ${tenantId}`);
+        }
+        await client.query(`ALTER TABLE ${safe} ALTER COLUMN tenant_id SET NOT NULL`);
         log.success(`Added tenant_id column to ${safe}`);
       } else {
         log.info(`${safe} already has tenant_id column`);
@@ -94,8 +152,9 @@ async function migrateTable(
       if (hasFk.rows.length === 0) {
         await client.query(
           `ALTER TABLE ${safe} ADD CONSTRAINT ${fkName}
-           FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE`,
+           FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE NOT VALID`,
         );
+        await client.query(`ALTER TABLE ${safe} VALIDATE CONSTRAINT ${fkName}`);
         log.success(`Foreign key ${fkName} created`);
       }
     }
@@ -114,6 +173,7 @@ export async function migrate(
   args: string[],
   flags: Record<string, string | boolean>,
 ): Promise<void> {
+  const tenantId = parseTenantFlag(flags);
   const pool = await connectDb(flags);
 
   try {
@@ -178,7 +238,7 @@ export async function migrate(
       for (const table of unmigrated) {
         console.log();
         log.heading(`Migrating: ${table.table_name}`);
-        await migrateTable(pool, table.table_name, table);
+        await migrateTable(pool, table.table_name, table, tenantId);
       }
 
       console.log();
@@ -204,9 +264,9 @@ export async function migrate(
         return;
       }
 
-      await migrateTable(pool, tableName, info);
+      await migrateTable(pool, tableName, info, tenantId);
     } else {
-      console.error("Usage: stratum migrate <table> | --scan | --all");
+      console.error("Usage: stratum migrate <table> | --scan | --all [--tenant <uuid>]");
       process.exit(1);
     }
 
