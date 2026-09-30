@@ -1,6 +1,6 @@
 import type { Context, Next, MiddlewareHandler } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { runWithTenantContext, tenantErrorResponse } from "@stratum-hq/sdk";
+import { controlPlaneErrorResponse, runWithTenantContext, tenantErrorResponse } from "@stratum-hq/sdk";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { IsolationStrategy } from "@stratum-hq/core";
 
@@ -18,7 +18,9 @@ export interface StratumMiddlewareOptions {
    *
    * If the callback rejects with a tenant error from `@stratum-hq/core`, for
    * example from `StratumClient.resolveTenant`, the middleware answers 404,
-   * 403 or 410. Other errors go to the Hono error handler.
+   * 403 or 410. A control plane timeout answers 504. A rejected SDK API key
+   * answers 500 and writes the cause to `console.error`. Other errors go to
+   * the Hono error handler.
    */
   resolve?: (tenantId: string) => Promise<ResolvedTenantContext> | ResolvedTenantContext;
 }
@@ -83,7 +85,7 @@ export function stratumMiddleware(
             isolation_strategy: IsolationStrategy.SHARED_RLS,
           };
     } catch (err) {
-      const response = tenantErrorResponse(err, tenantId);
+      const response = tenantErrorResponse(err, tenantId) ?? controlPlaneErrorResponse(err);
       if (!response) throw err;
       return c.json(response.body, response.status as ContentfulStatusCode);
     }

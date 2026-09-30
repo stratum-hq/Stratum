@@ -7,6 +7,7 @@ import {
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  UnauthorizedError,
 } from "@stratum-hq/core";
 
 // Mock runWithTenantContext from SDK — execute the callback so downstream handlers run.
@@ -164,6 +165,32 @@ describe("stratumMiddleware", () => {
         expect(handler).not.toHaveBeenCalled();
       });
     }
+
+    it("answers 504 CONTROL_PLANE_TIMEOUT when resolve times out", async () => {
+      const app = new Hono();
+      const timeout = new DOMException("The operation timed out.", "TimeoutError");
+      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(timeout) }));
+      app.get("/test", (c) => c.json({ ok: true }));
+
+      const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
+
+      expect(res.status).toBe(504);
+      expect(await res.json()).toEqual({ error: expect.objectContaining({ code: "CONTROL_PLANE_TIMEOUT" }) });
+    });
+
+    it("answers 500 CONTROL_PLANE_AUTH_FAILED and logs the cause when the control plane rejects the SDK key", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const app = new Hono();
+      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(new UnauthorizedError()) }));
+      app.get("/test", (c) => c.json({ ok: true }));
+
+      const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: expect.objectContaining({ code: "CONTROL_PLANE_AUTH_FAILED" }) });
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("SDK API key"));
+      log.mockRestore();
+    });
 
     it("passes any other resolve error to the Hono error handler", async () => {
       const app = new Hono();
