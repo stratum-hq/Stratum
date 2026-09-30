@@ -1086,8 +1086,11 @@ export class Stratum {
     oldKeyMaterial: string,
     newKeyMaterial: string,
     audit?: AuditContext,
+    salts?: keyRotationService.KeyRotationSalts,
   ): Promise<keyRotationService.KeyRotationResult> {
-    const result = await keyRotationService.rotateEncryptionKey(this.pool, oldKeyMaterial, newKeyMaterial);
+    const result = await keyRotationService.rotateEncryptionKey(
+      this.pool, oldKeyMaterial, newKeyMaterial, undefined, salts,
+    );
     const summary = {
       config_entries_rotated: result.config_entries_rotated,
       webhooks_rotated: result.webhooks_rotated,

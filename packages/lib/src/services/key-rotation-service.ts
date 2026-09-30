@@ -18,6 +18,15 @@ export interface KeyRotationResult {
   unreadable: KeyRotationUnreadableRow[];
 }
 
+/** HKDF salts for a rotation, in the hex format of STRATUM_HKDF_SALT.
+ * A salt that is not given is the configured STRATUM_HKDF_SALT. */
+export interface KeyRotationSalts {
+  /** The salt that the existing values were encrypted under. */
+  oldSalt?: string;
+  /** The salt that the rotation encrypts under. */
+  newSalt?: string;
+}
+
 // Lowest possible UUID; a keyset cursor starting here precedes every real row.
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -26,18 +35,23 @@ type RotateOutcome = { kind: "rotated"; value: string } | { kind: "already_rotat
 // A run that fails partway leaves earlier batches committed under the new key.
 // Accepting those values, instead of failing on them, is what lets a re-run
 // with the same keys finish the rotation.
-function rotateValue(encrypted: string, oldKeyMaterial: string, newKeyMaterial: string): RotateOutcome {
-  const plaintext = decryptWithKeyMaterial(encrypted, oldKeyMaterial);
+function rotateValue(
+  encrypted: string,
+  oldKeyMaterial: string,
+  newKeyMaterial: string,
+  salts: KeyRotationSalts,
+): RotateOutcome {
+  const plaintext = decryptWithKeyMaterial(encrypted, oldKeyMaterial, salts.oldSalt);
   if (plaintext !== null) {
-    return { kind: "rotated", value: encryptWithKeyMaterial(plaintext, newKeyMaterial) };
+    return { kind: "rotated", value: encryptWithKeyMaterial(plaintext, newKeyMaterial, salts.newSalt) };
   }
-  if (decryptWithKeyMaterial(encrypted, newKeyMaterial) !== null) return { kind: "already_rotated" };
+  if (decryptWithKeyMaterial(encrypted, newKeyMaterial, salts.newSalt) !== null) return { kind: "already_rotated" };
   return { kind: "unreadable" };
 }
 
 /**
  * Re-encrypts all sensitive data (config entries and webhook secrets)
- * from oldKey to newKey in batches, walking the primary key with a keyset
+ * from (oldKey, oldSalt) to (newKey, newSalt) in batches, walking the primary key with a keyset
  * cursor (id > lastId, ordered by id) so every row is visited exactly once.
  * Each batch is its own transaction so locks are held briefly.
  *
@@ -47,16 +61,20 @@ function rotateValue(encrypted: string, oldKeyMaterial: string, newKeyMaterial: 
  *
  * Throws a ValidationError when encrypted values exist and none of them
  * decrypts with either key. That result almost always means `oldKeyMaterial`
- * is wrong, and the run has changed no row.
+ * or `salts.oldSalt` is wrong, and the run has changed no row.
+ *
+ * To move the data to a new HKDF salt, give `salts.oldSalt` and `salts.newSalt`.
+ * The old key and the new key can then be the same.
  *
  * After rotation, update the STRATUM_ENCRYPTION_KEY environment variable to
- * the new key.
+ * the new key, and STRATUM_HKDF_SALT to the new salt.
  */
 export async function rotateEncryptionKey(
   pool: pg.Pool,
   oldKeyMaterial: string,
   newKeyMaterial: string,
   batchSize: number = 100,
+  salts: KeyRotationSalts = {},
 ): Promise<KeyRotationResult> {
   let configCount = 0;
   let webhookCount = 0;
@@ -75,7 +93,7 @@ export async function rotateEncryptionKey(
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
-        const outcome = rotateValue(row.value, oldKeyMaterial, newKeyMaterial);
+        const outcome = rotateValue(row.value, oldKeyMaterial, newKeyMaterial, salts);
         if (outcome.kind === "already_rotated") {
           alreadyRotated++;
         } else if (outcome.kind === "unreadable") {
@@ -106,7 +124,7 @@ export async function rotateEncryptionKey(
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
-        const outcome = rotateValue(row.secret_hash, oldKeyMaterial, newKeyMaterial);
+        const outcome = rotateValue(row.secret_hash, oldKeyMaterial, newKeyMaterial, salts);
         if (outcome.kind === "already_rotated") {
           alreadyRotated++;
         } else if (outcome.kind === "unreadable") {
