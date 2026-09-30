@@ -65,6 +65,15 @@ beforeAll(async () => {
   app.get("/unknown-code", async () => {
     throw new ForeignStratumError("SOMETHING_ELSE", "not a stratum error", 409);
   });
+  app.get("/unknown-code/:status", async (request) => {
+    const status = Number((request.params as { status: string }).status);
+    throw new ForeignStratumError("SOMETHING_ELSE", "not a stratum error", status);
+  });
+  app.post(
+    "/fastify-schema",
+    { schema: { body: { type: "object", required: ["name"], properties: { name: { type: "string" } } } } },
+    async () => ({ ok: true }),
+  );
   app.get("/named-zod-without-issues", async () => {
     const err = new Error("not a validation error");
     err.name = "ZodError";
@@ -133,9 +142,52 @@ describe("errorHandler", () => {
 
   it("does not answer an error with an unknown code as a StratumError", async () => {
     const res = await app.inject({ method: "GET", url: "/unknown-code" });
-    // The error falls through to the branch for Fastify errors below 500.
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({ error: { code: "VALIDATION_ERROR", message: "not a stratum error" } });
+    expect(res.json()).toEqual({ error: { code: "CONFLICT", message: "not a stratum error" } });
+  });
+
+  it.each([
+    [400, "BAD_REQUEST"],
+    [401, "UNAUTHORIZED"],
+    [403, "FORBIDDEN"],
+    [404, "NOT_FOUND"],
+    [409, "CONFLICT"],
+    [413, "PAYLOAD_TOO_LARGE"],
+    [415, "UNSUPPORTED_MEDIA_TYPE"],
+    [429, "RATE_LIMITED"],
+    [418, "BAD_REQUEST"],
+  ])("labels an unknown error with status %i as %s", async (status, code) => {
+    const res = await app.inject({ method: "GET", url: `/unknown-code/${status}` });
+    expect(res.statusCode).toBe(status);
+    expect(res.json()).toEqual({ error: { code, message: "not a stratum error" } });
+  });
+
+  it("keeps VALIDATION_ERROR for a Fastify schema validation error", async () => {
+    const res = await app.inject({ method: "POST", url: "/fastify-schema", payload: {} });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("labels a request body that is not valid JSON as BAD_REQUEST", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/fastify-schema",
+      headers: { "content-type": "application/json" },
+      payload: "{not json",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("BAD_REQUEST");
+  });
+
+  it("labels an unsupported content type as UNSUPPORTED_MEDIA_TYPE", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/fastify-schema",
+      headers: { "content-type": "application/x-unknown" },
+      payload: "x",
+    });
+    expect(res.statusCode).toBe(415);
+    expect(res.json().error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
   });
 
   it("answers 500 for an error named ZodError that has no issues array", async () => {

@@ -98,6 +98,32 @@ function isIssueList(value: unknown): value is ValidationIssue[] {
   );
 }
 
+/**
+ * The code for an error below 500 that is not a StratumError, by status.
+ * The codes match the codes that the routes and rate limiters send themselves.
+ */
+const CLIENT_ERROR_CODES: Readonly<Record<number, string>> = {
+  400: "BAD_REQUEST",
+  401: ErrorCode.UNAUTHORIZED,
+  403: ErrorCode.FORBIDDEN,
+  404: "NOT_FOUND",
+  409: "CONFLICT",
+  413: "PAYLOAD_TOO_LARGE",
+  415: "UNSUPPORTED_MEDIA_TYPE",
+  429: "RATE_LIMITED",
+};
+
+/**
+ * Returns the code for an error below 500 that is not a StratumError or a ZodError.
+ * Only a Fastify schema validation error is a VALIDATION_ERROR.
+ * Any other error gets a neutral code for its status, so a client does not read a
+ * conflict or a missing resource as a bad field.
+ */
+function clientErrorCode(error: FastifyError): string {
+  if (error.validation || error.code === "FST_ERR_VALIDATION") return ErrorCode.VALIDATION_ERROR;
+  return CLIENT_ERROR_CODES[error.statusCode as number] ?? "BAD_REQUEST";
+}
+
 export function errorHandler(
   error: FastifyError | Error,
   request: FastifyRequest,
@@ -128,12 +154,11 @@ export function errorHandler(
     return;
   }
 
-  // Fastify validation errors (e.g. schema validation)
   const fastifyError = error as FastifyError;
   if (fastifyError.statusCode && fastifyError.statusCode < 500) {
     reply.status(fastifyError.statusCode).send({
       error: {
-        code: "VALIDATION_ERROR",
+        code: clientErrorCode(fastifyError),
         message: error.message,
       },
     });
