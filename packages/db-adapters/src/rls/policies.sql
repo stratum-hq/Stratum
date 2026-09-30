@@ -6,7 +6,7 @@
 
 -- Create the tenant isolation policy
 -- CREATE POLICY tenant_isolation ON {table_name}
---   USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+--   USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 
 -- Drop the tenant isolation policy
 -- DROP POLICY IF EXISTS tenant_isolation ON {table_name};
