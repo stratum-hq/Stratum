@@ -54,10 +54,10 @@ export function useConfigCascade() {
       // Fetch parent config + children list in parallel
       const [configRes, childrenRes] = await Promise.all([
         apiCall<Record<string, CascadeConfigEntry>>(
-          `/api/v1/tenants/${tenant.id}/config`,
+          `/api/v1/tenants/${encodeURIComponent(tenant.id)}/config`,
         ),
         apiCall<Array<{ id: string; name: string; slug: string }>>(
-          `/api/v1/tenants/${tenant.id}/descendants`,
+          `/api/v1/tenants/${encodeURIComponent(tenant.id)}/descendants`,
         ).catch(() => [] as Array<{ id: string; name: string; slug: string }>),
       ]);
 
@@ -83,7 +83,7 @@ export function useConfigCascade() {
           try {
             const childConfig = await apiCall<
               Record<string, CascadeConfigEntry>
-            >(`/api/v1/tenants/${child.id}/config`);
+            >(`/api/v1/tenants/${encodeURIComponent(child.id)}/config`);
             return {
               id: child.id,
               name: child.name,

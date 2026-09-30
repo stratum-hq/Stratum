@@ -7,6 +7,7 @@ import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { parsePresetString, isValidPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
+import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ CREATE EXTENSION IF NOT EXISTS "ltree";
 -- The ltree extension enables hierarchical tenant trees
 -- uuid-ossp provides uuid_generate_v4() for tenant IDs
 COMMENT ON DATABASE ${dbName} IS 'Multi-tenant database for ${projectName}';
-`;
+${postgresAppRoleSql(dbName)}`;
 }
 
 function generateEnv(projectName: string): string {
@@ -203,8 +204,12 @@ function generateEnv(projectName: string): string {
   return `# Environment variables for ${projectName}
 # Copy to .env and fill in values
 
-# Database
-DATABASE_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}
+# Database. The app connects as the non-superuser role created in init.sql,
+# so row-level security applies to it.
+DATABASE_URL=postgres://${postgresAppRole(dbName)}:${POSTGRES_APP_PASSWORD}@localhost:5432/${dbName}
+
+# Superuser: bootstrap and migrations only. It bypasses row-level security.
+DATABASE_ADMIN_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}
 
 # Authentication
 JWT_SECRET=${jwtSecret}
@@ -295,7 +300,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>Access tenant context via <code>x-tenant-id</code> header</li>
+        <li>Tenant is resolved from the subdomain in <code>middleware.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>
@@ -305,18 +310,19 @@ export default function Home() {
 }
 
 function generateNextjsMiddleware(): string {
-  return `// middleware.ts — tenant resolution via subdomain or header
+  return `// middleware.ts — tenant resolution via subdomain
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // The tenant comes from the subdomain the request was routed to. Any
+  // x-tenant-id the client sent is removed first, so server code that reads
+  // x-tenant-id only ever sees the value set here. Once you add
+  // authentication, check that the signed-in user belongs to this tenant.
   const hostname = request.headers.get("host") || "";
-  const subdomain = hostname.split(".")[0];
-  const headerTenantId = request.headers.get("x-tenant-id");
-  const pathTenantId = request.nextUrl.pathname.match(/^\\/tenant\\/([^/]+)/)?.[1];
-
-  const tenantId = headerTenantId || pathTenantId || subdomain;
+  const tenantId = hostname.split(".")[0];
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-id");
   if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
     requestHeaders.set("x-tenant-id", tenantId);
   }
@@ -380,7 +386,7 @@ ${projectName}/
 
 This project uses Stratum for hierarchical multi-tenancy:
 
-- **Tenant resolution** — via JWT claim, subdomain, or \`x-tenant-id\` header
+- **Tenant resolution** — via subdomain (see \`middleware.ts\`); bind it to the signed-in user once you add authentication
 - **Config inheritance** — settings flow down the tenant tree with override support
 - **Permission ABAC** — role-based permissions with tenant-scoped enforcement
 

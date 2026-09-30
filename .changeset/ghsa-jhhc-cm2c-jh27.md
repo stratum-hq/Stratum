@@ -1,5 +1,5 @@
 ---
-"@stratum-hq/db-adapters": patch
+"@stratum-hq/db-adapters": minor
 "@stratum-hq/lib": patch
 "@stratum-hq/control-plane": patch
 "@stratum-hq/create": patch

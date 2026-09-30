@@ -1,5 +1,5 @@
 import pg from "pg";
-import { connectDb } from "../utils/db.js";
+import { connectDb, withRlsBypass } from "../utils/db.js";
 
 // ── ANSI Colors ──────────────────────────────────────────────────────
 const RESET = "\x1b[0m";
@@ -242,7 +242,7 @@ async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkOrphanedTenants(pool: pg.Pool): Promise<CheckResult> {
+async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT t.id, t.name, t.parent_id
     FROM tenants t
@@ -274,7 +274,7 @@ async function checkOrphanedTenants(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkStaleApiKeys(pool: pg.Pool): Promise<CheckResult> {
+async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, last_used_at
     FROM api_keys
@@ -312,7 +312,7 @@ async function checkStaleApiKeys(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkExpiredApiKeys(pool: pg.Pool): Promise<CheckResult> {
+async function checkExpiredApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, expires_at
     FROM api_keys
@@ -364,7 +364,7 @@ function checkEncryptionKey(): CheckResult {
   };
 }
 
-async function checkTreeDepth(pool: pg.Pool): Promise<CheckResult> {
+async function checkTreeDepth(pool: pg.PoolClient): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT COALESCE(MAX(depth), 0) AS max_depth
     FROM tenants
@@ -455,9 +455,11 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
       // e. Missing indexes
       results.push(await checkMissingIndexes(pool));
 
-      // f. Orphaned tenants
+      // f. Orphaned tenants. The data checks below read Stratum tables that
+      // have FORCE RLS, so each runs under the administrative bypass; without
+      // it they see zero rows and report a pass they never checked.
       try {
-        results.push(await checkOrphanedTenants(pool));
+        results.push(await withRlsBypass(pool, (client) => checkOrphanedTenants(client)));
       } catch {
         results.push({
           status: "warn",
@@ -468,7 +470,7 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
 
       // g. Stale API keys
       try {
-        results.push(await checkStaleApiKeys(pool));
+        results.push(await withRlsBypass(pool, (client) => checkStaleApiKeys(client)));
       } catch {
         results.push({
           status: "warn",
@@ -479,7 +481,7 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
 
       // h. Expired API keys
       try {
-        results.push(await checkExpiredApiKeys(pool));
+        results.push(await withRlsBypass(pool, (client) => checkExpiredApiKeys(client)));
       } catch {
         results.push({
           status: "warn",
@@ -495,7 +497,7 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
     // j. Tree depth
     if (hasCoreSchema) {
       try {
-        results.push(await checkTreeDepth(pool));
+        results.push(await withRlsBypass(pool, (client) => checkTreeDepth(client)));
       } catch {
         results.push({
           status: "warn",

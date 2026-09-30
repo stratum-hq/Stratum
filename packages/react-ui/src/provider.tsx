@@ -6,8 +6,19 @@ import type { UseToastReturn } from "./hooks/use-toast.js";
 import { ToastContainer } from "./components/ToastContainer.js";
 
 export interface StratumProviderProps {
+  /**
+   * Base URL requests are sent to. In a browser app, point this at a
+   * same-origin server-side proxy that authenticates the user and adds the
+   * control-plane API key, for example "/api/stratum".
+   */
   controlPlaneUrl: string;
-  apiKey: string;
+  /**
+   * Sent as X-API-Key on every request. Anything passed here is readable by
+   * whoever loads the page, so never pass a control-plane API key from browser
+   * code (including NEXT_PUBLIC_, REACT_APP_ or VITE_ variables). Omit it and
+   * use a server-side proxy instead.
+   */
+  apiKey?: string;
   initialTenantId?: string;
   /** Partial message overrides merged on top of `defaultMessages`. */
   messages?: Messages;
@@ -55,9 +66,10 @@ export function StratumProvider({
 
   const apiCall = useCallback(
     async <T,>(path: string, options?: RequestInit): Promise<T> => {
-      const headers: Record<string, string> = {
-        "X-API-Key": apiKey,
-      };
+      const headers: Record<string, string> = {};
+      if (apiKey) {
+        headers["X-API-Key"] = apiKey;
+      }
       // Only set Content-Type for requests that have a body
       if (options?.body) {
         headers["Content-Type"] = "application/json";
@@ -87,10 +99,10 @@ export function StratumProvider({
       setLoading(true);
       setError(null);
       try {
-        const tenant = await apiCall<TenantNode>(`/api/v1/tenants/${tenantId}`);
+        const tenant = await apiCall<TenantNode>(`/api/v1/tenants/${encodeURIComponent(tenantId)}`);
         const [config, permissions] = await Promise.all([
-          apiCall<ResolvedConfig>(`/api/v1/tenants/${tenantId}/config`),
-          apiCall<Record<string, ResolvedPermission>>(`/api/v1/tenants/${tenantId}/permissions`),
+          apiCall<ResolvedConfig>(`/api/v1/tenants/${encodeURIComponent(tenantId)}/config`),
+          apiCall<Record<string, ResolvedPermission>>(`/api/v1/tenants/${encodeURIComponent(tenantId)}/permissions`),
         ]);
         setCurrentTenant(tenant);
         setTenantContext({

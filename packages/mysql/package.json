@@ -42,7 +42,8 @@
     "@stratum-hq/sdk": "*"
   },
   "peerDependencies": {
-    "mysql2": "^3.0.0"
+    "mysql2": "^3.0.0",
+    "knex": ">=3.0.0"
   },
   "peerDependenciesMeta": {
     "typeorm": {

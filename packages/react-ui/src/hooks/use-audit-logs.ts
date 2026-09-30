@@ -29,7 +29,7 @@ export function useAuditLogs(limit: number = 20) {
     setError(null);
     try {
       const data = await apiCall<AuditEntry[]>(
-        `/api/v1/audit-logs?tenant_id=${tenant.id}&limit=${limit}`,
+        `/api/v1/audit-logs?tenant_id=${encodeURIComponent(tenant.id)}&limit=${limit}`,
       );
       setEntries(Array.isArray(data) ? data : []);
     } catch (err) {

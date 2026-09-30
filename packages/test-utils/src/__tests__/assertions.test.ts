@@ -8,9 +8,11 @@ import { assertIsolation, assertConfigInheritance, assertMongoIsolation } from "
 function createMockClient(overrides?: {
   queryFn?: (text: string, params?: unknown[]) => unknown;
 }) {
+  // Default: tenant B can read its own row (positive control) and nothing leaks.
   const queryFn =
     overrides?.queryFn ??
-    (() => ({ rows: [], rowCount: 0 }));
+    ((text: string) =>
+      text.startsWith("SELECT 1 FROM") ? { rows: [{}], rowCount: 1 } : { rows: [], rowCount: 0 });
 
   return {
     query: vi.fn(queryFn),
@@ -72,6 +74,9 @@ describe("assertIsolation", () => {
         if (text.startsWith("SELECT * FROM")) {
           return { rows: [{ id: "leaked" }, { id: "leaked2" }, { id: "leaked3" }], rowCount: 3 };
         }
+        if (text.startsWith("SELECT 1 FROM")) {
+          return { rows: [{}], rowCount: 1 };
+        }
         return { rows: [], rowCount: 0 };
       },
     });
@@ -98,196 +103,127 @@ describe("assertIsolation", () => {
     );
     expect(insertCall?.[0]).toContain('"doc_id"');
   });
+
+  it("sets the tenant column to tenant B on the inserted row", async () => {
+    await assertIsolation(pool, "a", "b", "docs");
+
+    const insertCall = client.query.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("INSERT"),
+    );
+    expect(insertCall?.[0]).toContain('("tenant_id", "id")');
+    expect((insertCall?.[1] as unknown[])[0]).toBe("b");
+  });
+
+  it("uses a UUID marker so UUID-keyed tables accept the test row", async () => {
+    await assertIsolation(pool, "a", "b", "docs");
+
+    const insertCall = client.query.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("INSERT"),
+    );
+    expect((insertCall?.[1] as unknown[])[1]).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("fails as inconclusive when tenant B cannot read its own row", async () => {
+    client = createMockClient({ queryFn: () => ({ rows: [], rowCount: 0 }) });
+    pool = createMockPool(client);
+
+    await expect(assertIsolation(pool, "a", "b", "docs")).rejects.toThrow(/positive control failed/);
+  });
 });
 
 // ---------------------------------------------------------------------------
 // assertConfigInheritance
 // ---------------------------------------------------------------------------
 
-describe("assertConfigInheritance", () => {
-  it("reads config after setting on parent and asserts child inherits", async () => {
-    // More precise mock: track state
-    let parentValue = "";
-    let childOverrideValue = "";
-    let configLocked = false;
-    let resolvedCallCount = 0;
-    let insertCallCount = 0;
+type Entry = { value: unknown; locked: boolean };
 
-    const statefulClient = createMockClient({
-      queryFn: (text: string, params?: unknown[]) => {
-        if (text.includes("INSERT INTO tenant_config") && params) {
-          insertCallCount++;
-          if (insertCallCount === 1) {
-            parentValue = params[2] as string;
-          } else if (insertCallCount === 2) {
-            childOverrideValue = params[2] as string;
-          } else if (insertCallCount === 3 && configLocked) {
-            // Locked — throw error
-            throw new Error("locked config violation");
-          }
-        }
-        if (text.includes("tenant_config_resolved")) {
-          resolvedCallCount++;
-          if (resolvedCallCount === 1) {
-            return { rows: [{ value: parentValue }], rowCount: 1 };
-          }
-          if (resolvedCallCount === 2) {
-            return { rows: [{ value: childOverrideValue }], rowCount: 1 };
-          }
-        }
-        if (text.includes("UPDATE tenant_config SET locked")) {
-          configLocked = true;
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
-
-    const pool = createMockPool(statefulClient);
-
-    await expect(
-      assertConfigInheritance(pool, "parent-1", "child-1", "feature.flag"),
-    ).resolves.toBeUndefined();
-
-    // Verify set_config was called with both tenant IDs
-    const setCalls = statefulClient.query.mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("set_config"),
-    );
-    const tenantIds = setCalls.map((c: unknown[]) => (c as [string, string[]])[1][0]);
-    expect(tenantIds).toContain("parent-1");
-    expect(tenantIds).toContain("child-1");
-  });
-
-  it("verifies child override takes precedence", async () => {
-    let insertCount = 0;
-    let resolvedCount = 0;
-    let parentVal = "";
-    let childVal = "";
-
-    const client = createMockClient({
-      queryFn: (text: string, params?: unknown[]) => {
-        if (text.includes("INSERT INTO tenant_config") && params) {
-          insertCount++;
-          if (insertCount === 1) parentVal = params[2] as string;
-          if (insertCount === 2) childVal = params[2] as string;
-        }
-        if (text.includes("tenant_config_resolved")) {
-          resolvedCount++;
-          if (resolvedCount === 1) return { rows: [{ value: parentVal }], rowCount: 1 };
-          if (resolvedCount === 2) return { rows: [{ value: childVal }], rowCount: 1 };
-        }
-        if (text.includes("UPDATE tenant_config SET locked")) {
-          // After lock, next insert will throw
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
-
-    // Make the 3rd insert (locked override attempt) throw
-    let realInsertCount = 0;
-    const origQuery = client.query.getMockImplementation()!;
-    client.query.mockImplementation(((text: string, params?: unknown[]) => {
-      if (typeof text === "string" && text.includes("INSERT INTO tenant_config")) {
-        realInsertCount++;
-        if (realInsertCount === 3) {
-          throw new Error("violates locked constraint");
+/**
+ * In-memory stand-in for Stratum's config API with the documented semantics:
+ * inheritance from parent to child, child override, and parent locks that
+ * reject a child override with ConfigLockedError.
+ */
+function fakeStratum(parentId: string, childId: string, opts: { enforceLock?: boolean; childSetError?: Error } = {}) {
+  const entries = new Map<string, Map<string, Entry>>([
+    [parentId, new Map()],
+    [childId, new Map()],
+  ]);
+  const enforceLock = opts.enforceLock ?? true;
+  return {
+    entries,
+    setConfig: vi.fn(async (tenantId: string, key: string, input: { value: unknown; locked?: boolean }) => {
+      if (tenantId === childId) {
+        if (opts.childSetError && entries.get(parentId)!.get(key)?.locked) throw opts.childSetError;
+        if (enforceLock && entries.get(parentId)!.get(key)?.locked) {
+          throw Object.assign(new Error("locked"), { name: "ConfigLockedError", code: "CONFIG_LOCKED" });
         }
       }
-      return origQuery(text, params);
-    }) as typeof client.query);
-
-    const pool = createMockPool(client);
-    await expect(
-      assertConfigInheritance(pool, "parent", "child", "theme"),
-    ).resolves.toBeUndefined();
-
-    // The second resolved call should have been made (child override check)
-    const resolvedCalls = client.query.mock.calls.filter(
-      (c: unknown[]) => typeof c[0] === "string" && (c[0] as string).includes("tenant_config_resolved"),
-    );
-    expect(resolvedCalls.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("verifies locked config cannot be overridden", async () => {
-    let insertCount = 0;
-    let resolvedCount = 0;
-    let parentVal = "";
-    let childVal = "";
-
-    const client = createMockClient({
-      queryFn: (text: string, params?: unknown[]) => {
-        if (text.includes("INSERT INTO tenant_config") && params) {
-          insertCount++;
-          if (insertCount === 1) parentVal = params[2] as string;
-          if (insertCount === 2) childVal = params[2] as string;
-          if (insertCount === 3) {
-            // Locked config — constraint error
-            throw new Error("cannot override locked config");
-          }
+      entries.get(tenantId)!.set(key, { value: input.value, locked: input.locked ?? false });
+    }),
+    deleteConfig: vi.fn(async (tenantId: string, key: string) => {
+      entries.get(tenantId)!.delete(key);
+    }),
+    resolveConfig: vi.fn(async (tenantId: string) => {
+      const out: Record<string, { value: unknown }> = {};
+      for (const [k, e] of entries.get(parentId)!) out[k] = { value: e.value };
+      if (tenantId === childId) {
+        for (const [k, e] of entries.get(childId)!) {
+          if (!(enforceLock && entries.get(parentId)!.get(k)?.locked)) out[k] = { value: e.value };
         }
-        if (text.includes("tenant_config_resolved")) {
-          resolvedCount++;
-          if (resolvedCount === 1) return { rows: [{ value: parentVal }], rowCount: 1 };
-          if (resolvedCount === 2) return { rows: [{ value: childVal }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
+      }
+      return out;
+    }),
+  };
+}
 
-    const pool = createMockPool(client);
-    // Should pass because the lock IS enforced (insert throws)
-    await expect(
-      assertConfigInheritance(pool, "org-1", "team-1", "max_seats"),
-    ).resolves.toBeUndefined();
+describe("assertConfigInheritance", () => {
+  it("passes when inheritance, override and lock all behave, and cleans up", async () => {
+    const s = fakeStratum("p", "c");
+    await expect(assertConfigInheritance(s, "p", "c", "k")).resolves.toBeUndefined();
+    expect(s.entries.get("p")!.size).toBe(0);
+    expect(s.entries.get("c")!.size).toBe(0);
   });
 
   it("throws when child does not inherit parent config", async () => {
-    const client = createMockClient({
-      queryFn: (text: string) => {
-        if (text.includes("tenant_config_resolved")) {
-          // Return empty — child did not inherit
-          return { rows: [], rowCount: 0 };
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
+    const s = fakeStratum("p", "c");
+    s.resolveConfig.mockImplementation(async () => ({}));
+    await expect(assertConfigInheritance(s, "p", "c", "k")).rejects.toThrow(/did not inherit config key 'k'/);
+  });
 
-    const pool = createMockPool(client);
-    await expect(
-      assertConfigInheritance(pool, "parent", "child", "feature.x"),
-    ).rejects.toThrow(
-      /did not inherit config key 'feature\.x' from parent 'parent'/,
-    );
+  it("throws when the child override does not take precedence", async () => {
+    const s = fakeStratum("p", "c");
+    const real = s.resolveConfig.getMockImplementation()!;
+    s.resolveConfig.mockImplementation(async (tenantId: string) => {
+      const out = await real(tenantId);
+      const parent = s.entries.get("p")!.get("k");
+      if (parent) out.k = { value: parent.value };
+      return out;
+    });
+    await expect(assertConfigInheritance(s, "p", "c", "k")).rejects.toThrow(/did not take precedence/);
   });
 
   it("throws when locked config override succeeds (lock not enforced)", async () => {
-    let insertCount = 0;
-    let resolvedCount = 0;
-    let parentVal = "";
-    let childVal = "";
+    const s = fakeStratum("p", "c", { enforceLock: false });
+    await expect(assertConfigInheritance(s, "p", "c", "k")).rejects.toThrow(/lock is not enforced/);
+  });
 
-    const client = createMockClient({
-      queryFn: (text: string, params?: unknown[]) => {
-        if (text.includes("INSERT INTO tenant_config") && params) {
-          insertCount++;
-          if (insertCount === 1) parentVal = params[2] as string;
-          if (insertCount === 2) childVal = params[2] as string;
-          // 3rd insert succeeds — lock not enforced
-        }
-        if (text.includes("tenant_config_resolved")) {
-          resolvedCount++;
-          if (resolvedCount === 1) return { rows: [{ value: parentVal }], rowCount: 1 };
-          if (resolvedCount === 2) return { rows: [{ value: childVal }], rowCount: 1 };
-          // After lock attempt, resolved returns child's override instead of parent
-          if (resolvedCount === 3) return { rows: [{ value: childVal }], rowCount: 1 };
-        }
-        return { rows: [], rowCount: 0 };
-      },
-    });
+  it("does not count an unrelated error during the lock check as the lock working", async () => {
+    const s = fakeStratum("p", "c", { enforceLock: false, childSetError: new Error("connection reset") });
+    await expect(assertConfigInheritance(s, "p", "c", "k")).rejects.toThrow("connection reset");
+  });
 
-    const pool = createMockPool(client);
+  it("refuses a key that already resolves for the child", async () => {
+    const s = fakeStratum("p", "c");
+    s.entries.get("p")!.set("k", { value: "real", locked: false });
+    await expect(assertConfigInheritance(s, "p", "c", "k")).rejects.toThrow(/not in use/);
+    expect(s.entries.get("p")!.get("k")).toEqual({ value: "real", locked: false });
+  });
+
+  it("rejects a pg pool with a clear message", async () => {
     await expect(
-      assertConfigInheritance(pool, "p", "c", "setting"),
-    ).rejects.toThrow(/was able to override locked config key/);
+      assertConfigInheritance({} as never, "p", "c", "k"),
+    ).rejects.toThrow(/expects a Stratum instance/);
   });
 });
 

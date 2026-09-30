@@ -21,6 +21,36 @@ export async function connectDb(flags: Record<string, string | boolean>): Promis
   return pool;
 }
 
+/** Quote a SQL identifier (table, index or policy name) for use in generated SQL. */
+export function quoteIdent(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Run `fn` in a transaction with `app.bypass_rls` set for that transaction
+ * only. Stratum's own tables (tenants, api_keys, ...) have FORCE RLS whose
+ * policies admit rows only under a tenant context or this bypass, so an
+ * administrative command that reads or writes them across tenants needs it.
+ */
+export async function withRlsBypass<T>(
+  pool: pg.Pool,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export interface TableInfo {
   table_name: string;
   has_tenant_id: boolean;
