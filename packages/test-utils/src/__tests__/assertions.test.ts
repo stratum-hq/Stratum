@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { assertIsolation, assertConfigInheritance } from "../assertions.js";
+import { assertIsolation, assertConfigInheritance, assertMongoIsolation } from "../assertions.js";
 
 // ---------------------------------------------------------------------------
 // Mock pg.Pool + pg.PoolClient
@@ -288,5 +288,61 @@ describe("assertConfigInheritance", () => {
     await expect(
       assertConfigInheritance(pool, "p", "c", "setting"),
     ).rejects.toThrow(/was able to override locked config key/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertMongoIsolation
+// ---------------------------------------------------------------------------
+
+/** In-memory collections. When `scoped` is false every tenant sees every document. */
+function createFakeMongo(scoped: boolean) {
+  const docs: Array<Record<string, unknown>> = [];
+  const matches = (doc: Record<string, unknown>, filter: Record<string, unknown>) =>
+    Object.entries(filter).every(([k, v]) => doc[k] === v);
+  return (tenantId: string) => {
+    const scope = (f: Record<string, unknown>) => (scoped ? { ...f, tenant: tenantId } : f);
+    return {
+      insertOne: async (doc: Record<string, unknown>) => {
+        docs.push({ ...doc, tenant: tenantId });
+      },
+      findOne: async (filter: Record<string, unknown>) => docs.find((d) => matches(d, scope(filter))) ?? null,
+      deleteOne: async (filter: Record<string, unknown>) => {
+        const i = docs.findIndex((d) => matches(d, scope(filter)));
+        if (i >= 0) docs.splice(i, 1);
+      },
+      docs,
+    };
+  };
+}
+
+describe("assertMongoIsolation", () => {
+  it("passes when the accessor isolates tenants, and cleans up", async () => {
+    const fake = createFakeMongo(true);
+    await assertMongoIsolation(fake, "a", "b");
+    expect(fake("b").docs).toHaveLength(0);
+  });
+
+  it("throws when the accessor does not isolate tenants", async () => {
+    await expect(
+      assertMongoIsolation(createFakeMongo(false), "a", "b", { strategy: "SHARED_COLLECTION" }),
+    ).rejects.toThrow("SHARED_COLLECTION isolation is not enforced");
+  });
+
+  it("throws when tenant B cannot read its own document (positive control)", async () => {
+    const accessor = () => ({
+      insertOne: async () => undefined,
+      findOne: async () => null,
+      deleteOne: async () => undefined,
+    });
+    await expect(assertMongoIsolation(accessor, "a", "b")).rejects.toThrow("positive control failed");
+  });
+
+  it("throws when given something other than an accessor function", async () => {
+    await expect(assertMongoIsolation({} as never, "a", "b")).rejects.toThrow(TypeError);
+  });
+
+  it("throws when both tenants are the same", async () => {
+    await expect(assertMongoIsolation(createFakeMongo(true), "a", "a")).rejects.toThrow("two different tenants");
   });
 });

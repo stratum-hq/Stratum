@@ -7,7 +7,13 @@ import type {
   CollectionLike,
 } from "../types.js";
 import { ALLOWED_PROXY_METHODS } from "../types.js";
-import { assertTenantId, aggregatePurgeResults, stripTenantIdFromUpdate, assertSafeAggregatePipeline } from "../utils.js";
+import {
+  assertTenantId,
+  aggregatePurgeResults,
+  stripTenantIdFromUpdate,
+  assertSafeAggregatePipeline,
+  scopeBulkWriteOperations,
+} from "../utils.js";
 
 /**
  * Creates a Proxy over a CollectionLike that injects tenant_id into every operation.
@@ -54,7 +60,7 @@ export function createTenantScopedCollection(
       switch (prop) {
         case "find":
           return (filter?: Record<string, unknown>, options?: unknown) => {
-            return target.find({ ...filter, tenant_id: tenantId }, options);
+            return guardFindCursor(target.find({ ...filter, tenant_id: tenantId }, options), tenantId);
           };
 
         case "findOne":
@@ -96,11 +102,13 @@ export function createTenantScopedCollection(
 
         case "aggregate":
           return (pipeline: Record<string, unknown>[]) => {
-            assertSafeAggregatePipeline(pipeline);
-            return target.aggregate([
-              { $match: { tenant_id: tenantId } },
-              ...pipeline,
-            ]);
+            const safePipeline = assertSafeAggregatePipeline(pipeline);
+            return guardAggregationCursor(
+              target.aggregate([
+                { $match: { tenant_id: tenantId } },
+                ...safePipeline,
+              ]),
+            );
           };
 
         case "countDocuments":
@@ -115,26 +123,7 @@ export function createTenantScopedCollection(
 
         case "bulkWrite":
           return (operations: unknown[]) => {
-            const scoped = operations.map((op) => {
-              const entry = op as Record<string, Record<string, unknown>>;
-              const opType = Object.keys(entry)[0];
-              const opBody = { ...entry[opType] };
-
-              if ("filter" in opBody) {
-                opBody.filter = { ...(opBody.filter as Record<string, unknown>), tenant_id: tenantId };
-              }
-              if ("document" in opBody) {
-                opBody.document = { ...(opBody.document as Record<string, unknown>), tenant_id: tenantId };
-              }
-              if ("replacement" in opBody) {
-                opBody.replacement = { ...(opBody.replacement as Record<string, unknown>), tenant_id: tenantId };
-              }
-              if ("update" in opBody) {
-                opBody.update = stripTenantIdFromUpdate(opBody.update as Record<string, unknown>);
-              }
-
-              return { [opType]: opBody };
-            });
+            const scoped = scopeBulkWriteOperations(operations, tenantId);
             return target.bulkWrite(scoped);
           };
 
@@ -149,6 +138,67 @@ export function createTenantScopedCollection(
       }
     },
   });
+}
+
+type CursorRecord = Record<string, unknown>;
+type CursorMethod = (this: unknown, ...args: unknown[]) => unknown;
+
+/** Replaces a cursor method on the instance, if the cursor has it. */
+function overrideCursorMethod(
+  cursor: CursorRecord,
+  name: string,
+  wrap: (original: CursorMethod) => CursorMethod,
+): void {
+  const original = cursor[name];
+  if (typeof original === "function") {
+    Object.defineProperty(cursor, name, { value: wrap(original as CursorMethod), configurable: false, writable: false });
+  }
+}
+
+/**
+ * Keeps a find cursor scoped after it is returned: any later replacement of the
+ * cursor's filter (e.g. via `.filter()`) still carries tenant_id, and clones are
+ * guarded the same way.
+ */
+function guardFindCursor<T>(cursor: T, tenantId: string): T {
+  if (cursor === null || typeof cursor !== "object") return cursor;
+  const c = cursor as unknown as CursorRecord;
+  if ("cursorFilter" in c) {
+    let current: Record<string, unknown> = { ...(c.cursorFilter as Record<string, unknown>), tenant_id: tenantId };
+    Object.defineProperty(c, "cursorFilter", {
+      configurable: false,
+      enumerable: true,
+      get: () => current,
+      set: (value: Record<string, unknown>) => {
+        current = { ...value, tenant_id: tenantId };
+      },
+    });
+  }
+  overrideCursorMethod(c, "clone", (original) => function (this: unknown) {
+    return guardFindCursor(original.call(this), tenantId);
+  });
+  return cursor;
+}
+
+/**
+ * Keeps an aggregation cursor safe after it is returned: stages appended later
+ * (via `.addStage()` or builder methods such as `.lookup()`) are validated, and
+ * clones are guarded the same way.
+ */
+function guardAggregationCursor<T>(cursor: T): T {
+  if (cursor === null || typeof cursor !== "object") return cursor;
+  const c = cursor as unknown as CursorRecord;
+  overrideCursorMethod(c, "addStage", (original) => function (this: unknown, stage: unknown) {
+    const [safeStage] = assertSafeAggregatePipeline([stage as Record<string, unknown>]);
+    return original.call(this, safeStage);
+  });
+  overrideCursorMethod(c, "clone", (original) => function (this: unknown) {
+    return guardAggregationCursor(original.call(this));
+  });
+  if ("pipeline" in c) {
+    Object.defineProperty(c, "pipeline", { writable: false, configurable: false });
+  }
+  return cursor;
 }
 
 /**
