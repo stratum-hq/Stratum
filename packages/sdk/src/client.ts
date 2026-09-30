@@ -156,9 +156,39 @@ export class StratumClient {
     this.cache.invalidate(cacheKey(tenantId));
   }
 
+  /**
+   * Archive the tenant. This is a soft delete, and it is identical to `archiveTenant`.
+   *
+   * The tenant row and its data stay in the database, and the archive is reversible.
+   * To remove the tenant data permanently, call `purgeTenant`.
+   *
+   * @deprecated The name suggests that the data is removed. Use `archiveTenant` for
+   * a soft delete, or `purgeTenant` for an irreversible hard delete.
+   */
   async deleteTenant(tenantId: string): Promise<void> {
     await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}`, {
       method: "DELETE",
+    });
+    this.cache.invalidate(cacheKey(tenantId));
+  }
+
+  /**
+   * Permanently remove the tenant and all its data (GDPR Article 17). You cannot undo this.
+   *
+   * The control plane deletes the tenant row and the tenant's records in the Stratum tables:
+   * config, permissions, API keys, roles, webhooks, consent records and audit logs.
+   * For a tenant with its own schema or database, it also drops that schema or database.
+   * For a pending tenant, the purge removes the records and never drops storage.
+   * Rows in your own tables that share a database with other tenants stay; delete them yourself.
+   * The API key must have the `admin` scope.
+   *
+   * @param tenantId - The id of the tenant to purge. The tenant must have no children.
+   * @returns A promise that rejects when the control plane refuses the purge, for example
+   * because the tenant has children or the API key does not have the `admin` scope.
+   */
+  async purgeTenant(tenantId: string): Promise<void> {
+    await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}/purge`, {
+      method: "POST",
     });
     this.cache.invalidate(cacheKey(tenantId));
   }
