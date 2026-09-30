@@ -1,12 +1,14 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import type { ConsentRecord, GrantConsentInput } from "@stratum-hq/core";
+import { parseInput } from "../validation.js";
+import { GrantConsentInputSchema, type ConsentRecord, type GrantConsentInput } from "@stratum-hq/core";
 
 export async function grantConsent(
   pool: pg.Pool,
   tenantId: string,
-  input: GrantConsentInput,
+  rawInput: GrantConsentInput,
 ): Promise<ConsentRecord> {
+  const input = parseInput(GrantConsentInputSchema, rawInput);
   return withTransaction(pool, async (client) => {
     const res = await client.query<ConsentRecord>(
       `INSERT INTO consent_records (tenant_id, subject_id, purpose, granted, granted_at, revoked_at, expires_at, metadata)

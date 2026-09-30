@@ -190,7 +190,7 @@ stratum.getAuditEntry(id): Promise<AuditEntry | null>
 stratum.recordAuditEvent(input): Promise<AuditEntry>
 ```
 
-- `recordAuditEvent(input)` -- append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`.
+- `recordAuditEvent(input)` -- append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`. If the input does not match `RecordAuditEventInputSchema`, `recordAuditEvent` throws a `ValidationError` and writes no row. The error's `details.issues` lists each failed field.
 
 ```typescript
 const entry = await stratum.recordAuditEvent({
@@ -203,7 +203,7 @@ const entry = await stratum.recordAuditEvent({
   before,
   after,
   metadata,
-  sourceIp,             // stored in the INET column
+  sourceIp,             // an IPv4 or IPv6 address; stored in the INET column
   occurredAt,           // optional: backdate created_at
 });
 ```

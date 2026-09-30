@@ -8,7 +8,7 @@ vi.mock("../../pool-helpers.js", () => ({
 
 import * as poolHelpers from "../../pool-helpers.js";
 import * as consentService from "../consent-service.js";
-import type { ConsentRecord, GrantConsentInput } from "@stratum-hq/core";
+import { ValidationError, type ConsentRecord, type GrantConsentInput } from "@stratum-hq/core";
 
 function makeMockPool() {
   return {} as import("pg").Pool;
@@ -33,6 +33,22 @@ beforeEach(() => {
 });
 
 describe("grantConsent", () => {
+  it("rejects an expires_at that is not an ISO timestamp with a ValidationError before touching the database", async () => {
+    const input: GrantConsentInput = {
+      subject_id: "user-789",
+      purpose: "analytics",
+      expires_at: "infinity",
+    };
+
+    const err = await consentService.grantConsent(makeMockPool(), "tenant-456", input).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as ValidationError).details?.issues).toEqual([
+      expect.objectContaining({ path: ["expires_at"] }),
+    ]);
+    expect(poolHelpers.withTransaction).not.toHaveBeenCalled();
+  });
+
   it("inserts a consent record and returns it", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn().mockResolvedValue({ rows: [mockConsentRecord] });
