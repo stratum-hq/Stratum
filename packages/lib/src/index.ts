@@ -5,6 +5,7 @@ export {
   type MigrateSchemasOptions,
   type MigrateSchemasResult,
 } from "./migrate-schemas.js";
+export { STRATUM_TABLES } from "./stratum-tables.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
   runScopedJob,
