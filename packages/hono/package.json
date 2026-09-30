@@ -38,8 +38,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
-    "@stratum-hq/core": ">=1.0.0",
-    "@stratum-hq/sdk": ">=1.0.0",
+    "@stratum-hq/core": "^1.0.0",
+    "@stratum-hq/sdk": "^1.0.0",
     "hono": ">=4.0.0"
   },
   "devDependencies": {
