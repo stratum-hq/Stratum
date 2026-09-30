@@ -19,7 +19,7 @@ Register webhooks to receive HTTP callbacks when tenants, config, or permissions
 | `tenant.suspended` | Tenant suspended |
 | `tenant.resumed` | Suspended or archived tenant resumed |
 | `tenant.archived` | Tenant archived |
-| `tenant.purged` | Tenant and its data permanently deleted |
+| `tenant.purged` | Deprecated. `purgeTenant` never emits it, because the purge erases the event log of the tenant. The next major version removes it. |
 | `config.updated` | Config key set or overridden |
 | `config.deleted` | Config key removed |
 | `permission.created` | Permission policy created |

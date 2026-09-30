@@ -8,6 +8,12 @@ export const TenantEvent = {
   TENANT_SUSPENDED: "tenant.suspended",
   TENANT_RESUMED: "tenant.resumed",
   TENANT_ARCHIVED: "tenant.archived",
+  /**
+   * @deprecated `purgeTenant` never emits this event, and the next major version removes it.
+   * The purge erases the event log of the tenant. Also, `webhook_events.tenant_id`
+   * references `tenants`, so an event row for a purged tenant cannot be stored.
+   * A webhook can still subscribe to it, but it receives no delivery.
+   */
   TENANT_PURGED: "tenant.purged",
   TENANT_ACTIVATED: "tenant.activated",
   CONFIG_UPDATED: "config.updated",
