@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { execSync } from "child_process";
 import { parsePresetString, isValidPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
+import { STRATUM_RANGES } from "./stratum-versions.js";
 import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ function generatePackageJson(projectName: string, template: Template): string {
   };
 
   const deps = {
-    "@stratum-hq/lib": "^0.2.0",
+    "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
     pg: "^8.11.0",
     ...frameworkDeps[template],
   };
