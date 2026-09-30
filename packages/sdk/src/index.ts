@@ -10,13 +10,16 @@ export function stratum(options: StratumClientOptions) {
   return {
     client,
     middleware: (opts?: MiddlewareOptions) => expressMiddleware(client, opts),
-    plugin: (opts?: MiddlewareOptions) =>
-      (
+    plugin: (opts?: MiddlewareOptions) => {
+      const plugin = (
         fastify: Parameters<typeof fastifyPlugin>[0],
         _opts: unknown,
         done: Parameters<typeof fastifyPlugin>[2],
-      ) =>
-        fastifyPlugin(fastify, { client, ...opts }, done),
+      ) => fastifyPlugin(fastify, { client, ...opts }, done);
+      // Same non-encapsulated registration as fastifyPlugin itself.
+      (plugin as unknown as Record<symbol, unknown>)[Symbol.for("skip-override")] = true;
+      return plugin;
+    },
     getTenantContext,
     runWithTenantContext,
   };
@@ -29,7 +32,9 @@ export { getTenantContext, runWithTenantContext, setTenantContext } from "./cont
 export { expressMiddleware } from "./middleware/express.js";
 export { fastifyPlugin } from "./middleware/fastify.js";
 export { resolveFromHeader } from "./resolvers/header.js";
-export { resolveFromJwt } from "./resolvers/jwt.js";
+export { resolveFromJwt, assertJwtSupport } from "./resolvers/jwt.js";
+export { resolveTenantId } from "./resolvers/resolve.js";
+export type { TenantIdResolution } from "./resolvers/resolve.js";
 export type { TenantResolver } from "./resolvers/custom.js";
 export type { MiddlewareOptions } from "./types.js";
 

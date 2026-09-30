@@ -6,7 +6,9 @@ let redisClient: Redis | null = null;
 /**
  * Create a Redis client from the REDIS_URL env var.
  * Returns null if REDIS_URL is not configured.
- * Connection errors are logged but never crash the process (fail-open).
+ * Connection errors are logged but never crash the process. The client keeps
+ * reconnecting with capped backoff; while it is down, per-key rate limiting
+ * falls back to the in-memory limiter.
  */
 export function createRedisClient(): Redis | null {
   if (!config.redisUrl) {
@@ -16,11 +18,8 @@ export function createRedisClient(): Redis | null {
   const client = new Redis(config.redisUrl, {
     maxRetriesPerRequest: 1,
     retryStrategy(times: number) {
-      if (times > 3) {
-        // Stop retrying after 3 attempts — the app can run without Redis
-        return null;
-      }
-      return Math.min(times * 200, 2000);
+      // Never give up: returning null would stop reconnecting for good.
+      return Math.min(times * 200, 5000);
     },
     enableOfflineQueue: false,
     lazyConnect: true,

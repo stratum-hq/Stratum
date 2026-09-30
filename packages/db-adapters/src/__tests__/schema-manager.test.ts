@@ -38,6 +38,14 @@ describe("tenantSchemaName", () => {
   it("handles slugs with underscores and digits", () => {
     expect(tenantSchemaName("acme_corp_2024")).toBe("tenant_acme_corp_2024");
   });
+
+  it("accepts a slug whose schema name is exactly 63 bytes", () => {
+    expect(tenantSchemaName("a".repeat(56))).toHaveLength(63);
+  });
+
+  it("throws when the schema name would exceed PostgreSQL's 63-byte limit", () => {
+    expect(() => tenantSchemaName("a".repeat(57))).toThrow(/exceeds 63 bytes/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -45,11 +53,11 @@ describe("tenantSchemaName", () => {
 // ---------------------------------------------------------------------------
 
 describe("createSchema", () => {
-  it("executes CREATE SCHEMA IF NOT EXISTS with the correct name", async () => {
+  it("executes CREATE SCHEMA (without IF NOT EXISTS) with the correct name", async () => {
     const client = makeClient();
     await createSchema(client, "acme");
     expect(client.query).toHaveBeenCalledWith(
-      "CREATE SCHEMA IF NOT EXISTS tenant_acme",
+      "CREATE SCHEMA tenant_acme",
     );
   });
 

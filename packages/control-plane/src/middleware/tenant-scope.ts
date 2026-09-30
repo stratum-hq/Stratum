@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
-import { ForbiddenError } from "@stratum-hq/core";
+import { ForbiddenError, ValidationError } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 
 /** Reads the target tenant id from a request, or null when there is none to check. */
@@ -8,10 +8,12 @@ export type TenantIdExtractor = (req: FastifyRequest) => string | null;
 /**
  * A route's tenant-scope declaration:
  *  - an extractor: enforce that the caller's key may reach the extracted tenant;
- *  - "global": operator-level route with no single tenant target, or one that
- *    scopes itself in its handler. The middleware performs no tenant check.
+ *  - "global": route with no single tenant target, or one that scopes itself
+ *    in its handler. The middleware performs no tenant check.
+ *  - "operator": route that acts across all tenants. Only global operator API
+ *    keys (tenant_id === null) may call it; tenant-scoped callers are refused.
  */
-export type TenantScopeDeclaration = TenantIdExtractor | "global";
+export type TenantScopeDeclaration = TenantIdExtractor | "global" | "operator";
 
 declare module "fastify" {
   interface FastifyContextConfig {
@@ -46,7 +48,7 @@ export async function assertTenantInScope(
     throw new ForbiddenError("JWT authentication requires a tenant scope");
   }
 
-  if (!tenantId) return;
+  if (tenantId === null) return;
 
   // Fast path: exact match
   if (apiKey.tenant_id === tenantId) return;
@@ -66,6 +68,18 @@ export async function assertTenantInScope(
   throw new ForbiddenError(
     "API key tenant scope does not grant access to this tenant",
   );
+}
+
+/** True when the caller is a global operator API key (no tenant scope). */
+export function isOperator(request: FastifyRequest): boolean {
+  return request.authMethod === "api_key" && request.apiKey?.tenant_id === null;
+}
+
+/** Refuse the request unless the caller is a global operator API key. */
+export function assertOperator(request: FastifyRequest): void {
+  if (!isOperator(request)) {
+    throw new ForbiddenError("This operation requires a global operator API key");
+  }
 }
 
 /**
@@ -137,6 +151,9 @@ export function createTenantCreateGuard(stratum: Stratum) {
   };
 }
 
+/** Maximum number of tenants in one batch create. */
+const MAX_BATCH_TENANTS = 100;
+
 /**
  * Guard for POST /tenants/batch: every tenant in the batch is authorized the
  * same way a single create is, so the batch route cannot sidestep the subtree
@@ -151,8 +168,13 @@ export function createTenantBatchCreateGuard(stratum: Stratum) {
       tenants?: Array<{ parent_id?: string | null }>;
     } | null;
     const tenants = Array.isArray(body?.tenants) ? body.tenants : [];
-    for (const tenant of tenants) {
-      await authorizeCreateUnder(stratum, request, tenant?.parent_id ?? null);
+    if (tenants.length > MAX_BATCH_TENANTS) {
+      throw new ValidationError(`Batch limited to ${MAX_BATCH_TENANTS} tenants`);
+    }
+    // Authorize each distinct parent once.
+    const parentIds = new Set(tenants.map((tenant) => tenant?.parent_id ?? null));
+    for (const parentId of parentIds) {
+      await authorizeCreateUnder(stratum, request, parentId);
     }
   };
 }
@@ -204,6 +226,10 @@ export function createTenantScopeEnforcer(stratum: Stratum) {
       throw new ForbiddenError("Route has no tenant-scope declaration");
     }
     if (declaration === "global") return;
+    if (declaration === "operator") {
+      assertOperator(request);
+      return;
+    }
 
     await checkTenantScope(stratum, request, declaration);
   };

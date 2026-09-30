@@ -2,27 +2,21 @@ import type { MysqlPoolLike, MysqlConnectionLike } from "../types.js";
 import { escapeIdentifier } from "../utils.js";
 
 /**
- * Creates or replaces a tenant view that filters rows by a session variable.
+ * @deprecated Not supported on MySQL, and always throws.
  *
- * JSDoc caveat: Views are NOT a security boundary (unlike Postgres RLS).
- * Queries to underlying tables bypass isolation. Views referencing session
- * variables may not use indexes efficiently. Benchmark with >100k rows.
- * Use the shared-table adapter for high-performance workloads.
+ * MySQL rejects a view whose SELECT reads a user variable
+ * (ER_VIEW_SELECT_VARIABLE), so a view filtered on `@stratum_tenant_id` cannot
+ * be created. Use the shared-table adapter's scoped methods instead.
  */
 export async function createTenantView(
-  pool: MysqlPoolLike,
-  tableName: string,
-  viewName?: string,
+  _pool: MysqlPoolLike,
+  _tableName: string,
+  _viewName?: string,
 ): Promise<void> {
-  const resolvedViewName = viewName ?? `${tableName}_tenant_view`;
-  const escapedView = escapeIdentifier(resolvedViewName);
-  const escapedTable = escapeIdentifier(tableName);
-
-  const sql =
-    `CREATE OR REPLACE VIEW ${escapedView} AS ` +
-    `SELECT * FROM ${escapedTable} WHERE tenant_id = @stratum_tenant_id`;
-
-  await pool.query(sql);
+  throw new Error(
+    "createTenantView is not supported: MySQL does not allow a view to read the " +
+      "@stratum_tenant_id session variable. Use MysqlSharedAdapter's scoped methods instead.",
+  );
 }
 
 /** Drops a tenant view if it exists. */

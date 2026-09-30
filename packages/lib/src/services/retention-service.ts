@@ -1,5 +1,6 @@
 import pg from "pg";
-import { ErrorCode, StratumError } from "@stratum-hq/core";
+import { ErrorCode, StratumError, type TenantNode } from "@stratum-hq/core";
+import { dropSchema, dropDatabase } from "@stratum-hq/db-adapters";
 import { withClient, withTransaction } from "../pool-helpers.js";
 
 const DEFAULT_RETENTION_DAYS = 90;
@@ -44,29 +45,76 @@ export async function purgeExpiredData(
   });
 }
 
+type TenantStorage = Pick<TenantNode, "slug" | "isolation_strategy" | "status">;
+
+// Guard: reject if tenant has children (FK RESTRICT would crash otherwise)
+async function assertNoChildren(client: pg.PoolClient, tenantId: string): Promise<void> {
+  const childCheck = await client.query(
+    `SELECT COUNT(*)::int AS count FROM tenants WHERE parent_id = $1`,
+    [tenantId],
+  );
+  const childCount: number = childCheck.rows[0].count;
+  if (childCount > 0) {
+    throw new StratumError(
+      ErrorCode.TENANT_HAS_CHILDREN,
+      `Cannot purge tenant ${tenantId}: has ${childCount} child tenant(s). Purge children first.`,
+      409,
+      { tenant_id: tenantId, child_count: childCount },
+    );
+  }
+}
+
+/**
+ * Whether purge drops this tenant's schema or database. Only a tenant that was
+ * activated owns storage: a pending tenant's provisioning never completed, and
+ * may have failed because something else already held the name. The storage
+ * name is derived by the same db-adapters helpers provisioning uses.
+ */
+function ownsStorage(tenant: TenantStorage | undefined, strategy: TenantNode["isolation_strategy"]): tenant is TenantStorage {
+  return tenant !== undefined && tenant.status !== "pending" && tenant.isolation_strategy === strategy;
+}
+
 /**
  * GDPR Article 17 — Right to Erasure.
- * Hard-delete ALL data belonging to a specific tenant, in correct FK order.
+ * Hard-delete ALL data belonging to a specific tenant, in correct FK order,
+ * including its own schema (SCHEMA_PER_TENANT) or database (DB_PER_TENANT).
+ *
+ * The schema is dropped in the same transaction as the rows, so both go or
+ * neither does. DROP DATABASE cannot run in a transaction, so the database is
+ * dropped first: if that fails nothing has changed, and if removing the rows
+ * then fails, purging again completes (the drop is IF EXISTS).
  */
 export async function purgeTenant(
   pool: pg.Pool,
   tenantId: string,
 ): Promise<void> {
-  await withTransaction(pool, async (client) => {
-    // Guard: reject if tenant has children (FK RESTRICT would crash otherwise)
-    const childCheck = await client.query(
-      `SELECT COUNT(*)::int AS count FROM tenants WHERE parent_id = $1`,
+  const before = await withClient(pool, async (client) => {
+    await assertNoChildren(client, tenantId);
+    const res = await client.query<TenantStorage>(
+      `SELECT slug, isolation_strategy, status FROM tenants WHERE id = $1`,
       [tenantId],
     );
-    const childCount: number = childCheck.rows[0].count;
-    if (childCount > 0) {
-      throw new StratumError(
-        ErrorCode.TENANT_HAS_CHILDREN,
-        `Cannot purge tenant ${tenantId}: has ${childCount} child tenant(s). Purge children first.`,
-        409,
-        { tenant_id: tenantId, child_count: childCount },
-      );
+    return res.rows[0];
+  });
+
+  if (ownsStorage(before, "DB_PER_TENANT")) {
+    const client = await pool.connect();
+    try {
+      await dropDatabase(client, before.slug);
+    } finally {
+      client.release();
     }
+  }
+
+  await withTransaction(pool, async (client) => {
+    // Lock the row first so a concurrent create under this tenant (which holds
+    // it FOR SHARE) finishes and is counted, rather than failing the delete.
+    const res = await client.query<TenantStorage>(
+      `SELECT slug, isolation_strategy, status FROM tenants WHERE id = $1 FOR UPDATE`,
+      [tenantId],
+    );
+    const tenant = res.rows[0];
+    await assertNoChildren(client, tenantId);
 
     // Delete in FK-safe order (children before parents)
     await client.query(`DELETE FROM config_entries WHERE tenant_id = $1`, [tenantId]);
@@ -94,6 +142,10 @@ export async function purgeTenant(
 
     // Finally, the tenant itself
     await client.query(`DELETE FROM tenants WHERE id = $1`, [tenantId]);
+
+    if (ownsStorage(tenant, "SCHEMA_PER_TENANT")) {
+      await dropSchema(client, tenant.slug);
+    }
   });
 }
 

@@ -89,6 +89,7 @@ describe("Collection-per-tenant isolation", () => {
     const adapter = new MongoCollectionAdapter({
       client: client as unknown as MongoClientLike,
       databaseName: dbName,
+      baseCollections: ["users"],
     });
     const colA = adapter.scopedCollection("tenanta", "users");
     const colB = adapter.scopedCollection("tenantb", "users");

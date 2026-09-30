@@ -29,6 +29,8 @@ All tenants share the same MongoDB collections. A `tenant_id` field on every doc
 
 Each tenant gets its own set of collections, named `{collection}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' collections still live in the same database and are accessible to the same connection.
 
+List every base collection name in the `baseCollections` option of `MongoCollectionAdapter`. `purgeTenantData()` requires it and purges exactly `{base}_{tenantSlug}` for each entry. When it is set, `scopedCollection()` only accepts those names, and the adapter rejects a list where one name is another name followed by `_`, because the resulting tenant collection names could collide.
+
 **Tradeoff:** Good for applications that need different indexes per tenant (e.g., tenant-specific sort orders). Does not prevent a misconfigured query from reading another tenant's collection. Use `assertMongoIsolation()` to verify routing is correct.
 
 ### Database-per-Tenant

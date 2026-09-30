@@ -43,7 +43,12 @@ await adapter.purgeTenantData("tenant-a");
 ```typescript
 import { MysqlTableAdapter } from "@stratum-hq/mysql";
 
-const adapter = new MysqlTableAdapter({ pool, databaseName: "myapp" });
+const adapter = new MysqlTableAdapter({
+  pool,
+  databaseName: "myapp",
+  // Every base table that has a per-tenant copy. Required by purgeTenantData.
+  baseTables: ["users", "orders"],
+});
 
 // Returns escaped table name: `users_tenanta`
 const tableName = adapter.scopedTable("tenanta", "users");
@@ -79,11 +84,13 @@ await adapter.closeAll();
 ```typescript
 import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
 
-// Add to your TypeORM data source subscribers
-const dataSource = new DataSource({
-  subscribers: [StratumTypeOrmSubscriber],
-});
+// Register an instance once the data source is initialized. (TypeORM's
+// `subscribers` option only loads @EventSubscriber()-decorated classes.)
+await dataSource.initialize();
+dataSource.subscribers.push(new StratumTypeOrmSubscriber());
 ```
+
+Inserts get the current tenant's `tenant_id`. Updates never change `tenant_id`: `save()` keeps the loaded value, and `update()` / query builder updates drop it from the SET values.
 
 **Limitation:** TypeORM subscribers can intercept writes but not reads. Use the shared-table adapter's structured methods for tenant-scoped reads.
 
@@ -93,49 +100,35 @@ const dataSource = new DataSource({
 import { withTenantScope } from "@stratum-hq/mysql";
 
 const tenantKnex = withTenantScope(knex, "tenant-a");
-const users = await tenantKnex("users").select("*");
-// Automatically adds: WHERE tenant_id = 'tenant-a'
+const users = await tenantKnex("users").where("name", "like", q).orWhere("email", "like", q);
+// Compiles to: WHERE tenant_id = 'tenant-a' AND (name LIKE ? OR email LIKE ?)
 ```
+
+Your where clauses are always grouped after the tenant filter, including on clones and when the builder is used as a subquery. `insert()` sets `tenant_id`, `update()` never changes it, and `onConflict().merge()`, `upsert()` and `truncate()` throw.
 
 ### Sequelize Adapter
 
 ```typescript
 import { withMysqlTenantScope } from "@stratum-hq/mysql";
 
-await withMysqlTenantScope(sequelize, "tenant-a", async (scoped) => {
-  // Session variable @stratum_tenant_id is set for this scope
+await withMysqlTenantScope(sequelize, "tenant-a", async (scoped, transaction) => {
+  // @stratum_tenant_id is set on the transaction's connection only.
+  // Pass the transaction to every query, or it runs on another connection.
   // Guaranteed cleanup via try/finally, even on errors
-  const users = await scoped.query("SELECT * FROM users_view");
+  const [rows] = await scoped.query("SELECT @stratum_tenant_id", { transaction });
 });
 ```
 
-## MySQL Views (convenience layer)
+## MySQL Views (not supported)
 
-Views provide a convenient way to create tenant-scoped read access using MySQL session variables.
-
-```typescript
-import { createTenantView, setTenantSession } from "@stratum-hq/mysql";
-
-// Create a view that filters by @stratum_tenant_id
-await createTenantView(pool, "users");
-// Creates: CREATE OR REPLACE VIEW users_tenant_view AS
-//          SELECT * FROM users WHERE tenant_id = @stratum_tenant_id
-
-// Set the session variable, then query the view
-const conn = await pool.getConnection();
-await setTenantSession(conn, "tenant-a");
-const [rows] = await conn.query("SELECT * FROM users_tenant_view");
-conn.release();
-```
-
-**Important:** Views are NOT a security boundary (unlike Postgres RLS). Queries to underlying tables bypass isolation entirely. Views referencing session variables may not use indexes efficiently on large tables. Use the shared-table adapter's structured methods for high-performance workloads.
+`createTenantView()` is deprecated and always throws. MySQL does not allow a view to read a session variable (`ER_VIEW_SELECT_VARIABLE`), so a view filtered on `@stratum_tenant_id` cannot be created. Use the shared-table adapter's scoped methods. `setTenantSession()` and `dropTenantView()` remain available.
 
 ## GDPR Compliance
 
 All three adapters implement `purgeTenantData(tenantSlug)`:
 
 - **Shared table**: discovers tenant tables via `INFORMATION_SCHEMA`, then `DELETE FROM table WHERE tenant_id = ?`
-- **Table-per-tenant**: discovers tables via `SHOW TABLES LIKE '%_slug'`, then `DROP TABLE`
+- **Table-per-tenant**: `DROP TABLE` for exactly `{base}_{slug}` for each entry in the `baseTables` option, which it requires
 - **Database-per-tenant**: `DROP DATABASE stratum_tenant_slug`
 
 ## License

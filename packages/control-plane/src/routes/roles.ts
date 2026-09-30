@@ -3,8 +3,10 @@ import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
 import { buildAuditContext } from "./audit-logs.js";
 import {
+  assertOperator,
   assertTenantInScope,
   declareTenantScope,
+  isOperator,
   fromBodyTenantId,
   fromQueryTenantId,
 } from "../middleware/tenant-scope.js";
@@ -42,7 +44,13 @@ export function createRoleRoutes(stratum: Stratum) {
         reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid request body" }, details: parsed.error.issues });
         return;
       }
-      const role = await stratum.createRole(parsed.data, buildAuditContext(request));
+      // Global roles (no tenant) are operator-only. A tenant-scoped caller that
+      // names no tenant creates the role in its own tenant.
+      const input = parsed.data;
+      if (!input.tenant_id && !isOperator(request)) {
+        input.tenant_id = request.apiKey?.tenant_id ?? null;
+      }
+      const role = await stratum.createRole(input, buildAuditContext(request));
       reply.status(201).send(role);
     });
 
@@ -79,6 +87,8 @@ export function createRoleRoutes(stratum: Stratum) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "Role not found" } });
         return;
       }
+      // Global roles are shared by every tenant: only an operator may change them.
+      if (existing.tenant_id === null) assertOperator(request);
       await assertTenantInScope(stratum, request, existing.tenant_id);
       const role = await stratum.updateRole(request.params.id, parsed.data, buildAuditContext(request));
       if (!role) {
@@ -95,6 +105,8 @@ export function createRoleRoutes(stratum: Stratum) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "Role not found" } });
         return;
       }
+      // Global roles are shared by every tenant: only an operator may change them.
+      if (existing.tenant_id === null) assertOperator(request);
       await assertTenantInScope(stratum, request, existing.tenant_id);
       const deleted = await stratum.deleteRole(request.params.id, buildAuditContext(request));
       if (!deleted) {
@@ -124,7 +136,7 @@ export function createRoleRoutes(stratum: Stratum) {
         return;
       }
       await assertTenantInScope(stratum, request, role.tenant_id);
-      const success = await stratum.assignRoleToKey(request.params.keyId, parsed.data.role_id);
+      const success = await stratum.assignRoleToKey(request.params.keyId, parsed.data.role_id, buildAuditContext(request));
       if (!success) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;
@@ -140,7 +152,7 @@ export function createRoleRoutes(stratum: Stratum) {
         return;
       }
       await assertTenantInScope(stratum, request, key.tenant_id);
-      const success = await stratum.removeRoleFromKey(request.params.keyId);
+      const success = await stratum.removeRoleFromKey(request.params.keyId, buildAuditContext(request));
       if (!success) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;

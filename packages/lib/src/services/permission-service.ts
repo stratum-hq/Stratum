@@ -10,6 +10,7 @@ import {
   PermissionLockedError,
   PermissionNotFoundError,
   PermissionRevocationDeniedError,
+  ForbiddenError,
   TenantNotFoundError,
   parseAncestryPath,
 } from "@stratum-hq/core";
@@ -115,6 +116,27 @@ export async function resolvePermissions(
 }
 
 /**
+ * Enforce ancestor delegation modes on a descendant write. A LOCKED ancestor
+ * blocks the key entirely. An INHERITED ancestor lets descendants override the
+ * value only: they may not change the mode or re-delegate the key.
+ */
+function assertAncestorsAllowMode(
+  ancestorPolicies: PermissionPolicy[],
+  key: string,
+  mode: PermissionMode,
+): void {
+  const locker = ancestorPolicies.find((p) => p.mode === PermissionMode.LOCKED);
+  if (locker) {
+    throw new PermissionLockedError(key, locker.source_tenant_id);
+  }
+  if (ancestorPolicies.length > 0 && mode !== PermissionMode.INHERITED) {
+    throw new ForbiddenError(
+      `Permission '${key}' is INHERITED from an ancestor; descendants may override its value but not change its mode or re-delegate it`,
+    );
+  }
+}
+
+/**
  * Create a new permission policy for a tenant.
  * Rejects if the key is already LOCKED by an ancestor.
  */
@@ -136,17 +158,18 @@ export async function createPermission(
     const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
     // Exclude self (ancestry_path does not include self)
     if (ancestorIds.length > 0) {
-      const lockedRes = await client.query<PermissionPolicy>(
+      const restrictingRes = await client.query<PermissionPolicy>(
         `SELECT * FROM permission_policies
          WHERE tenant_id = ANY($1)
            AND key = $2
-           AND mode = $3`,
-        [ancestorIds, input.key, PermissionMode.LOCKED],
+           AND mode = ANY($3)`,
+        [ancestorIds, input.key, [PermissionMode.LOCKED, PermissionMode.INHERITED]],
       );
-      if (lockedRes.rows.length > 0) {
-        const locker = lockedRes.rows[0];
-        throw new PermissionLockedError(input.key, locker.source_tenant_id);
-      }
+      assertAncestorsAllowMode(
+        restrictingRes.rows,
+        input.key,
+        input.mode ?? PermissionMode.INHERITED,
+      );
     }
 
     const res = await client.query<PermissionPolicy>(
@@ -195,17 +218,28 @@ export async function updatePermission(
     }
     const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
     if (ancestorIds.length > 0) {
-      const lockedRes = await client.query<PermissionPolicy>(
+      const restrictingRes = await client.query<PermissionPolicy>(
         `SELECT * FROM permission_policies
          WHERE tenant_id = ANY($1)
            AND key = $2
-           AND mode = $3`,
-        [ancestorIds, current.key, PermissionMode.LOCKED],
+           AND mode = ANY($3)`,
+        [ancestorIds, current.key, [PermissionMode.LOCKED, PermissionMode.INHERITED]],
       );
-      if (lockedRes.rows.length > 0) {
-        const locker = lockedRes.rows[0];
-        throw new PermissionLockedError(current.key, locker.source_tenant_id);
-      }
+      assertAncestorsAllowMode(
+        restrictingRes.rows,
+        current.key,
+        input.mode ?? current.mode,
+      );
+    }
+
+    // A PERMANENT policy cannot be deleted, so it must not be possible to
+    // switch it to a deletable revocation mode either.
+    if (
+      current.revocation_mode === RevocationMode.PERMANENT &&
+      input.revocation_mode !== undefined &&
+      input.revocation_mode !== RevocationMode.PERMANENT
+    ) {
+      throw new PermissionRevocationDeniedError(current.key);
     }
 
     const sets: string[] = [];
@@ -277,11 +311,13 @@ export async function deletePermission(
         );
         const descendantIds = descendantsRes.rows.map((r) => r.id);
 
+        // A descendant's own PERMANENT policy on the same key is not
+        // revocable, so the cascade leaves it in place.
         if (descendantIds.length > 0) {
           await client.query(
             `DELETE FROM permission_policies
-             WHERE tenant_id = ANY($1) AND key = $2`,
-            [descendantIds, policy.key],
+             WHERE tenant_id = ANY($1) AND key = $2 AND revocation_mode != $3`,
+            [descendantIds, policy.key, RevocationMode.PERMANENT],
           );
         }
 

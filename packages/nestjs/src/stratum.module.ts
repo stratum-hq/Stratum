@@ -15,6 +15,14 @@ export interface StratumModuleOptions {
   jwtSecret?: string;
   /** Custom JWT verify function — takes priority over jwtSecret. */
   jwtVerify?: (token: string) => Record<string, unknown> | null;
+  /** Header to read the tenant ID from. When set, only this header is read (default: X-Tenant-ID). */
+  headerName?: string;
+  /**
+   * When jwtSecret or jwtVerify is configured, the tenant header is ignored
+   * unless this is true. A bearer token that fails verification is always
+   * rejected. Default: false.
+   */
+  trustTenantHeader?: boolean;
   /** Custom tenant resolvers evaluated after header and JWT resolution. */
   resolvers?: import("@stratum-hq/sdk").TenantResolver[];
   /** Enable tenant impersonation via X-Impersonate-Tenant header. */

@@ -46,6 +46,14 @@ export interface MysqlTableAdapterOptions {
   pool: MysqlPoolLike;
   /** The database name to use. */
   databaseName: string;
+  /**
+   * Every base table name that has a per-tenant copy. Required by
+   * purgeTenantData, which drops exactly `{base}_{slug}` for each entry and
+   * nothing else. When set, scopedTable only accepts these base names.
+   * No entry may be another entry followed by `_`, since `{base}_{slug}` would
+   * then be ambiguous between two tenants.
+   */
+  baseTables?: string[];
 }
 
 export interface MysqlDatabaseAdapterOptions {

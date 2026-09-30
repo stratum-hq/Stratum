@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
-import { resolveEffectiveScopes } from "./role-service.js";
+import { resolveEffectiveScopesOnClient } from "./role-service.js";
 
 export interface ApiKeyRecord {
   id: string;
@@ -125,11 +125,25 @@ export async function validateApiKey(
   }
   candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
 
-  return withClient(pool, async (client) => {
+  // Everything below runs on one pooled connection: nothing here may acquire a
+  // second connection while this one is held.
+  const found = await withClient(pool, async (client) => {
     for (const candidate of candidates) {
+      // A tenant-bound key authenticates only while its tenant and every
+      // ancestor are active. Global keys (tenant_id NULL) have no tenant.
       const res = await client.query<ApiKeyRecord & { scopes: string[] | null; rate_limit_max: number | null; rate_limit_window: string | null }>(
-        `SELECT id, tenant_id, key_hash, key_prefix, name, created_at, last_used_at, revoked_at, expires_at, scopes, rate_limit_max, rate_limit_window, hash_version
-         FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())`,
+        `SELECT ak.id, ak.tenant_id, ak.key_hash, ak.key_prefix, ak.name, ak.created_at, ak.last_used_at, ak.revoked_at, ak.expires_at, ak.scopes, ak.rate_limit_max, ak.rate_limit_window, ak.hash_version
+         FROM api_keys ak
+         LEFT JOIN tenants t ON t.id = ak.tenant_id
+         WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
+           AND (ak.tenant_id IS NULL OR (
+             t.status = 'active'
+             AND NOT EXISTS (
+               SELECT 1 FROM tenants anc
+               WHERE anc.id = ANY (string_to_array(trim(both '/' from t.ancestry_path), '/')::uuid[])
+                 AND anc.status <> 'active'
+             )
+           ))`,
         [candidate.hash],
       );
 
@@ -137,38 +151,43 @@ export async function validateApiKey(
 
       const row = res.rows[0];
 
-      // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is available,
-      // re-hash with HMAC and update the stored hash in-place
-      if (row.hash_version === HASH_V1_SHA256 && hmacSecret) {
-        const upgradedHash = hmacHash(key, hmacSecret);
-        pool
-          .query(
-            `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
-            [upgradedHash, HASH_V2_HMAC, row.id],
-          )
-          .catch(() => {
-            // Non-critical: upgrade will happen on next request
-          });
-      } else {
-        // Update last_used_at — fire-and-forget
-        pool
-          .query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id])
-          .catch(() => {});
-      }
-
       return {
-        tenant_id: row.tenant_id,
-        key_id: row.id,
-        // Resolve through the single source so an assigned role governs the
-        // key's scopes at the auth boundary, exactly as resolveKeyScopes does.
-        scopes: await resolveEffectiveScopes(pool, row.id),
-        rate_limit_max: row.rate_limit_max,
-        rate_limit_window: row.rate_limit_window,
+        row,
+        validated: {
+          tenant_id: row.tenant_id,
+          key_id: row.id,
+          // Resolve through the single source so an assigned role governs the
+          // key's scopes at the auth boundary, exactly as resolveKeyScopes does.
+          scopes: await resolveEffectiveScopesOnClient(client, row.id),
+          rate_limit_max: row.rate_limit_max,
+          rate_limit_window: row.rate_limit_window,
+        },
       };
     }
 
     return null;
   });
+
+  if (!found) return null;
+
+  // Fire-and-forget bookkeeping, started only after the validation connection
+  // is released, and run through withClient so it carries the RLS bypass.
+  // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is
+  // available, re-hash with HMAC and update the stored hash in-place.
+  const { row } = found;
+  const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
+  withClient(pool, (client) =>
+    upgrade
+      ? client.query(
+          `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
+          [hmacHash(key, hmacSecret), HASH_V2_HMAC, row.id],
+        )
+      : client.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [row.id]),
+  ).catch(() => {
+    // Non-critical: the stamp or upgrade happens on the next request
+  });
+
+  return found.validated;
 }
 
 export async function revokeApiKey(pool: pg.Pool, keyId: string): Promise<boolean> {
@@ -188,23 +207,40 @@ export async function rotateApiKey(
   newName?: string,
 ): Promise<CreatedApiKey> {
   return withTransaction(pool, async (client) => {
-    // Verify old key exists and is not revoked
-    const oldRes = await client.query<{ id: string; tenant_id: string | null; name: string | null; key_prefix: string | null }>(
-      `SELECT id, tenant_id, name, key_prefix FROM api_keys WHERE id = $1 AND revoked_at IS NULL`,
+    // Verify old key exists, is not revoked and has not expired
+    const oldRes = await client.query<{
+      id: string;
+      tenant_id: string | null;
+      name: string | null;
+      key_prefix: string | null;
+      scopes: string[] | null;
+      role_id: string | null;
+      expires_at: Date | null;
+      rate_limit_max: number | null;
+      rate_limit_window: string | null;
+    }>(
+      `SELECT id, tenant_id, name, key_prefix, scopes, role_id, expires_at, rate_limit_max, rate_limit_window
+       FROM api_keys
+       WHERE id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+       FOR UPDATE`,
       [oldKeyId],
     );
     if (oldRes.rows.length === 0) {
-      throw new Error(`API key not found or already revoked: ${oldKeyId}`);
+      throw new Error(`API key not found, expired or already revoked: ${oldKeyId}`);
     }
     const old = oldRes.rows[0];
 
-    // Create new key for same tenant
+    // Create the new key for the same tenant with the same restrictions: scopes,
+    // role, expiry and rate limit carry over, so rotation never widens access.
     const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
     const res = await client.query<{ id: string; tenant_id: string | null; name: string | null; key_prefix: string | null; created_at: Date }>(
-      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, hash_version)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, hash_version, scopes, role_id, expires_at, rate_limit_max, rate_limit_window)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, tenant_id, name, key_prefix, created_at`,
-      [old.tenant_id, keyHash, keyPrefix, newName ?? `${old.name ?? "key"} (rotated)`, hashVersion],
+      [
+        old.tenant_id, keyHash, keyPrefix, newName ?? `${old.name ?? "key"} (rotated)`, hashVersion,
+        old.scopes, old.role_id, old.expires_at, old.rate_limit_max, old.rate_limit_window,
+      ],
     );
 
     // Revoke old key

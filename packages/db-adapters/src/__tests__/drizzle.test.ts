@@ -3,6 +3,8 @@ import { DrizzleAdapter, withTenant, withTenantScope } from "../adapters/drizzle
 import type { DrizzleLike } from "../adapters/drizzle.js";
 import { BaseAdapter } from "../base-adapter.js";
 import type { Pool } from "pg";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQLWrapper } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Mock pg
@@ -25,12 +27,21 @@ type DrizzleMock = DrizzleLike & {
 // Shape of the query objects the adapter and tests push into `executions`.
 type ExecutedQuery = { sql: string; params?: unknown[] };
 
+// Record drizzle SQL objects as the { sql, params } they compile to.
+const dialect = new PgDialect();
+function normalize(query: unknown): unknown {
+  if (query && typeof (query as SQLWrapper).getSQL === "function") {
+    return dialect.sqlToQuery((query as SQLWrapper).getSQL());
+  }
+  return query;
+}
+
 function createMockDrizzle(): DrizzleMock {
   const executions: { query: unknown }[] = [];
   return {
     executions,
     execute: async (query: unknown) => {
-      executions.push({ query });
+      executions.push({ query: normalize(query) });
       return { rows: [] };
     },
     transaction: async <T>(fn: (tx: DrizzleLike) => Promise<T>) => {
@@ -38,7 +49,7 @@ function createMockDrizzle(): DrizzleMock {
       // executions array so tests can inspect what ran inside the tx.
       const txMock: DrizzleLike = {
         execute: async (query: unknown) => {
-          executions.push({ query });
+          executions.push({ query: normalize(query) });
           return { rows: [] };
         },
         transaction: async <U>(innerFn: (innerTx: DrizzleLike) => Promise<U>) => innerFn(txMock),

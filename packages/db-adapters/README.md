@@ -58,6 +58,24 @@ try {
 
 Also available: `disableRLS`, `dropPolicy`, `isRLSEnabled`, `addTenantColumn`, `createIsolationPolicy`, and low-level session helpers `setTenantContext` / `resetTenantContext` / `getCurrentTenantId`. Schema-per-tenant and database-per-tenant variants (`SchemaRawAdapter`, `DatabasePoolManager`, …) are exported too.
 
+## Schema-per-tenant search_path
+
+`SchemaRawAdapter`, `createSchemaTenantPool` and `setSchemaSearchPath` set `search_path` to the tenant schema (`tenant_<slug>`) **alone**, inside a transaction. `public` is not on the path, so an unqualified table missing from the tenant schema is an error instead of silently reading or writing a table every tenant shares. (`setSchemaSearchPath` throws if it is called outside a transaction.)
+
+If your queries call extension functions or types that live in another schema (for example `uuid_generate_v4()`, `ltree` operators, `citext` or `pgcrypto` installed in `public`), either schema-qualify them or opt that schema in explicitly:
+
+```typescript
+import { SchemaRawAdapter, createSchemaTenantPool, setSchemaSearchPath } from "@stratum-hq/db-adapters";
+
+const adapter = new SchemaRawAdapter(pool, { extraSearchPath: ["extensions"] });
+const tenantPool = createSchemaTenantPool(pool, getTenantSlug, { extraSearchPath: ["extensions"] });
+await setSchemaSearchPath(client, "acme", ["extensions"]); // inside BEGIN ... COMMIT
+```
+
+Extra schemas come **after** the tenant schema, and each entry must be a plain identifier (`/^[a-zA-Z_][a-zA-Z0-9_]*$/`, validated like tenant schema names). The trade-off: an unqualified table name missing from the tenant schema resolves in the extra schemas too, so list only schemas that hold no tenant data. Prefer a dedicated extensions schema over `public`. Column defaults such as `DEFAULT uuid_generate_v4()` are bound when the table is created and work without any extra schema.
+
+Prisma qualifies every table with its datasource schema, so `search_path` does not route it. For Prisma, use `new SchemaPrismaAdapter(PrismaClient, datasourceUrl).getClient(tenantSlug)`, which gives each tenant a client bound to its own schema.
+
 ## Security
 
 - All DDL validates table names against `/^[a-zA-Z_][a-zA-Z0-9_]*$/`.

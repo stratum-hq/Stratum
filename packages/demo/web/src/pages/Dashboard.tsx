@@ -2114,8 +2114,15 @@ export function Dashboard() {
             onClick={async () => {
               setContextModal({ open: true, data: null, loading: true });
               try {
-                const ctx = await apiCall<Record<string, unknown>>(`/api/v1/tenants/${tenant.id}/context`);
-                setContextModal({ open: true, data: ctx, loading: false });
+                const [ctx, ancestors] = await Promise.all([
+                  apiCall<Record<string, unknown>>(`/api/v1/tenants/${tenant.id}/context`),
+                  apiCall<unknown[]>(`/api/v1/tenants/${tenant.id}/ancestors`),
+                ]);
+                setContextModal({
+                  open: true,
+                  data: { tenant, config: ctx.resolved_config, permissions: ctx.resolved_permissions, ancestors },
+                  loading: false,
+                });
               } catch {
                 setContextModal({ open: false, data: null, loading: false });
               }

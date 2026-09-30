@@ -121,6 +121,7 @@ describe("Table-per-tenant isolation", () => {
     const adapter = new MysqlTableAdapter({
       pool: pool as unknown as MysqlPoolLike,
       databaseName: dbName,
+      baseTables: ["users"],
     });
 
     await pool.query(

@@ -26,11 +26,13 @@ On startup the server runs database migrations, then listens on `PORT` (default 
 |----------|---------|-------------|
 | `PORT` | `3001` | Listen port |
 | `DATABASE_URL` | `postgres://stratum:stratum_dev@localhost:5432/stratum` | PostgreSQL connection string |
-| `JWT_SECRET` | dev fallback | JWT signing secret — **required** in production/staging (server refuses to start without it) |
+| `JWT_SECRET` | dev fallback | JWT signing secret — **required** in production/staging (server refuses to start without it). In production it must be at least 32 bytes and not a placeholder such as `change-me-in-production` |
+| `JWT_AUDIENCE` | — | Optional; when set, Bearer tokens must carry this `aud` claim (for example `stratum-control-plane`). Recommended whenever `JWT_SECRET` is shared with another application |
+| `JWT_ISSUER` | — | Optional; when set, Bearer tokens must carry this `iss` claim |
 | `ALLOWED_ORIGINS` | `localhost:3000,3300` | Comma-separated CORS allowlist |
 | `RATE_LIMIT_MAX` | `100` | Requests per window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate-limit window |
-| `REDIS_URL` | — | Optional; enables distributed rate limiting |
+| `REDIS_URL` | — | Optional; enables distributed per-key rate limiting. While Redis is unreachable the client keeps reconnecting and per-key limits are counted in memory per process |
 | `NODE_ENV` | `development` | Environment |
 
 Security middleware (`@fastify/helmet`, CORS, rate limiting) is enabled by default.

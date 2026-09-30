@@ -7,14 +7,18 @@ export interface SequelizeLike {
 
 /**
  * Runs fn inside a session-variable scope for MySQL tenant isolation.
- * Uses a Sequelize transaction to guarantee all queries (SET, user queries,
- * SET NULL) run on the same pooled connection. The finally block clears the
- * session variable even if fn throws.
+ * Sets @stratum_tenant_id inside a Sequelize transaction and clears it in a
+ * finally block, even if fn throws.
+ *
+ * The variable exists only on the transaction's connection. fn receives that
+ * transaction as its second argument, and every query inside fn must pass it
+ * (`{ transaction }`); a query without it runs on another pooled connection
+ * where the variable is not set.
  */
 export async function withMysqlTenantScope<T>(
   sequelize: SequelizeLike,
   tenantId: string,
-  fn: (sequelize: SequelizeLike) => Promise<T>,
+  fn: (sequelize: SequelizeLike, transaction: unknown) => Promise<T>,
 ): Promise<T> {
   return sequelize.transaction(async (transaction) => {
     await sequelize.query("SET @stratum_tenant_id = ?", {
@@ -22,7 +26,7 @@ export async function withMysqlTenantScope<T>(
       transaction,
     });
     try {
-      return await fn(sequelize);
+      return await fn(sequelize, transaction);
     } finally {
       await sequelize.query("SET @stratum_tenant_id = NULL", { transaction });
     }

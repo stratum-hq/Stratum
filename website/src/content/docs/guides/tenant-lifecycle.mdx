@@ -13,6 +13,7 @@ predictable behaviour, both for the tenant itself and for its descendants.
 
 | State | Meaning | Reversible |
 |---|---|---|
+| `pending` | Created with its own schema or database, which is not yet provisioned. Not usable. | Becomes `active` via `activateTenant` |
 | `active` | Normal, fully usable tenant. | n/a |
 | `suspended` | Access is blocked, but the tenant and its data are intact. | Yes, via `resumeTenant` |
 | `archived` | Soft-deleted: hidden from listings, `deleted_at` set, data retained. | Yes, via `resumeTenant` |
@@ -38,7 +39,8 @@ predictable behaviour, both for the tenant itself and for its descendants.
 
 | Operation | From | To | Notes |
 |---|---|---|---|
-| `createTenant` | none | `active` | Parent must be `active`. |
+| `createTenant` | none | `active`, or `pending` for `SCHEMA_PER_TENANT` / `DB_PER_TENANT` | Parent must be `active`. |
+| `activateTenant` | `pending` | `active` | Call once the tenant's schema or database exists. Parent must be `active`. |
 | `suspendTenant` | `active` | `suspended` | Blocks access; reversible. |
 | `resumeTenant` | `suspended`, `archived` | `active` | Reverses suspend and archive; clears `deleted_at`. |
 | `archiveTenant` | `active`, `suspended` | `archived` | Soft delete; reversible. |
@@ -56,11 +58,16 @@ nothing.
 
 ## Blocked access
 
-A `suspended` or `archived` tenant is excluded from `listTenants`,
-`getChildren`, and `getDescendants`, and `getTenant` throws:
+A `pending`, `suspended` or `archived` tenant is excluded from `listTenants`,
+`getChildren`, and `getDescendants`, its API keys do not authenticate, and
+`getTenant` throws:
 
+- `TenantPendingError` (409) for a pending tenant
 - `TenantSuspendedError` (403) for a suspended tenant
 - `TenantArchivedError` (410) for an archived tenant
+
+`listTenants(pagination, { status: "pending" })` (or `GET /api/v1/tenants?status=pending`)
+lists tenants in another state.
 
 Pass `includeArchived: true` to `getTenant` or `getDescendants` when you
 genuinely need the row regardless of state (for lifecycle or retention passes):
@@ -84,12 +91,26 @@ active.**
   `archiveTenant` reject with `TenantHasChildrenError` (409) if the tenant has
   any `active` child. Work leaf-first: suspend or archive the children before
   the parent.
-- **Upward transitions are top-down.** `resumeTenant` and `createTenant` require
-  the parent to be `active`. You cannot resume a tenant whose parent is still
-  suspended or archived, nor create a child under a non-active parent. Resume
-  the parent first.
+- **Upward transitions are top-down.** `resumeTenant`, `activateTenant`,
+  `createTenant`, `batchCreateTenants` and `moveTenant` require the (new)
+  parent to be `active`. You cannot resume a tenant whose parent is still
+  suspended or archived, nor create or move a child under a non-active parent.
+  Resume the parent first.
 - **Purge requires an empty subtree.** `purgeTenant` rejects while the tenant has
   any child of _any_ status. Purge from the leaves up.
+
+## Tenants with their own storage
+
+A `SCHEMA_PER_TENANT` or `DB_PER_TENANT` tenant is created `pending`. The
+control plane then provisions its schema or database and activates it, so
+`POST /api/v1/tenants` returns an `active` tenant. When you use the library
+directly, provision the storage yourself and then call `activateTenant`.
+
+If provisioning fails, the control plane returns `TENANT_PROVISIONING_FAILED`
+with the tenant id and leaves the tenant `pending`. To retry, purge that tenant
+and create it again. Purging a tenant that is still `pending` removes only its
+rows and never drops a schema or database, because its storage was never
+confirmed as its own.
 
 <Aside type="caution">
 Blocking is the deliberate, safe default: no operation ever silently changes the

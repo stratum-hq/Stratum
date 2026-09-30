@@ -73,6 +73,11 @@ describe("DatabasePoolManager", () => {
       await expect(mgr.getPool("")).rejects.toThrow("Invalid tenant slug");
     });
 
+    it("rejects slugs whose database name would exceed 63 bytes", async () => {
+      const manager = makeManager();
+      await expect(manager.getPool("a".repeat(49))).rejects.toThrow(/exceeds 63 bytes/);
+    });
+
     it("accepts valid lowercase slugs with underscores", async () => {
       const mgr = makeManager();
       await expect(mgr.getPool("acme_corp")).resolves.toBeDefined();

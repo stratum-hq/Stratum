@@ -2,8 +2,8 @@ import { TenantNotFoundError } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
-import { resolveFromJwt } from "../resolvers/jwt.js";
-import { resolveFromHeader } from "../resolvers/header.js";
+import { assertJwtSupport } from "../resolvers/jwt.js";
+import { resolveTenantId } from "../resolvers/resolve.js";
 
 // Minimal structural types for the Express surface this middleware touches, so
 // the SDK does not take a hard dependency on `express` types in its published API.
@@ -21,34 +21,23 @@ type ExpressResponseLike = {
 };
 
 export function expressMiddleware(client: StratumClient, options?: MiddlewareOptions) {
+  assertJwtSupport(options);
   return async (req: ExpressRequestLike, res: ExpressResponseLike, next: NextFn): Promise<void> => {
     try {
       // Resolve tenant ID: JWT → header → custom resolvers
-      let tenantId: string | null = null;
+      const resolution = await resolveTenantId(req, options);
 
-      tenantId = resolveFromJwt(req, options?.jwtClaimPath, {
-        secret: options?.jwtSecret,
-        verify: options?.jwtVerify,
-      });
-
-      if (!tenantId) {
-        tenantId = resolveFromHeader(req);
+      if (resolution.status === "invalid_token") {
+        res.status(401).json({ error: { code: "INVALID_TOKEN", message: "Bearer token could not be verified" } });
+        return;
       }
 
-      if (!tenantId && options?.resolvers) {
-        for (const resolver of options.resolvers) {
-          const result = await resolver.resolve(req);
-          if (result) {
-            tenantId = result;
-            break;
-          }
-        }
-      }
-
-      if (!tenantId) {
+      if (resolution.status === "missing") {
         res.status(400).json({ error: { code: "MISSING_TENANT", message: "Tenant ID could not be resolved from request" } });
         return;
       }
+
+      const tenantId = resolution.tenantId;
 
       let context;
       try {

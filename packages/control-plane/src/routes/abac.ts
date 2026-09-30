@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { CreateAbacPolicyInputSchema, AbacEvaluationRequestSchema, type CreateAbacPolicyInput, type AbacEvaluationRequest } from "@stratum-hq/core";
 import { declareTenantScope, fromParamTenantId } from "../middleware/tenant-scope.js";
+import { buildAuditContext } from "./audit-logs.js";
 
 export function createAbacRoutes(stratum: Stratum) {
   return async function abacRoutes(app: FastifyInstance): Promise<void> {
@@ -14,6 +15,7 @@ export function createAbacRoutes(stratum: Stratum) {
       const policy = await stratum.createAbacPolicy(
         request.params.tenantId,
         input,
+        buildAuditContext(request),
       );
       reply.status(201).send(policy);
     });
@@ -41,6 +43,7 @@ export function createAbacRoutes(stratum: Stratum) {
         await stratum.deleteAbacPolicy(
           request.params.tenantId,
           request.params.policyId,
+          buildAuditContext(request),
         );
         reply.status(204).send();
       },

@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import {
   CreateTenantInputSchema,
   UpdateTenantInputSchema,
@@ -7,7 +8,11 @@ import {
   PaginationSchema,
   IsolationStrategyUnsupportedError,
   isSupportedIsolationStrategy,
+  getAncestorIds,
+  TenantStatus,
+  TenantProvisioningError,
 } from "@stratum-hq/core";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import {
   setupSchemaForTenant,
@@ -41,7 +46,11 @@ export function createTenantRoutes(stratum: Stratum) {
         return;
       }
       const query = PaginationSchema.parse(request.query);
-      const result = await stratum.listTenants(query);
+      // Active tenants by default; `?status=` lists pending, suspended or
+      // archived ones instead (for example to find a tenant whose storage
+      // provisioning failed).
+      const { status } = z.object({ status: z.nativeEnum(TenantStatus).optional() }).parse(request.query);
+      const result = await stratum.listTenants(query, { status });
       reply.status(200).send(result);
     });
 
@@ -61,12 +70,25 @@ export function createTenantRoutes(stratum: Stratum) {
 
       const tenant = await stratum.createTenant(input, buildAuditContext(request));
 
-      // Provision isolation resources based on strategy
+      // A tenant with its own schema or database is created pending, which
+      // blocks every use of it. Provision its storage, then activate it. If
+      // provisioning fails the tenant stays pending: purge it to remove it
+      // (purging a pending tenant never drops storage), then create it again.
       const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
-      if (strategy === "SCHEMA_PER_TENANT") {
-        await setupSchemaForTenant(tenant.slug);
-      } else if (strategy === "DB_PER_TENANT") {
-        await setupDatabaseForTenant(tenant.slug);
+      if (strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT") {
+        try {
+          if (strategy === "SCHEMA_PER_TENANT") {
+            await setupSchemaForTenant(tenant.slug);
+          } else {
+            await setupDatabaseForTenant(tenant.slug);
+          }
+        } catch (err) {
+          request.log.error({ err, tenant_id: tenant.id }, "tenant storage provisioning failed; tenant left pending");
+          throw new TenantProvisioningError(tenant.id);
+        }
+        const active = await stratum.activateTenant(tenant.id, buildAuditContext(request));
+        reply.status(201).send(active);
+        return;
       }
 
       reply.status(201).send(tenant);
@@ -90,6 +112,12 @@ export function createTenantRoutes(stratum: Stratum) {
         return;
       }
       const inputs = results.map((r) => (r as Extract<typeof r, { success: true }>).data);
+      // Batch create does not provision schemas or databases, so it only
+      // accepts tenants that need none.
+      if (inputs.some((i) => i.isolation_strategy !== "SHARED_RLS")) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Batch create supports only SHARED_RLS tenants; create SCHEMA_PER_TENANT and DB_PER_TENANT tenants individually" } });
+        return;
+      }
       const result = await stratum.batchCreateTenants(inputs, buildAuditContext(request));
       reply.status(201).send(result);
     });
@@ -131,6 +159,19 @@ export function createTenantRoutes(stratum: Stratum) {
     // GET /api/v1/tenants/:id/ancestors — Get ancestors
     app.get<{ Params: { id: string } }>("/:id/ancestors", async (request, reply) => {
       const ancestors = await stratum.getAncestors(request.params.id);
+      // A tenant-scoped caller gets full rows only for ancestors inside its own
+      // subtree; for those above it, only identifying fields.
+      const scopedTenantId = request.apiKey?.tenant_id;
+      if (scopedTenantId) {
+        reply.status(200).send(
+          ancestors.map((a) =>
+            a.id === scopedTenantId || getAncestorIds(a.ancestry_path).includes(scopedTenantId)
+              ? a
+              : { id: a.id, parent_id: a.parent_id, name: a.name, slug: a.slug, depth: a.depth },
+          ),
+        );
+        return;
+      }
       reply.status(200).send(ancestors);
     });
 
@@ -165,9 +206,17 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(data);
     });
 
-    // GET /api/v1/tenants/:id/context — Resolve full tenant impersonation context (admin scope)
+    // GET /api/v1/tenants/:id/context — Resolve the flat ResolvedTenantContext (admin scope)
     app.get<{ Params: { id: string } }>("/:id/context", async (request, reply) => {
-      const context = await stratum.getTenantContext(request.params.id);
+      const { tenant, config, permissions } = await stratum.getTenantContext(request.params.id);
+      const context: ResolvedTenantContext = {
+        tenant_id: tenant.id,
+        ancestry_path: tenant.ancestry_path,
+        depth: tenant.depth,
+        resolved_config: config,
+        resolved_permissions: permissions,
+        isolation_strategy: tenant.isolation_strategy,
+      };
       reply.status(200).send(context);
     });
   };

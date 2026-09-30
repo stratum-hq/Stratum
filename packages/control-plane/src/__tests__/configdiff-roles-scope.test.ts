@@ -230,7 +230,7 @@ describe("role routes scope to the caller's subtree", () => {
       payload: { role_id: ROLE_OWN },
     });
     expect(res.statusCode).toBe(200);
-    expect(stratum.assignRoleToKey).toHaveBeenCalledWith(OWN_KEY, ROLE_OWN);
+    expect(stratum.assignRoleToKey).toHaveBeenCalledWith(OWN_KEY, ROLE_OWN, expect.objectContaining({ actor_id: expect.any(String) }));
   });
 });
 
@@ -273,6 +273,6 @@ describe("global operator keys keep full access", () => {
       payload: { role_id: ROLE_FOREIGN },
     });
     expect(res.statusCode).toBe(200);
-    expect(stratum.assignRoleToKey).toHaveBeenCalledWith(FOREIGN_KEY, ROLE_FOREIGN);
+    expect(stratum.assignRoleToKey).toHaveBeenCalledWith(FOREIGN_KEY, ROLE_FOREIGN, expect.objectContaining({ actor_id: expect.any(String) }));
   });
 });

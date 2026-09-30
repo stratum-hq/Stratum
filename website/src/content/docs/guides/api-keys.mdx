@@ -29,6 +29,8 @@ curl http://localhost:3001/api/v1/tenants \
 
 JWTs are verified using the `JWT_SECRET` environment variable. Without a `scopes` claim, tokens default to read-only access.
 
+Set `JWT_AUDIENCE` (and optionally `JWT_ISSUER`) to require a matching `aud` (and `iss`) claim. When they are unset the claims are not checked, so set `JWT_AUDIENCE` whenever `JWT_SECRET` is also used to sign tokens for another application.
+
 ## Scopes
 
 Three scopes control access:
@@ -226,5 +228,5 @@ The rotation is atomic: either all values are re-encrypted or none are. After ro
 3. **Rotate keys regularly** using the rotate endpoint for zero-downtime replacement
 4. **Monitor dormant keys** and revoke keys unused for 90+ days
 5. **Never commit keys** to source control
-6. **Set `JWT_SECRET`** in production (the dev fallback is insecure)
+6. **Set `JWT_SECRET`** in production (the dev fallback is insecure). The control plane refuses to start in production with a secret shorter than 32 bytes or a published placeholder value
 7. **Set `STRATUM_API_KEY_HMAC_SECRET`** in production for keyed hash storage

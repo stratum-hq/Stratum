@@ -31,6 +31,8 @@ export {
   TenantCycleDetectedError,
   TenantArchivedError,
   TenantSuspendedError,
+  TenantPendingError,
+  TenantProvisioningError,
   InvalidTenantStateError,
   TenantContextNotFoundError,
   IsolationViolationError,

@@ -54,7 +54,7 @@ await stratum.createPermission(rootId, {
 
 ### INHERITED
 
-The permission flows down the tree. Descendants can override the value but cannot change the mode or re-delegate.
+The permission flows down the tree. Descendants can override the value but cannot change the mode or re-delegate: a descendant policy for the same key must also use `INHERITED` mode, and creating or updating one with `LOCKED` or `DELEGATED` mode is rejected with `403 FORBIDDEN`.
 
 ```typescript
 // Root sets "can_invite_users" with INHERITED mode
@@ -100,7 +100,7 @@ The revocation mode controls what happens when a permission is deleted:
 |------|----------|
 | `CASCADE` | Deleting the permission removes it from the creating tenant **and all descendants** |
 | `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
-| `PERMANENT` | The permission cannot be deleted. Returns `403 PERMISSION_REVOCATION_DENIED` |
+| `PERMANENT` | The permission cannot be deleted, its revocation mode cannot be changed, and an ancestor's CASCADE revocation leaves it in place. Returns `403 PERMISSION_REVOCATION_DENIED` |
 
 ### CASCADE Example
 

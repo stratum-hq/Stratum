@@ -118,9 +118,10 @@ export function createTenantDb(getTenantId: () => string) {
   return drizzleWithTenant(db, getTenantId, pool);
 }
 
-// Usage:
+// Usage: run tenant queries inside transaction() so the tenant context and
+// the query share one connection.
 // const tenantDb = createTenantDb(() => currentTenantId);
-// const rows = await tenantDb.select().from(orders);
+// const rows = await tenantDb.transaction((tx) => tx.select().from(orders));
 
 export { pool };
 `,

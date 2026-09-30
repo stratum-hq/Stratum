@@ -56,10 +56,21 @@ describe("purgeExpiredData", () => {
 describe("purgeTenant", () => {
   it("deletes all tenant data in FK-safe order", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn()
-      // Query 1: child count check
+    const tenantRow = { slug: "acme", isolation_strategy: "SHARED_RLS", status: "active" };
+    // Pre-check on its own connection: child count, then the tenant's storage.
+    const readQuery = vi.fn()
       .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-      // Queries 2-10: deletes in FK order
+      .mockResolvedValueOnce({ rows: [tenantRow] });
+    vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
+      const client = { query: readQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+    const mockQuery = vi.fn()
+      // Query 1: lock the tenant row
+      .mockResolvedValueOnce({ rows: [tenantRow] })
+      // Query 2: child count check
+      .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+      // Queries 3-13: deletes in FK order
       .mockResolvedValue({ rowCount: 0 });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
@@ -69,22 +80,23 @@ describe("purgeTenant", () => {
 
     await retentionService.purgeTenant(pool, "tenant-123");
 
-    // 1 child check + 11 deletes (config, permissions by tenant_id,
-    // permissions by source_tenant_id, api_keys, roles, webhook_deliveries,
-    // webhook_events, webhooks, consent_records, audit_logs, tenants)
-    expect(mockQuery).toHaveBeenCalledTimes(12);
-    // First query is the child count check
-    expect(mockQuery.mock.calls[0][0]).toContain("COUNT");
+    // 1 row lock + 1 child check + 11 deletes (config, permissions by
+    // tenant_id, permissions by source_tenant_id, api_keys, roles,
+    // webhook_deliveries, webhook_events, webhooks, consent_records,
+    // audit_logs, tenants). A SHARED_RLS tenant has no storage to drop.
+    expect(mockQuery).toHaveBeenCalledTimes(13);
+    expect(mockQuery.mock.calls[0][0]).toContain("FOR UPDATE");
+    expect(mockQuery.mock.calls[1][0]).toContain("COUNT");
     // Then FK-ordered deletes
-    expect(mockQuery.mock.calls[1][0]).toContain("config_entries");
-    expect(mockQuery.mock.calls[2][0]).toContain("permission_policies");
+    expect(mockQuery.mock.calls[2][0]).toContain("config_entries");
     expect(mockQuery.mock.calls[3][0]).toContain("permission_policies");
-    expect(mockQuery.mock.calls[4][0]).toContain("api_keys");
-    expect(mockQuery.mock.calls[5][0]).toContain("roles");
+    expect(mockQuery.mock.calls[4][0]).toContain("permission_policies");
+    expect(mockQuery.mock.calls[5][0]).toContain("api_keys");
+    expect(mockQuery.mock.calls[6][0]).toContain("roles");
     // Last delete is the tenant itself
-    expect(mockQuery.mock.calls[11][0]).toContain("tenants");
+    expect(mockQuery.mock.calls[12][0]).toContain("tenants");
     // Verify tenant_id parameter
-    expect(mockQuery.mock.calls[1][1]).toEqual(["tenant-123"]);
+    expect(mockQuery.mock.calls[2][1]).toEqual(["tenant-123"]);
   });
 });
 

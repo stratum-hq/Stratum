@@ -1,13 +1,17 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
-import { declareTenantScope, fromBodyTenantId } from "../middleware/tenant-scope.js";
+import { ForbiddenError } from "@stratum-hq/core";
+import { declareTenantScope, fromBodyTenantId, isOperator } from "../middleware/tenant-scope.js";
+import { parseWindow } from "../middleware/per-key-rate-limit.js";
+import { config } from "../config.js";
+import { buildAuditContext } from "./audit-logs.js";
 
 const createApiKeySchema = z.object({
   tenant_id: z.string().uuid(),
   name: z.string().optional(),
   rate_limit_max: z.number().int().min(1).max(100_000).optional(),
-  rate_limit_window: z.string().regex(/^\d+\s+(second|minute|hour|day)s?$/i).optional(),
+  rate_limit_window: z.string().regex(/^[1-9]\d*\s+(second|minute|hour|day)s?$/i).optional(),
 });
 
 export function createApiKeyRoutes(stratum: Stratum) {
@@ -27,11 +31,21 @@ export function createApiKeyRoutes(stratum: Stratum) {
           return;
         }
         const { tenant_id, name, rate_limit_max, rate_limit_window } = parsed.data;
+        // A tenant-scoped caller may tighten a key's rate limit but not loosen it
+        // beyond the operator's configured default.
+        if (!isOperator(request) && (rate_limit_max !== undefined || rate_limit_window !== undefined)) {
+          const defaultWindowMs = parseWindow(config.rateLimitWindow);
+          const max = rate_limit_max ?? config.rateLimitMax;
+          const windowMs = rate_limit_window ? parseWindow(rate_limit_window) : defaultWindowMs;
+          if (max > config.rateLimitMax || max * defaultWindowMs > config.rateLimitMax * windowMs) {
+            throw new ForbiddenError("Only operator keys may set a per-key rate limit above the configured default");
+          }
+        }
         const result = await stratum.createApiKey(tenant_id, {
           name,
           rateLimitMax: rate_limit_max,
           rateLimitWindow: rate_limit_window,
-        });
+        }, undefined, buildAuditContext(request));
         reply.status(201).send(result);
       },
     );
@@ -71,7 +85,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       }
       const rotateSchema = z.object({ name: z.string().max(255).optional() });
       const parsed = rotateSchema.parse(request.body ?? {});
-      const result = await stratum.rotateApiKey(request.params.id, parsed.name);
+      const result = await stratum.rotateApiKey(request.params.id, parsed.name, buildAuditContext(request));
       reply.status(201).send(result);
     });
 
@@ -85,7 +99,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
           return;
         }
       }
-      const revoked = await stratum.revokeApiKey(request.params.id);
+      const revoked = await stratum.revokeApiKey(request.params.id, buildAuditContext(request));
       if (!revoked) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;

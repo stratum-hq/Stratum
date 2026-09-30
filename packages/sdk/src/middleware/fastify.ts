@@ -3,8 +3,8 @@ import type { ResolvedTenantContext } from "@stratum-hq/core";
 import type { StratumClient } from "../client.js";
 import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
-import { resolveFromJwt } from "../resolvers/jwt.js";
-import { resolveFromHeader } from "../resolvers/header.js";
+import { assertJwtSupport } from "../resolvers/jwt.js";
+import { resolveTenantId } from "../resolvers/resolve.js";
 
 // Minimal structural types for the Fastify surface this plugin touches, so the
 // SDK does not take a hard dependency on `fastify` types in its published API.
@@ -35,39 +35,28 @@ export function fastifyPlugin(
   done: DoneFn,
 ): void {
   const { client, ...middlewareOptions } = options;
+  assertJwtSupport(middlewareOptions);
 
   fastify.decorateRequest("tenant", null);
   fastify.decorateRequest("impersonating", false);
   fastify.decorateRequest("originalTenantId", null);
 
   fastify.addHook("onRequest", (request: FastifyRequestLike, reply: FastifyReplyLike, done: DoneFn) => {
-    // Resolve tenant ID: JWT → header → custom resolvers
-    let tenantId: string | null = null;
-
-    tenantId = resolveFromJwt(request, middlewareOptions.jwtClaimPath, {
-      secret: middlewareOptions.jwtSecret,
-      verify: middlewareOptions.jwtVerify,
-    });
-
-    if (!tenantId) {
-      tenantId = resolveFromHeader(request);
-    }
-
     const resolveAndRun = async () => {
-      if (!tenantId && middlewareOptions.resolvers) {
-        for (const resolver of middlewareOptions.resolvers) {
-          const result = await resolver.resolve(request);
-          if (result) {
-            tenantId = result;
-            break;
-          }
-        }
+      // Resolve tenant ID: JWT → header → custom resolvers
+      const resolution = await resolveTenantId(request, middlewareOptions);
+
+      if (resolution.status === "invalid_token") {
+        reply.status(401).send({ error: { code: "INVALID_TOKEN", message: "Bearer token could not be verified" } });
+        return;
       }
 
-      if (!tenantId) {
+      if (resolution.status === "missing") {
         reply.status(400).send({ error: { code: "MISSING_TENANT", message: "Tenant ID could not be resolved from request" } });
         return;
       }
+
+      const tenantId = resolution.tenantId;
 
       let context: ResolvedTenantContext;
       try {
@@ -124,3 +113,8 @@ export function fastifyPlugin(
 
   done();
 }
+
+// Register the hook and decorators on the instance that calls
+// `register(fastifyPlugin)`, not in an encapsulated child context, so routes
+// declared on that instance run the tenant hook (the fastify-plugin convention).
+(fastifyPlugin as unknown as Record<symbol, unknown>)[Symbol.for("skip-override")] = true;

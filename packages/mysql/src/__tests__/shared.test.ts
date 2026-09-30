@@ -75,6 +75,26 @@ describe("MysqlSharedAdapter", () => {
         ["Alice", "tenant1", 42],
       );
     });
+
+    it("drops tenant_id from the SET data in any letter case", async () => {
+      await adapter.scopedUpdate(
+        "tenant1",
+        "users",
+        { name: "Alice", tenant_id: "other", TENANT_ID: "other" },
+        { id: 42 },
+      );
+      expect(pool.query).toHaveBeenCalledWith(
+        "UPDATE `testdb`.`users` SET `name` = ? WHERE tenant_id = ? AND `id` = ?",
+        ["Alice", "tenant1", 42],
+      );
+    });
+
+    it("rejects data that only sets tenant_id", async () => {
+      await expect(
+        adapter.scopedUpdate("tenant1", "users", { tenant_id: "other" }, { id: 42 }),
+      ).rejects.toThrow();
+      expect(pool.query).not.toHaveBeenCalled();
+    });
   });
 
   describe("scopedDelete", () => {

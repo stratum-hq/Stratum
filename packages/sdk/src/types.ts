@@ -6,10 +6,19 @@ export type { TenantResolver } from "./resolvers/custom.js";
 
 export interface MiddlewareOptions {
   resolvers?: import("./resolvers/custom.js").TenantResolver[];
+  /** Header to read the tenant ID from. When set, only this header is read (default: X-Tenant-ID). */
   headerName?: string;
   jwtClaimPath?: string;
+  /** HS256 secret for JWT verification. Requires the optional `jsonwebtoken` peer dependency unless `jwtVerify` is given. */
   jwtSecret?: string;
   jwtVerify?: (token: string) => Record<string, unknown> | null;
+  /**
+   * When `jwtSecret` or `jwtVerify` is configured, the tenant header is ignored
+   * unless this is true, so the verified JWT is the only tenant binding. A
+   * bearer token that fails verification is always rejected with 401. Has no
+   * effect when JWT verification is not configured. Default: false.
+   */
+  trustTenantHeader?: boolean;
   onError?: (err: Error, req: unknown) => void;
   /**
    * Enable tenant impersonation via X-Impersonate-Tenant header.

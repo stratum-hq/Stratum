@@ -50,6 +50,7 @@ import type {
   CreateRegionInput,
   UpdateRegionInput,
   TenantContext,
+  TenantStatus,
   ResolvedTenantContext,
   ConfigDiff,
   ConfigDiffItem,
@@ -207,8 +208,12 @@ export class Stratum {
       return tenantService.getTenantBySlug(this.pool, slug, includeArchived);
     });
   }
-  listTenants(pagination: PaginationInput): Promise<PaginatedResult<TenantNode>> {
-    return tenantService.listTenants(this.pool, pagination);
+  /**
+   * List tenants, active ones by default. Pass `status` to list pending,
+   * suspended or archived tenants instead.
+   */
+  listTenants(pagination: PaginationInput, options?: { status?: TenantStatus }): Promise<PaginatedResult<TenantNode>> {
+    return tenantService.listTenants(this.pool, pagination, options?.status);
   }
   async updateTenant(id: string, patch: UpdateTenantInput, audit?: AuditContext): Promise<TenantNode> {
     return traced("tenant.update", { tenant_id: id }, async (span) => {
@@ -263,6 +268,23 @@ export class Stratum {
       if (audit) {
         await auditService.createAuditEntry(
           this.pool, audit, "tenant.resumed", "tenant", id, id,
+        );
+      }
+      return tenant;
+    });
+  }
+  /**
+   * Activate a pending tenant once its schema or database has been
+   * provisioned. Tenants with their own storage are created pending and are
+   * not usable until activated. Rejects if the tenant is not pending or its
+   * parent is not active.
+   */
+  async activateTenant(id: string, audit?: AuditContext): Promise<TenantNode> {
+    return traced("tenant.activate", { tenant_id: id }, async () => {
+      const tenant = await tenantService.activateTenant(this.pool, id);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "tenant.activated", "tenant", id, id,
         );
       }
       return tenant;
@@ -355,7 +377,7 @@ export class Stratum {
       if (audit) {
         await auditService.createAuditEntry(
           this.pool, audit, "config.updated", "config", key, tenantId,
-          null, input as unknown as Record<string, unknown>,
+          null, (input.sensitive ? { ...input, value: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
         );
       }
       return entry;
@@ -555,9 +577,16 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
+  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
     return traced("api_key.create", { tenant_id: tenantId }, async () => {
-      return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+      const created = await apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "api_key.created", "api_key", created.id, created.tenant_id,
+          null, { name: created.name, key_prefix: created.key_prefix } as Record<string, unknown>,
+        );
+      }
+      return created;
     });
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
@@ -565,13 +594,28 @@ export class Stratum {
       return apiKeyService.validateApiKey(this.pool, key);
     });
   }
-  revokeApiKey(keyId: string): Promise<boolean> {
+  revokeApiKey(keyId: string, audit?: AuditContext): Promise<boolean> {
     return traced("api_key.revoke", { key_id: keyId }, async () => {
-      return apiKeyService.revokeApiKey(this.pool, keyId);
+      const before = audit ? await apiKeyService.getApiKey(this.pool, keyId) : null;
+      const revoked = await apiKeyService.revokeApiKey(this.pool, keyId);
+      if (audit && revoked) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "api_key.revoked", "api_key", keyId, before?.tenant_id ?? null,
+          before ? ({ name: before.name, revoked_at: before.revoked_at } as Record<string, unknown>) : null,
+        );
+      }
+      return revoked;
     });
   }
-  rotateApiKey(keyId: string, newName?: string): Promise<apiKeyService.CreatedApiKey> {
-    return apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
+  async rotateApiKey(keyId: string, newName?: string, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
+    const rotated = await apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.rotated", "api_key", rotated.id, rotated.tenant_id,
+        { id: keyId }, { id: rotated.id, name: rotated.name, key_prefix: rotated.key_prefix } as Record<string, unknown>,
+      );
+    }
+    return rotated;
   }
   listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null }>> {
     return apiKeyService.listApiKeys(this.pool, tenantId);
@@ -609,7 +653,7 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.secret !== undefined ? { ...input, secret: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
       );
     }
     return webhook;
@@ -637,7 +681,7 @@ export class Stratum {
     return webhookService.listDeliveriesByEvent(this.pool, eventId);
   }
   async testWebhook(id: string): Promise<{ success: boolean; response_code: number | null; error?: string }> {
-    const webhook = await webhookService.getWebhook(this.pool, id);
+    const webhook = await webhookService.getWebhookWithSecret(this.pool, id);
 
     // SSRF protection
     await eventService.validateWebhookUrlWithDns(webhook.url);
@@ -656,20 +700,19 @@ export class Stratum {
     const signature = signWebhookPayload(rawSecret, timestamp, testPayload);
 
     try {
-      const response = await globalThis.fetch(webhook.url, {
-        method: "POST",
-        headers: {
+      // Same pinned delivery path as automatic delivery.
+      const status = await eventService.postWebhook(
+        webhook.url,
+        {
           "Content-Type": "application/json",
           "X-Stratum-Event": "webhook.test",
           "X-Stratum-Signature": signature,
           "X-Stratum-Delivery-ID": crypto.randomUUID(),
           "X-Stratum-Timestamp": timestamp,
         },
-        body: testPayload,
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
-      return { success: response.ok, response_code: response.status };
+        testPayload,
+      );
+      return { success: status >= 200 && status < 300, response_code: status };
     } catch (err) {
       return {
         success: false,
@@ -738,8 +781,16 @@ export class Stratum {
   }
 
   // Data retention & GDPR operations
-  async purgeExpiredData(retentionDays?: number): Promise<{ deleted_count: number }> {
-    return retentionService.purgeExpiredData(this.pool, retentionDays);
+  async purgeExpiredData(retentionDays?: number, audit?: AuditContext): Promise<{ deleted_count: number }> {
+    const result = await retentionService.purgeExpiredData(this.pool, retentionDays);
+    // Written after the purge so the entry itself is not purged.
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "data.expired_purged", "system", "retention", null,
+        null, null, { retention_days: retentionDays ?? null, deleted_count: result.deleted_count },
+      );
+    }
+    return result;
   }
   async purgeTenant(tenantId: string, audit?: AuditContext): Promise<void> {
     this.logger.warn("purging tenant data", { tenant_id: tenantId });
@@ -829,19 +880,36 @@ export class Stratum {
     return role;
   }
   async deleteRole(id: string, audit?: AuditContext): Promise<boolean> {
+    const before = audit ? await roleService.getRole(this.pool, id) : null;
     const deleted = await roleService.deleteRole(this.pool, id);
     if (audit && deleted) {
       await auditService.createAuditEntry(
-        this.pool, audit, "role.deleted", "role", id, null,
+        this.pool, audit, "role.deleted", "role", id, before?.tenant_id ?? null,
+        before ? ({ name: before.name, scopes: before.scopes } as Record<string, unknown>) : null,
       );
     }
     return deleted;
   }
-  assignRoleToKey(keyId: string, roleId: string): Promise<boolean> {
-    return roleService.assignRoleToKey(this.pool, keyId, roleId);
+  async assignRoleToKey(keyId: string, roleId: string, audit?: AuditContext): Promise<boolean> {
+    const assigned = await roleService.assignRoleToKey(this.pool, keyId, roleId);
+    if (audit && assigned) {
+      const key = await apiKeyService.getApiKey(this.pool, keyId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.role_assigned", "api_key", keyId, key?.tenant_id ?? null,
+        null, { role_id: roleId },
+      );
+    }
+    return assigned;
   }
-  removeRoleFromKey(keyId: string): Promise<boolean> {
-    return roleService.removeRoleFromKey(this.pool, keyId);
+  async removeRoleFromKey(keyId: string, audit?: AuditContext): Promise<boolean> {
+    const removed = await roleService.removeRoleFromKey(this.pool, keyId);
+    if (audit && removed) {
+      const key = await apiKeyService.getApiKey(this.pool, keyId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.role_removed", "api_key", keyId, key?.tenant_id ?? null,
+      );
+    }
+    return removed;
   }
   resolveKeyScopes(keyId: string): Promise<string[]> {
     return roleService.resolveKeyScopes(this.pool, keyId);
@@ -851,11 +919,30 @@ export class Stratum {
    * Assign a role to any principal (an application user, service account, etc.),
    * not just an API key. One role per principal. See resolvePrincipalScopes.
    */
-  assignRole(principalType: string, principalId: string, roleId: string, tenantId?: string): Promise<boolean> {
-    return roleService.assignRole(this.pool, principalType, principalId, roleId, tenantId);
+  async assignRole(principalType: string, principalId: string, roleId: string, tenantId?: string, audit?: AuditContext): Promise<boolean> {
+    const assigned = await roleService.assignRole(this.pool, principalType, principalId, roleId, tenantId);
+    if (audit && assigned) {
+      const role = await roleService.getRole(this.pool, roleId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "principal.role_assigned", "principal", `${principalType}:${principalId}`,
+        role?.tenant_id ?? tenantId ?? null,
+        null, { role_id: roleId },
+      );
+    }
+    return assigned;
   }
-  removeRole(principalType: string, principalId: string): Promise<boolean> {
-    return roleService.removeRole(this.pool, principalType, principalId);
+  async removeRole(principalType: string, principalId: string, audit?: AuditContext): Promise<boolean> {
+    const roleId = audit ? await roleService.getPrincipalRoleId(this.pool, principalType, principalId) : null;
+    const removed = await roleService.removeRole(this.pool, principalType, principalId);
+    if (audit && removed) {
+      const role = roleId ? await roleService.getRole(this.pool, roleId) : null;
+      await auditService.createAuditEntry(
+        this.pool, audit, "principal.role_removed", "principal", `${principalType}:${principalId}`,
+        role?.tenant_id ?? null,
+        roleId ? { role_id: roleId } : null,
+      );
+    }
+    return removed;
   }
   /**
    * Resolve a principal's effective scopes via its assigned role ([] if none).
@@ -866,9 +953,16 @@ export class Stratum {
   }
 
   // ABAC operations
-  createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput): Promise<AbacPolicy> {
+  createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput, audit?: AuditContext): Promise<AbacPolicy> {
     return traced("abac.create_policy", { tenant_id: tenantId }, async () => {
-      return abacService.createAbacPolicy(this.pool, tenantId, input);
+      const policy = await abacService.createAbacPolicy(this.pool, tenantId, input);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "abac_policy.created", "abac_policy", policy.id, tenantId,
+          null, policy as unknown as Record<string, unknown>,
+        );
+      }
+      return policy;
     });
   }
   getAbacPolicies(tenantId: string): Promise<AbacPolicy[]> {
@@ -886,9 +980,18 @@ export class Stratum {
       return abacService.evaluateAbac(this.pool, tenantId, request);
     });
   }
-  deleteAbacPolicy(tenantId: string, policyId: string): Promise<void> {
+  deleteAbacPolicy(tenantId: string, policyId: string, audit?: AuditContext): Promise<void> {
     return traced("abac.delete_policy", { tenant_id: tenantId, policy_id: policyId }, async () => {
-      return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+      const before = audit
+        ? (await abacService.getAbacPolicies(this.pool, tenantId)).find((p) => p.id === policyId) ?? null
+        : null;
+      await abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "abac_policy.deleted", "abac_policy", policyId, tenantId,
+          before as unknown as Record<string, unknown> | null,
+        );
+      }
     });
   }
 

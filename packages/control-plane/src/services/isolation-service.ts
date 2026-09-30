@@ -6,6 +6,7 @@ import {
   tenantSchemaName,
   createDatabase,
   databaseExists,
+  dropDatabase,
 } from "@stratum-hq/db-adapters";
 import { getPool } from "../db/connection.js";
 
@@ -91,24 +92,29 @@ export async function setupDatabaseForTenant(
   const pool = getPool();
   const client = await pool.connect();
   try {
-    const exists = await databaseExists(client, tenantSlug);
-    if (!exists) {
-      await createDatabase(client, tenantSlug, templateDb);
+    // Never adopt an existing database: it may hold another tenant's data.
+    if (await databaseExists(client, tenantSlug)) {
+      throw new Error(`Database for tenant slug "${tenantSlug}" already exists`);
     }
+    await createDatabase(client, tenantSlug, templateDb);
   } finally {
     client.release();
   }
 }
 
 /**
- * Tears down the DB_PER_TENANT isolation for a tenant.
+ * Drops the dedicated database of a DB_PER_TENANT tenant, named exactly as
+ * {@link setupDatabaseForTenant} names it. Purging a tenant already does this;
+ * close any pools to the tenant database first, or the drop fails.
  *
- * This closes any open connection pools for the tenant database but does NOT
- * drop the database — data preservation is left to the operator.
- * To actually drop the database, use dropDatabase() from @stratum-hq/db-adapters directly.
+ * DROP DATABASE cannot run inside a transaction, so like setup this uses a
+ * standalone client from the pool.
  */
-export async function teardownDatabaseForTenant(_tenantSlug: string): Promise<void> {
-  // Pool cleanup is managed externally via DatabasePoolManager.closePool().
-  // This function is intentionally a no-op at the isolation-service level
-  // so that callers can decide whether to drop the database independently.
+export async function teardownDatabaseForTenant(tenantSlug: string): Promise<void> {
+  const client = await getPool().connect();
+  try {
+    await dropDatabase(client, tenantSlug);
+  } finally {
+    client.release();
+  }
 }
