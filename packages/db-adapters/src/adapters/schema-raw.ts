@@ -18,7 +18,7 @@ export class SchemaRawAdapter {
 
   /**
    * Executes a callback within a transaction scoped to the tenant's schema.
-   * Sets `search_path` to `tenant_{slug}, public` for the duration of the transaction.
+   * Sets `search_path` to `tenant_{slug}` alone for the duration of the transaction.
    */
   async executeWithTenantContext<T>(
     tenantSlug: string,
@@ -30,7 +30,7 @@ export class SchemaRawAdapter {
     try {
       await client.query("BEGIN");
       // SET LOCAL is transaction-scoped; schemaName is derived from a validated slug.
-      await client.query(`SET LOCAL search_path TO ${schemaName}, public`);
+      await client.query(`SET LOCAL search_path TO ${schemaName}`);
       const result = await fn(client);
       await client.query("COMMIT");
       return result;
