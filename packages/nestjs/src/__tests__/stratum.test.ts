@@ -43,7 +43,13 @@ function makeExecutionContext(req: Record<string, unknown>): ExecutionContext {
 }
 
 // ── Stubs for NestJS exceptions ──────────────────────────────────────────────
-import { TenantNotFoundError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
+import { HttpException } from "@nestjs/common";
 
 class UnauthorizedException extends Error {
   constructor(message: string) {
@@ -450,6 +456,46 @@ describe("StratumGuard (real guard): tenant identity precedence", () => {
     await expect(run({ "x-tenant-id": "tenant-header" })).rejects.toThrow();
     expect(resolveTenant).not.toHaveBeenCalled();
   });
+});
+
+describe("StratumGuard (real guard): tenant state and access errors", () => {
+  const cases = [
+    { name: "suspended", error: () => new TenantSuspendedError("t-1"), status: 403 },
+    { name: "archived", error: () => new TenantArchivedError("t-1"), status: 410 },
+    { name: "forbidden", error: () => new ForbiddenError("Insufficient permissions"), status: 403 },
+  ];
+
+  function guardFor(resolveTenant: ReturnType<typeof vi.fn>, options: Record<string, unknown> = {}) {
+    const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
+    return new StratumGuard(client, options as unknown as import("../stratum.module.js").StratumModuleOptions);
+  }
+
+  async function statusOf(promise: Promise<unknown>): Promise<number | undefined> {
+    const err = await promise.catch((e: unknown) => e);
+    return err instanceof HttpException ? err.getStatus() : undefined;
+  }
+
+  for (const c of cases) {
+    it(`throws a ${c.status} exception when the caller tenant is ${c.name}`, async () => {
+      const guard = guardFor(vi.fn().mockRejectedValue(c.error()));
+      const ctx = makeExecutionContext({ headers: { "x-tenant-id": "t-1" } });
+
+      expect(await statusOf(guard.canActivate(ctx as unknown as import("@nestjs/common").ExecutionContext))).toBe(c.status);
+    });
+
+    it(`throws a ${c.status} exception when the impersonation target is ${c.name}`, async () => {
+      const resolveTenant = vi
+        .fn()
+        .mockResolvedValueOnce({ id: "caller-tenant" })
+        .mockRejectedValueOnce(c.error());
+      const guard = guardFor(resolveTenant, { impersonation: { enabled: true, authorize: () => true } });
+      const ctx = makeExecutionContext({
+        headers: { "x-tenant-id": "caller-tenant", "x-impersonate-tenant": "target-tenant" },
+      });
+
+      expect(await statusOf(guard.canActivate(ctx as unknown as import("@nestjs/common").ExecutionContext))).toBe(c.status);
+    });
+  }
 });
 
 describe("@Tenant() decorator", () => {
