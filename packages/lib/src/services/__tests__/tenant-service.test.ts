@@ -554,8 +554,8 @@ describe("getDescendants", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
-    // Query 1: check existence
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    // Query 1: check existence and load the ancestry_path
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
     // Query 2: SELECT descendants
     const child1 = makeTenant({
       id: "child-1",
@@ -591,7 +591,7 @@ describe("getDescendants", () => {
   it("excludes archived and soft-deleted descendants by default", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
@@ -611,7 +611,7 @@ describe("getDescendants", () => {
   it("includes descendants of any status when includeArchived is true", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "parent-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
@@ -629,7 +629,7 @@ describe("getDescendants", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: "leaf-id" }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/parent-id" }] });
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withClient).mockImplementation(async (_pool, fn) => {
