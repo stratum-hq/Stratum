@@ -54,7 +54,7 @@ await stratum.createPermission(rootId, {
 
 ### INHERITED
 
-The permission flows down the tree. Descendants can override the value but cannot change the mode or re-delegate.
+The permission flows down the tree. Descendants can override the value but cannot change the mode or re-delegate: a descendant policy for the same key must also use `INHERITED` mode, and creating or updating one with `LOCKED` or `DELEGATED` mode is rejected with `403 FORBIDDEN`.
 
 ```typescript
 // Root sets "can_invite_users" with INHERITED mode

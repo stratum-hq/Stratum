@@ -631,7 +631,7 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.secret !== undefined ? { ...input, secret: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
       );
     }
     return webhook;
@@ -659,7 +659,7 @@ export class Stratum {
     return webhookService.listDeliveriesByEvent(this.pool, eventId);
   }
   async testWebhook(id: string): Promise<{ success: boolean; response_code: number | null; error?: string }> {
-    const webhook = await webhookService.getWebhook(this.pool, id);
+    const webhook = await webhookService.getWebhookWithSecret(this.pool, id);
 
     // SSRF protection
     await eventService.validateWebhookUrlWithDns(webhook.url);
@@ -678,20 +678,19 @@ export class Stratum {
     const signature = signWebhookPayload(rawSecret, timestamp, testPayload);
 
     try {
-      const response = await globalThis.fetch(webhook.url, {
-        method: "POST",
-        headers: {
+      // Same pinned delivery path as automatic delivery.
+      const status = await eventService.postWebhook(
+        webhook.url,
+        {
           "Content-Type": "application/json",
           "X-Stratum-Event": "webhook.test",
           "X-Stratum-Signature": signature,
           "X-Stratum-Delivery-ID": crypto.randomUUID(),
           "X-Stratum-Timestamp": timestamp,
         },
-        body: testPayload,
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
-      return { success: response.ok, response_code: response.status };
+        testPayload,
+      );
+      return { success: status >= 200 && status < 300, response_code: status };
     } catch (err) {
       return {
         success: false,

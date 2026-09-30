@@ -84,11 +84,13 @@ await adapter.closeAll();
 ```typescript
 import { StratumTypeOrmSubscriber } from "@stratum-hq/mysql";
 
-// Add to your TypeORM data source subscribers
-const dataSource = new DataSource({
-  subscribers: [StratumTypeOrmSubscriber],
-});
+// Register an instance once the data source is initialized. (TypeORM's
+// `subscribers` option only loads @EventSubscriber()-decorated classes.)
+await dataSource.initialize();
+dataSource.subscribers.push(new StratumTypeOrmSubscriber());
 ```
+
+Inserts get the current tenant's `tenant_id`. Updates never change `tenant_id`: `save()` keeps the loaded value, and `update()` / query builder updates drop it from the SET values.
 
 **Limitation:** TypeORM subscribers can intercept writes but not reads. Use the shared-table adapter's structured methods for tenant-scoped reads.
 
