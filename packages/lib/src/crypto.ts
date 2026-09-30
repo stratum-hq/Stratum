@@ -101,3 +101,14 @@ export function reEncrypt(encrypted: string, oldKeyMaterial: string, newKeyMater
   const plaintext = decryptWithKey(encrypted, deriveKey(oldKeyMaterial));
   return encryptWithKey(plaintext, deriveKey(newKeyMaterial));
 }
+
+/** Returns true when the value decrypts with the key derived from `keyMaterial`.
+ * Key rotation uses it to find values that an earlier, interrupted run already rotated. */
+export function decryptsWithKey(encrypted: string, keyMaterial: string): boolean {
+  try {
+    decryptWithKey(encrypted, deriveKey(keyMaterial));
+    return true;
+  } catch {
+    return false;
+  }
+}

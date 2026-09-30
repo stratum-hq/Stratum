@@ -1062,11 +1062,17 @@ export class Stratum {
     audit?: AuditContext,
   ): Promise<keyRotationService.KeyRotationResult> {
     const result = await keyRotationService.rotateEncryptionKey(this.pool, oldKeyMaterial, newKeyMaterial);
-    this.logger.warn("encryption key rotated", { config_entries_rotated: result.config_entries_rotated, webhooks_rotated: result.webhooks_rotated });
+    const summary = {
+      config_entries_rotated: result.config_entries_rotated,
+      webhooks_rotated: result.webhooks_rotated,
+      already_rotated: result.already_rotated,
+      unreadable: result.unreadable.length,
+    };
+    this.logger.warn("encryption key rotated", summary);
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "encryption.key_rotated", "system", "encryption_key", null,
-        null, { config_entries_rotated: result.config_entries_rotated, webhooks_rotated: result.webhooks_rotated } as Record<string, unknown>,
+        null, summary,
       );
     }
     return result;
