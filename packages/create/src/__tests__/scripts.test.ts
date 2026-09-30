@@ -9,6 +9,8 @@ import type { StackPreset } from "../matrix.js";
 // These tests read the generated files only. They do not run npm install,
 // so they check that each script can find its files, not that it runs.
 
+type DevRunner = "tsx" | "tsc-watch";
+
 interface GeneratedPackage {
   scripts: Record<string, string>;
   devDependencies: Record<string, string>;
@@ -23,8 +25,9 @@ function readJson<T>(file: string): T {
  *
  * @param projectDir - The directory of the generated project.
  * @param entry - The entry file the scaffold writes, relative to `src/`, without extension.
+ * @param runner - The tool that the dev script must use to run the TypeScript source.
  */
-function expectScriptsResolve(projectDir: string, entry: string): void {
+function expectScriptsResolve(projectDir: string, entry: string, runner: DevRunner): void {
   const pkg = readJson<GeneratedPackage>(path.join(projectDir, "package.json"));
   const { dev, build, start } = pkg.scripts;
 
@@ -36,15 +39,22 @@ function expectScriptsResolve(projectDir: string, entry: string): void {
     compilerOptions: { rootDir: string; outDir: string };
   }>(tsconfigPath);
 
-  // Node 20 cannot run a .ts file, so dev needs a TypeScript runner.
-  expect(dev).toBe(`tsx watch --env-file=.env src/${entry}.ts`);
-  expect(pkg.devDependencies["tsx"]).toBeDefined();
   expect(fs.existsSync(path.join(projectDir, "src", `${entry}.ts`))).toBe(true);
 
   // tsc writes <rootDir>/<path>.ts to <outDir>/<path>.js.
   expect(compilerOptions.outDir).toBe("dist");
   const emitted = path.posix.relative(compilerOptions.rootDir, `src/${entry}`);
   expect(start).toBe(`node dist/${emitted}.js`);
+
+  // Node 20 cannot run a .ts file, so dev needs a TypeScript runner.
+  if (runner === "tsx") {
+    expect(dev).toBe(`tsx watch --env-file=.env src/${entry}.ts`);
+  } else {
+    // NestJS injection needs the decorator metadata that tsc emits and tsx does not.
+    expect(dev).toBe(`tsc-watch --onSuccess "node --env-file=.env dist/${emitted}.js"`);
+    expect(pkg.devDependencies["tsx"]).toBeUndefined();
+  }
+  expect(pkg.devDependencies[runner]).toBeDefined();
 
   // tsc rejects a source file outside rootDir with TS6059.
   const rootDir = path.resolve(projectDir, compilerOptions.rootDir);
@@ -101,7 +111,7 @@ describe("generated package scripts", () => {
   for (const template of templates) {
     it(`point at files that the ${template} template creates or builds`, () => {
       createProject("test-project", template, projectDir, true);
-      expectScriptsResolve(projectDir, "index");
+      expectScriptsResolve(projectDir, "index", "tsx");
     });
 
     it(`tell the reader of the ${template} README to run the dev script`, () => {
@@ -128,7 +138,7 @@ describe("generated package scripts", () => {
 
     it(`point at files that the ${label} preset creates or builds`, () => {
       createPresetProject("test-project", preset, projectDir, true);
-      expectScriptsResolve(projectDir, entry);
+      expectScriptsResolve(projectDir, entry, preset.framework === "nestjs" ? "tsc-watch" : "tsx");
     });
 
     it(`tell the reader of the ${label} README to run the dev script`, () => {
