@@ -449,6 +449,22 @@ describe("StratumClient", () => {
       expect((init.headers as Record<string, string>)["X-API-Key"]).toBe(API_KEY);
     });
 
+    // Fastify rejects a request that has the JSON content type and no body
+    // (FST_ERR_CTP_EMPTY_JSON_BODY), and the client always sends that content type.
+    it("purgeTenant sends a JSON body so that the control plane accepts the request", async () => {
+      const client = makeClient({ cache: { enabled: false } });
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(undefined, 204),
+      );
+
+      await client.purgeTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+      expect(JSON.parse(init.body as string)).toEqual({});
+    });
+
     it("purgeTenant rejects an id that is a dot segment before it sends a request", async () => {
       const client = makeClient({ cache: { enabled: false } });
 

@@ -173,7 +173,7 @@ export class StratumClient {
   }
 
   /**
-   * Permanently remove the tenant and all its data (GDPR Article 17). You cannot undo this.
+   * Permanently remove the tenant and its Stratum records (GDPR Article 17). You cannot undo this.
    *
    * The control plane deletes the tenant row and the tenant's records in the Stratum tables:
    * config, permissions, API keys, roles, webhooks, consent records and audit logs.
@@ -189,6 +189,9 @@ export class StratumClient {
   async purgeTenant(tenantId: string): Promise<void> {
     await this.fetch<void>(`/api/v1/tenants/${pathSegment(tenantId)}/purge`, {
       method: "POST",
+      // Fastify rejects the JSON content type with an empty body.
+      // TODO(#385): Remove this body when fetch sends the content type only with a body.
+      body: "{}",
     });
     this.cache.invalidate(cacheKey(tenantId));
   }
