@@ -148,4 +148,42 @@ describe("control-plane tenant provisioning (integration)", () => {
       expect(rows.rows).toEqual([{ body: "not yours" }]);
     });
   });
+
+  it.each([
+    ["SCHEMA_PER_TENANT", schemaExists, schemaSlugs],
+    ["DB_PER_TENANT", databaseExists, databaseSlugs],
+  ] as const)(
+    "removes the %s storage it provisioned when activation fails, and leaves the tenant pending",
+    async (strategy, storageExists, cleanup) => {
+      operatorKey = await makeOperatorKey();
+      const slug = uniqueSlug("i347");
+      cleanup.push(slug);
+      // The trigger rejects only this tenant's pending -> active update, so
+      // provisioning succeeds and activation fails in real Postgres.
+      await getPool().query(`
+        CREATE OR REPLACE FUNCTION i347_fail_activation() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.slug = '${slug}' AND OLD.status = 'pending' AND NEW.status = 'active' THEN
+            RAISE EXCEPTION 'activation forced to fail';
+          END IF;
+          RETURN NEW;
+        END $$`);
+      await getPool().query(
+        "CREATE TRIGGER i347_fail_activation BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION i347_fail_activation()",
+      );
+      try {
+        const res = await post("/api/v1/tenants", { name: slug, slug, isolation_strategy: strategy });
+
+        expect(res.statusCode).toBe(500);
+        const body = res.json();
+        expect(body.error.code).toBe("TENANT_PROVISIONING_FAILED");
+        expect(body.error.details).toMatchObject({ status: "pending", stage: "activation", storage_removed: true });
+        expect(await statusOf(body.error.details.tenant_id)).toBe("pending");
+        await withConn(async (c) => expect(await storageExists(c, slug)).toBe(false));
+      } finally {
+        await getPool().query("DROP TRIGGER IF EXISTS i347_fail_activation ON tenants");
+        await getPool().query("DROP FUNCTION IF EXISTS i347_fail_activation()");
+      }
+    },
+  );
 });
