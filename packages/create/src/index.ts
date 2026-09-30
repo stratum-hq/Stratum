@@ -6,6 +6,7 @@ import { parsePresetString, isValidPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
 import { STRATUM_RANGES } from "./stratum-versions.js";
 import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
+import { generateTsconfig } from "./generators/tsconfig.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,11 +140,13 @@ function generatePackageJson(projectName: string, template: Template): string {
       scripts:
         template === "nextjs"
           ? { dev: "next dev", build: "next build", start: "next start" }
-          : { dev: "node --watch src/index.js", build: "tsc", start: "node dist/index.js" },
+          : // Node 20 cannot run a .ts file, so dev runs the source through tsx.
+            { dev: "tsx watch --env-file=.env src/index.ts", build: "tsc", start: "node dist/index.js" },
       dependencies: deps,
       devDependencies: {
         typescript: "^5.3.0",
         "@types/node": "^20.11.0",
+        ...(template === "nextjs" ? {} : { tsx: "^4.7.0", "@types/pg": "^8.11.0" }),
       },
       engines: {
         node: ">=20.0.0",
@@ -334,10 +337,7 @@ export const config = {
 `;
 }
 
-function generateReadme(projectName: string, template: Template): string {
-  const devCmd =
-    template === "nextjs" ? "npm run dev" : "node --env-file=.env src/index.ts";
-
+function generateReadme(projectName: string): string {
   return `# ${projectName}
 
 A multi-tenant application built with [Stratum](https://github.com/stratum-hq/Stratum).
@@ -366,7 +366,7 @@ npm install
 ### 4. Run the app
 
 \`\`\`bash
-${devCmd}
+npm run dev
 \`\`\`
 
 ## Project structure
@@ -420,15 +420,17 @@ export function createProject(
   // Server starter file
   if (template === "express") {
     writeFile(path.join(targetDir, "src", "index.ts"), generateExpressServer(projectName));
+    writeFile(path.join(targetDir, "tsconfig.json"), generateTsconfig(template));
   } else if (template === "fastify") {
     writeFile(path.join(targetDir, "src", "index.ts"), generateFastifyServer(projectName));
+    writeFile(path.join(targetDir, "tsconfig.json"), generateTsconfig(template));
   } else if (template === "nextjs") {
     writeFile(path.join(targetDir, "src", "app", "page.tsx"), generateNextjsPage(projectName));
     writeFile(path.join(targetDir, "middleware.ts"), generateNextjsMiddleware());
   }
 
   // README
-  writeFile(path.join(targetDir, "README.md"), generateReadme(projectName, template));
+  writeFile(path.join(targetDir, "README.md"), generateReadme(projectName));
 
   // Run npm install
   if (!skipInstall) {
@@ -518,19 +520,6 @@ export function main(argv: string[]): void {
   if (skipInstall) {
     console.log("  npm install");
   }
-  if (preset) {
-    const parsed = parsePresetString(preset)!;
-    if (parsed.framework === "nextjs") {
-      console.log("  npm run dev");
-    } else if (parsed.framework === "nestjs") {
-      console.log("  node --env-file=.env src/main.ts");
-    } else {
-      console.log("  node --env-file=.env src/index.ts");
-    }
-  } else if (template === "nextjs") {
-    console.log("  npm run dev");
-  } else {
-    console.log("  node --env-file=.env src/index.ts");
-  }
+  console.log("  npm run dev");
   console.log("");
 }

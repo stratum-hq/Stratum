@@ -1,7 +1,6 @@
 import type { StackPreset } from "../matrix.js";
 
 export function generatePresetReadme(projectName: string, preset: StackPreset): string {
-  const devCmd = getDevCommand(preset);
   const dbStartCmd = getDbStartInfo(preset);
   const dbSetupNote = getDbSetupNote(preset);
 
@@ -37,7 +36,7 @@ ${dbSetupNote}
 ### 4. Run the app
 
 \`\`\`bash
-${devCmd}
+npm run dev
 \`\`\`
 
 ## Multi-tenancy
@@ -48,13 +47,6 @@ ${getStrategyDescription(preset.strategy)}
 
 See the [Stratum docs](https://github.com/stratum-hq/Stratum) for full reference.
 `;
-}
-
-function getDevCommand(preset: StackPreset): string {
-  if (preset.framework === "nextjs") return "npm run dev";
-  if (preset.framework === "nestjs") return "node --env-file=.env src/main.ts";
-  if (preset.framework === "none") return "node --env-file=.env src/index.ts";
-  return "node --env-file=.env src/index.ts";
 }
 
 function getDbStartInfo(preset: StackPreset): string {
