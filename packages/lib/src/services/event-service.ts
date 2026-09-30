@@ -8,6 +8,7 @@ import { withClient, withTransaction } from "../pool-helpers.js";
 import { WebhookUrlValidationError, type TenantEvent } from "@stratum-hq/core";
 import { getWebhooksForEvent, decryptSecret } from "./webhook-service.js";
 import { signWebhookPayload } from "../webhook-signature.js";
+import { redactUrlForAudit } from "../url-redaction.js";
 
 const MAX_ATTEMPTS = 5;
 const DELIVERY_TIMEOUT_MS = 10_000;
@@ -91,12 +92,12 @@ export function validateWebhookUrl(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new WebhookUrlValidationError(`Invalid webhook URL: ${url}`);
+    throw new WebhookUrlValidationError(`Invalid webhook URL: ${redactUrlForAudit(url)}`);
   }
 
   // Only allow http/https
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new WebhookUrlValidationError(`Webhook URL must use http or https: ${url}`);
+    throw new WebhookUrlValidationError(`Webhook URL must use http or https: ${redactUrlForAudit(url)}`);
   }
 
   const hostname = parsed.hostname.toLowerCase();
