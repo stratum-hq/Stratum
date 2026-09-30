@@ -631,7 +631,7 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.secret !== undefined ? { ...input, secret: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
       );
     }
     return webhook;
