@@ -59,8 +59,17 @@ export class SchemaRawAdapter {
       await client.query("ROLLBACK");
       throw err;
     } finally {
-      await resetSearchPath(client);
-      client.release();
+      // A failed RESET must not replace the result or the caller's error.
+      // The RESET error goes to client.release instead: a truthy argument makes
+      // pg-pool destroy the connection, so no later caller gets a connection
+      // with an unknown search_path.
+      let resetErr: Error | undefined;
+      try {
+        await resetSearchPath(client);
+      } catch (err) {
+        resetErr = err instanceof Error ? err : new Error(String(err));
+      }
+      client.release(resetErr);
     }
   }
 }
