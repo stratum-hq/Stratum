@@ -1,5 +1,11 @@
 # @stratum-hq/nestjs
 
+## 1.3.0
+
+### Minor Changes
+
+- 4c1686a: Add optional `jwtAudience` and `jwtIssuer` options to the SDK middleware and the NestJS guard; when set, tokens whose `aud` or `iss` claim does not match are rejected (GHSA-p3jw-vw8m-3rqr).
+
 ## 1.2.0
 
 ### Minor Changes

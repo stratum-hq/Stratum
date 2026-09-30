@@ -1,5 +1,18 @@
 # @stratum-hq/mongodb
 
+## 0.5.0
+
+### Minor Changes
+
+- 4c1686a: Tighten tenant scoping (GHSA-fxg8-jqvx-hpc5). Behavior changes: stratumPlugin replaces Model.watch() with a tenant-filtered change stream that drops delete, drop, rename and invalidate events and throws without a tenant context, and refuses a schema that already defines watch(); aggregate cursors run the pipeline as checked; MongoCollectionAdapter.scopedCollection throws without baseCollections.
+
+### Patch Changes
+
+- Updated dependencies [4c1686a]
+- Updated dependencies [4c1686a]
+  - @stratum-hq/sdk@1.3.0
+  - @stratum-hq/core@1.5.0
+
 ## 0.4.0
 
 ### Minor Changes

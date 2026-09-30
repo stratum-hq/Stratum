@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/core",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Stratum shared types, utilities, and validation schemas",
   "keywords": [
     "multi-tenancy",

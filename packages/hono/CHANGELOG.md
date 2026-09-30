@@ -1,5 +1,15 @@
 # @stratum-hq/hono
 
+## 1.2.0
+
+### Minor Changes
+
+- 4c1686a: **Breaking default:** `stratumMiddleware` no longer reads the tenant from a request header unless `trustTenantHeader: true` is set; without it (and without `jwtClaim` or `pathParam`) it throws at construction. Add `trustTenantHeader: true` only if a gateway you control sets the header (GHSA-p3jw-vw8m-3rqr).
+
+### Patch Changes
+
+- 4c1686a: README leads with the verified `jwtClaim` setup and states that `pathParam` and `header` are client-controlled (GHSA-p3jw-vw8m-3rqr).
+
 ## 1.1.0
 
 ### Minor Changes
