@@ -9,7 +9,7 @@ import { generateDbSetup } from "./generators/db-setup.js";
 import { generateMiddleware } from "./generators/middleware.js";
 import { generatePresetPackageJson } from "./generators/package-json.js";
 import { generatePresetReadme } from "./generators/readme.js";
-import { generateTsconfig } from "./generators/tsconfig.js";
+import { generateTsconfig, rootSources } from "./generators/tsconfig.js";
 
 function writeFile(filePath: string, content: string): void {
   const dir = path.dirname(filePath);
@@ -115,7 +115,7 @@ export function createPresetProject(
   // tsconfig.json
   writeFile(
     path.join(targetDir, "tsconfig.json"),
-    generateTsconfig(preset.framework),
+    generateTsconfig(preset.framework, rootSources(preset)),
   );
 
   // npm install

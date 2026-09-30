@@ -1,4 +1,5 @@
 import type { StackPreset } from "../matrix.js";
+import { rootSources } from "./tsconfig.js";
 import { STRATUM_RANGES } from "../stratum-versions.js";
 
 export function generatePresetPackageJson(projectName: string, preset: StackPreset): string {
@@ -165,10 +166,12 @@ function getScripts(preset: StackPreset): Record<string, string> {
   }
   // Node 20 cannot run a .ts file, so dev runs the source through tsx.
   const entry = preset.framework === "nestjs" ? "main" : "index";
+  // When tsc compiles from the project root, src/ is emitted to dist/src/.
+  const emittedDir = rootSources(preset).length > 0 ? "dist/src" : "dist";
   return {
     dev: `tsx watch --env-file=.env src/${entry}.ts`,
     build: "tsc",
-    start: `node dist/${entry}.js`,
+    start: `node ${emittedDir}/${entry}.js`,
   };
 }
 
