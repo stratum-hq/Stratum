@@ -3,6 +3,8 @@
 //
 //   node scripts/check-secrets.mjs            scan the working tree
 //   node scripts/check-secrets.mjs --staged   scan only what is staged
+//   node scripts/check-secrets.mjs --range A..B
+//                                             scan what the commits in A..B add
 //
 // The July 2026 audit scanned this repository's history and found it clean, and
 // `.env` is correctly gitignored. This check exists to keep that true. So unlike
@@ -67,8 +69,9 @@ const GUIDANCE = {
     "  1. Revoke it at the provider. Rotation first, cleanup second.",
     "  2. Remove it from the file. Read it from `process.env` instead.",
     "  3. Add the variable to .env.example with an empty or placeholder value.",
-    "An npm token matters more than most here: these packages publish to npm, and the",
-    "release workflow reads NPM_TOKEN from repository secrets, never from the tree.",
+    "An npm token matters more than most here: these packages publish to npm.",
+    "The release workflow publishes through OIDC trusted publishing and uses no npm",
+    "token, so an npm token has no legitimate place in this repository.",
   ],
   [RULES.privateKey]: [
     "A private key block is in the tree. Revoke the key pair, then remove it.",
@@ -118,6 +121,35 @@ function stagedFiles() {
     .filter(Boolean);
 }
 
+/**
+ * Every file version that a commit in `range` adds or modifies, as
+ * `{ file, blob, commit }`. Each commit is scanned, not only the tip, because a
+ * push sends every commit. A token that a later commit removes still reaches
+ * the remote. A merge commit is compared with its first parent. The same blob
+ * at the same path is scanned once.
+ */
+function rangeFiles(range) {
+  const seen = new Set();
+  const files = [];
+  for (const commit of git(["rev-list", range]).split("\n").filter(Boolean)) {
+    const fields = git([
+      "diff-tree", "-r", "-z", "--root", "--no-commit-id", "--no-renames",
+      "--diff-merges=first-parent", "--diff-filter=AMT", commit,
+    ]).split("\0");
+    // With -z, raw output alternates a metadata field and a path field:
+    // ":<old mode> <new mode> <old blob> <new blob> <status>", then "<path>".
+    for (let i = 0; i + 1 < fields.length; i += 2) {
+      const [, newMode, , blob] = fields[i].split(" ");
+      const file = fields[i + 1];
+      // Mode 160000 is a submodule. Its entry names a commit, not file contents.
+      if (newMode === "160000" || seen.has(`${file}:${blob}`)) continue;
+      seen.add(`${file}:${blob}`);
+      files.push({ file, blob, commit });
+    }
+  }
+  return files;
+}
+
 function isSkippedPath(file) {
   const dot = file.lastIndexOf(".");
   const ext = dot === -1 ? "" : file.slice(dot).toLowerCase();
@@ -127,13 +159,16 @@ function isSkippedPath(file) {
 /**
  * File contents as text, or null when there is nothing worth scanning. In
  * `--staged` mode the bytes come from the index, not the working tree, so a
- * secret that is staged but since edited out of the file is still caught.
+ * secret that is staged but since edited out of the file is still caught. In
+ * `--range` mode the bytes come from the committed blob.
  */
-function readContents(file, staged) {
+function readContents(file, staged, blob) {
   try {
-    const buffer = staged
-      ? execFileSync("git", ["show", `:${file}`], { cwd: REPO_ROOT, maxBuffer: MAX_BYTES })
-      : readFileSync(join(REPO_ROOT, file));
+    const buffer = blob
+      ? execFileSync("git", ["cat-file", "blob", blob], { cwd: REPO_ROOT, maxBuffer: MAX_BYTES })
+      : staged
+        ? execFileSync("git", ["show", `:${file}`], { cwd: REPO_ROOT, maxBuffer: MAX_BYTES })
+        : readFileSync(join(REPO_ROOT, file));
     if (buffer.length > MAX_BYTES) return null;
     // A NUL byte in the head is the standard binary sniff, and it is what git
     // itself uses. Cheaper and more reliable than trusting the extension.
@@ -159,13 +194,14 @@ function readAllowlist() {
 
 function scan(files, staged) {
   const findings = [];
-  for (const file of files) {
+  for (const entry of files) {
+    const { file, blob, commit } = typeof entry === "string" ? { file: entry } : entry;
     if (isSkippedPath(file)) continue;
     const named = analyzeFileName(file);
-    if (named) findings.push({ ...named, file });
-    const contents = readContents(file, staged);
+    if (named) findings.push({ ...named, file, commit });
+    const contents = readContents(file, staged, blob);
     if (contents === null) continue;
-    for (const found of analyzeSource(file, contents)) findings.push({ ...found, file });
+    for (const found of analyzeSource(file, contents)) findings.push({ ...found, file, commit });
   }
   return findings;
 }
@@ -180,7 +216,9 @@ function report(findings) {
     console.error(`\n  ${file}`);
     for (const f of found) {
       const where = f.line === 0 ? file : `${file}:${f.line}:${f.column}`;
-      console.error(`    ${where}  ${f.rule}: ${f.detail}`);
+      // The tip can differ from the commit, or no longer hold the file at all.
+      const at = f.commit ? ` in commit ${f.commit.slice(0, 12)}` : "";
+      console.error(`    ${where}${at}  ${f.rule}: ${f.detail}`);
       console.error(`      ${f.evidence}`);
       console.error(`      id ${f.id}`);
     }
@@ -202,10 +240,17 @@ function main() {
   }
 
   const staged = process.argv.includes("--staged");
-  const files = staged ? stagedFiles() : workingTreeFiles();
+  const rangeAt = process.argv.indexOf("--range");
+  const range = rangeAt === -1 ? null : process.argv[rangeAt + 1];
+  if (rangeAt !== -1 && !range) {
+    console.error("--range needs a commit range, for example origin/main..HEAD.");
+    return 1;
+  }
+  const files = range ? rangeFiles(range) : staged ? stagedFiles() : workingTreeFiles();
+  const where = range ? `the commits in ${range}` : staged ? "the staged changes" : "the working tree";
 
   if (files.length === 0) {
-    console.log(`No ${staged ? "staged" : "tracked"} files to scan for secrets.`);
+    console.log(`No files to scan for secrets in ${where}.`);
     return 0;
   }
 
@@ -222,7 +267,7 @@ function main() {
 
   if (failures.length > 0) {
     const noun = failures.length === 1 ? "secret" : "secrets";
-    console.error(`Possible ${noun} in ${staged ? "the staged changes" : "the working tree"}.`);
+    console.error(`Possible ${noun} in ${where}.`);
     console.error("Nothing below is printed in full, on purpose. Open the file and line named.");
     report(failures);
     console.error("\nIf a finding is genuinely not a credential, record it in");
@@ -231,7 +276,11 @@ function main() {
     return 1;
   }
 
-  const scope = staged ? `${files.length} staged files` : `${files.length} files`;
+  const scope = range
+    ? `${files.length} file version${files.length === 1 ? "" : "s"} in ${range}`
+    : staged
+      ? `${files.length} staged files`
+      : `${files.length} files`;
   const note = accepted.length > 0 ? `, ${accepted.length} allowlisted` : "";
   console.log(`No secrets found (${scope} scanned${note}).`);
   return 0;
