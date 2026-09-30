@@ -91,10 +91,11 @@ export async function setupDatabaseForTenant(
   const pool = getPool();
   const client = await pool.connect();
   try {
-    const exists = await databaseExists(client, tenantSlug);
-    if (!exists) {
-      await createDatabase(client, tenantSlug, templateDb);
+    // Never adopt an existing database: it may hold another tenant's data.
+    if (await databaseExists(client, tenantSlug)) {
+      throw new Error(`Database for tenant slug "${tenantSlug}" already exists`);
     }
+    await createDatabase(client, tenantSlug, templateDb);
   } finally {
     client.release();
   }

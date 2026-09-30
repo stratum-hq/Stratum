@@ -55,8 +55,8 @@ describe("schema-per-tenant isolation against real Postgres (integration)", () =
     expect(schemas).toEqual(
       expect.arrayContaining([tenantSchemaName(slugA), tenantSchemaName(slugB)]),
     );
-    // createSchema is idempotent (CREATE SCHEMA IF NOT EXISTS).
-    await expect(createSchema(client, slugA)).resolves.toBeUndefined();
+    // createSchema never adopts an existing schema.
+    await expect(createSchema(client, slugA)).rejects.toThrow(/already exists/);
   });
 
   it("isolates writes: each tenant's schema sees only its own rows", async () => {

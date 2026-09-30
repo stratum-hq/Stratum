@@ -53,11 +53,11 @@ describe("tenantSchemaName", () => {
 // ---------------------------------------------------------------------------
 
 describe("createSchema", () => {
-  it("executes CREATE SCHEMA IF NOT EXISTS with the correct name", async () => {
+  it("executes CREATE SCHEMA (without IF NOT EXISTS) with the correct name", async () => {
     const client = makeClient();
     await createSchema(client, "acme");
     expect(client.query).toHaveBeenCalledWith(
-      "CREATE SCHEMA IF NOT EXISTS tenant_acme",
+      "CREATE SCHEMA tenant_acme",
     );
   });
 

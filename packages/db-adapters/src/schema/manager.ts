@@ -34,7 +34,9 @@ export async function createSchema(
   tenantSlug: string,
 ): Promise<void> {
   const schemaName = validateSchemaName(tenantSchemaName(tenantSlug));
-  await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+  // No IF NOT EXISTS: an existing schema may hold another tenant's data, so
+  // provisioning must fail rather than adopt it.
+  await client.query(`CREATE SCHEMA ${schemaName}`);
 }
 
 export async function dropSchema(
