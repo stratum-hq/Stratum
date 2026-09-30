@@ -1,6 +1,21 @@
 export interface JwtResolverOptions {
   secret?: string;
   verify?: (token: string) => Record<string, unknown> | null;
+  /** When set, the verified token's `aud` claim must equal it or include it. */
+  audience?: string;
+  /** When set, the verified token's `iss` claim must equal it. */
+  issuer?: string;
+}
+
+/** True when the claims satisfy the configured audience and issuer, if any. */
+function matchesAudienceAndIssuer(claims: Record<string, unknown>, options?: JwtResolverOptions): boolean {
+  if (options?.audience !== undefined) {
+    const aud = claims["aud"];
+    const audiences = Array.isArray(aud) ? aud : [aud];
+    if (!audiences.includes(options.audience)) return false;
+  }
+  if (options?.issuer !== undefined && claims["iss"] !== options.issuer) return false;
+  return true;
 }
 
 type JsonWebTokenModule = typeof import("jsonwebtoken");
@@ -95,6 +110,7 @@ export function resolveJwtTenant(
   }
 
   if (!claims) return { status: "invalid" };
+  if (!matchesAudienceAndIssuer(claims, options)) return { status: "invalid" };
 
   // Support dotted claim paths like "stratum.tenant_id"
   const segments = claimPath.split(".");

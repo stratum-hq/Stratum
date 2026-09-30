@@ -15,6 +15,10 @@ export interface StratumModuleOptions {
   jwtSecret?: string;
   /** Custom JWT verify function — takes priority over jwtSecret. */
   jwtVerify?: (token: string) => Record<string, unknown> | null;
+  /** When set, a verified token is accepted only if its `aud` claim equals (or, for an array, includes) this value. */
+  jwtAudience?: string;
+  /** When set, a verified token is accepted only if its `iss` claim equals this value. */
+  jwtIssuer?: string;
   /** Header to read the tenant ID from. When set, only this header is read (default: X-Tenant-ID). */
   headerName?: string;
   /**

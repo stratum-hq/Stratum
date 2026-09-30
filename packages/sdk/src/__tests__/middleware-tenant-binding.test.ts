@@ -156,6 +156,65 @@ describe.each([expressHarness, fastifyHarness])("$name tenant binding", (h) => {
     });
   });
 
+  describe("jwtAudience and jwtIssuer", () => {
+    const AUD = "my-app";
+    const ISS = "https://issuer.example";
+
+    it("binds the tenant when the token's audience and issuer match", async () => {
+      const out = await h.run(
+        { jwtSecret: SECRET, jwtAudience: AUD, jwtIssuer: ISS },
+        { authorization: `Bearer ${signHs256({ tenant_id: JWT_TENANT, aud: AUD, iss: ISS })}` },
+      );
+      expect(out.status).toBe(200);
+      expect(out.resolvedIds).toEqual([JWT_TENANT]);
+    });
+
+    it("accepts a token whose audience list includes jwtAudience", async () => {
+      const out = await h.run(
+        { jwtSecret: SECRET, jwtAudience: AUD },
+        { authorization: `Bearer ${signHs256({ tenant_id: JWT_TENANT, aud: ["other", AUD] })}` },
+      );
+      expect(out.status).toBe(200);
+      expect(out.resolvedIds).toEqual([JWT_TENANT]);
+    });
+
+    it("rejects a token minted for another audience with 401", async () => {
+      const out = await h.run(
+        { jwtSecret: SECRET, jwtAudience: AUD },
+        { authorization: `Bearer ${signHs256({ tenant_id: JWT_TENANT, aud: "other-app" })}` },
+      );
+      expect(out.status).toBe(401);
+      expect(out.resolvedIds).toEqual([]);
+    });
+
+    it("rejects a token without an audience when jwtAudience is set", async () => {
+      const out = await h.run(
+        { jwtSecret: SECRET, jwtAudience: AUD },
+        { authorization: `Bearer ${signHs256({ tenant_id: JWT_TENANT })}` },
+      );
+      expect(out.status).toBe(401);
+      expect(out.resolvedIds).toEqual([]);
+    });
+
+    it("rejects a token from another issuer with 401", async () => {
+      const out = await h.run(
+        { jwtSecret: SECRET, jwtIssuer: ISS },
+        { authorization: `Bearer ${signHs256({ tenant_id: JWT_TENANT, iss: "https://elsewhere.example" })}` },
+      );
+      expect(out.status).toBe(401);
+      expect(out.resolvedIds).toEqual([]);
+    });
+
+    it("enforces jwtAudience on claims returned by jwtVerify", async () => {
+      const out = await h.run(
+        { jwtVerify: () => ({ tenant_id: JWT_TENANT, aud: "other-app" }), jwtAudience: AUD },
+        { authorization: "Bearer anything" },
+      );
+      expect(out.status).toBe(401);
+      expect(out.resolvedIds).toEqual([]);
+    });
+  });
+
   describe("headerName", () => {
     it("reads only the configured header and ignores X-Tenant-ID", async () => {
       const out = await h.run({ headerName: "X-Internal-Tenant" }, { "x-tenant-id": HEADER_TENANT });

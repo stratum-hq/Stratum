@@ -73,6 +73,8 @@ JWT resolution activates only when `jwtSecret` or `jwtVerify` is provided; other
 
 `jwtSecret` verifies HS256 tokens with [`jsonwebtoken`](https://www.npmjs.com/package/jsonwebtoken), an optional peer dependency: install it alongside the SDK (`npm install jsonwebtoken`) or pass `jwtVerify` instead. The middleware throws at construction if `jwtSecret` is set and `jsonwebtoken` cannot be loaded.
 
+Set `jwtAudience` and/or `jwtIssuer` to bind tokens to your application: a verified token whose `aud` (or `iss`) claim does not match is rejected with `401 INVALID_TOKEN`. Both checks apply to `jwtSecret` and `jwtVerify`.
+
 `headerName` replaces the default `X-Tenant-ID` header: when it is set, only that header is read.
 
 ## Archive or purge a tenant
