@@ -110,6 +110,11 @@ describe("CreateWebhookInputSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a subscription to the deprecated tenant.purged", () => {
+    const result = CreateWebhookInputSchema.safeParse({ ...validInput, events: ["tenant.purged"] });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects invalid event type", () => {
     const result = CreateWebhookInputSchema.safeParse({ ...validInput, events: ["unknown.event"] });
     expect(result.success).toBe(false);

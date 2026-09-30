@@ -219,3 +219,45 @@ describe("tenant header use in the website docs", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("tenant.purged in the website docs and in core", () => {
+  // purgeTenant never emits tenant.purged. The purge erases the event log of
+  // the tenant, and webhook_events.tenant_id references tenants, so the event
+  // row for a purged tenant cannot be stored. Core keeps the event type until
+  // the next major version, so each mention must state both facts.
+  const DEPRECATED = /deprecated/i;
+  const NOT_EMITTED = /never emit/i;
+
+  /** Return the line numbers that name tenant.purged without both facts. */
+  function unqualified(text) {
+    return text
+      .split("\n")
+      .flatMap((line, index) =>
+        line.includes("tenant.purged") && !(DEPRECATED.test(line) && NOT_EMITTED.test(line))
+          ? [index + 1]
+          : [],
+      );
+  }
+
+  it("finds an unqualified mention in a sample", () => {
+    expect(unqualified("| `tenant.purged` | Tenant deleted |")).toEqual([1]);
+    expect(unqualified("`tenant.purged` is deprecated. purgeTenant never emits it.")).toEqual([]);
+  });
+
+  it("states on each line that names tenant.purged that it is deprecated and never emitted", () => {
+    const missing = [];
+    let mentions = 0;
+    for (const { name, text } of docs) {
+      if (text.includes("tenant.purged")) mentions += 1;
+      for (const line of unqualified(text)) missing.push(`${name}:${line}`);
+    }
+    // Zero mentions means that the docs no longer name the event, and this check is obsolete.
+    expect(mentions).toBeGreaterThan(0);
+    expect(missing).toEqual([]);
+  });
+
+  it("marks TENANT_PURGED as @deprecated in the TenantEvent of core", () => {
+    const source = readFileSync(join(ROOT, "packages/core/src/types/webhook.ts"), "utf8");
+    expect(source).toMatch(/\/\*\*(?:(?!\*\/)[\s\S])*@deprecated(?:(?!\*\/)[\s\S])*\*\/\s*TENANT_PURGED:/);
+  });
+});
