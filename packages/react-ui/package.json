@@ -33,7 +33,7 @@
   ],
   "scripts": {
     "build": "tsc",
-    "postbuild": "cp -r src/styles dist/styles",
+    "postbuild": "node ../../scripts/copy-dir.mjs src/styles dist/styles",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

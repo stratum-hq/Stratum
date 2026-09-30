@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["eslint.config.mjs"],
+  "globalDependencies": ["eslint.config.mjs", "scripts/copy-dir.mjs"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
