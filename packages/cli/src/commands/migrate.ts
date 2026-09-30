@@ -266,7 +266,7 @@ export async function migrate(
 
       await migrateTable(pool, tableName, info, tenantId);
     } else {
-      console.error("Usage: stratum migrate <table> | --scan | --all  [--tenant <uuid>]");
+      console.error("Usage: stratum migrate <table> | --scan | --all [--tenant <uuid>]");
       process.exit(1);
     }
 
