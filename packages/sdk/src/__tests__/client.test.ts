@@ -3,9 +3,13 @@ import { StratumClient } from "../client.js";
 import type { ResolvedTenantContext, TenantNode } from "@stratum-hq/core";
 import {
   ForbiddenError,
+  RegionInUseError,
+  RegionNotActiveError,
+  RegionNotFoundError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  ValidationError,
   WebhookNotFoundError,
 } from "@stratum-hq/core";
 
@@ -324,6 +328,103 @@ describe("StratumClient", () => {
       expect(err).toBeInstanceOf(Error);
       expect(err).not.toBeInstanceOf(TenantNotFoundError);
       expect((err as Error).message).toBe("HTTP 404");
+    });
+
+    it("throws RegionNotFoundError on a 404 with code REGION_NOT_FOUND", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "REGION_NOT_FOUND", message: "Region not found: r-1" } }, 404),
+      );
+
+      const err = await client.deleteRegion("r-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RegionNotFoundError);
+      expect((err as Error).message).toBe("Region not found: r-1");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // 400 and 409 mapping by error code
+  // -----------------------------------------------------------------------
+
+  describe("validation error mapping", () => {
+    const issues = [{ path: ["slug"], message: "Required", code: "invalid_type" }];
+
+    it("throws ValidationError with the issues from error.details.issues", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "VALIDATION_ERROR", message: "Validation failed", details: { issues }, issues } },
+          400,
+        ),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).message).toBe("Validation failed");
+      expect((err as ValidationError).details).toEqual({ issues });
+    });
+
+    it("reads the issues from error.issues when a control plane sends only that field", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues } }, 400),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details).toEqual({ issues });
+    });
+
+    it("throws ValidationError without details when the response has no issues", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "VALIDATION_ERROR", message: "Batch limited to 100 tenants" } }, 400),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).message).toBe("Batch limited to 100 tenants");
+      expect((err as ValidationError).details).toBeUndefined();
+    });
+
+    it("throws a plain Error on a 400 with another code", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "ISOLATION_STRATEGY_UNSUPPORTED", message: "Not supported" } }, 400),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(ValidationError);
+      expect((err as Error).message).toBe("Not supported");
+    });
+  });
+
+  describe("region conflict mapping", () => {
+    it("throws RegionInUseError on a 409 with code REGION_IN_USE", async () => {
+      const client = makeClient();
+      const message = "Cannot delete region r-1: active tenants are still assigned to it";
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "REGION_IN_USE", message, details: { region_id: "r-1" } } }, 409),
+      );
+
+      const err = await client.deleteRegion("r-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RegionInUseError);
+      expect((err as RegionInUseError).message).toBe(message);
+      expect((err as RegionInUseError).details).toEqual({ region_id: "r-1" });
+    });
+
+    it("throws RegionNotActiveError on a 409 with code REGION_NOT_ACTIVE", async () => {
+      const client = makeClient();
+      const message = "Cannot migrate to region r-1: region is not active";
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse({ error: { code: "REGION_NOT_ACTIVE", message, details: { region_id: "r-1" } } }, 409),
+      );
+
+      const err = await client.updateRegion("r-1", {}).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(RegionNotActiveError);
+      expect((err as RegionNotActiveError).message).toBe(message);
+      expect((err as RegionNotActiveError).details).toEqual({ region_id: "r-1" });
     });
   });
 
