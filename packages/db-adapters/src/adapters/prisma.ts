@@ -6,7 +6,7 @@ import pg from "pg";
 interface PrismaClientLike {
   $extends: (extension: unknown) => PrismaClientLike;
   $executeRaw: (query: TemplateStringsArray, ...values: unknown[]) => Promise<number>;
-  $transaction: <T>(fn: (tx: PrismaClientLike) => Promise<T>) => Promise<T>;
+  $transaction: (queries: unknown[]) => Promise<unknown[]>;
 }
 
 export class PrismaAdapter extends BaseAdapter {
@@ -17,12 +17,19 @@ export class PrismaAdapter extends BaseAdapter {
   withTenant(prisma: PrismaClientLike, contextFn: () => string): PrismaClientLike {
     return prisma.$extends({
       query: {
-        $allOperations({ args, query }: { args: unknown; query: (args: unknown) => Promise<unknown> }) {
+        async $allOperations({ args, query }: { args: unknown; query: (args: unknown) => Promise<unknown> }) {
           const tenantId = contextFn();
-          return prisma.$transaction(async (tx: PrismaClientLike) => {
-            await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
-            return query(args);
-          });
+          if (!tenantId) {
+            throw new Error("Tenant context is required for database operations.");
+          }
+          // Batch form: Prisma runs both statements in order on one connection
+          // inside one transaction. `query(args)` does not inherit an
+          // interactive `tx`, so the callback form would run it elsewhere.
+          const [, result] = await prisma.$transaction([
+            prisma.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`,
+            query(args),
+          ]);
+          return result;
         },
       },
     });
