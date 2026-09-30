@@ -88,13 +88,18 @@ describe("subtree queries on ancestry_path (integration)", () => {
     const pool = getPool();
     const seen: RecordedQuery[] = [];
     const originalConnect = pool.connect;
+    const connectClient = originalConnect.bind(pool) as () => Promise<pg.PoolClient>;
     const recordingConnect = async (): Promise<pg.PoolClient> => {
-      const client = await originalConnect.call(pool);
+      const client = await connectClient();
       const originalQuery = client.query;
       const originalRelease = client.release;
+      const runQuery = originalQuery.bind(client) as (
+        text: string,
+        values?: unknown[],
+      ) => Promise<pg.QueryResult>;
       client.query = ((text: string, values?: unknown[]) => {
         seen.push({ text, values: values ?? [] });
-        return originalQuery.call(client, text, values);
+        return runQuery(text, values);
       }) as typeof client.query;
       client.release = ((err?: Error | boolean) => {
         client.query = originalQuery;
