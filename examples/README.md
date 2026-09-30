@@ -10,9 +10,9 @@ Each example is self-contained. Install dependencies and run from inside its dir
 |---------|-------------|
 | [`quickstart.ts`](./quickstart.ts) | Minimal script: create a Pool, initialize Stratum with `autoMigrate`, build a tenant hierarchy, set and resolve config |
 | [`flat-tenancy.ts`](./flat-tenancy.ts) | SaaS flat-tenancy with `createOrganization` / `listOrganizations` — no parent/child hierarchy |
-| [`with-express/`](./with-express/) | Express API with `@stratum-hq/sdk` middleware; tenant context resolved from `X-Tenant-ID` header per-request |
-| [`with-hono/`](./with-hono/) | Hono API with a typed Hono middleware; config and tenant resolution endpoints |
-| [`with-nextjs/`](./with-nextjs/) | Next.js 14 App Router; Edge Middleware resolves tenants from subdomain or header, Server Components call Stratum directly |
+| [`with-express/`](./with-express/) | Express API with `@stratum-hq/sdk` middleware; tenant context resolved per request from a verified JWT claim |
+| [`with-hono/`](./with-hono/) | Hono API with Hono's JWT middleware and `@stratum-hq/hono`; tenant resolved from a verified JWT claim |
+| [`with-nextjs/`](./with-nextjs/) | Next.js 15 App Router; Middleware resolves tenants from a verified JWT or the subdomain, Server Components call Stratum directly |
 
 ## Prerequisites
 
@@ -49,10 +49,16 @@ All examples read the following variables:
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://localhost:5432/stratum_dev` |
 | `PORT` | HTTP listen port (framework examples) | `3000` |
 
+The three framework examples also read:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `JWT_SECRET` | HS256 key that verifies the bearer token. Generate one with `openssl rand -hex 32`. | None: `with-express` and `with-hono` do not start without it |
+
 The `with-express` example also reads:
 
-| Variable | Description |
-|----------|-------------|
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `STRATUM_CONTROL_PLANE_URL` | URL of the Stratum control plane | `http://localhost:3001` |
 | `STRATUM_API_KEY` | API key for the control plane | `sk_live_dev` |
 
@@ -83,8 +89,17 @@ a key as `locked: true`.
 
 ### Tenant resolution in HTTP servers
 
+The framework examples read the tenant from a verified JWT claim. A client can
+set any request header, so a tenant ID read from a client header lets the
+caller choose any tenant.
+
 The SDK middleware (`@stratum-hq/sdk`) resolves the tenant from the request in
 this order:
-1. JWT claim (if `jwtClaimPath` is configured)
-2. `X-Tenant-ID` header
+1. The verified JWT claim (`jwtClaimPath`, default `tenant_id`), when `jwtSecret`
+   or `jwtVerify` is configured. A bearer token that fails verification gets `401`.
+2. The `X-Tenant-ID` header. When `jwtSecret` or `jwtVerify` is configured, the
+   SDK reads this header only if `trustTenantHeader: true` is set.
 3. Custom resolvers (if provided)
+
+Set `trustTenantHeader: true` only when a gateway you control sets the tenant
+header and removes any copy the client sent.
