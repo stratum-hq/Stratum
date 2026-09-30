@@ -54,11 +54,14 @@ describe("withMysqlTenantScope", () => {
     expect(lastCall[0]).toBe("SET @stratum_tenant_id = NULL");
   });
 
-  it("passes sequelize instance to fn", async () => {
+  it("passes the sequelize instance and the scope's transaction to fn", async () => {
     const fn = vi.fn().mockResolvedValue(undefined);
     await withMysqlTenantScope(sequelize, "tenant1", fn);
 
-    expect(fn).toHaveBeenCalledWith(sequelize);
+    const setCall = (sequelize.query as ReturnType<typeof vi.fn>).mock.calls[0];
+    const transaction = (setCall[1] as { transaction: unknown }).transaction;
+    expect(transaction).toBeDefined();
+    expect(fn).toHaveBeenCalledWith(sequelize, transaction);
   });
 
   it("returns the value returned by fn", async () => {

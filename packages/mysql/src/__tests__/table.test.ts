@@ -43,40 +43,56 @@ describe("MysqlTableAdapter", () => {
     });
   });
 
+  describe("baseTables", () => {
+    it("rejects base tables whose tenant table names could collide", () => {
+      expect(
+        () => new MysqlTableAdapter({ pool, databaseName: "testdb", baseTables: ["orders", "orders_corp"] }),
+      ).toThrow(/ambiguous/);
+    });
+
+    it("scopedTable only accepts registered base tables when baseTables is set", () => {
+      const registered = new MysqlTableAdapter({ pool, databaseName: "testdb", baseTables: ["orders"] });
+      expect(registered.scopedTable("acme", "orders")).toBe("`orders_acme`");
+      expect(() => registered.scopedTable("acme", "invoices")).toThrow(/not in baseTables/);
+    });
+  });
+
   describe("purgeTenantData", () => {
-    it("discovers and drops tenant tables matching the slug pattern", async () => {
-      (pool.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([[{ "Tables_in_testdb (orders_acme)": "orders_acme" }], []])
-        .mockResolvedValue(undefined);
+    it("throws when baseTables is not configured", async () => {
+      await expect(adapter.purgeTenantData("acme")).rejects.toThrow(/baseTables/);
+      expect(pool.query).not.toHaveBeenCalled();
+    });
 
-      const result = await adapter.purgeTenantData("acme");
+    it("drops exactly {base}_{slug} for each registered base table", async () => {
+      const registered = new MysqlTableAdapter({
+        pool,
+        databaseName: "testdb",
+        baseTables: ["orders", "order_items"],
+      });
+      (pool.query as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        "SHOW TABLES FROM `testdb` LIKE ?",
-        ["%_acme"],
-      );
+      const result = await registered.purgeTenantData("acme");
+
+      expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+        ["DROP TABLE IF EXISTS `testdb`.`orders_acme`"],
+        ["DROP TABLE IF EXISTS `testdb`.`order_items_acme`"],
+      ]);
       expect(result.success).toBe(true);
-      expect(result.tablesProcessed).toBe(1);
+      expect(result.tablesProcessed).toBe(2);
       expect(result.rowsDeleted).toBe(0);
     });
 
-    it("returns success with zero tablesProcessed when no matching tables", async () => {
-      (pool.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce([[], []]);
-
-      const result = await adapter.purgeTenantData("acme");
-
-      expect(result.success).toBe(true);
-      expect(result.tablesProcessed).toBe(0);
-      expect(result.errors.length).toBe(0);
-    });
-
     it("reports errors for failed DROP TABLE operations", async () => {
+      const registered = new MysqlTableAdapter({
+        pool,
+        databaseName: "testdb",
+        baseTables: ["orders", "fail"],
+      });
       (pool.query as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce([[{ Tables: "orders_acme" }, { Tables: "fail_acme" }], []])
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(new Error("drop failed"));
 
-      const result = await adapter.purgeTenantData("acme");
+      const result = await registered.purgeTenantData("acme");
 
       expect(result.success).toBe(false);
       expect(result.errors.length).toBe(1);

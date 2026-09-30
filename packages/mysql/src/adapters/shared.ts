@@ -68,7 +68,11 @@ export class MysqlSharedAdapter implements MysqlAdapter {
     return this.pool.query(sql, values);
   }
 
-  /** UPDATE SET ... WHERE tenant_id = ? AND conditions. */
+  /**
+   * UPDATE SET ... WHERE tenant_id = ? AND conditions.
+   * tenant_id (in any letter case) is dropped from data, so an update can never
+   * move a row to another tenant.
+   */
   async scopedUpdate(
     tenantId: string,
     table: string,
@@ -76,6 +80,13 @@ export class MysqlSharedAdapter implements MysqlAdapter {
     conditions: Record<string, unknown>,
   ): Promise<unknown> {
     assertTenantId(tenantId);
+
+    data = Object.fromEntries(
+      Object.entries(data).filter(([col]) => col.toLowerCase() !== "tenant_id"),
+    );
+    if (Object.keys(data).length === 0) {
+      throw new Error("scopedUpdate: data has no columns to update other than tenant_id");
+    }
 
     const qualifiedTable = `${escapeIdentifier(this.databaseName)}.${escapeIdentifier(table)}`;
     const setClauses = Object.keys(data)

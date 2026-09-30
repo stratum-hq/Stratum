@@ -30,20 +30,12 @@ function createMockConnection(): MysqlConnectionLike {
 
 describe("views/manager", () => {
   describe("createTenantView", () => {
-    it("generates correct CREATE OR REPLACE VIEW SQL", async () => {
+    it("throws, because MySQL views cannot read session variables", async () => {
       const pool = createMockPool();
-      await createTenantView(pool, "orders", "orders_view");
-      expect(pool.query).toHaveBeenCalledWith(
-        "CREATE OR REPLACE VIEW `orders_view` AS SELECT * FROM `orders` WHERE tenant_id = @stratum_tenant_id",
+      await expect(createTenantView(pool, "orders", "orders_view")).rejects.toThrow(
+        /not supported/,
       );
-    });
-
-    it("uses default view name when viewName is not provided", async () => {
-      const pool = createMockPool();
-      await createTenantView(pool, "orders");
-      expect(pool.query).toHaveBeenCalledWith(
-        "CREATE OR REPLACE VIEW `orders_tenant_view` AS SELECT * FROM `orders` WHERE tenant_id = @stratum_tenant_id",
-      );
+      expect(pool.query).not.toHaveBeenCalled();
     });
   });
 
