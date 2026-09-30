@@ -2,14 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { withMysqlTenantScope } from "../integrations/sequelize.js";
 import type { SequelizeLike } from "../integrations/sequelize.js";
 
+/** A stand-in for the Sequelize class: the helper patches its Model class. */
+class MockSequelize {
+  static Model = class {};
+  static Op = { and: Symbol("and") };
+  addHook = vi.fn();
+  query = vi.fn().mockResolvedValue(undefined);
+  transaction = vi
+    .fn()
+    .mockImplementation(async (fn: (t: unknown) => Promise<unknown>) => fn({ id: "mock-txn" }));
+}
+
 function createMockSequelize(): SequelizeLike {
-  const mockTransaction = { id: "mock-txn" };
-  return {
-    query: vi.fn().mockResolvedValue(undefined),
-    transaction: vi.fn().mockImplementation(async (fn: (t: unknown) => Promise<unknown>) =>
-      fn(mockTransaction),
-    ),
-  };
+  return new MockSequelize();
 }
 
 describe("withMysqlTenantScope", () => {
@@ -69,5 +74,20 @@ describe("withMysqlTenantScope", () => {
     const result = await withMysqlTenantScope(sequelize, "tenant1", fn);
 
     expect(result).toBe("expected-value");
+  });
+
+  it("refuses an object that is not a Sequelize instance instead of running fn unscoped", async () => {
+    const fn = vi.fn().mockResolvedValue(undefined);
+    const plain: SequelizeLike = { query: vi.fn(), transaction: vi.fn() };
+    await expect(withMysqlTenantScope(plain, "tenant1", fn)).rejects.toThrow(/Sequelize v6 instance/);
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("guards each Sequelize instance's queries once", async () => {
+    const mock = new MockSequelize();
+    await withMysqlTenantScope(mock, "tenant1", vi.fn().mockResolvedValue(undefined));
+    await withMysqlTenantScope(mock, "tenant1", vi.fn().mockResolvedValue(undefined));
+    expect(mock.addHook).toHaveBeenCalledOnce();
+    expect(mock.addHook.mock.calls[0][0]).toBe("beforeQuery");
   });
 });
