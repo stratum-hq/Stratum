@@ -64,7 +64,7 @@ export function looseEqual(expected: unknown, actual: unknown): boolean {
  * Diff a declared baseline against a resolved value map. Pure. No IO.
  *
  * Only the keys present in `baseline` are scored; extra keys in `resolved` are
- * ignored. A baseline key with no matching entry in `resolved` is `missing`; a
+ * ignored. A baseline key with no own entry in `resolved` is `missing`; a
  * matching entry whose value satisfies `equals` is `compliant`, otherwise it is
  * `drift`. An empty baseline scores 100 (nothing is required, so nothing is out
  * of compliance).
@@ -82,7 +82,9 @@ export function scoreCoverage(
 
   for (const key of Object.keys(baseline)) {
     const expected = baseline[key];
-    const entry = resolved[key];
+    // Only an own key counts: a plain object inherits `constructor`,
+    // `toString`, and other members that are not resolved controls.
+    const entry = Object.hasOwn(resolved, key) ? resolved[key] : undefined;
 
     if (entry === undefined) {
       missing++;
