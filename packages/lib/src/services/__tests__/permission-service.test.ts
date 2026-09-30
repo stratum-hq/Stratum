@@ -295,15 +295,21 @@ describe("deletePermission", () => {
       ],
     });
 
-    // Query 2: find descendants
+    // Query 2: take the tree lock shared, so no move commits mid-cascade
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // Query 3: load the tenant's ancestry_path to build the subtree prefix
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
+
+    // Query 4: find descendants
     mockQuery.mockResolvedValueOnce({
       rows: [{ id: "child-1" }, { id: "child-2" }],
     });
 
-    // Query 3: DELETE from descendants
+    // Query 5: DELETE from descendants
     mockQuery.mockResolvedValueOnce({ rowCount: 2 });
 
-    // Query 4: DELETE the parent policy itself
+    // Query 6: DELETE the parent policy itself
     mockQuery.mockResolvedValueOnce({ rowCount: 1 });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
@@ -313,13 +319,17 @@ describe("deletePermission", () => {
 
     await permissionService.deletePermission(pool, "parent-id", "policy-parent");
 
+    // The subtree query matches by the prefix of this tenant's own path.
+    const subtreeCall = mockQuery.mock.calls[3];
+    expect(subtreeCall[1]).toEqual(["/parent-id", "/parent-id/%"]);
+
     // Verify descendant deletion query was called
-    const descendantDeleteCall = mockQuery.mock.calls[2];
+    const descendantDeleteCall = mockQuery.mock.calls[4];
     expect(descendantDeleteCall[0]).toContain("DELETE FROM permission_policies");
     expect(descendantDeleteCall[1]).toEqual([["child-1", "child-2"], "can_access_reports", "PERMANENT"]);
 
     // Verify parent policy deletion
-    const parentDeleteCall = mockQuery.mock.calls[3];
+    const parentDeleteCall = mockQuery.mock.calls[5];
     expect(parentDeleteCall[0]).toContain("DELETE FROM permission_policies WHERE id");
     expect(parentDeleteCall[1]).toEqual(["policy-parent"]);
   });
