@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Mock } from "vitest";
 import Fastify, { FastifyInstance } from "fastify";
+import { createRequire } from "node:module";
 import type { Stratum } from "@stratum-hq/lib";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
@@ -10,6 +11,13 @@ import { createAbacRoutes } from "../routes/abac.js";
 import { createConsentRoutes } from "../routes/consent.js";
 import { createAuditLogRoutes } from "../routes/audit-logs.js";
 import { createMockStratum, authHeaders, setupAdminApiKey, SAMPLE_TENANT } from "./test-helpers.js";
+
+// The core schemas load from the CommonJS build of @stratum-hq/core, which
+// requires the CommonJS build of zod. Vitest loads zod as ESM for this file,
+// so the error handler's ZodError would be a second class and every schema
+// failure would look unknown. The published packages are CommonJS and load one
+// zod, so this test uses the CommonJS build everywhere to match them.
+vi.mock("zod", () => createRequire(import.meta.url)("zod"));
 
 // The service mocks fail the way PostgreSQL does for a value outside the
 // column type. A request that reaches them returns 500, so a 400 proves the
