@@ -102,7 +102,9 @@ describe("schema-per-tenant search_path", () => {
 
     it("createSchemaTenantPool passes the extra schemas through", async () => {
       const tenantPool = createSchemaTenantPool(pool, () => slugA, { extraSearchPath: [extSchema] });
-      const res = await tenantPool.query(`SELECT ext_answer() AS v`);
+      // The proxy binds the tenant slug, so query takes only the SQL text.
+      const bound = tenantPool as unknown as { query(text: string): Promise<pg.QueryResult> };
+      const res = await bound.query(`SELECT ext_answer() AS v`);
       expect(res.rows[0].v).toBe(42);
     });
 
