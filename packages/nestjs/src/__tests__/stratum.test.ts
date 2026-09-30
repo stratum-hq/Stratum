@@ -432,6 +432,46 @@ describe("StratumGuard (real guard): tenant identity precedence", () => {
   });
 });
 
+// ── Real StratumGuard: optional JWT audience / issuer binding ─────────────────
+describe("StratumGuard (real guard): jwtAudience and jwtIssuer", () => {
+  function guardWith(options: Record<string, unknown>) {
+    const resolveTenant = vi.fn(async (id: string) => ({ id, slug: id, name: id }));
+    const client = { resolveTenant } as unknown as import("@stratum-hq/sdk").StratumClient;
+    const guard = new StratumGuard(client, options as unknown as import("../stratum.module.js").StratumModuleOptions);
+    const run = (headers: Record<string, string>) =>
+      guard.canActivate(makeExecutionContext({ headers }) as unknown as import("@nestjs/common").ExecutionContext);
+    return { run, resolveTenant };
+  }
+
+  it("binds the tenant when the token's audience and issuer match", async () => {
+    const { run, resolveTenant } = guardWith({
+      jwtVerify: () => ({ tenant_id: "tenant-a", aud: "my-app", iss: "issuer-a" }),
+      jwtAudience: "my-app",
+      jwtIssuer: "issuer-a",
+    });
+    await expect(run({ authorization: "Bearer t" })).resolves.toBe(true);
+    expect(resolveTenant).toHaveBeenCalledWith("tenant-a");
+  });
+
+  it("rejects a token minted for another audience", async () => {
+    const { run, resolveTenant } = guardWith({
+      jwtVerify: () => ({ tenant_id: "tenant-a", aud: "other-app" }),
+      jwtAudience: "my-app",
+    });
+    await expect(run({ authorization: "Bearer t" })).rejects.toThrow();
+    expect(resolveTenant).not.toHaveBeenCalled();
+  });
+
+  it("rejects a token from another issuer", async () => {
+    const { run, resolveTenant } = guardWith({
+      jwtVerify: () => ({ tenant_id: "tenant-a", iss: "issuer-b" }),
+      jwtIssuer: "issuer-a",
+    });
+    await expect(run({ authorization: "Bearer t" })).rejects.toThrow();
+    expect(resolveTenant).not.toHaveBeenCalled();
+  });
+});
+
 describe("StratumGuard (real guard): tenant state and access errors", () => {
   // The statuses match the Express and Fastify middleware for the same errors.
   const cases = [

@@ -36,10 +36,21 @@ export class MongoCollectionAdapter implements MongoAdapter {
     }
   }
 
-  /** Returns the raw collection for the tenant, named `{baseCollectionName}_{tenantSlug}`. */
+  /**
+   * Returns the raw collection for the tenant, named `{baseCollectionName}_{tenantSlug}`.
+   *
+   * Throws when baseCollections is not set: without the list, two tenants can
+   * get the same name, e.g. ("corp_acme", "orders") and ("acme", "orders_corp").
+   */
   scopedCollection(tenantSlug: string, baseCollectionName: string): CollectionLike {
     validateSlug(tenantSlug);
-    if (this.baseCollections && !this.baseCollections.includes(baseCollectionName)) {
+    if (!this.baseCollections) {
+      throw new Error(
+        "MongoCollectionAdapter: scopedCollection requires the baseCollections option, " +
+          "listing every base collection name that has a per-tenant copy",
+      );
+    }
+    if (!this.baseCollections.includes(baseCollectionName)) {
       throw new Error(`MongoCollectionAdapter: "${baseCollectionName}" is not in baseCollections`);
     }
     const collectionName = `${baseCollectionName}_${tenantSlug}`;

@@ -12,6 +12,14 @@ export interface StratumMiddlewareOptions {
   /** URL path parameter name to extract tenant ID from */
   pathParam?: string;
   /**
+   * Allow reading the tenant ID from a request header. A client can set any
+   * header, so this must be enabled explicitly, and only when a gateway you
+   * control sets the header and strips any client-sent copy. Without it,
+   * `stratumMiddleware` throws at construction unless `jwtClaim` or
+   * `pathParam` is set. Default: false.
+   */
+  trustTenantHeader?: boolean;
+  /**
    * Optional callback to resolve a full tenant context from the tenant ID.
    * When provided, the middleware will call this to obtain ancestry, config,
    * and permissions instead of using placeholder values.
@@ -49,6 +57,13 @@ function extractFromPathParam(c: Context, param: string): string | undefined {
 export function stratumMiddleware(
   options: StratumMiddlewareOptions = {},
 ): MiddlewareHandler {
+  if (!options.jwtClaim && !options.pathParam && options.trustTenantHeader !== true) {
+    throw new Error(
+      "[stratum] stratumMiddleware would read the tenant ID from an unverified request header. " +
+        "Use jwtClaim with a verified JWT, or set trustTenantHeader: true if a trusted gateway sets the header.",
+    );
+  }
+
   return async (c: Context, next: Next) => {
     let tenantId: string | undefined;
 

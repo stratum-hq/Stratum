@@ -57,9 +57,19 @@ describe("StratumTypeOrmSubscriber", () => {
   });
 
   it("restores the loaded tenant_id when a saved entity carries another one", () => {
+    (getTenantContext as ReturnType<typeof vi.fn>).mockReturnValue({ tenant_id: "t1" });
     const entity: Record<string, unknown> = { id: 1, name: "x", tenant_id: "t2" };
     subscriber.beforeUpdate({ entity, databaseEntity: { id: 1, name: "old", tenant_id: "t1" } });
     expect(entity).toEqual({ id: 1, name: "x", tenant_id: "t1" });
+  });
+
+  it("refuses a save() of a loaded row that belongs to another tenant", () => {
+    (getTenantContext as ReturnType<typeof vi.fn>).mockReturnValue({ tenant_id: "t1" });
+    const entity: Record<string, unknown> = { id: 1, name: "x" };
+    expect(() =>
+      subscriber.beforeUpdate({ entity, databaseEntity: { id: 1, name: "old", tenant_id: "t2" } }),
+    ).toThrow(/another tenant/);
+    expect(entity).toEqual({ id: 1, name: "x" });
   });
 });
 
@@ -73,11 +83,35 @@ describe("StratumTypeOrmSubscriber.beforeQuery", () => {
     expect(() => subscriber.beforeQuery({ query })).toThrow(/tenant_id on conflict/);
   });
 
-  it("allows an upsert that leaves tenant_id out of the conflict update", () => {
+  it("allows an upsert that leaves tenant_id out of the conflict update when every unique key has tenant_id", async () => {
     const query =
       "INSERT INTO `items`(`id`, `tenant_id`, `name`) VALUES (?, ?, ?) " +
       "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `x_tenant_id` = VALUES(`x_tenant_id`)";
-    expect(() => subscriber.beforeQuery({ query })).not.toThrow();
+    const queryRunner = {
+      query: vi.fn().mockResolvedValue([
+        { index_name: "PRIMARY", column_name: "tenant_id" },
+        { index_name: "PRIMARY", column_name: "id" },
+      ]),
+    };
+    await expect(subscriber.beforeQuery({ query, queryRunner })).resolves.toBeUndefined();
+    expect(queryRunner.query.mock.calls[0][1]).toEqual([null, "items"]);
+  });
+
+  it("refuses an upsert whose table's unique keys cannot be checked", async () => {
+    const query =
+      "INSERT INTO `items`(`id`, `tenant_id`, `name`) VALUES (?, ?, ?) " +
+      "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)";
+    await expect(subscriber.beforeQuery({ query })).rejects.toThrow(/cannot be checked/);
+  });
+
+  it("refuses an UPDATE or DELETE on a data source that was not registered", () => {
+    const dataSource = {};
+    expect(() => subscriber.beforeQuery({ query: "UPDATE `items` SET `name` = ?", dataSource })).toThrow(
+      /registerStratumSubscriber/,
+    );
+    expect(() => subscriber.beforeQuery({ query: "DELETE FROM `items` WHERE `id` = ?", dataSource })).toThrow(
+      /registerStratumSubscriber/,
+    );
   });
 
   it("allows a plain insert that writes tenant_id", () => {
@@ -86,9 +120,22 @@ describe("StratumTypeOrmSubscriber.beforeQuery", () => {
   });
 });
 
+function fakeQueryBuilder() {
+  class Update {
+    async execute() {}
+  }
+  class Delete {
+    async execute() {}
+  }
+  class SoftDelete {
+    async execute() {}
+  }
+  return () => ({ update: () => new Update(), delete: () => new Delete(), softDelete: () => new SoftDelete() });
+}
+
 describe("registerStratumSubscriber", () => {
   it("adds one subscriber and returns it on later calls", () => {
-    const dataSource = { isInitialized: true, subscribers: [{}] as unknown[] };
+    const dataSource = { isInitialized: true, subscribers: [{}] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     const first = registerStratumSubscriber(dataSource);
     const second = registerStratumSubscriber(dataSource);
     expect(first).toBeInstanceOf(StratumTypeOrmSubscriber);
@@ -98,13 +145,13 @@ describe("registerStratumSubscriber", () => {
 
   it("returns a subscriber that was pushed by hand", () => {
     const manual = new StratumTypeOrmSubscriber();
-    const dataSource = { isInitialized: true, subscribers: [manual] as unknown[] };
+    const dataSource = { isInitialized: true, subscribers: [manual] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     expect(registerStratumSubscriber(dataSource)).toBe(manual);
     expect(dataSource.subscribers).toHaveLength(1);
   });
 
   it("rejects a data source that is not initialized", () => {
-    const dataSource = { isInitialized: false, subscribers: [] as unknown[] };
+    const dataSource = { isInitialized: false, subscribers: [] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     expect(() => registerStratumSubscriber(dataSource)).toThrow(/after dataSource.initialize/);
     expect(dataSource.subscribers).toHaveLength(0);
   });

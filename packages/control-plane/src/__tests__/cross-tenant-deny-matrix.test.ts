@@ -3,7 +3,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import type { Stratum } from "@stratum-hq/lib";
 import { errorHandler } from "../middleware/error-handler.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
-import { createAuthorizeMiddleware } from "../middleware/authorize.js";
+import { createAuthorizeMiddleware, declareRequiredScope } from "../middleware/authorize.js";
 import {
   createTenantScopeEnforcer,
   declareTenantScope,
@@ -290,13 +290,15 @@ async function buildApp(stratum: Stratum): Promise<FastifyInstance> {
 
   // Synthetic route with NO tenant-scope declaration: the default-deny enforcer
   // must refuse it. Registered directly on the app, so no plugin's
-  // declareTenantScope hook stamps a declaration onto it.
-  app.get("/api/v1/undeclared/:id", async (_req, reply) =>
+  // declareTenantScope hook stamps a declaration onto it. It declares a
+  // required scope so the refusal comes from the tenant-scope enforcer.
+  app.get("/api/v1/undeclared/:id", { config: { requiredScope: "read" } }, async (_req, reply) =>
     reply.status(200).send({ reached: true }),
   );
   // Synthetic route explicitly declared "global": must be admitted.
   await app.register(async (scoped) => {
     declareTenantScope(scoped, "global");
+    declareRequiredScope(scoped, "read");
     scoped.get("/api/v1/opsonly", async (_req, reply) =>
       reply.status(200).send({ ok: true }),
     );

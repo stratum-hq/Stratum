@@ -14,7 +14,7 @@ interface Region {
   id: string;
   display_name: string;       // "EU West (Frankfurt)"
   slug: string;               // "eu_west"
-  control_plane_url: string;  // "https://eu.stratum.example.com"
+  control_plane_url: string;  // "https://eu.stratum.example.com" (http or https, without credentials)
   database_url: string;       // stored but never exposed in API responses
   is_primary: boolean;
   status: "active" | "draining" | "inactive";

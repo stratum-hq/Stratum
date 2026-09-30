@@ -6,6 +6,7 @@ import {
   fromQueryTenantA,
   fromQueryTenantB,
 } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 export function createConfigDiffRoutes(stratum: Stratum) {
   // The diff compares two tenants read from the query string, so both operands
@@ -16,6 +17,7 @@ export function createConfigDiffRoutes(stratum: Stratum) {
   return async function configDiffRoutes(app: FastifyInstance): Promise<void> {
     // A scoped key may diff only within its own subtree; a global key, anywhere.
     declareTenantScope(app, fromQueryTenantA);
+    declareRequiredScope(app, { read: "read", write: "write" });
 
     // GET /api/v1/config/diff?tenant_a=UUID&tenant_b=UUID — Compare resolved config between two tenants
     app.get<{ Querystring: { tenant_a: string; tenant_b: string } }>(

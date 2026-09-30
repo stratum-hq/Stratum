@@ -114,3 +114,59 @@ describe("crypto HKDF salt across process restarts", () => {
     await expect(freshCrypto()).rejects.toThrow("STRATUM_HKDF_SALT must be set in production");
   });
 });
+
+describe("crypto key material outside development and test", () => {
+  const saved = {
+    salt: process.env.STRATUM_HKDF_SALT,
+    key: process.env.STRATUM_ENCRYPTION_KEY,
+    webhookKey: process.env.WEBHOOK_ENCRYPTION_KEY,
+    nodeEnv: process.env.NODE_ENV,
+  };
+
+  const restore = (name: string, value: string | undefined) => {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  };
+
+  afterEach(() => {
+    restore("STRATUM_HKDF_SALT", saved.salt);
+    restore("STRATUM_ENCRYPTION_KEY", saved.key);
+    restore("WEBHOOK_ENCRYPTION_KEY", saved.webhookKey);
+    restore("NODE_ENV", saved.nodeEnv);
+    vi.resetModules();
+  });
+
+  const freshCrypto = async () => {
+    vi.resetModules();
+    return import("../crypto.js");
+  };
+
+  it("refuses to load without STRATUM_HKDF_SALT in any non-development, non-test environment", async () => {
+    for (const nodeEnv of ["staging", "preview", "qa"]) {
+      delete process.env.STRATUM_HKDF_SALT;
+      process.env.NODE_ENV = nodeEnv;
+      process.env.STRATUM_ENCRYPTION_KEY = "real-key-material";
+      await expect(freshCrypto()).rejects.toThrow(/STRATUM_HKDF_SALT must be set/);
+    }
+  });
+
+  it("refuses to encrypt with the built-in dev key in any non-development, non-test environment", async () => {
+    for (const nodeEnv of ["staging", "preview", "qa"]) {
+      process.env.STRATUM_HKDF_SALT = "a1".repeat(32);
+      delete process.env.STRATUM_ENCRYPTION_KEY;
+      delete process.env.WEBHOOK_ENCRYPTION_KEY;
+      process.env.NODE_ENV = nodeEnv;
+      const mod = await freshCrypto();
+      expect(() => mod.encrypt("x")).toThrow(/STRATUM_ENCRYPTION_KEY must be set/);
+    }
+  });
+
+  it("falls back to the built-in dev key and salt when NODE_ENV is unset", async () => {
+    delete process.env.STRATUM_HKDF_SALT;
+    delete process.env.STRATUM_ENCRYPTION_KEY;
+    delete process.env.WEBHOOK_ENCRYPTION_KEY;
+    delete process.env.NODE_ENV;
+    const mod = await freshCrypto();
+    expect(mod.decrypt(mod.encrypt("unset-env"))).toBe("unset-env");
+  });
+});

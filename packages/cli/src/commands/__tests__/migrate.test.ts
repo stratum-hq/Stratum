@@ -276,6 +276,28 @@ describe("migrate", () => {
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
 
+  it("--all migrates the fixable tables, then fails while a table keeps a policy that does not filter", async () => {
+    const { pool, queries } = makeFakePool();
+    (connectDb as Mock).mockResolvedValue(pool);
+    (confirm as Mock).mockResolvedValue(true);
+    (scanTables as Mock).mockResolvedValue([
+      { table_name: "orders", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+      {
+        table_name: "invoices",
+        has_tenant_id: true,
+        rls_enabled: true,
+        rls_forced: true,
+        has_policy: false,
+        policy_issue: 'policy "tenant_isolation" (ALL) USING (true) does not filter by tenant',
+      },
+    ] satisfies TableInfo[]);
+
+    await expect(migrate([], { all: true })).rejects.toThrow(/1 table\(s\) still have policies/);
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(queries.join("\n")).not.toMatch(/ON invoices/);
+    expect(pool.end).toHaveBeenCalledTimes(1);
+  });
+
   it("prints usage and exits 1 when given neither a table nor a mode flag", async () => {
     const { pool } = makeFakePool();
     (connectDb as Mock).mockResolvedValue(pool);

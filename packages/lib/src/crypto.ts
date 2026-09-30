@@ -5,10 +5,18 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURRENT_KEY_VERSION = "v1";
 
-// Fixed, public salt used only outside production when STRATUM_HKDF_SALT is
-// unset. It must stay stable: a per-process salt would make every value
+// Built-in key material is allowed only in local development and test runs
+// (an unset NODE_ENV counts as development). Every other environment, staging
+// and preview included, must supply real key material or refuse to start.
+function nodeEnvRequiringKeyMaterial(): string | null {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  return nodeEnv === "development" || nodeEnv === "test" ? null : nodeEnv;
+}
+
+// Fixed, public salt used only in development and test when STRATUM_HKDF_SALT
+// is unset. It must stay stable: a per-process salt would make every value
 // encrypted by an earlier process (or another replica) undecryptable. An HKDF
-// salt is not secret; the key material is. Production still requires an
+// salt is not secret; the key material is. Every other environment requires an
 // explicit STRATUM_HKDF_SALT.
 const NON_PRODUCTION_DEFAULT_SALT = "stratum-non-production-hkdf-salt-v1";
 
@@ -16,8 +24,9 @@ const HKDF_SALT: Buffer = (() => {
   if (process.env.STRATUM_HKDF_SALT) {
     return Buffer.from(process.env.STRATUM_HKDF_SALT, "hex");
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("STRATUM_HKDF_SALT must be set in production");
+  const strictEnv = nodeEnvRequiringKeyMaterial();
+  if (strictEnv) {
+    throw new Error(`STRATUM_HKDF_SALT must be set in ${strictEnv}`);
   }
   return Buffer.from(NON_PRODUCTION_DEFAULT_SALT, "utf8");
 })();
@@ -33,10 +42,11 @@ function getEncryptionKey(): Buffer {
   if (envKey) {
     return hkdfDeriveKey(envKey);
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("STRATUM_ENCRYPTION_KEY must be set in production");
+  const strictEnv = nodeEnvRequiringKeyMaterial();
+  if (strictEnv) {
+    throw new Error(`STRATUM_ENCRYPTION_KEY must be set in ${strictEnv}`);
   }
-  // Dev-only fallback — never use in staging or production
+  // Development and test only fallback
   return hkdfDeriveKey("stratum-dev-key");
 }
 

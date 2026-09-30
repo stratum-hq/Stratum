@@ -1,5 +1,6 @@
 import pg from "pg";
 import { connectDb, withRlsBypass } from "../utils/db.js";
+import { evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
 
 // ── ANSI Colors ──────────────────────────────────────────────────────
 const RESET = "\x1b[0m";
@@ -161,16 +162,23 @@ async function checkRLSEnabled(pool: pg.Pool): Promise<CheckResult> {
 }
 
 async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
-  // Check that every tenant-scoped table has a tenant_isolation policy
+  // Check that the policies on every tenant-scoped table filter by tenant.
+  // A policy's name proves nothing, so its expressions are checked.
   const res = await pool.query(`
     SELECT
       c.table_name,
-      EXISTS (
-        SELECT 1 FROM pg_policies p
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'policyname', p.policyname,
+          'permissive', p.permissive,
+          'cmd', p.cmd,
+          'qual', p.qual,
+          'with_check', p.with_check
+        ))
+        FROM pg_policies p
         WHERE p.tablename = c.table_name
           AND p.schemaname = 'public'
-          AND p.policyname = 'tenant_isolation'
-      ) AS has_policy
+      ), '[]'::json) AS policies
     FROM information_schema.columns c
     WHERE c.table_schema = 'public'
       AND c.column_name = 'tenant_id'
@@ -178,7 +186,10 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
     ORDER BY c.table_name;
   `);
 
-  const tables = res.rows as Array<{ table_name: string; has_policy: boolean }>;
+  const tables = (res.rows as Array<{ table_name: string; policies: PolicyRow[] }>).map((t) => ({
+    table_name: t.table_name,
+    verdict: evaluatePolicies(t.policies),
+  }));
 
   if (tables.length === 0) {
     return {
@@ -188,21 +199,23 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
     };
   }
 
-  const missing = tables.filter((t) => !t.has_policy);
+  const missing = tables.filter((t) => !t.verdict.isolated);
 
   if (missing.length === 0) {
     return {
       status: "pass",
       label: "RLS policies",
-      summary: "All tables have tenant_isolation policy",
+      summary: "All tables have policies that filter by tenant",
     };
   }
 
   return {
     status: "fail",
     label: "RLS policies",
-    summary: `${missing.length} table(s) missing tenant_isolation policy`,
-    details: missing.map((t) => `${t.table_name}: no tenant_isolation policy`),
+    summary: `${missing.length} table(s) without a policy that filters by tenant`,
+    details: missing.map(
+      (t) => `${t.table_name}: ${t.verdict.issue ?? "no tenant_isolation policy"}`,
+    ),
   };
 }
 

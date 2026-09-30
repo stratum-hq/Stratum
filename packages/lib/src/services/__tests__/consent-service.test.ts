@@ -51,7 +51,10 @@ describe("grantConsent", () => {
 
   it("inserts a consent record and returns it", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn().mockResolvedValue({ rows: [mockConsentRecord] });
+    // The first query loads the tenant and requires it to be active.
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: "tenant-456", status: "active" }] })
+      .mockResolvedValue({ rows: [mockConsentRecord] });
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = {
         query: mockQuery,
@@ -67,8 +70,8 @@ describe("grantConsent", () => {
     const result = await consentService.grantConsent(pool, "tenant-456", input);
 
     expect(result).toEqual(mockConsentRecord);
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    const [sql, params] = mockQuery.mock.calls[0];
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    const [sql, params] = mockQuery.mock.calls[1];
     expect(sql).toContain("INSERT INTO consent_records");
     expect(sql).toContain("ON CONFLICT");
     expect(params[0]).toBe("tenant-456"); // tenant_id
@@ -78,7 +81,10 @@ describe("grantConsent", () => {
 
   it("passes expires_at and metadata when provided", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn().mockResolvedValue({ rows: [mockConsentRecord] });
+    // The first query loads the tenant and requires it to be active.
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: "tenant-456", status: "active" }] })
+      .mockResolvedValue({ rows: [mockConsentRecord] });
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = {
         query: mockQuery,
@@ -95,7 +101,7 @@ describe("grantConsent", () => {
 
     await consentService.grantConsent(pool, "tenant-456", input);
 
-    const params = mockQuery.mock.calls[0][1];
+    const params = mockQuery.mock.calls[1][1];
     expect(params[3]).toBe("2025-12-31T23:59:59.000Z"); // expires_at
     expect(params[4]).toBe(JSON.stringify({ source: "web" })); // metadata
   });

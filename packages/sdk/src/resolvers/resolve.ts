@@ -27,6 +27,8 @@ export async function resolveTenantId(req: unknown, options?: MiddlewareOptions)
   const jwt = resolveJwtTenant(req, options?.jwtClaimPath, {
     secret: options?.jwtSecret,
     verify: options?.jwtVerify,
+    audience: options?.jwtAudience,
+    issuer: options?.jwtIssuer,
   });
   if (jwt.status === "resolved") return { status: "resolved", tenantId: jwt.tenantId };
   if (jwt.status === "invalid") return { status: "invalid_token" };

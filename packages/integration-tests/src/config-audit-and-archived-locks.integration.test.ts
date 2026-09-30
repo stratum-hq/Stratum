@@ -104,8 +104,11 @@ describe("config audit redaction + archived-ancestor locks (integration)", () =>
     const mid = await stratum.createTenant({ name: "M", slug: uniqueSlug("cfm"), parent_id: root.id });
     const leaf = await stratum.createTenant({ name: "L", slug: uniqueSlug("cfl"), parent_id: mid.id });
     await stratum.setConfig(mid.id, "k", { value: "from-archived", locked: true });
-    await stratum.suspendTenant(leaf.id);
-    await stratum.archiveTenant(mid.id);
+    // The library keeps an active tenant under an active parent and refuses
+    // config writes to a tenant that is not active, so an active leaf under an
+    // archived parent can only be reached in SQL. The lock handling below is
+    // defense in depth for such data.
+    await getPool().query(`UPDATE tenants SET status = 'archived' WHERE id = $1`, [mid.id]);
     return { root, mid, leaf };
   }
 

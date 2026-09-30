@@ -2,11 +2,13 @@ import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { declareTenantScope } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 export function createMaintenanceRoutes(stratum: Stratum) {
   return async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
     // Maintenance acts across all tenants: global operator keys only.
     declareTenantScope(app, "operator");
+    declareRequiredScope(app, "operator");
 
     // POST /api/v1/maintenance/purge-expired — Purge expired data
     app.post<{ Querystring: { retention_days?: string } }>("/purge-expired", async (request, reply) => {

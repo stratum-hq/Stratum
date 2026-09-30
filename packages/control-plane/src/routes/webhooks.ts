@@ -3,6 +3,7 @@ import { CreateWebhookInputSchema, UpdateWebhookInputSchema, ForbiddenError } fr
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { declareTenantScope, fromBodyTenantId } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 /**
  * Post-fetch tenant access check for webhook routes.
@@ -50,6 +51,7 @@ export function createWebhookRoutes(stratum: Stratum) {
     // Tenant-scoped keys can only access webhooks for their own tenant subtree.
     // This guard covers the POST / (create) route where tenant_id is in the body.
     declareTenantScope(app, fromBodyTenantId);
+    declareRequiredScope(app, { read: "read", write: "write" });
 
     // POST /api/v1/webhooks — Create webhook
     app.post("/", async (request, reply) => {

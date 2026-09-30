@@ -138,6 +138,25 @@ function copyAndCheckStages(value: unknown): unknown {
   return copy;
 }
 
+/**
+ * Freezes a pipeline and every plain object and array inside it, so the
+ * stages that were checked cannot be edited before they run. BSON values,
+ * Dates and other class instances are left as they are.
+ */
+export function freezePipeline(pipeline: Record<string, unknown>[]): Record<string, unknown>[] {
+  return freezeStages(pipeline) as Record<string, unknown>[];
+}
+
+function freezeStages(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (!Array.isArray(value)) {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) return value;
+  }
+  for (const inner of Object.values(value as Record<string, unknown>)) freezeStages(inner);
+  return Object.freeze(value);
+}
+
 /** Aggregates Promise.allSettled results into a PurgeResult. */
 export function aggregatePurgeResults(
   results: PromiseSettledResult<{ collection: string; deletedCount: number }>[],

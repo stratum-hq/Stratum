@@ -39,12 +39,15 @@ describe("assignRole", () => {
 
   it("scopes the role to a tenant when tenantId is passed", async () => {
     const pool = makeMockPool();
-    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [{ role_id: "role-1" }] });
+    // With a tenant, the first query loads it and requires it to be active.
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: "tenant-1", status: "active" }] })
+      .mockResolvedValueOnce({ rows: [{ role_id: "role-1" }] });
     withMockQuery(mockQuery);
 
     await roleService.assignRole(pool, "user", "user-1", "role-1", "tenant-1");
 
-    const [sql, params] = mockQuery.mock.calls[0];
+    const [sql, params] = mockQuery.mock.calls[1];
     expect(sql).toContain("WHERE EXISTS");
     expect(sql).toContain("tenant_id = $4 OR tenant_id IS NULL");
     expect(params).toEqual(["user", "user-1", "role-1", "tenant-1"]);
@@ -53,7 +56,9 @@ describe("assignRole", () => {
   it("returns false when the role belongs to another tenant (refused)", async () => {
     const pool = makeMockPool();
     // The guarded INSERT ... SELECT ... WHERE EXISTS writes no row.
-    const mockQuery = vi.fn().mockResolvedValueOnce({ rows: [] });
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: "tenant-1", status: "active" }] })
+      .mockResolvedValueOnce({ rows: [] });
     withMockQuery(mockQuery);
 
     const ok = await roleService.assignRole(pool, "user", "user-1", "foreign-role", "tenant-1");

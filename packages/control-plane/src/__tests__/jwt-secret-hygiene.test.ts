@@ -55,4 +55,36 @@ describe("JWT_SECRET startup checks", () => {
     });
     expect(config.jwtSecret).toBe("change-me-in-production");
   });
+  it("refuses to start in staging with a placeholder secret", async () => {
+    await expect(
+      loadConfig({ NODE_ENV: "staging", JWT_SECRET: "change-me-in-production" }),
+    ).rejects.toThrow(/JWT_SECRET/);
+  });
+
+  it("refuses to start in staging with a secret shorter than 32 bytes", async () => {
+    await expect(
+      loadConfig({ NODE_ENV: "staging", JWT_SECRET: "x".repeat(31) }),
+    ).rejects.toThrow(/32 bytes/);
+  });
+
+  it("refuses to start in any non-development, non-test environment with a weak secret", async () => {
+    for (const nodeEnv of ["preview", "qa", "prod"]) {
+      await expect(
+        loadConfig({ NODE_ENV: nodeEnv, JWT_SECRET: "your-jwt-secret-change-in-production" }),
+      ).rejects.toThrow(/JWT_SECRET/);
+      await expect(
+        loadConfig({ NODE_ENV: nodeEnv, JWT_SECRET: "x".repeat(31) }),
+      ).rejects.toThrow(/32 bytes/);
+    }
+  });
+
+  it("refuses to start in any non-development, non-test environment without a secret", async () => {
+    await expect(loadConfig({ NODE_ENV: "preview" })).rejects.toThrow(/JWT_SECRET/);
+  });
+
+  it("still starts in test with a short secret", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { config } = await loadConfig({ NODE_ENV: "test", JWT_SECRET: "short" });
+    expect(config.jwtSecret).toBe("short");
+  });
 });

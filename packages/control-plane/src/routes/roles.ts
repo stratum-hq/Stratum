@@ -11,6 +11,7 @@ import {
   fromBodyTenantId,
   fromQueryTenantId,
 } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 
 const createRoleSchema = z.object({
   name: z.string().min(1).max(100),
@@ -36,6 +37,7 @@ export function createRoleRoutes(stratum: Stratum) {
     // declare "global" to satisfy the default-deny enforcer. Routes whose target
     // tenant IS in the request override this with an extractor below.
     declareTenantScope(app, "global");
+    declareRequiredScope(app, { read: "read", write: "admin" });
 
     // POST /api/v1/roles — Create a role. A scoped key may create only within
     // its own subtree; the body tenant_id is authorized by the enforcer.

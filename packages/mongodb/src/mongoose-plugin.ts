@@ -1,10 +1,17 @@
 import { getTenantContext } from "@stratum-hq/sdk";
-import { stripTenantIdFromUpdate, assertSafeAggregatePipeline, scopeBulkWriteOperations } from "./utils.js";
+import {
+  stripTenantIdFromUpdate,
+  assertSafeAggregatePipeline,
+  scopeBulkWriteOperations,
+  freezePipeline,
+} from "./utils.js";
 
 interface SchemaLike {
   path(name: string): unknown;
   add(obj: Record<string, unknown>): void;
   pre(method: string | string[], fn: (...args: unknown[]) => void): void;
+  static(name: string, fn: (...args: never[]) => unknown): unknown;
+  statics?: Record<string, unknown>;
 }
 
 interface MongooseDocumentLike {
@@ -19,7 +26,46 @@ interface MongooseQueryLike {
 
 interface MongooseAggregateLike {
   pipeline(): Record<string, unknown>[];
+  _pipeline: Record<string, unknown>[];
+  options?: { cursor?: unknown };
 }
+
+interface WatchableModelLike {
+  watch(pipeline?: Record<string, unknown>[], options?: Record<string, unknown>): unknown;
+}
+
+/** Marks the watch() static this plugin installs, to find Mongoose's own watch() below it. */
+const SCOPED_WATCH = Symbol("stratum.scopedWatch");
+
+/**
+ * Model.watch() scoped to the current tenant. The change stream starts with
+ * `$match: { "fullDocument.tenant_id": <tenant> }`, and fullDocument defaults
+ * to "updateLookup" so update events carry the document to match on. Events
+ * without a fullDocument (delete, drop, rename, invalidate) are filtered out.
+ * The caller's stages are checked like aggregate stages and run after the
+ * tenant $match.
+ */
+function scopedWatch(
+  this: WatchableModelLike,
+  pipeline?: Record<string, unknown>[],
+  options?: Record<string, unknown>,
+): unknown {
+  const ctx = getTenantContext();
+  const stages = assertSafeAggregatePipeline(pipeline ?? []);
+  let base = Object.getPrototypeOf(this) as WatchableModelLike | null;
+  while (base && (base.watch as unknown as Record<symbol, unknown>)[SCOPED_WATCH]) {
+    base = Object.getPrototypeOf(base) as WatchableModelLike | null;
+  }
+  if (!base || typeof base.watch !== "function") {
+    throw new Error("stratumPlugin: Mongoose Model.watch() was not found.");
+  }
+  return base.watch.call(
+    this,
+    [{ $match: { "fullDocument.tenant_id": ctx.tenant_id } }, ...stages],
+    { fullDocument: "updateLookup", ...options },
+  );
+}
+(scopedWatch as unknown as Record<symbol, unknown>)[SCOPED_WATCH] = true;
 
 /**
  * Mongoose plugin that auto-injects tenant_id from ALS context.
@@ -28,8 +74,14 @@ interface MongooseAggregateLike {
  * registers pre-hooks for save, every Mongoose query operation (find, findOne,
  * countDocuments, distinct, updateOne, updateMany, replaceOne, deleteOne,
  * deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete),
- * insertMany, bulkWrite, and aggregate. estimatedDocumentCount cannot be
- * scoped and is rejected.
+ * insertMany, bulkWrite, and aggregate, and replaces the model's watch() with
+ * a tenant-filtered change stream. estimatedDocumentCount cannot be scoped and
+ * is rejected.
+ *
+ * Not scoped: `Model.collection` (and `Model.db`, `connection.db`,
+ * `connection.watch()`) are the raw driver objects, and every operation on
+ * them sees all tenants. Use them only for admin work, never with tenant
+ * input.
  *
  * Hooks declared with `(...args)` have length 0, so Mongoose runs them
  * synchronously without a `next` callback; `next` is called only if passed.
@@ -126,14 +178,30 @@ export function stratumPlugin(schema: SchemaLike): void {
     next();
   } as (...args: unknown[]) => void);
 
-  // Pre-aggregate: reject cross-collection stages at any depth, then prepend $match stage
+  // Pre-aggregate: reject cross-collection stages at any depth, then prepend
+  // $match stage. The checked pipeline is a fresh copy. For .cursor() it is
+  // also frozen: Mongoose hands this array to a driver cursor that the caller
+  // can reach, so an edit made after the check would otherwise run. exec() and
+  // explain() keep it unfrozen, because Mongoose edits the pipeline of a
+  // discriminator model before this hook each time the Aggregate runs.
   schema.pre("aggregate", function (this: unknown, ...args: unknown[]) {
     const agg = this as MongooseAggregateLike;
     const next = args[0] as (() => void) | undefined;
     const ctx = getTenantContext();
-    const pipeline = agg.pipeline();
-    assertSafeAggregatePipeline(pipeline);
-    pipeline.unshift({ $match: { tenant_id: ctx.tenant_id } });
+    const safe = assertSafeAggregatePipeline(agg.pipeline());
+    const scoped = [{ $match: { tenant_id: ctx.tenant_id } }, ...safe];
+    agg._pipeline = agg.options?.cursor ? freezePipeline(scoped) : scoped;
     next?.();
   });
+
+  // watch(): the change stream is filtered to the current tenant's documents.
+  // A watch() static defined before the plugin is refused rather than
+  // replaced; one defined after the plugin replaces the scoped watch().
+  if (schema.statics && Object.prototype.hasOwnProperty.call(schema.statics, "watch")) {
+    throw new Error(
+      "stratumPlugin: the schema already defines a watch() static, which the plugin would replace " +
+        "with a tenant-scoped watch(). Remove it, or apply the plugin to a schema without it.",
+    );
+  }
+  schema.static("watch", scopedWatch);
 }

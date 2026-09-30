@@ -2,10 +2,13 @@ import crypto from "node:crypto";
 
 const jwtSecretEnv = process.env.JWT_SECRET;
 const nodeEnv = process.env.NODE_ENV || "development";
+// Secret checks apply everywhere except local development and test runs, so a
+// staging or preview deployment cannot start with a weak or published secret.
+const enforceSecretHygiene = nodeEnv !== "development" && nodeEnv !== "test";
 
 if (!jwtSecretEnv) {
-  if (nodeEnv === "production" || nodeEnv === "staging") {
-    throw new Error("FATAL: JWT_SECRET must be set in production. Refusing to start.");
+  if (enforceSecretHygiene) {
+    throw new Error(`FATAL: JWT_SECRET must be set (NODE_ENV=${nodeEnv}). Refusing to start.`);
   } else {
     console.warn("[stratum] JWT_SECRET not set — using dev fallback. Set JWT_SECRET before deploying to production.");
   }
@@ -19,12 +22,12 @@ const PLACEHOLDER_JWT_SECRETS = new Set([
 ]);
 const MIN_JWT_SECRET_BYTES = 32;
 
-if (jwtSecretEnv && nodeEnv === "production") {
+if (jwtSecretEnv && enforceSecretHygiene) {
   if (PLACEHOLDER_JWT_SECRETS.has(jwtSecretEnv)) {
     throw new Error("FATAL: JWT_SECRET is a published placeholder value. Set a random secret. Refusing to start.");
   }
   if (Buffer.byteLength(jwtSecretEnv, "utf8") < MIN_JWT_SECRET_BYTES) {
-    throw new Error(`FATAL: JWT_SECRET must be at least ${MIN_JWT_SECRET_BYTES} bytes in production. Refusing to start.`);
+    throw new Error(`FATAL: JWT_SECRET must be at least ${MIN_JWT_SECRET_BYTES} bytes outside development and test. Refusing to start.`);
   }
 }
 
@@ -35,7 +38,7 @@ if (jwtSecretEnv && nodeEnv === "production") {
 const jwtAudienceEnv = process.env.JWT_AUDIENCE || undefined;
 const jwtIssuerEnv = process.env.JWT_ISSUER || undefined;
 
-if (!jwtAudienceEnv && (nodeEnv === "production" || nodeEnv === "staging")) {
+if (!jwtAudienceEnv && enforceSecretHygiene) {
   console.warn("[stratum] JWT_AUDIENCE not set — Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
 }
 

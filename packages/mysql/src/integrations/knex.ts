@@ -26,8 +26,32 @@ interface KnexBuilderInternals {
 
 const TENANT_COLUMN = "tenant_id";
 
-/** Builder methods that would write or destroy rows without the tenant filter. */
-const REFUSED_METHODS = new Set(["upsert", "truncate"]);
+/**
+ * Builder methods the tenant filter cannot cover, mapped to the reason given
+ * in the error: writes that MySQL does not apply through the WHERE clause, and
+ * joins and unions, whose other rows the filter does not reach.
+ */
+const NOT_FILTERED = "because MySQL does not apply the tenant filter to it";
+const NOT_SCOPED = "because the tenant filter does not apply to the rows it adds";
+const REFUSED_METHODS = new Map<string, string>([
+  ["upsert", NOT_FILTERED],
+  ["truncate", NOT_FILTERED],
+  ["modify", "because the tenant rules for insert, update and onConflict do not apply inside its callback"],
+  ...[
+    "join",
+    "innerJoin",
+    "leftJoin",
+    "leftOuterJoin",
+    "rightJoin",
+    "rightOuterJoin",
+    "outerJoin",
+    "fullOuterJoin",
+    "crossJoin",
+    "joinRaw",
+    "union",
+    "unionAll",
+  ].map((method): [string, string] => [method, NOT_SCOPED]),
+]);
 
 function isTenantColumn(name: string): boolean {
   return name.toLowerCase() === TENANT_COLUMN;
@@ -58,6 +82,15 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * UPDATE never changes tenant_id: the column is dropped from the update data.
  * onConflict().merge(), upsert() and truncate() throw, because MySQL applies
  * none of them through the WHERE clause. onConflict().ignore() is allowed.
+ *
+ * modify() throws, because its callback would call the builder's methods
+ * without the insert, update and onConflict rules above.
+ *
+ * Joins (join, innerJoin, leftJoin, crossJoin, joinRaw and the other forms)
+ * and union() / unionAll() throw, because the tenant filter covers only this
+ * builder's table, not the joined or unioned rows. To combine tenant data, use
+ * a tenant-scoped builder as a whereIn subquery, or write the query with an
+ * explicit tenant_id condition on every table.
  */
 export function withTenantScope(
   knex: KnexLike,
@@ -128,11 +161,11 @@ export function withTenantScope(
           return value;
         }
 
-        if (REFUSED_METHODS.has(prop)) {
+        const refusal = REFUSED_METHODS.get(prop);
+        if (refusal) {
           return () => {
             throw new Error(
-              `withTenantScope: ${prop}() is not allowed on a tenant-scoped builder, ` +
-                `because MySQL does not apply the tenant filter to it`,
+              `withTenantScope: ${prop}() is not allowed on a tenant-scoped builder, ${refusal}`,
             );
           };
         }

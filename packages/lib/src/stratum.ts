@@ -71,6 +71,7 @@ import type {
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
+import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
   pool: pg.Pool;
@@ -112,10 +113,13 @@ export class Stratum {
 
   private async _doInitialize(): Promise<void> {
     if (this.autoMigrate) {
-      if (process.env.NODE_ENV === "production" && !this.enforceRls) {
+      // Only local development and test runs may skip RLS enforcement; an
+      // unset NODE_ENV counts as development.
+      const nodeEnv = process.env.NODE_ENV || "development";
+      if (nodeEnv !== "development" && nodeEnv !== "test" && !this.enforceRls) {
         this.logger.warn(
-          "autoMigrate is enabled in production without enforceRls. " +
-          "Set enforceRls: true for production deployments.",
+          `autoMigrate is enabled without enforceRls (NODE_ENV=${nodeEnv}). ` +
+          "Set enforceRls: true for every deployment other than development and test.",
         );
       }
       this.logger.info("running auto-migration");
@@ -649,7 +653,7 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.created", "webhook", webhook.id, input.tenant_id ?? null,
-        null, { url: webhook.url, events: webhook.events } as Record<string, unknown>,
+        null, { url: redactUrlForAudit(webhook.url), events: webhook.events } as Record<string, unknown>,
       );
     }
     return webhook;
@@ -666,9 +670,12 @@ export class Stratum {
     }
     const webhook = await webhookService.updateWebhook(this.pool, id, input);
     if (audit) {
+      const auditState: Record<string, unknown> = { ...input };
+      if (input.secret !== undefined) auditState.secret = "[REDACTED]";
+      if (input.url !== undefined) auditState.url = redactUrlForAudit(input.url);
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
-        null, (input.secret !== undefined ? { ...input, secret: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
+        null, auditState,
       );
     }
     return webhook;
@@ -828,7 +835,9 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "region.created", "region", region.id, null,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.control_plane_url
+          ? { ...input, control_plane_url: redactUrlForAudit(input.control_plane_url) }
+          : input) as unknown as Record<string, unknown>,
       );
     }
     return region;
@@ -844,7 +853,9 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "region.updated", "region", id, null,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.control_plane_url
+          ? { ...input, control_plane_url: redactUrlForAudit(input.control_plane_url) }
+          : input) as unknown as Record<string, unknown>,
       );
     }
     return region;

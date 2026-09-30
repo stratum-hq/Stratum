@@ -13,6 +13,14 @@ export interface MiddlewareOptions {
   jwtSecret?: string;
   jwtVerify?: (token: string) => Record<string, unknown> | null;
   /**
+   * When set, a verified token is accepted only if its `aud` claim equals this
+   * value (or, for an array, includes it). A token that fails the check is
+   * rejected with 401. Applies to both `jwtSecret` and `jwtVerify`.
+   */
+  jwtAudience?: string;
+  /** When set, a verified token is accepted only if its `iss` claim equals this value. */
+  jwtIssuer?: string;
+  /**
    * When `jwtSecret` or `jwtVerify` is configured, the tenant header is ignored
    * unless this is true, so the verified JWT is the only tenant binding. A
    * bearer token that fails verification is always rejected with 401. Has no

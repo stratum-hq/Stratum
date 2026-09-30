@@ -60,7 +60,7 @@ The pool is **borrowed, not owned** -- Stratum never creates or closes the pool.
 stratum.initialize(): Promise<void>
 ```
 
-Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently -- every caller awaits the same promise. Set `enforceRls: true` in production so migrations refuse to run under a `BYPASSRLS` role.
+Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently -- every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so migrations refuse to run under a `BYPASSRLS` role; `initialize()` logs a warning when it is off there.
 
 ## API Reference
 
@@ -276,13 +276,27 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 
 ### Encryption
 
-Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`. The package does not export the encryption functions; use the `Stratum` method below to change the key.
+Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. The package does not export the encryption functions; use the `Stratum` method below to change the key.
 
 ```typescript
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
 
 `rotateEncryptionKey` re-encrypts sensitive config values and webhook secrets in batches of 100. Each batch commits in its own transaction. If a run fails partway, run it again with the same keys. The second run skips values that already decrypt with the new key.
+
+### Moving off the built-in development key
+
+In `development` and `test` (and when `NODE_ENV` is unset), Stratum falls back to a built-in development key and a built-in HKDF salt when `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT` are not set. Every other environment refuses to start without both. Values encrypted under the fallback must be re-encrypted before the deployment runs with real key material. The salt is part of key derivation and `rotateEncryptionKey` cannot change it, so do the steps in this order:
+
+1. Set `STRATUM_HKDF_SALT` to the hex form of the built-in salt, `7374726174756d2d6e6f6e2d70726f64756374696f6e2d686b64662d73616c742d7631`. An HKDF salt is not secret. Keep this value afterwards: data encrypted under a different salt cannot be read or rotated.
+2. Set `STRATUM_ENCRYPTION_KEY` to new random key material, and `STRATUM_ENCRYPTION_KEY_PREVIOUS` to `stratum-dev-key` so existing values stay readable until the rotation finishes.
+3. Rotate from the built-in key to the new one. If it fails partway, run it again with the same keys:
+
+```typescript
+await stratum.rotateEncryptionKey("stratum-dev-key", process.env.STRATUM_ENCRYPTION_KEY!);
+```
+
+Through the control plane, call `POST /api/v1/maintenance/rotate-encryption-key` with `stratum-dev-key` as `old_key` and the new key as `new_key`. Examine anything the result lists in `unreadable`, then unset `STRATUM_ENCRYPTION_KEY_PREVIOUS`.
 
 ```typescript
 interface KeyRotationResult {

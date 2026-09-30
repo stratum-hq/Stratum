@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
 import { resolveEffectiveScopesOnClient } from "./role-service.js";
+import { InvalidTenantStateError } from "@stratum-hq/core";
 
 export interface ApiKeyRecord {
   id: string;
@@ -71,6 +72,28 @@ export interface CreateApiKeyOptions {
   rateLimitWindow?: string;
 }
 
+/** Tenant states under which a key could never authenticate. */
+const KEYLESS_TENANT_STATES = ["suspended", "archived"];
+
+/**
+ * Refuse to issue a key for a suspended or archived tenant: such a key could
+ * never authenticate. A missing tenant is left to the foreign key.
+ */
+async function assertTenantAcceptsKeys(
+  client: pg.PoolClient,
+  tenantId: string,
+  operation: string,
+): Promise<void> {
+  const res = await client.query<{ status: string }>(
+    `SELECT status FROM tenants WHERE id = $1`,
+    [tenantId],
+  );
+  const status = res.rows[0]?.status;
+  if (status !== undefined && KEYLESS_TENANT_STATES.includes(status)) {
+    throw new InvalidTenantStateError(tenantId, status, operation, ["active", "pending"]);
+  }
+}
+
 export async function createApiKey(
   pool: pg.Pool,
   keyPrefix: string,
@@ -85,6 +108,7 @@ export async function createApiKey(
   const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
 
   return withClient(pool, async (client) => {
+    await assertTenantAcceptsKeys(client, tenantId, "create an API key for");
     const res = await client.query<ApiKeyRecord>(
       `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window, hash_version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -254,6 +278,9 @@ export async function rotateApiKey(
       throw new Error(`API key not found, expired or already revoked: ${oldKeyId}`);
     }
     const old = oldRes.rows[0];
+    if (old.tenant_id !== null) {
+      await assertTenantAcceptsKeys(client, old.tenant_id, "rotate an API key for");
+    }
 
     // Create the new key for the same tenant with the same restrictions: scopes,
     // role, expiry and rate limit carry over, so rotation never widens access.

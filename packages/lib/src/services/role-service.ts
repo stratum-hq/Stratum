@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
+import { loadActiveTenant } from "./tenant-service.js";
 
 export interface Role {
   id: string;
@@ -26,6 +27,9 @@ export interface UpdateRoleInput {
 
 export async function createRole(pool: pg.Pool, input: CreateRoleInput): Promise<Role> {
   return withClient(pool, async (client) => {
+    if (input.tenant_id) {
+      await loadActiveTenant(client, input.tenant_id);
+    }
     const res = await client.query<Role>(
       `INSERT INTO roles (name, description, scopes, tenant_id)
        VALUES ($1, $2, $3, $4)
@@ -69,6 +73,9 @@ export async function updateRole(pool: pg.Pool, id: string, input: UpdateRoleInp
       [id],
     );
     if (existing.rows.length === 0) return null;
+    if (existing.rows[0].tenant_id) {
+      await loadActiveTenant(client, existing.rows[0].tenant_id);
+    }
 
     const sets: string[] = [];
     const values: unknown[] = [];
@@ -112,6 +119,18 @@ export async function deleteRole(pool: pg.Pool, id: string): Promise<boolean> {
 
 export async function assignRoleToKey(pool: pg.Pool, keyId: string, roleId: string): Promise<boolean> {
   return withClient(pool, async (client) => {
+    // The key's tenant and the role's tenant must both be active. Lock them in
+    // id order so two assignments never wait on each other.
+    const owners = await client.query<{ tenant_id: string }>(
+      `SELECT tenant_id FROM api_keys WHERE id = $1 AND tenant_id IS NOT NULL
+       UNION
+       SELECT tenant_id FROM roles WHERE id = $2 AND tenant_id IS NOT NULL
+       ORDER BY tenant_id`,
+      [keyId, roleId],
+    );
+    for (const { tenant_id } of owners.rows) {
+      await loadActiveTenant(client, tenant_id);
+    }
     const res = await client.query<{ id: string }>(
       `UPDATE api_keys SET role_id = $1 WHERE id = $2 AND revoked_at IS NULL RETURNING id`,
       [roleId, keyId],
@@ -194,6 +213,9 @@ export async function assignRole(
   tenantId?: string,
 ): Promise<boolean> {
   return withClient(pool, async (client) => {
+    if (tenantId) {
+      await loadActiveTenant(client, tenantId);
+    }
     const res = await client.query<{ role_id: string }>(
       `INSERT INTO principal_roles (principal_type, principal_id, role_id)
        SELECT $1, $2, $3

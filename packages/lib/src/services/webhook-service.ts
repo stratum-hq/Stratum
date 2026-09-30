@@ -10,6 +10,7 @@ import type {
 } from "@stratum-hq/core";
 import { WebhookNotFoundError } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
+import { loadActiveTenant } from "./tenant-service.js";
 
 /** Columns safe to return in API responses (excludes secret_hash). */
 const WEBHOOK_PUBLIC_COLS = "id, tenant_id, url, events, active, description, created_at, updated_at";
@@ -29,6 +30,9 @@ export async function createWebhook(
   input: CreateWebhookInput,
 ): Promise<Webhook> {
   return withClient(pool, async (client) => {
+    if (input.tenant_id) {
+      await loadActiveTenant(client, input.tenant_id);
+    }
     const encryptedSecret = encryptSecret(input.secret);
     const res = await client.query<Webhook>(
       `INSERT INTO webhooks (tenant_id, url, secret_hash, events, active, description)
@@ -105,12 +109,20 @@ export async function updateWebhook(
   input: UpdateWebhookInput,
 ): Promise<Webhook> {
   return withTransaction(pool, async (client) => {
-    const existing = await client.query<{ id: string }>(
-      `SELECT id FROM webhooks WHERE id = $1`,
+    const existing = await client.query<{ id: string; tenant_id: string | null }>(
+      `SELECT id, tenant_id FROM webhooks WHERE id = $1`,
       [id],
     );
     if (existing.rows.length === 0) {
       throw new WebhookNotFoundError(id);
+    }
+    // Deactivating a webhook only reduces what the tenant has, like deleting
+    // it, so it stays allowed for a tenant that is not active.
+    const onlyDeactivates = Object.entries(input).every(
+      ([field, value]) => value === undefined || (field === "active" && value === false),
+    );
+    if (existing.rows[0].tenant_id && !onlyDeactivates) {
+      await loadActiveTenant(client, existing.rows[0].tenant_id);
     }
 
     const sets: string[] = [];

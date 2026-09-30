@@ -3,6 +3,7 @@ import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
 import { ForbiddenError } from "@stratum-hq/core";
 import { declareTenantScope, fromBodyTenantId, isOperator } from "../middleware/tenant-scope.js";
+import { declareRequiredScope } from "../middleware/authorize.js";
 import { parseWindow } from "../middleware/per-key-rate-limit.js";
 import { config } from "../config.js";
 import { buildAuditContext } from "./audit-logs.js";
@@ -21,6 +22,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
     // the target tenant is in the body; the other routes scope themselves in
     // their handlers.
     declareTenantScope(app, fromBodyTenantId);
+    declareRequiredScope(app, "admin");
 
     // POST /api/v1/api-keys — Create a new API key (plaintext returned once)
     app.post<{ Body: { tenant_id: string; name?: string } }>(

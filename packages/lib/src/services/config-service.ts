@@ -15,6 +15,7 @@ import {
   parseAncestryPath,
 } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
+import { loadActiveTenant } from "./tenant-service.js";
 
 /**
  * Resolve the effective config for a tenant by batch-loading ancestor configs
@@ -106,15 +107,9 @@ export async function setConfig(
   input: SetConfigInput,
 ): Promise<ConfigEntry> {
   return withTransaction(pool, async (client) => {
-    const tenantRes = await client.query<{ ancestry_path: string }>(
-      `SELECT ancestry_path FROM tenants WHERE id = $1`,
-      [tenantId],
-    );
-    if (tenantRes.rows.length === 0) {
-      throw new TenantNotFoundError(tenantId);
-    }
+    const tenant = await loadActiveTenant(client, tenantId);
 
-    const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
+    const ancestorIds = parseAncestryPath(tenant.ancestry_path);
     // Check ancestor locks (ancestry_path excludes self).
     // Only enforce locks from non-archived ancestors — consistent with resolveConfig.
     if (ancestorIds.length > 0) {
@@ -166,15 +161,9 @@ export async function batchSetConfig(
   entries: BatchSetConfigEntry[],
 ): Promise<BatchSetConfigResult> {
   return withTransaction(pool, async (client) => {
-    const tenantRes = await client.query<{ ancestry_path: string }>(
-      `SELECT ancestry_path FROM tenants WHERE id = $1`,
-      [tenantId],
-    );
-    if (tenantRes.rows.length === 0) {
-      throw new TenantNotFoundError(tenantId);
-    }
+    const tenant = await loadActiveTenant(client, tenantId);
 
-    const ancestorIds = parseAncestryPath(tenantRes.rows[0].ancestry_path);
+    const ancestorIds = parseAncestryPath(tenant.ancestry_path);
     const keys = entries.map((e) => e.key);
 
     // Batch-load all ancestor locks in a single query.
