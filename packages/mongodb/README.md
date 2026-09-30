@@ -9,7 +9,9 @@ Three isolation strategies:
 
 ## Mongoose plugin scope
 
-`stratumPlugin` scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a change stream that starts with `$match: { "fullDocument.tenant_id": <tenant> }`. `fullDocument` defaults to `"updateLookup"` so update events carry the document; events without a `fullDocument` (such as deletes) are filtered out. An `Aggregate` cannot be changed after it has run.
+`stratumPlugin` scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a change stream that starts with `$match: { "fullDocument.tenant_id": <tenant> }`. `fullDocument` defaults to `"updateLookup"` so update events carry the document. An `Aggregate` cannot be changed after it has run.
+
+**Limitation:** the scoped `watch()` drops every change event that has no `fullDocument`, including delete, drop, rename and invalidate events, because it cannot tell which tenant they belong to.
 
 `Model.collection`, `Model.db`, `connection.db` and `connection.watch()` are the raw driver objects and are **not** scoped: they see every tenant's data. Use them only for admin work, never with tenant input.
 

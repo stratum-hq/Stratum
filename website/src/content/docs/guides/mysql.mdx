@@ -140,6 +140,8 @@ registerStratumSubscriber(dataSource);
 
 Call `registerStratumSubscriber()` after `dataSource.initialize()`. It throws before that, because `initialize()` replaces the subscriber list. Do not put `StratumTypeOrmSubscriber` in the `subscribers` option: TypeORM only loads classes decorated with `@EventSubscriber()` from that option.
 
+`registerStratumSubscriber()` also scopes updates and deletes to the current tenant: repository `update()`, `delete()`, `softDelete()`, `restore()`, `save()` of an existing row, `remove()`, and query builder updates and deletes get `tenant_id = <current tenant>` ANDed to their WHERE clause. A row of another tenant is left unchanged, and an update or delete of a tenant table outside a tenant context is refused. A subscriber added to `dataSource.subscribers` by hand refuses every UPDATE and DELETE, so always register it with `registerStratumSubscriber()`.
+
 Upserts (`repository.upsert()` and `.orUpdate()`) also get the current tenant's `tenant_id` on insert. If the conflict update writes `tenant_id`, the subscriber rejects the statement before it runs. To upsert, leave `tenant_id` out of the entity values and out of the `orUpdate()` columns:
 
 ```typescript
@@ -153,7 +155,7 @@ await repo.upsert({ id: 1, tenant_id: "other", name: "Renamed" }, ["id"]);
 MySQL applies `ON DUPLICATE KEY UPDATE` on a conflict with any unique key of the table, whatever conflict columns you pass. The subscriber therefore allows an upsert only when every unique key of the target table, including the primary key, contains `tenant_id` (for example `PRIMARY KEY (tenant_id, id)`). It reads the keys from `information_schema` before the statement runs, and rejects the upsert otherwise.
 
 <Aside type="caution">
-  TypeORM subscribers can intercept writes but not reads. The subscriber auto-injects `tenant_id` on insert, but you must use the shared-table adapter's structured methods (or manual WHERE clauses) for tenant-scoped reads.
+  Reads are not scoped: `find()`, `findOne()`, query builder selects, and the row that `save()` loads before it updates see every tenant's rows. Raw SQL (`dataSource.query()`) is not scoped either. Use the shared-table adapter's structured methods (or manual WHERE clauses) for tenant-scoped reads.
 </Aside>
 
 ### Knex Helper

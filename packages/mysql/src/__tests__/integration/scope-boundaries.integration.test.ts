@@ -265,6 +265,145 @@ describe("StratumTypeOrmSubscriber upserts", () => {
   });
 });
 
+interface Note {
+  id: number;
+  tenant_id: string;
+  name: string;
+}
+
+const NoteSchema = new EntitySchema<Note>({
+  name: "P2Note",
+  tableName: "notes",
+  columns: {
+    id: { type: Number, primary: true },
+    tenant_id: { type: String },
+    name: { type: String },
+  },
+});
+
+describe("StratumTypeOrmSubscriber updates and deletes", () => {
+  let dataSource: DataSource;
+
+  function asTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+    return runWithTenantContext({ tenant_id: tenantId } as ResolvedTenantContext, fn);
+  }
+
+  async function notes(): Promise<Note[]> {
+    return rows<Note>(`SELECT * FROM \`${DB}\`.\`notes\` ORDER BY id`);
+  }
+
+  /** Runs a write that may be refused; refusal is an acceptable outcome. */
+  async function attempt(fn: () => Promise<unknown>): Promise<void> {
+    try {
+      await fn();
+    } catch {
+      // refused
+    }
+  }
+
+  const untouched = [
+    { id: 1, tenant_id: "tenant-a", name: "a-note" },
+    { id: 2, tenant_id: "tenant-b", name: "b-note" },
+  ];
+
+  beforeAll(async () => {
+    await pool.query(`DROP TABLE IF EXISTS \`${DB}\`.\`notes\``);
+    await pool.query(
+      `CREATE TABLE \`${DB}\`.\`notes\` (id INT PRIMARY KEY, tenant_id VARCHAR(255) NOT NULL, name VARCHAR(255))`,
+    );
+    dataSource = new DataSource({
+      type: "mysql",
+      url: `${MYSQL_URL}/${DB}`,
+      entities: [NoteSchema],
+      synchronize: false,
+    });
+    await dataSource.initialize();
+    registerStratumSubscriber(dataSource);
+  });
+
+  afterAll(async () => {
+    await dataSource?.destroy();
+  });
+
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM \`${DB}\`.\`notes\``);
+    await pool.query(
+      `INSERT INTO \`${DB}\`.\`notes\` VALUES (1, 'tenant-a', 'a-note'), (2, 'tenant-b', 'b-note')`,
+    );
+  });
+
+  it("a repository update by id cannot change another tenant's row", async () => {
+    await attempt(() =>
+      asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).update({ id: 2 }, { name: "changed" })),
+    );
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("a query builder update with orWhere cannot change another tenant's row", async () => {
+    await attempt(() =>
+      asTenant("tenant-a", () =>
+        dataSource
+          .createQueryBuilder()
+          .update(NoteSchema)
+          .set({ name: "changed" })
+          .where("id = :id", { id: 1 })
+          .orWhere("id = :other", { other: 2 })
+          .execute(),
+      ),
+    );
+    expect((await notes()).find((n) => n.id === 2)).toEqual(untouched[1]);
+  });
+
+  it("a repository delete by id cannot remove another tenant's row", async () => {
+    await attempt(() => asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).delete({ id: 2 })));
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("a query builder delete cannot remove another tenant's row", async () => {
+    await attempt(() =>
+      asTenant("tenant-a", () =>
+        dataSource.createQueryBuilder().delete().from(NoteSchema).where("id IN (:...ids)", { ids: [2] }).execute(),
+      ),
+    );
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("save() by id cannot overwrite another tenant's row", async () => {
+    await attempt(() =>
+      asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).save({ id: 2, name: "changed" })),
+    );
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("remove() cannot delete another tenant's row", async () => {
+    await attempt(() =>
+      asTenant("tenant-a", async () => {
+        const repo = dataSource.getRepository(NoteSchema);
+        const other = await repo.findOneByOrFail({ id: 2 });
+        await repo.remove(other);
+      }),
+    );
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("updates and deletes the current tenant's own rows", async () => {
+    await asTenant("tenant-a", async () => {
+      const repo = dataSource.getRepository(NoteSchema);
+      await repo.update({ id: 1 }, { name: "renamed" });
+      await repo.save({ id: 1, name: "saved" });
+    });
+    expect((await notes())[0]).toEqual({ id: 1, tenant_id: "tenant-a", name: "saved" });
+    await asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).delete({ id: 1 }));
+    expect(await notes()).toEqual([untouched[1]]);
+  });
+
+  it("refuses an update or delete of a tenant table outside a tenant context", async () => {
+    await expect(dataSource.getRepository(NoteSchema).update({ id: 2 }, { name: "changed" })).rejects.toThrow();
+    await expect(dataSource.getRepository(NoteSchema).delete({ id: 2 })).rejects.toThrow();
+    expect(await notes()).toEqual(untouched);
+  });
+});
+
 describe("MysqlTableAdapter table names", () => {
   beforeEach(async () => {
     await pool.query(`DROP DATABASE IF EXISTS \`${TABLE_DB}\``);

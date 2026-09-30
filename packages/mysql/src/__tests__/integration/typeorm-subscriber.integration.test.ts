@@ -3,7 +3,7 @@ import { DataSource, EntitySchema } from "typeorm";
 import { runWithTenantContext } from "@stratum-hq/sdk";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { getTestPool, cleanupTestPool } from "./setup.js";
-import { StratumTypeOrmSubscriber } from "../../integrations/typeorm-subscriber.js";
+import { registerStratumSubscriber } from "../../integrations/typeorm-subscriber.js";
 import type { Pool } from "mysql2/promise";
 
 const MYSQL_URL = process.env.MYSQL_URL || "mysql://root@localhost:3306";
@@ -59,8 +59,8 @@ beforeAll(async () => {
   });
   await dataSource.initialize();
   // TypeORM's `subscribers` option only loads @EventSubscriber()-decorated
-  // classes, so an undecorated subscriber is registered as an instance.
-  dataSource.subscribers.push(new StratumTypeOrmSubscriber());
+  // classes, so the subscriber is registered on the initialized data source.
+  registerStratumSubscriber(dataSource);
 });
 
 afterAll(async () => {

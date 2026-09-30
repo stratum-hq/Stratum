@@ -20,6 +20,8 @@ export interface BeforeQueryEvent {
   query: string;
   /** The query runner that is about to send the query. */
   queryRunner?: { query(sql: string, parameters?: unknown[]): Promise<unknown> };
+  /** The data source that is about to send the query. */
+  dataSource?: object;
 }
 
 export interface EntitySubscriberInterface {
@@ -32,6 +34,24 @@ export interface EntitySubscriberInterface {
 export interface TypeOrmDataSourceLike {
   readonly isInitialized: boolean;
   readonly subscribers: unknown[];
+  /** Used once to reach TypeORM's update, delete and soft-delete query builder classes. */
+  createQueryBuilder(): { update(): object; delete(): object; softDelete(): object };
+}
+
+/** The part of a TypeORM update / delete / soft-delete query builder that tenant scoping uses. */
+interface WriteQueryBuilderLike {
+  connection: { subscribers: unknown[] };
+  expressionMap: {
+    mainAlias?: {
+      name: string;
+      hasMetadata: boolean;
+      metadata: { columns: { databaseName: string }[] };
+    };
+    aliasNamePrefixingEnabled: boolean;
+    extraAppendedAndWhereCondition: string;
+  };
+  escape(name: string): string;
+  setParameter(key: string, value: unknown): unknown;
 }
 
 // TypeORM writes an upsert on MySQL as INSERT ... ON DUPLICATE KEY UPDATE and
@@ -40,6 +60,12 @@ const UPSERT_CLAUSE = /\bON\s+DUPLICATE\s+KEY\s+UPDATE\b/i;
 const TENANT_ASSIGNMENT = /`tenant_id`\s*=/i;
 // The target of an INSERT, as TypeORM writes it: `table` or `schema`.`table`.
 const INSERT_TARGET = /^\s*INSERT\s+(?:IGNORE\s+)?INTO\s+(?:`((?:[^`]|``)+)`\.)?`((?:[^`]|``)+)`/i;
+
+const UPDATE_OR_DELETE = /^\s*(?:UPDATE|DELETE)\b/i;
+const TENANT_PARAMETER = "stratumTenantId";
+const SCOPED_EXECUTE = Symbol("stratum.tenantScopedExecute");
+/** Data sources whose update and delete query builders are tenant-scoped. */
+const scopedDataSources = new WeakSet<object>();
 
 const UNIQUE_KEYS_SQL =
   "SELECT INDEX_NAME AS index_name, COLUMN_NAME AS column_name " +
@@ -53,10 +79,14 @@ const UNIQUE_KEYS_SQL =
  * Register it with `registerStratumSubscriber(dataSource)` after
  * `dataSource.initialize()`. TypeORM's `subscribers` option only loads classes
  * decorated with `@EventSubscriber()`, so it does not load this class.
+ * Registration also scopes TypeORM's update, delete and soft-delete query
+ * builders (repository update(), delete(), save() of an existing row, remove(),
+ * softDelete(), restore()) to the current tenant: `tenant_id = <tenant>` is
+ * ANDed to their WHERE clause, and they are refused outside a tenant context.
  *
- * Known limitation: TypeORM subscribers cannot intercept query filtering.
- * This subscriber handles writes only. Use the shared-table adapter's
- * structured methods for tenant-scoped reads.
+ * Not scoped: reads (find, findOne, query builder selects) and raw SQL
+ * (`dataSource.query()`). Add the tenant condition to those yourself, or use
+ * the shared-table adapter's structured methods.
  */
 export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   /** Injects the current tenant's ID into the entity before insert. */
@@ -114,6 +144,16 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
    *   include tenant_id, or when the table cannot be determined.
    */
   beforeQuery(event: BeforeQueryEvent): void | Promise<void> {
+    if (
+      event.dataSource &&
+      !scopedDataSources.has(event.dataSource) &&
+      UPDATE_OR_DELETE.test(event.query)
+    ) {
+      throw new Error(
+        "Stratum: register the subscriber with registerStratumSubscriber(dataSource), " +
+          "which scopes updates and deletes to the current tenant.",
+      );
+    }
     const clause = event.query.split(UPSERT_CLAUSE)[1];
     if (clause === undefined) return;
     if (TENANT_ASSIGNMENT.test(clause)) {
@@ -124,6 +164,61 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
     }
     return assertUniqueKeysIncludeTenant(event);
   }
+}
+
+/**
+ * ANDs `tenant_id = <current tenant>` to the WHERE clause of an update, delete
+ * or soft-delete builder whose data source has the subscriber. Entities without
+ * a tenant_id column are left alone; a target without metadata (a table name)
+ * is treated as a tenant table.
+ */
+function addTenantCondition(builder: WriteQueryBuilderLike): void {
+  if (!builder.connection.subscribers.some((s) => s instanceof StratumTypeOrmSubscriber)) return;
+
+  const alias = builder.expressionMap.mainAlias;
+  let column = "tenant_id";
+  if (alias?.hasMetadata) {
+    const tenantColumn = alias.metadata.columns.find(
+      (c) => c.databaseName.toLowerCase() === "tenant_id",
+    );
+    if (!tenantColumn) return;
+    column = tenantColumn.databaseName;
+  }
+
+  const context = getTenantContext();
+  assertTenantId(context.tenant_id);
+  const qualified =
+    builder.expressionMap.aliasNamePrefixingEnabled && alias
+      ? `${builder.escape(alias.name)}.${builder.escape(column)}`
+      : builder.escape(column);
+  const condition = `${qualified} = :${TENANT_PARAMETER}`;
+  const existing = builder.expressionMap.extraAppendedAndWhereCondition;
+  // TypeORM ANDs this condition, in its own parentheses, to the caller's
+  // WHERE clause, so an orWhere() cannot widen the statement past the tenant.
+  builder.expressionMap.extraAppendedAndWhereCondition = existing
+    ? `(${existing}) AND ${condition}`
+    : condition;
+  builder.setParameter(TENANT_PARAMETER, context.tenant_id);
+}
+
+/** Wraps execute() of TypeORM's update, delete and soft-delete query builder classes, once. */
+function scopeWriteBuilders(dataSource: TypeOrmDataSourceLike): void {
+  const builders = [
+    dataSource.createQueryBuilder().update(),
+    dataSource.createQueryBuilder().delete(),
+    dataSource.createQueryBuilder().softDelete(),
+  ];
+  for (const builder of builders) {
+    const proto = Object.getPrototypeOf(builder) as Record<PropertyKey, unknown>;
+    if (proto[SCOPED_EXECUTE]) continue;
+    const original = proto.execute as (this: WriteQueryBuilderLike) => Promise<unknown>;
+    proto.execute = function (this: WriteQueryBuilderLike): Promise<unknown> {
+      addTenantCondition(this);
+      return original.call(this);
+    };
+    proto[SCOPED_EXECUTE] = true;
+  }
+  scopedDataSources.add(dataSource);
 }
 
 async function assertUniqueKeysIncludeTenant(event: BeforeQueryEvent): Promise<void> {
@@ -162,6 +257,10 @@ async function assertUniqueKeysIncludeTenant(event: BeforeQueryEvent): Promise<v
  * A second call returns the subscriber that the first call added, so the
  * data source never runs the subscriber twice.
  *
+ * It also scopes TypeORM's update, delete and soft-delete query builders to the
+ * current tenant (see StratumTypeOrmSubscriber). The subscriber refuses an
+ * UPDATE or DELETE on a data source that was not registered this way.
+ *
  * @param dataSource - An initialized TypeORM `DataSource`.
  * @throws Error when the data source is not initialized. `initialize()` replaces
  *   the subscriber list, so an earlier registration has no effect.
@@ -175,6 +274,7 @@ export function registerStratumSubscriber(
         "initialize() replaces the subscriber list.",
     );
   }
+  scopeWriteBuilders(dataSource);
   const existing = dataSource.subscribers.find(
     (subscriber): subscriber is StratumTypeOrmSubscriber =>
       subscriber instanceof StratumTypeOrmSubscriber,

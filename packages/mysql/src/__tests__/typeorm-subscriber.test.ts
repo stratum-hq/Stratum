@@ -94,15 +94,38 @@ describe("StratumTypeOrmSubscriber.beforeQuery", () => {
     await expect(subscriber.beforeQuery({ query })).rejects.toThrow(/cannot be checked/);
   });
 
+  it("refuses an UPDATE or DELETE on a data source that was not registered", () => {
+    const dataSource = {};
+    expect(() => subscriber.beforeQuery({ query: "UPDATE `items` SET `name` = ?", dataSource })).toThrow(
+      /registerStratumSubscriber/,
+    );
+    expect(() => subscriber.beforeQuery({ query: "DELETE FROM `items` WHERE `id` = ?", dataSource })).toThrow(
+      /registerStratumSubscriber/,
+    );
+  });
+
   it("allows a plain insert that writes tenant_id", () => {
     const query = "INSERT INTO `items`(`id`, `tenant_id`) VALUES (?, ?)";
     expect(() => subscriber.beforeQuery({ query })).not.toThrow();
   });
 });
 
+function fakeQueryBuilder() {
+  class Update {
+    async execute() {}
+  }
+  class Delete {
+    async execute() {}
+  }
+  class SoftDelete {
+    async execute() {}
+  }
+  return () => ({ update: () => new Update(), delete: () => new Delete(), softDelete: () => new SoftDelete() });
+}
+
 describe("registerStratumSubscriber", () => {
   it("adds one subscriber and returns it on later calls", () => {
-    const dataSource = { isInitialized: true, subscribers: [{}] as unknown[] };
+    const dataSource = { isInitialized: true, subscribers: [{}] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     const first = registerStratumSubscriber(dataSource);
     const second = registerStratumSubscriber(dataSource);
     expect(first).toBeInstanceOf(StratumTypeOrmSubscriber);
@@ -112,13 +135,13 @@ describe("registerStratumSubscriber", () => {
 
   it("returns a subscriber that was pushed by hand", () => {
     const manual = new StratumTypeOrmSubscriber();
-    const dataSource = { isInitialized: true, subscribers: [manual] as unknown[] };
+    const dataSource = { isInitialized: true, subscribers: [manual] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     expect(registerStratumSubscriber(dataSource)).toBe(manual);
     expect(dataSource.subscribers).toHaveLength(1);
   });
 
   it("rejects a data source that is not initialized", () => {
-    const dataSource = { isInitialized: false, subscribers: [] as unknown[] };
+    const dataSource = { isInitialized: false, subscribers: [] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     expect(() => registerStratumSubscriber(dataSource)).toThrow(/after dataSource.initialize/);
     expect(dataSource.subscribers).toHaveLength(0);
   });
