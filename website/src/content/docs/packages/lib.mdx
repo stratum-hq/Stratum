@@ -237,6 +237,9 @@ stratum.deleteRegion(id, audit?): Promise<void>
 stratum.migrateRegion(tenantId, newRegionId, audit?): Promise<void>
 ```
 
+- `deleteRegion(id)` -- throws `RegionInUseError` (code `REGION_IN_USE`, HTTP 409) when active tenants are still assigned to the region.
+- `migrateRegion(tenantId, newRegionId)` -- throws `RegionNotActiveError` (code `REGION_NOT_ACTIVE`, HTTP 409) when the status of the target region is not `active`.
+
 ### Roles (RBAC)
 
 ```typescript
