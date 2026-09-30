@@ -168,17 +168,16 @@ export class PrismaStandIn {
 
   $extends(extension: { query: { $allOperations: AllOperationsHook } }) {
     const hook = extension.query.$allOperations;
-    const base = this;
     const dispatch = (operation: Operation) => (args: unknown) =>
-      hook({ model: "Widget", operation, args, query: (a) => base.op(operation, a) });
+      hook({ model: "Widget", operation, args, query: (a) => this.op(operation, a) });
     return {
       widget: { findMany: dispatch("findMany"), create: dispatch("create") },
-      $transaction: (arg: unknown) => base.$transaction(arg),
-      $executeRaw: (s: TemplateStringsArray, ...v: unknown[]) => base.$executeRaw(s, ...v),
-      $executeRawUnsafe: (t: string, ...v: unknown[]) => base.$executeRawUnsafe(t, ...v),
-      $extends: (e: { query: { $allOperations: AllOperationsHook } }) => base.$extends(e),
+      $transaction: (arg: unknown) => this.$transaction(arg),
+      $executeRaw: (s: TemplateStringsArray, ...v: unknown[]) => this.$executeRaw(s, ...v),
+      $executeRawUnsafe: (t: string, ...v: unknown[]) => this.$executeRawUnsafe(t, ...v),
+      $extends: (e: { query: { $allOperations: AllOperationsHook } }) => this.$extends(e),
       $connect: async () => {},
-      $disconnect: () => base.$disconnect(),
+      $disconnect: () => this.$disconnect(),
     };
   }
 
