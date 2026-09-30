@@ -207,21 +207,41 @@ mistake it for their own regression.
 These are not style preferences. Violating any of them causes real, externally visible
 damage.
 
-### Never push a git tag
+### Releases follow one procedure, and only that one
 
-`.github/workflows/publish.yml` triggers on `push: tags: ["v*"]`. It builds, tests, and
-then **publishes every non-private package in `packages/*` to npm** using OIDC trusted
-publishing. There is no token to be missing and no manual approval step. A tag pushed by
-accident ships a real public release of 15 packages to the registry, and npm releases
-cannot be unpublished cleanly.
+`.github/workflows/publish.yml` triggers on `push: tags: ["v*"]` and **publishes every
+non-private package in `packages/*` to npm** using OIDC trusted publishing. npm releases
+cannot be unpublished cleanly, so a release is only ever cut this way.
 
-Do not run `git tag`. Do not run `git push --tags`. Do not run `git push --follow-tags`.
-Do not create a release through the GitHub UI or `gh release create`, which creates a tag.
-If a release is genuinely needed, that is a human decision made outside your task.
+The maintainer has authorized agents to cut releases (2026-09-30), following exactly
+these steps:
+
+1. **Version on a branch.** On a branch off up-to-date `main`, run `npx changeset version`,
+   check the resulting version bumps and CHANGELOG entries, and open a
+   `chore: version packages` pull request. Squash-merge it only once it is green.
+2. **Gate on the merged commit.** On the merged `main` commit, run `npm run verify`,
+   `npm run lint:secrets`, `npm run lint:deps`, and the integration suites, and read the
+   output. Do not tag a commit you have not verified.
+3. **Tag it deliberately.** Create an **annotated** tag on that exact `main` commit, named
+   after the `@stratum-hq/lib` version (`vMAJOR.MINOR.PATCH`), with a message that names the
+   packages and the headline changes:
+   `git tag -a vX.Y.Z <sha> -m "Release vX.Y.Z (<packages>): <summary>"`.
+4. **Push that one tag.** `STRATUM_RELEASE_TAG=vX.Y.Z git push origin refs/tags/vX.Y.Z`.
+   The pre-push guard blocks every other tag push.
+5. **Let the gates run.** `scripts/release-guard.sh` refuses tags that are lightweight,
+   misnamed, or not on `main`. The `publish` job then waits for approval from a required
+   reviewer on the `publish` environment. Watch the run to completion and confirm on npm
+   that every intended package version is live.
+6. **Security releases.** Publish the related GitHub security advisories, with their patched
+   versions filled in, only after npm serves the patched versions.
+
+Still never: `git push --tags`, `git push --follow-tags`, lightweight tags, tags on commits
+that are not on `main`, moving or deleting a tag that has been pushed, or
+`gh release create` / the GitHub UI to create a tag.
 
 ### Never publish manually
 
-No `npm publish`. No `npm run release`. No `changeset publish`. Releasing is the tag
+No `npm publish`. No `npm run release`. No `changeset publish`. Publishing is the tag
 workflow's job and nobody else's. Adding a changeset file under `.changeset/` is fine and
 expected; running the publish step is not.
 
