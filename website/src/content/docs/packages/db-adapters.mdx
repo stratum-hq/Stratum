@@ -84,7 +84,7 @@ try {
 }
 ```
 
-If the table already has a policy named `tenant_isolation`, `createPolicy` keeps it only when it is a permissive policy for all commands whose `USING` (and `WITH CHECK`, if set) compares `tenant_id` with `current_setting('app.current_tenant_id')`. Otherwise `createPolicy` throws an error that shows the existing expression, and does not change the policy. Drop or correct that policy, then call `createPolicy` again.
+If the table already has a policy named `tenant_isolation`, `createPolicy` keeps it only when it is a permissive policy for all commands whose `USING` (and `WITH CHECK`, if set) compares `tenant_id` with the current tenant setting `app.current_tenant_id`. Otherwise `createPolicy` throws an error that shows the existing expression, and does not change the policy. Drop or correct that policy, then call `createPolicy` again.
 
 ### Disable RLS
 

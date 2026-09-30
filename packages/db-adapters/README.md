@@ -56,7 +56,7 @@ try {
 }
 ```
 
-`createPolicy` adds the `tenant_isolation` policy if the table does not have one. If a policy with that name exists but does not compare `tenant_id` with `current_setting('app.current_tenant_id')` for reads and writes, `createPolicy` throws instead of keeping it.
+`createPolicy` adds the `tenant_isolation` policy if the table does not have one. If a policy with that name exists but does not compare `tenant_id` with the current tenant setting `app.current_tenant_id` for reads and writes, `createPolicy` throws instead of keeping it.
 
 Also available: `disableRLS`, `dropPolicy`, `isRLSEnabled`, `addTenantColumn`, `createIsolationPolicy`, and low-level session helpers `setTenantContext` / `resetTenantContext` / `getCurrentTenantId`. Schema-per-tenant and database-per-tenant variants (`SchemaRawAdapter`, `DatabasePoolManager`, …) are exported too.
 
