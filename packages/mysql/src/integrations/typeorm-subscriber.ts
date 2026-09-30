@@ -34,7 +34,10 @@ export interface EntitySubscriberInterface {
 export interface TypeOrmDataSourceLike {
   readonly isInitialized: boolean;
   readonly subscribers: unknown[];
-  /** Used once to reach TypeORM's update, delete and soft-delete query builder classes. */
+  /**
+   * Used once to reach TypeORM's select, update, delete and soft-delete query
+   * builder classes. The returned builder is itself the select query builder.
+   */
   createQueryBuilder(): { update(): object; delete(): object; softDelete(): object };
 }
 
@@ -48,6 +51,27 @@ interface WriteQueryBuilderLike {
       metadata: { columns: { databaseName: string }[] };
     };
     aliasNamePrefixingEnabled: boolean;
+    extraAppendedAndWhereCondition: string;
+  };
+  escape(name: string): string;
+  setParameter(key: string, value: unknown): unknown;
+}
+
+/** The part of a TypeORM alias (a FROM or JOIN target) that read scoping uses. */
+interface AliasLike {
+  name: string;
+  hasMetadata: boolean;
+  metadata: { columns: { databaseName: string }[] };
+  /** Set when the alias is a derived table rather than an entity's table. */
+  subQuery?: string;
+}
+
+/** The part of a TypeORM select query builder that read scoping uses. */
+interface SelectQueryBuilderLike {
+  connection: { subscribers: unknown[] };
+  expressionMap: {
+    mainAlias?: AliasLike;
+    joinAttributes: { alias?: AliasLike; condition?: string }[];
     extraAppendedAndWhereCondition: string;
   };
   escape(name: string): string;
@@ -69,6 +93,7 @@ const TENANT_COLUMN_SQL =
   "WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ? AND LOWER(COLUMN_NAME) = 'tenant_id'";
 const TENANT_PARAMETER = "stratumTenantId";
 const SCOPED_EXECUTE = Symbol("stratum.tenantScopedExecute");
+const SCOPED_GET_QUERY = Symbol("stratum.tenantScopedGetQuery");
 /** Data sources whose update and delete query builders are tenant-scoped. */
 const scopedDataSources = new WeakSet<object>();
 
@@ -89,9 +114,21 @@ const UNIQUE_KEYS_SQL =
  * softDelete(), restore()) to the current tenant: `tenant_id = <tenant>` is
  * ANDed to their WHERE clause, and they are refused outside a tenant context.
  *
- * Not scoped: reads (find, findOne, query builder selects) and raw SQL
- * (`dataSource.query()`). Add the tenant condition to those yourself, or use
- * the shared-table adapter's structured methods.
+ * Registration scopes reads the same way. Every SQL statement that TypeORM's
+ * select query builder produces (repository find*, findOne*, count*, exists*,
+ * sum/average/min/max, preload(), query builder getMany/getOne/getRawMany/
+ * getRawOne/getCount/getManyAndCount/getExists/stream, relation loading, the
+ * row that save() loads, and the count and pagination queries TypeORM builds
+ * internally) ANDs `tenant_id = <tenant>` for the FROM entity to its WHERE
+ * clause and adds it to the ON condition of each joined entity, so a LEFT JOIN
+ * still returns the parent row. Reads of an entity with a tenant_id column are
+ * refused outside a tenant context.
+ *
+ * Not scoped: raw SQL (`dataSource.query()`, `queryRunner.query()`), SQL taken
+ * from a builder's getQuery() / getQueryAndParameters() and run by hand, reads
+ * from a table that has no entity on the data source, and many-to-many junction
+ * tables. Add the tenant condition to those yourself, or use the shared-table
+ * adapter's structured methods.
  */
 export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   /** Injects the current tenant's ID into the entity before insert. */
@@ -251,6 +288,92 @@ function scopeWriteBuilders(dataSource: TypeOrmDataSourceLike): void {
   scopedDataSources.add(dataSource);
 }
 
+/** Returns the tenant_id column of an entity alias, or undefined when it has none. */
+function tenantColumnOf(alias: AliasLike | undefined): string | undefined {
+  if (!alias || alias.subQuery || !alias.hasMetadata) return undefined;
+  return alias.metadata.columns.find((c) => c.databaseName.toLowerCase() === "tenant_id")?.databaseName;
+}
+
+/**
+ * Builds the SQL of a select query builder whose data source has the
+ * subscriber, with `tenant_id = <current tenant>` ANDed to the WHERE clause for
+ * the FROM entity and to the ON condition of each joined entity that has a
+ * tenant_id column. The conditions are added only while the SQL is built and
+ * removed afterwards, so a builder that is built again, cloned, or used as a
+ * subquery never carries the condition twice.
+ */
+function buildScopedSelect(builder: SelectQueryBuilderLike, build: () => string): string {
+  if (!builder.connection.subscribers.some((s) => s instanceof StratumTypeOrmSubscriber)) return build();
+
+  const map = builder.expressionMap;
+  const condition = (alias: AliasLike, column: string) =>
+    `${builder.escape(alias.name)}.${builder.escape(column)} = :${TENANT_PARAMETER}`;
+
+  const mainColumn = tenantColumnOf(map.mainAlias);
+  const joins = map.joinAttributes
+    .map((join) => ({ join, column: tenantColumnOf(join.alias) }))
+    .filter((entry): entry is { join: (typeof map.joinAttributes)[number]; column: string } =>
+      entry.column !== undefined,
+    );
+  const setTenantParameter = () => {
+    const context = getTenantContext();
+    assertTenantId(context.tenant_id);
+    builder.setParameter(TENANT_PARAMETER, context.tenant_id);
+  };
+  if (mainColumn === undefined && joins.length === 0) {
+    const sql = build();
+    // SQL built by another scoped builder can be embedded here, for example
+    // TypeORM's pagination query, which selects from a clone of the builder.
+    if (sql.includes(`:${TENANT_PARAMETER}`)) setTenantParameter();
+    return sql;
+  }
+
+  setTenantParameter();
+
+  const extra = map.extraAppendedAndWhereCondition;
+  const joinConditions = joins.map(({ join }) => join.condition);
+  try {
+    if (mainColumn !== undefined) {
+      const main = condition(map.mainAlias as AliasLike, mainColumn);
+      // TypeORM ANDs this condition, in its own parentheses, to the caller's
+      // WHERE clause, so an orWhere() cannot widen the read past the tenant.
+      map.extraAppendedAndWhereCondition = extra ? `(${extra}) AND ${main}` : main;
+    }
+    for (const { join, column } of joins) {
+      // In the ON condition rather than the WHERE clause, so a LEFT JOIN keeps
+      // the parent row and only drops the other tenant's joined row.
+      const own = condition(join.alias as AliasLike, column);
+      join.condition = join.condition ? `(${join.condition}) AND ${own}` : own;
+    }
+    return build();
+  } finally {
+    map.extraAppendedAndWhereCondition = extra;
+    joins.forEach(({ join }, i) => {
+      join.condition = joinConditions[i];
+    });
+  }
+}
+
+/**
+ * Wraps getQuery() of TypeORM's select query builder class, once. Every read
+ * the builder runs (loadRawResults, stream, the count, exists and pagination
+ * queries, and subqueries) builds its SQL through getQuery().
+ */
+function scopeSelectBuilder(dataSource: TypeOrmDataSourceLike): void {
+  const proto = Object.getPrototypeOf(dataSource.createQueryBuilder()) as Record<PropertyKey, unknown>;
+  if (proto[SCOPED_GET_QUERY]) return;
+  if (!Object.prototype.hasOwnProperty.call(proto, "getQuery") || typeof proto.getQuery !== "function") {
+    throw new Error(
+      "Stratum: this TypeORM version's select query builder is not supported, so reads cannot be tenant-scoped.",
+    );
+  }
+  const original = proto.getQuery as (this: SelectQueryBuilderLike) => string;
+  proto.getQuery = function (this: SelectQueryBuilderLike): string {
+    return buildScopedSelect(this, () => original.call(this));
+  };
+  proto[SCOPED_GET_QUERY] = true;
+}
+
 /**
  * Refuses a TRUNCATE (Repository.clear(), QueryRunner.clearTable()) of a table
  * with a tenant_id column, because it would empty the table for every tenant.
@@ -311,8 +434,8 @@ async function assertUniqueKeysIncludeTenant(event: BeforeQueryEvent): Promise<v
  * A second call returns the subscriber that the first call added, so the
  * data source never runs the subscriber twice.
  *
- * It also scopes TypeORM's update, delete and soft-delete query builders to the
- * current tenant (see StratumTypeOrmSubscriber). The subscriber refuses an
+ * It also scopes TypeORM's select, update, delete and soft-delete query
+ * builders to the current tenant (see StratumTypeOrmSubscriber). The subscriber refuses an
  * UPDATE or DELETE on a data source that was not registered this way.
  *
  * @param dataSource - An initialized TypeORM `DataSource`.
@@ -328,6 +451,7 @@ export function registerStratumSubscriber(
         "initialize() replaces the subscriber list.",
     );
   }
+  scopeSelectBuilder(dataSource);
   scopeWriteBuilders(dataSource);
   const existing = dataSource.subscribers.find(
     (subscriber): subscriber is StratumTypeOrmSubscriber =>
