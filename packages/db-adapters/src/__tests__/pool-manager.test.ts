@@ -6,16 +6,18 @@ import { DatabasePoolManager } from "../database/pool-manager.js";
 // ---------------------------------------------------------------------------
 
 const mockPoolEnd = vi.fn().mockResolvedValue(undefined);
+const createdDatabases: string[] = [];
 
 vi.mock("pg", () => {
   class Pool {
     public database: string;
     public totalCount = 0;
     public idleCount = 0;
-    end = mockPoolEnd;
+    end = () => mockPoolEnd(this.database);
 
     constructor(config: { database: string }) {
       this.database = config.database;
+      createdDatabases.push(config.database);
     }
   }
   return { default: { Pool } };
@@ -45,6 +47,7 @@ function makeManager(maxPools = 3) {
 describe("DatabasePoolManager", () => {
   beforeEach(() => {
     mockPoolEnd.mockClear();
+    createdDatabases.length = 0;
   });
 
   describe("slug validation", () => {
@@ -120,9 +123,11 @@ describe("DatabasePoolManager", () => {
       const mgr = makeManager(2);
 
       await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
       // Small delay to ensure different timestamps
       await new Promise((r) => setTimeout(r, 2));
       await mgr.getPool("tenant_b");
+      mgr.releasePool("tenant_b");
 
       // tenant_a is now the LRU entry; adding tenant_c should evict it.
       await new Promise((r) => setTimeout(r, 2));
@@ -137,20 +142,92 @@ describe("DatabasePoolManager", () => {
       const mgr = makeManager(2);
 
       await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
       await new Promise((r) => setTimeout(r, 2));
       await mgr.getPool("tenant_b");
+      mgr.releasePool("tenant_b");
       await new Promise((r) => setTimeout(r, 2));
 
       // Re-access tenant_a to make it the most recently used.
       await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
       await new Promise((r) => setTimeout(r, 2));
 
       // Now tenant_b is the LRU; adding tenant_c should evict tenant_b.
       await mgr.getPool("tenant_c");
 
       expect(mockPoolEnd).toHaveBeenCalledTimes(1);
+      expect(mockPoolEnd).toHaveBeenCalledWith("stratum_tenant_tenant_b");
       // tenant_a and tenant_c should remain.
       expect(mgr.getStats().poolCount).toBe(2);
+    });
+  });
+
+  describe("concurrent first requests", () => {
+    it("creates one pool when two first requests for a tenant run at the same time", async () => {
+      const mgr = makeManager(1);
+      // A full manager makes getPool wait for an eviction before it creates the pool.
+      await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
+
+      const [first, second] = await Promise.all([
+        mgr.getPool("tenant_b"),
+        mgr.getPool("tenant_b"),
+      ]);
+
+      expect(first).toBe(second);
+      expect(createdDatabases.filter((db) => db === "stratum_tenant_tenant_b")).toHaveLength(1);
+      expect(mgr.getStats().poolCount).toBe(1);
+    });
+
+    it("counts each concurrent first request as a holder of the pool", async () => {
+      const mgr = makeManager(1);
+      await Promise.all([mgr.getPool("tenant_a"), mgr.getPool("tenant_a")]);
+      mgr.releasePool("tenant_a");
+
+      await mgr.getPool("tenant_b");
+
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("eviction of pools in use", () => {
+    it("never ends a pool that a caller has not released", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("tenant_a");
+
+      await mgr.getPool("tenant_b");
+
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+      expect(mgr.getStats().poolCount).toBe(2);
+    });
+
+    it("ends a pool after its last holder releases it", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("tenant_a");
+      await mgr.getPool("tenant_a");
+      mgr.releasePool("tenant_a");
+      await mgr.getPool("tenant_b");
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+
+      mgr.releasePool("tenant_a");
+      mgr.releasePool("tenant_b");
+      await mgr.getPool("tenant_c");
+
+      expect(mockPoolEnd).toHaveBeenCalledWith("stratum_tenant_tenant_a");
+    });
+
+    it("keeps pools for the same slug in different regions apart", async () => {
+      const mgr = makeManager(1);
+      await mgr.getPool("acme", "eu");
+      mgr.releasePool("acme");
+
+      await mgr.getPool("acme", "us");
+
+      expect(mockPoolEnd).not.toHaveBeenCalled();
+      mgr.releasePool("acme", "eu");
+      await mgr.getPool("globex");
+      expect(mockPoolEnd).toHaveBeenCalledTimes(1);
     });
   });
 

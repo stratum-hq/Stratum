@@ -58,6 +58,20 @@ describe("MongoDatabaseAdapter", () => {
     });
   });
 
+  describe("releaseDatabase", () => {
+    it("lets the pool manager evict a client after its database is released", async () => {
+      for (const slug of ["aaa", "bbb", "ccc"]) {
+        await adapter.getDatabase(slug);
+      }
+      adapter.releaseDatabase("aaa");
+
+      await adapter.getDatabase("ddd");
+
+      expect(createdClients[0].close).toHaveBeenCalled();
+      expect(createdClients[1].close).not.toHaveBeenCalled();
+    });
+  });
+
   describe("purgeTenantData", () => {
     it("drops the tenant database and removes from pool", async () => {
       await adapter.getDatabase("acme");
