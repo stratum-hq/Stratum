@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
 import ts from "typescript";
+import { scaffoldProject } from "./helpers/create-cli.js";
 
 /**
  * Generates a postgres-rls-knex project with the built `@stratum-hq/create`,
@@ -16,7 +16,6 @@ import ts from "typescript";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
-const CREATE = path.join(REPO_ROOT, "packages/create/dist/index.js");
 
 const BASE_URL =
   process.env.DATABASE_URL ||
@@ -53,14 +52,7 @@ function compileInPlace(file: string): void {
 
 beforeAll(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-create-knex-"));
-  const res = spawnSync(
-    process.execPath,
-    [CREATE, PROJECT, "--preset", "postgres-rls-knex-express", "--skip-install"],
-    { cwd: tmp, encoding: "utf8" },
-  );
-  expect(res.status, res.stderr).toBe(0);
-
-  const project = path.join(tmp, PROJECT);
+  const project = scaffoldProject(tmp, PROJECT, "postgres-rls-knex-express");
   // The generated project resolves knex and pg from the workspace install.
   fs.symlinkSync(path.join(REPO_ROOT, "node_modules"), path.join(project, "node_modules"), "dir");
   compileInPlace(path.join(project, "knexfile.ts"));
