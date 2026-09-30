@@ -125,10 +125,13 @@ export class Stratum {
 
   private async _doInitialize(): Promise<void> {
     if (this.autoMigrate) {
-      if (process.env.NODE_ENV === "production" && !this.enforceRls) {
+      // Only local development and test runs may skip RLS enforcement; an
+      // unset NODE_ENV counts as development.
+      const nodeEnv = process.env.NODE_ENV || "development";
+      if (nodeEnv !== "development" && nodeEnv !== "test" && !this.enforceRls) {
         this.logger.warn(
-          "autoMigrate is enabled in production without enforceRls. " +
-          "Set enforceRls: true for production deployments.",
+          `autoMigrate is enabled without enforceRls (NODE_ENV=${nodeEnv}). ` +
+          "Set enforceRls: true for every deployment other than development and test.",
         );
       }
       this.logger.info("running auto-migration");
