@@ -291,6 +291,8 @@ All errors follow this format:
 
 `error.details` is optional. When it is present, it holds more data about the error. For example, a `REGION_NOT_ACTIVE` error has the `region_id`.
 
+An error below 500 that has no Stratum code gets a code from its status: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `CONFLICT` (409), `PAYLOAD_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), or `RATE_LIMITED` (429). Any other status below 500 gets `BAD_REQUEST`. For example, a request body that is not valid JSON gets `400 BAD_REQUEST`. Only a failed field check gets `VALIDATION_ERROR`.
+
 A `VALIDATION_ERROR` about the request fields lists each failed field in `error.details.issues`:
 
 ```json
