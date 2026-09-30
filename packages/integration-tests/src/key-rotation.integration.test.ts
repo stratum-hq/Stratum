@@ -10,41 +10,25 @@ import {
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
-function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
-  const salt = Buffer.alloc(32, 0);
-  return Buffer.from(
-    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), salt, info, 32),
-  );
-}
+// Decrypts the way lib's crypto.ts does: HKDF-SHA256 with info "stratum-aes-key"
+// and the configured salt. The salt is STRATUM_HKDF_SALT (hex) when set, else the
+// non-production default (NON_PRODUCTION_DEFAULT_SALT in crypto.ts). Because this
+// derivation is independent of lib, a change or fault in lib's derivation fails
+// the tests that use it.
+const LIB_SALT = process.env.STRATUM_HKDF_SALT
+  ? Buffer.from(process.env.STRATUM_HKDF_SALT, "hex")
+  : Buffer.from("stratum-non-production-hkdf-salt-v1", "utf8");
 
-function encryptWithKey(plaintext: string, keyMaterial: string): string {
-  const key = hkdfDeriveKey(keyMaterial);
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv, {
+function decryptAsLib(blob: string, keyMaterial: string): string {
+  const key = Buffer.from(
+    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), LIB_SALT, "stratum-aes-key", 32),
+  );
+  const [, ivHex, authTagHex, ciphertextHex] = blob.split(":");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"), {
     authTagLength: 16,
   });
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, "utf8"),
-    cipher.final(),
-  ]);
-  const authTag = cipher.getAuthTag();
-  return `v1:${iv.toString("hex")}:${authTag.toString("hex")}:${encrypted.toString("hex")}`;
-}
-
-function decryptWithKey(blob: string, keyMaterial: string): string {
-  const key = hkdfDeriveKey(keyMaterial);
-  const [, ivHex, authTagHex, ciphertextHex] = blob.split(":");
-  const decipher = crypto.createDecipheriv(
-    "aes-256-gcm",
-    key,
-    Buffer.from(ivHex, "hex"),
-    { authTagLength: 16 },
-  );
   decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
-  return (
-    decipher.update(Buffer.from(ciphertextHex, "hex")).toString("utf8") +
-    decipher.final("utf8")
-  );
+  return decipher.update(Buffer.from(ciphertextHex, "hex")).toString("utf8") + decipher.final("utf8");
 }
 
 describe("Encryption & Key Rotation (integration)", () => {
@@ -86,45 +70,45 @@ describe("Encryption & Key Rotation (integration)", () => {
     expect(storedValue).not.toContain("super-secret");
   });
 
-  it("key rotation re-encrypts with correct HKDF info", () => {
+  it("key rotation re-encrypts with correct HKDF info", async () => {
     const oldKey = "old-key-material-for-testing-123";
     const newKey = "new-key-material-for-testing-456";
+    const savedKey = process.env.STRATUM_ENCRYPTION_KEY;
+    const tenant = await stratum.createTenant({ name: "Rotate HKDF", slug: uniqueSlug("rot_hkdf") });
+    const readRaw = async (): Promise<string> => {
+      const raw = await getPool().query<{ value: string }>(
+        "SELECT value FROM config_entries WHERE tenant_id = $1 AND key = $2",
+        [tenant.id, "api_token"],
+      );
+      return raw.rows[0].value;
+    };
 
-    // Encrypt with old key
-    const blob = encryptWithKey("secret-value", oldKey);
-    expect(blob).toContain("v1:");
+    try {
+      // lib encrypts under the old key. setConfig encrypts the JSON text of the value.
+      process.env.STRATUM_ENCRYPTION_KEY = oldKey;
+      await stratum.setConfig(tenant.id, "api_token", { value: "secret-value", locked: false, sensitive: true });
+      const before = await readRaw();
+      expect(before).toContain("v1:");
+      expect(JSON.parse(decryptAsLib(before, oldKey))).toBe("secret-value");
 
-    // Verify decrypt with old key works
-    expect(decryptWithKey(blob, oldKey)).toBe("secret-value");
+      // lib rotates with the same derivation that rotateEncryptionKey uses.
+      const result = await stratum.rotateEncryptionKey(oldKey, newKey);
+      expect(result.config_entries_rotated).toBe(1);
+      expect(result.unreadable).toEqual([]);
 
-    // After the HKDF fix, deriveKey uses "stratum-aes-key" (same as encrypt).
-    // Simulate reEncrypt: decrypt with old key, encrypt with new key
-    const plaintext = decryptWithKey(blob, oldKey);
-    const reEncrypted = encryptWithKey(plaintext, newKey);
+      const after = await readRaw();
+      expect(JSON.parse(decryptAsLib(after, newKey))).toBe("secret-value");
+      expect(() => decryptAsLib(after, oldKey)).toThrow();
 
-    // Verify new key can decrypt
-    expect(decryptWithKey(reEncrypted, newKey)).toBe("secret-value");
-
-    // Verify old key CANNOT decrypt the re-encrypted value
-    expect(() => decryptWithKey(reEncrypted, oldKey)).toThrow();
+      // lib reads the rotated value back with the new key.
+      process.env.STRATUM_ENCRYPTION_KEY = newKey;
+      const resolved = await stratum.resolveConfig(tenant.id);
+      expect(resolved.api_token.value).toBe("secret-value");
+    } finally {
+      process.env.STRATUM_ENCRYPTION_KEY = savedKey;
+    }
   });
 });
-
-// The library derives keys with this salt when STRATUM_HKDF_SALT is unset,
-// which is the case in this suite. See NON_PRODUCTION_DEFAULT_SALT in crypto.ts.
-const LIB_TEST_SALT = Buffer.from("stratum-non-production-hkdf-salt-v1", "utf8");
-
-function decryptAsLib(blob: string, keyMaterial: string): string {
-  const key = Buffer.from(
-    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), LIB_TEST_SALT, "stratum-aes-key", 32),
-  );
-  const [, ivHex, authTagHex, ciphertextHex] = blob.split(":");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"), {
-    authTagLength: 16,
-  });
-  decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
-  return decipher.update(Buffer.from(ciphertextHex, "hex")).toString("utf8") + decipher.final("utf8");
-}
 
 // Wraps the pool so that connect call number `failAt` throws. The rotation
 // service opens one connection per batch, so this stops a run after the
