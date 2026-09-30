@@ -18,7 +18,7 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
   }
 
   // Database driver deps
-  addDatabaseDeps(deps, preset);
+  addDatabaseDeps(deps, devDeps, preset);
 
   // ORM deps
   addOrmDeps(deps, devDeps, preset);
@@ -49,9 +49,14 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
   );
 }
 
-function addDatabaseDeps(deps: Record<string, string>, preset: StackPreset): void {
+function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, string>, preset: StackPreset): void {
   switch (preset.database) {
     case "postgres":
+      // The generated code for these ORMs imports pg itself. The strict tsc
+      // build fails with TS7016 when the pg types are not installed.
+      if (preset.orm === "pg" || preset.orm === "prisma" || preset.orm === "drizzle") {
+        devDeps["@types/pg"] = "^8.11.0";
+      }
       if (preset.orm !== "prisma" && preset.orm !== "drizzle" && preset.orm !== "sequelize") {
         deps["pg"] = "^8.11.0";
       }

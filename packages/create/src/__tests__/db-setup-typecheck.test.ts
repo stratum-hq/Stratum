@@ -6,12 +6,23 @@ import { generateDbSetup } from "../generators/db-setup.js";
 import { generatePresetPackageJson } from "../generators/package-json.js";
 import { generatePresetInitSql } from "../generators/init-sql.js";
 import { generatePresetReadme } from "../generators/readme.js";
-import { formatPresetString, parsePresetString, type StackPreset } from "../matrix.js";
+import { generateMiddleware } from "../generators/middleware.js";
+import {
+  formatPresetString,
+  parsePresetString,
+  VALID_COMBINATIONS,
+  type Database,
+  type StackPreset,
+} from "../matrix.js";
 
 // A generated project is only useful if its database setup compiles against the
 // real Stratum packages. These tests compile the generated files with the
 // TypeScript compiler and resolve each `@stratum-hq/*` import to the workspace
 // source, so a wrong export name or signature fails here.
+//
+// Third-party type declarations resolve from the repository root, not from the
+// generated package.json. So the compile check cannot see a missing @types
+// package. A separate test below checks the generated devDependencies.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
@@ -97,7 +108,7 @@ function typecheckPresets(presets: StackPreset[]): Map<string, string[]> {
   return errors;
 }
 
-describe("generated database setup typechecks against the workspace packages", () => {
+describe("generated database setup typechecks against the workspace packages and root @types", () => {
   let errors: Map<string, string[]>;
 
   beforeAll(() => {
@@ -130,4 +141,37 @@ describe("generated PostgreSQL tenant context", () => {
       expect(content).not.toMatch(/app\.current_tenant(?!_id)/);
     }
   });
+});
+
+function allPresets(): StackPreset[] {
+  const presets: StackPreset[] = [];
+  for (const [database, config] of Object.entries(VALID_COMBINATIONS)) {
+    for (const strategy of config.strategies)
+      for (const orm of config.orms)
+        for (const framework of config.frameworks)
+          presets.push({ database: database as Database, strategy, orm, framework });
+  }
+  return presets;
+}
+
+describe("generated package.json declares the types that the generated code imports", () => {
+  const importsPg = allPresets().filter((preset) =>
+    [...generateDbSetup(preset), ...generateMiddleware("app", preset)].some((f) =>
+      /from ["']pg["']/.test(f.content),
+    ),
+  );
+
+  it("finds presets whose generated code imports pg", () => {
+    expect(importsPg.length).toBeGreaterThan(0);
+  });
+
+  it.each(importsPg.map((p) => formatPresetString(p)))(
+    "%s imports pg and lists @types/pg in devDependencies",
+    (name) => {
+      const pkg = JSON.parse(generatePresetPackageJson("app", parsePresetString(name) as StackPreset)) as {
+        devDependencies: Record<string, string>;
+      };
+      expect(pkg.devDependencies["@types/pg"]).toBeDefined();
+    },
+  );
 });

@@ -337,7 +337,7 @@ export const config = {
 `;
 }
 
-function generateReadme(projectName: string): string {
+function generateReadme(projectName: string, template: Template): string {
   return `# ${projectName}
 
 A multi-tenant application built with [Stratum](https://github.com/stratum-hq/Stratum).
@@ -377,7 +377,7 @@ ${projectName}/
 ├── docker-compose.yml
 ├── init.sql          # DB extensions (uuid-ossp, ltree)
 ├── .env.example
-└── package.json
+${template === "nextjs" ? "" : "├── tsconfig.json\n"}└── package.json
 \`\`\`
 
 ## Multi-tenancy
@@ -430,7 +430,7 @@ export function createProject(
   }
 
   // README
-  writeFile(path.join(targetDir, "README.md"), generateReadme(projectName));
+  writeFile(path.join(targetDir, "README.md"), generateReadme(projectName, template));
 
   // Run npm install
   if (!skipInstall) {

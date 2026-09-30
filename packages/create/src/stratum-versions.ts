@@ -1,6 +1,7 @@
 // esbuild inlines these files when it bundles the CLI, so the published package carries
-// the versions of the workspace it was built from. A hardcoded range goes stale on the
-// next release of the package it names.
+// the versions of the workspace it was built from. The ranges are fixed at create's build
+// time. When a pinned package gets a major bump, or a minor bump while at 0.x, release
+// create again, or new projects keep the old range.
 import hono from "../../hono/package.json" with { type: "json" };
 import dbAdapters from "../../db-adapters/package.json" with { type: "json" };
 import lib from "../../lib/package.json" with { type: "json" };

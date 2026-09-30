@@ -118,6 +118,12 @@ describe("generated package scripts", () => {
       createProject("test-project", template, projectDir, true);
       expectReadmeRunsDevScript(projectDir);
     });
+
+    it(`list the generated tsconfig.json in the ${template} README project structure`, () => {
+      createProject("test-project", template, projectDir, true);
+      const readme = fs.readFileSync(path.join(projectDir, "README.md"), "utf8");
+      expect(readme).toMatch(/^├── tsconfig\.json/m);
+    });
   }
 
   it("give the express template the pg type declarations that tsc needs", () => {
@@ -140,6 +146,15 @@ describe("generated package scripts", () => {
       createPresetProject("test-project", preset, projectDir, true);
       expectScriptsResolve(projectDir, entry, preset.framework === "nestjs" ? "tsc-watch" : "tsx");
     });
+
+    // The knex presets are the only ones with a relative import out of src/.
+    // Without this check, the rootDir loop above can pass on an empty list.
+    if (preset.orm === "knex") {
+      it(`find the knexfile.ts import in the ${label} preset`, () => {
+        createPresetProject("test-project", preset, projectDir, true);
+        expect(relativeImports(path.join(projectDir, "src"))).toContain(path.join(projectDir, "knexfile.ts"));
+      });
+    }
 
     it(`tell the reader of the ${label} README to run the dev script`, () => {
       createPresetProject("test-project", preset, projectDir, true);

@@ -244,14 +244,9 @@ import config from "../knexfile.js";
 const knex = Knex(config);
 
 // Create a tenant-scoped query builder.
-// For RLS strategy, set the session variable before queries.
 export async function withTenantScope(tenantId: string, fn: (db: typeof knex) => Promise<void>) {
   // For ${database}, scope queries by tenant_id column
-  try {
-    await fn(knex);
-  } finally {
-    // Scope cleanup not needed for column-based isolation
-  }
+  await fn(knex);
 }
 
 export { knex };
