@@ -136,7 +136,7 @@ export function createRoleRoutes(stratum: Stratum) {
         return;
       }
       await assertTenantInScope(stratum, request, role.tenant_id);
-      const success = await stratum.assignRoleToKey(request.params.keyId, parsed.data.role_id);
+      const success = await stratum.assignRoleToKey(request.params.keyId, parsed.data.role_id, buildAuditContext(request));
       if (!success) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;
@@ -152,7 +152,7 @@ export function createRoleRoutes(stratum: Stratum) {
         return;
       }
       await assertTenantInScope(stratum, request, key.tenant_id);
-      const success = await stratum.removeRoleFromKey(request.params.keyId);
+      const success = await stratum.removeRoleFromKey(request.params.keyId, buildAuditContext(request));
       if (!success) {
         reply.status(404).send({ error: { code: "NOT_FOUND", message: "API key not found or already revoked" } });
         return;

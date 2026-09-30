@@ -205,6 +205,21 @@ export async function assignRole(
   });
 }
 
+/** The role currently assigned to a principal, or null when it has none. */
+export async function getPrincipalRoleId(
+  pool: pg.Pool,
+  principalType: string,
+  principalId: string,
+): Promise<string | null> {
+  return withClient(pool, async (client) => {
+    const res = await client.query<{ role_id: string }>(
+      `SELECT role_id FROM principal_roles WHERE principal_type = $1 AND principal_id = $2`,
+      [principalType, principalId],
+    );
+    return res.rows[0]?.role_id ?? null;
+  });
+}
+
 /** Remove a principal's role assignment. Returns true if one was removed. */
 export async function removeRole(
   pool: pg.Pool,

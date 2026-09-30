@@ -104,7 +104,7 @@ describe("API Key Routes", () => {
         name: "Rate Limited Key",
         rateLimitMax: 500,
         rateLimitWindow: "1 minute",
-      });
+      }, undefined, expect.objectContaining({ actor_id: expect.any(String) }));
     });
   });
 
@@ -178,7 +178,7 @@ describe("API Key Routes", () => {
 
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe("");
-      expect(stratum.revokeApiKey).toHaveBeenCalledWith("key-uuid-1");
+      expect(stratum.revokeApiKey).toHaveBeenCalledWith("key-uuid-1", expect.objectContaining({ actor_id: expect.any(String) }));
     });
 
     it("returns 404 when key does not exist", async () => {
@@ -219,7 +219,7 @@ describe("API Key Routes", () => {
       expect(response.statusCode).toBe(201);
       const body = response.json();
       expect(body.plaintext).toBe("sk_test_rotated_xyz789");
-      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", undefined);
+      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", undefined, expect.objectContaining({ actor_id: expect.any(String) }));
     });
 
     it("rotates a key with a new name", async () => {
@@ -241,7 +241,7 @@ describe("API Key Routes", () => {
 
       expect(response.statusCode).toBe(201);
       expect(response.json().name).toBe("New Name");
-      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", "New Name");
+      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", "New Name", expect.objectContaining({ actor_id: expect.any(String) }));
     });
   });
 

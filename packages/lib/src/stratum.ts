@@ -555,9 +555,16 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date): Promise<apiKeyService.CreatedApiKey> {
+  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
     return traced("api_key.create", { tenant_id: tenantId }, async () => {
-      return apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+      const created = await apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "api_key.created", "api_key", created.id, created.tenant_id,
+          null, { name: created.name, key_prefix: created.key_prefix } as Record<string, unknown>,
+        );
+      }
+      return created;
     });
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
@@ -565,13 +572,28 @@ export class Stratum {
       return apiKeyService.validateApiKey(this.pool, key);
     });
   }
-  revokeApiKey(keyId: string): Promise<boolean> {
+  revokeApiKey(keyId: string, audit?: AuditContext): Promise<boolean> {
     return traced("api_key.revoke", { key_id: keyId }, async () => {
-      return apiKeyService.revokeApiKey(this.pool, keyId);
+      const before = audit ? await apiKeyService.getApiKey(this.pool, keyId) : null;
+      const revoked = await apiKeyService.revokeApiKey(this.pool, keyId);
+      if (audit && revoked) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "api_key.revoked", "api_key", keyId, before?.tenant_id ?? null,
+          before ? ({ name: before.name, revoked_at: before.revoked_at } as Record<string, unknown>) : null,
+        );
+      }
+      return revoked;
     });
   }
-  rotateApiKey(keyId: string, newName?: string): Promise<apiKeyService.CreatedApiKey> {
-    return apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
+  async rotateApiKey(keyId: string, newName?: string, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
+    const rotated = await apiKeyService.rotateApiKey(this.pool, this.keyPrefix, keyId, newName);
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.rotated", "api_key", rotated.id, rotated.tenant_id,
+        { id: keyId }, { id: rotated.id, name: rotated.name, key_prefix: rotated.key_prefix } as Record<string, unknown>,
+      );
+    }
+    return rotated;
   }
   listApiKeys(tenantId?: string): Promise<Array<{ id: string; tenant_id: string | null; name: string | null; created_at: Date; last_used_at: Date | null; revoked_at: Date | null; expires_at: Date | null }>> {
     return apiKeyService.listApiKeys(this.pool, tenantId);
@@ -837,19 +859,36 @@ export class Stratum {
     return role;
   }
   async deleteRole(id: string, audit?: AuditContext): Promise<boolean> {
+    const before = audit ? await roleService.getRole(this.pool, id) : null;
     const deleted = await roleService.deleteRole(this.pool, id);
     if (audit && deleted) {
       await auditService.createAuditEntry(
-        this.pool, audit, "role.deleted", "role", id, null,
+        this.pool, audit, "role.deleted", "role", id, before?.tenant_id ?? null,
+        before ? ({ name: before.name, scopes: before.scopes } as Record<string, unknown>) : null,
       );
     }
     return deleted;
   }
-  assignRoleToKey(keyId: string, roleId: string): Promise<boolean> {
-    return roleService.assignRoleToKey(this.pool, keyId, roleId);
+  async assignRoleToKey(keyId: string, roleId: string, audit?: AuditContext): Promise<boolean> {
+    const assigned = await roleService.assignRoleToKey(this.pool, keyId, roleId);
+    if (audit && assigned) {
+      const key = await apiKeyService.getApiKey(this.pool, keyId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.role_assigned", "api_key", keyId, key?.tenant_id ?? null,
+        null, { role_id: roleId },
+      );
+    }
+    return assigned;
   }
-  removeRoleFromKey(keyId: string): Promise<boolean> {
-    return roleService.removeRoleFromKey(this.pool, keyId);
+  async removeRoleFromKey(keyId: string, audit?: AuditContext): Promise<boolean> {
+    const removed = await roleService.removeRoleFromKey(this.pool, keyId);
+    if (audit && removed) {
+      const key = await apiKeyService.getApiKey(this.pool, keyId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "api_key.role_removed", "api_key", keyId, key?.tenant_id ?? null,
+      );
+    }
+    return removed;
   }
   resolveKeyScopes(keyId: string): Promise<string[]> {
     return roleService.resolveKeyScopes(this.pool, keyId);
@@ -859,11 +898,30 @@ export class Stratum {
    * Assign a role to any principal (an application user, service account, etc.),
    * not just an API key. One role per principal. See resolvePrincipalScopes.
    */
-  assignRole(principalType: string, principalId: string, roleId: string, tenantId?: string): Promise<boolean> {
-    return roleService.assignRole(this.pool, principalType, principalId, roleId, tenantId);
+  async assignRole(principalType: string, principalId: string, roleId: string, tenantId?: string, audit?: AuditContext): Promise<boolean> {
+    const assigned = await roleService.assignRole(this.pool, principalType, principalId, roleId, tenantId);
+    if (audit && assigned) {
+      const role = await roleService.getRole(this.pool, roleId);
+      await auditService.createAuditEntry(
+        this.pool, audit, "principal.role_assigned", "principal", `${principalType}:${principalId}`,
+        role?.tenant_id ?? tenantId ?? null,
+        null, { role_id: roleId },
+      );
+    }
+    return assigned;
   }
-  removeRole(principalType: string, principalId: string): Promise<boolean> {
-    return roleService.removeRole(this.pool, principalType, principalId);
+  async removeRole(principalType: string, principalId: string, audit?: AuditContext): Promise<boolean> {
+    const roleId = audit ? await roleService.getPrincipalRoleId(this.pool, principalType, principalId) : null;
+    const removed = await roleService.removeRole(this.pool, principalType, principalId);
+    if (audit && removed) {
+      const role = roleId ? await roleService.getRole(this.pool, roleId) : null;
+      await auditService.createAuditEntry(
+        this.pool, audit, "principal.role_removed", "principal", `${principalType}:${principalId}`,
+        role?.tenant_id ?? null,
+        roleId ? { role_id: roleId } : null,
+      );
+    }
+    return removed;
   }
   /**
    * Resolve a principal's effective scopes via its assigned role ([] if none).
@@ -874,9 +932,16 @@ export class Stratum {
   }
 
   // ABAC operations
-  createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput): Promise<AbacPolicy> {
+  createAbacPolicy(tenantId: string, input: CreateAbacPolicyInput, audit?: AuditContext): Promise<AbacPolicy> {
     return traced("abac.create_policy", { tenant_id: tenantId }, async () => {
-      return abacService.createAbacPolicy(this.pool, tenantId, input);
+      const policy = await abacService.createAbacPolicy(this.pool, tenantId, input);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "abac_policy.created", "abac_policy", policy.id, tenantId,
+          null, policy as unknown as Record<string, unknown>,
+        );
+      }
+      return policy;
     });
   }
   getAbacPolicies(tenantId: string): Promise<AbacPolicy[]> {
@@ -894,9 +959,18 @@ export class Stratum {
       return abacService.evaluateAbac(this.pool, tenantId, request);
     });
   }
-  deleteAbacPolicy(tenantId: string, policyId: string): Promise<void> {
+  deleteAbacPolicy(tenantId: string, policyId: string, audit?: AuditContext): Promise<void> {
     return traced("abac.delete_policy", { tenant_id: tenantId, policy_id: policyId }, async () => {
-      return abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+      const before = audit
+        ? (await abacService.getAbacPolicies(this.pool, tenantId)).find((p) => p.id === policyId) ?? null
+        : null;
+      await abacService.deleteAbacPolicy(this.pool, tenantId, policyId);
+      if (audit) {
+        await auditService.createAuditEntry(
+          this.pool, audit, "abac_policy.deleted", "abac_policy", policyId, tenantId,
+          before as unknown as Record<string, unknown> | null,
+        );
+      }
     });
   }
 
