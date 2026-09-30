@@ -195,7 +195,7 @@ DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test 
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | JWT signing secret (**required** in production) |
+| `JWT_SECRET` | JWT signing secret (**required** whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder) |
 | `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field encryption (**required**, with `STRATUM_HKDF_SALT`, whenever `NODE_ENV` is not `development` or `test`) |
 | `REDIS_URL` | Optional — enables distributed rate limiting |
 | `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
