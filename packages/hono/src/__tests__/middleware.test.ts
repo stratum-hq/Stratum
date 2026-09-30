@@ -23,7 +23,7 @@ const mockedRunWithTenantContext = vi.mocked(runWithTenantContext);
 
 function createApp(options?: Parameters<typeof stratumMiddleware>[0]) {
   const app = new Hono();
-  app.use("/*", stratumMiddleware(options));
+  app.use("/*", stratumMiddleware({ trustTenantHeader: true, ...options }));
   app.get("/test", (c) => c.json({ tenantId: c.get("tenantId") }));
   app.get("/tenants/:tenantId/resources", (c) =>
     c.json({ tenantId: c.get("tenantId") }),
@@ -96,7 +96,7 @@ describe("stratumMiddleware", () => {
   it("sets tenant ID in Hono context", async () => {
     const app = new Hono();
     let contextTenantId: string | undefined;
-    app.use("/*", stratumMiddleware());
+    app.use("/*", stratumMiddleware({ trustTenantHeader: true }));
     app.get("/test", (c) => {
       contextTenantId = c.get("tenantId");
       return c.json({ ok: true });
@@ -124,7 +124,7 @@ describe("stratumMiddleware", () => {
   it("calls next() and allows downstream handlers to run", async () => {
     const app = new Hono();
     const handler = vi.fn((c: Context) => c.json({ ok: true }));
-    app.use("/*", stratumMiddleware());
+    app.use("/*", stratumMiddleware({ trustTenantHeader: true }));
     app.get("/test", handler);
 
     const res = await app.request("/test", {
@@ -143,6 +143,33 @@ describe("stratumMiddleware", () => {
     expect(res.status).toBe(400);
   });
 
+  describe("unverified tenant header", () => {
+    it("refuses to read the tenant header unless trustTenantHeader is true", () => {
+      expect(() => stratumMiddleware()).toThrow(/trustTenantHeader/);
+      expect(() => stratumMiddleware({ header: "x-org-id" })).toThrow(/trustTenantHeader/);
+    });
+
+    it("refuses to read the tenant header even with a resolve callback unless trustTenantHeader is true", () => {
+      expect(() =>
+        stratumMiddleware({ resolve: async (id) => ({ tenant_id: id }) as never }),
+      ).toThrow(/trustTenantHeader/);
+    });
+
+    it("reads the tenant header when trustTenantHeader is true", async () => {
+      const app = new Hono();
+      app.use("/*", stratumMiddleware({ trustTenantHeader: true }));
+      app.get("/test", (c) => c.json({ tenantId: c.get("tenantId") }));
+      const res = await app.request("/test", { headers: { "x-tenant-id": "trusted" } });
+      expect(res.status).toBe(200);
+      expect((await res.json()).tenantId).toBe("trusted");
+    });
+
+    it("does not require trustTenantHeader for a JWT claim or path parameter source", () => {
+      expect(() => stratumMiddleware({ jwtClaim: "org_id" })).not.toThrow();
+      expect(() => stratumMiddleware({ pathParam: "tenantId" })).not.toThrow();
+    });
+  });
+
   describe("tenant errors from resolve", () => {
     const cases = [
       { error: () => new TenantNotFoundError("t-1"), status: 404, code: "TENANT_NOT_FOUND" },
@@ -155,7 +182,7 @@ describe("stratumMiddleware", () => {
       it(`answers ${tc.status} ${tc.code} when resolve rejects with ${tc.error().name}`, async () => {
         const handler = vi.fn((c: Context) => c.json({ ok: true }));
         const app = new Hono();
-        app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(tc.error()) }));
+        app.use("/*", stratumMiddleware({ trustTenantHeader: true, resolve: () => Promise.reject(tc.error()) }));
         app.get("/test", handler);
 
         const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
@@ -169,7 +196,7 @@ describe("stratumMiddleware", () => {
     it("answers 504 CONTROL_PLANE_TIMEOUT when resolve times out", async () => {
       const app = new Hono();
       const timeout = new DOMException("The operation timed out.", "TimeoutError");
-      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(timeout) }));
+      app.use("/*", stratumMiddleware({ trustTenantHeader: true, resolve: () => Promise.reject(timeout) }));
       app.get("/test", (c) => c.json({ ok: true }));
 
       const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
@@ -181,7 +208,7 @@ describe("stratumMiddleware", () => {
     it("answers 500 CONTROL_PLANE_AUTH_FAILED and logs the cause when the control plane rejects the SDK key", async () => {
       const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const app = new Hono();
-      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(new UnauthorizedError()) }));
+      app.use("/*", stratumMiddleware({ trustTenantHeader: true, resolve: () => Promise.reject(new UnauthorizedError()) }));
       app.get("/test", (c) => c.json({ ok: true }));
 
       const res = await app.request("/test", { headers: { "x-tenant-id": "t-1" } });
@@ -194,7 +221,7 @@ describe("stratumMiddleware", () => {
 
     it("passes any other resolve error to the Hono error handler", async () => {
       const app = new Hono();
-      app.use("/*", stratumMiddleware({ resolve: () => Promise.reject(new Error("boom")) }));
+      app.use("/*", stratumMiddleware({ trustTenantHeader: true, resolve: () => Promise.reject(new Error("boom")) }));
       app.get("/test", (c) => c.json({ ok: true }));
       app.onError((err, c) => c.json({ caught: err.message }, 500));
 

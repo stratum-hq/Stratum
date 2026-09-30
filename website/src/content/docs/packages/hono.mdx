@@ -50,9 +50,9 @@ app.get("/users", async (c) => {
 
 ## Read the tenant from a header
 
-Without `jwtClaim` or `pathParam`, the middleware reads the `x-tenant-id` header. Any client can send that header and select another tenant.
+Without `jwtClaim` or `pathParam`, the middleware reads the `x-tenant-id` header (or the one named by `header`). Any client can send that header and select another tenant, so this mode requires `trustTenantHeader: true`; without it, `stratumMiddleware` throws at construction.
 
-Use the `header` option only when all of these are true:
+Set `trustTenantHeader: true` only when all of these are true:
 
 - A gateway that you control sets the header.
 - That gateway removes any copy of the header that the client sent.
@@ -60,7 +60,7 @@ Use the `header` option only when all of these are true:
 
 ```typescript
 // Only the gateway you control sets x-tenant-id. It removes any client copy.
-app.use("*", stratumMiddleware({ header: "x-tenant-id" }));
+app.use("*", stratumMiddleware({ header: "x-tenant-id", trustTenantHeader: true }));
 ```
 
 ## Features

@@ -103,7 +103,7 @@ for `c.get("tenantId")` in route handlers.
 ## When to trust the tenant header
 
 `stratumMiddleware` can read the tenant from a request header instead
-(`stratumMiddleware({ header: "x-tenant-id" })`). A client can set any header,
+(`stratumMiddleware({ header: "x-tenant-id", trustTenantHeader: true })`). A client can set any header,
 so use this only when all of these are true:
 
 - A gateway or service mesh that you control sets the header.
