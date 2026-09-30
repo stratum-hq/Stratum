@@ -237,6 +237,8 @@ stratum.deleteRegion(id, audit?): Promise<void>
 stratum.migrateRegion(tenantId, newRegionId, audit?): Promise<void>
 ```
 
+`getRegion`, `updateRegion`, `deleteRegion` and `migrateRegion` throw `RegionNotFoundError` (code `REGION_NOT_FOUND`, HTTP 404) when the region does not exist. `migrateRegion` throws `TenantNotFoundError` when the tenant does not exist.
+
 ### Roles (RBAC)
 
 ```typescript
