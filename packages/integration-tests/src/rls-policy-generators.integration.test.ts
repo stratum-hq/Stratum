@@ -3,7 +3,13 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
-import { createPolicy, enableRLS, createIsolationPolicy, enableRLSForMigration } from "@stratum-hq/db-adapters";
+import {
+  createPolicy,
+  enableRLS,
+  createIsolationPolicy,
+  enableRLSForMigration,
+  isRLSEnabled,
+} from "@stratum-hq/db-adapters";
 
 /**
  * Every code path that generates a tenant_isolation policy, run against real
@@ -117,6 +123,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await scratch.query(`DROP SCHEMA IF EXISTS other CASCADE; DROP SCHEMA IF EXISTS app CASCADE;`);
   await scratch.query(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`);
   await scratch.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await scratch.query(`CREATE TABLE ${TABLE} (id INT PRIMARY KEY, tenant_id UUID NOT NULL)`);
@@ -254,5 +261,32 @@ describe("db-adapters createPolicy with an existing tenant_isolation policy", ()
     await grantAndSeed();
 
     expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
+  });
+});
+
+describe("db-adapters isRLSEnabled", () => {
+  it("reports the table the name resolves to, not a same-named table in another schema", async () => {
+    // public.gen_orders (from beforeEach) has RLS; app.gen_orders, which the
+    // search_path resolves the name to, does not.
+    await scratch.query(`ALTER TABLE public.${TABLE} ENABLE ROW LEVEL SECURITY`);
+    await scratch.query(`CREATE SCHEMA app`);
+    await scratch.query(`CREATE TABLE app.${TABLE} (id INT PRIMARY KEY, tenant_id UUID NOT NULL)`);
+
+    const pool = new pg.Pool({ connectionString: scratchUrl, max: 1, options: "-c search_path=app,public" });
+    const c = await pool.connect();
+    try {
+      expect(await isRLSEnabled(c, TABLE)).toBe(false);
+      await c.query(`ALTER TABLE app.${TABLE} ENABLE ROW LEVEL SECURITY`);
+      expect(await isRLSEnabled(c, TABLE)).toBe(true);
+    } finally {
+      c.release();
+      await pool.end();
+    }
+  });
+
+  it("reports false for a table that does not exist", async () => {
+    await withScratchClient(async (c) => {
+      expect(await isRLSEnabled(c, "no_such_table")).toBe(false);
+    });
   });
 });

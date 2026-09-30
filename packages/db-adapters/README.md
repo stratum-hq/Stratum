@@ -56,7 +56,9 @@ try {
 }
 ```
 
-`createPolicy` adds the `tenant_isolation` policy if the table does not have one. If a policy with that name exists but does not compare `tenant_id` with the current tenant setting `app.current_tenant_id` for reads and writes, `createPolicy` throws instead of keeping it.
+`createPolicy` adds the `tenant_isolation` policy if the table does not have one. If a policy with that name exists but does not compare `tenant_id` with the current tenant setting `app.current_tenant_id` for reads and writes, `createPolicy` throws instead of keeping it. The existing policy must be permissive and apply to all commands. The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass. A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
+
+`isRLSEnabled` reports on the table that the name resolves to through the `search_path`, not on a table with the same name in another schema.
 
 Also available: `disableRLS`, `dropPolicy`, `isRLSEnabled`, `addTenantColumn`, `createIsolationPolicy`, and low-level session helpers `setTenantContext` / `resetTenantContext` / `getCurrentTenantId`. Schema-per-tenant and database-per-tenant variants (`SchemaRawAdapter`, `DatabasePoolManager`, …) are exported too.
 

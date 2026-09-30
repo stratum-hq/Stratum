@@ -252,6 +252,11 @@ describe("RLS Manager", () => {
       expect(call[1]).toEqual(["orders"]);
     });
 
+    it("rejects an invalid table name without querying", async () => {
+      await expect(isRLSEnabled(client, "orders; SELECT 1")).rejects.toThrow("Invalid table name");
+      expect((client.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    });
+
     it("returns true when RLS is enabled", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         rows: [{ relrowsecurity: true }],

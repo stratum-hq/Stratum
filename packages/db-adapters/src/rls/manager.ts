@@ -71,9 +71,11 @@ export async function isRLSEnabled(
   client: pg.PoolClient,
   tableName: string,
 ): Promise<boolean> {
+  const safe = validateTableName(tableName);
+  // The table the name resolves to, in whichever schema that is.
   const res = await client.query<{ relrowsecurity: boolean }>(
-    `SELECT relrowsecurity FROM pg_class WHERE relname = $1`,
-    [tableName],
+    `SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass($1)`,
+    [safe],
   );
   if (res.rows.length === 0) {
     return false;
