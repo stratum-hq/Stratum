@@ -176,6 +176,27 @@ describe("MysqlPoolManager", () => {
     it("is a no-op for unknown slug", () => {
       expect(() => manager.releasePool("unknown")).not.toThrow();
     });
+
+    it("does not release a new pool when a hold on a closed pool for the same slug ends", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      await manager.getPool("acme");
+      await manager.closePool("acme");
+      const replacement = await manager.getPool("acme");
+      // This release ends the hold on the closed pool, not on the replacement.
+      manager.releasePool("acme");
+
+      for (const [time, slug] of [[2000, "bbb"], [3000, "ccc"]] as const) {
+        vi.setSystemTime(time);
+        await manager.getPool(slug);
+        manager.releasePool(slug);
+      }
+      vi.setSystemTime(4000);
+      await manager.getPool("ddd");
+
+      expect(replacement.end).not.toHaveBeenCalled();
+      expect(pools[2].end).toHaveBeenCalled();
+    });
   });
 
   describe("closePool", () => {

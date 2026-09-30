@@ -20,6 +20,8 @@ interface PoolEntry {
  */
 export class MysqlPoolManager {
   private readonly pools: Map<string, PoolEntry> = new Map();
+  /** Pools that closePool or closeAll removed while a caller held them, by slug. */
+  private readonly closedEntries: Map<string, Set<PoolEntry>> = new Map();
   private readonly createPool: (uri: string) => MysqlPoolLike | Promise<MysqlPoolLike>;
   private readonly baseUri: string;
   private readonly maxPools: number;
@@ -71,6 +73,7 @@ export class MysqlPoolManager {
       // gets no pool, so it will not call releasePool.
       if (this.pools.get(slug) === entry) this.pools.delete(slug);
       entry.refCount--;
+      this.forgetClosedIfReleased(slug, entry);
       throw err;
     }
   }
@@ -80,6 +83,17 @@ export class MysqlPoolManager {
    * No-op if the slug is not tracked.
    */
   releasePool(slug: string): void {
+    // The caller passes a slug, not the pool, so the manager cannot tell a
+    // hold on a closed pool from a hold on its replacement. It ends holds on
+    // closed pools first. The replacement then counts as held for longer than
+    // it is, which is safe: eviction never ends a pool in use.
+    const closed = this.closedEntries.get(slug)?.values().next().value;
+    if (closed) {
+      closed.refCount--;
+      this.forgetClosedIfReleased(slug, closed);
+      return;
+    }
+
     const entry = this.pools.get(slug);
     if (!entry) return;
     if (entry.refCount > 0) {
@@ -92,6 +106,7 @@ export class MysqlPoolManager {
     const entry = this.pools.get(slug);
     if (!entry) return;
     this.pools.delete(slug);
+    this.recordClosedHolds(slug, entry);
     await endEntry(entry);
   }
 
@@ -100,12 +115,32 @@ export class MysqlPoolManager {
     clearInterval(this.idleTimer);
     const entries = Array.from(this.pools.entries());
     this.pools.clear();
+    for (const [slug, entry] of entries) this.recordClosedHolds(slug, entry);
     await Promise.all(entries.map(([, entry]) => endEntry(entry)));
   }
 
   /** Returns a snapshot of current pool statistics. */
   getStats(): { poolCount: number } {
     return { poolCount: this.pools.size };
+  }
+
+  /** Keeps a removed pool that callers still hold, so that their releases do not reach a later pool for the slug. */
+  private recordClosedHolds(slug: string, entry: PoolEntry): void {
+    if (entry.refCount === 0) return;
+    let closed = this.closedEntries.get(slug);
+    if (!closed) {
+      closed = new Set();
+      this.closedEntries.set(slug, closed);
+    }
+    closed.add(entry);
+  }
+
+  /** Stops tracking a removed pool after its last hold ends. */
+  private forgetClosedIfReleased(slug: string, entry: PoolEntry): void {
+    const closed = this.closedEntries.get(slug);
+    if (!closed || entry.refCount > 0) return;
+    closed.delete(entry);
+    if (closed.size === 0) this.closedEntries.delete(slug);
   }
 
   /** Ends the evicted pool first, then creates the pool for the slug. */
