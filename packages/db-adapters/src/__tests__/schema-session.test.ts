@@ -3,7 +3,10 @@ import { setSchemaSearchPath } from "../schema/session.js";
 import type pg from "pg";
 
 function makeClient(): pg.PoolClient {
-  const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+  const query = vi.fn(async (_text: string) => ({
+    rows: [{ search_path: "tenant_acme_corp_2024" }],
+    rowCount: 1,
+  }));
   return { query } as unknown as pg.PoolClient;
 }
 
@@ -12,7 +15,7 @@ describe("setSchemaSearchPath", () => {
     const client = makeClient();
     await setSchemaSearchPath(client, "acme_corp_2024");
     expect(client.query).toHaveBeenCalledWith(
-      "SET LOCAL search_path TO tenant_acme_corp_2024, public",
+      "SET LOCAL search_path TO tenant_acme_corp_2024",
     );
   });
 

@@ -13,6 +13,7 @@ import {
   TenantArchivedError,
   TenantSuspendedError,
   InvalidTenantStateError,
+  ValidationError,
   appendToPath,
   parseAncestryPath,
   getAncestorIds,
@@ -222,6 +223,19 @@ export async function updateTenant(
       values.push(patch.name);
     }
     if (patch.slug !== undefined) {
+      // Schema- and database-per-tenant storage is named from the slug, so
+      // changing it would detach the tenant from its storage and free the old
+      // name for another tenant.
+      const strategy = existing.rows[0].isolation_strategy;
+      if (
+        patch.slug !== existing.rows[0].slug &&
+        (strategy === "SCHEMA_PER_TENANT" || strategy === "DB_PER_TENANT")
+      ) {
+        throw new ValidationError(
+          `Slug cannot be changed for a ${strategy} tenant`,
+          { tenant_id: id, isolation_strategy: strategy },
+        );
+      }
       sets.push(`slug = $${idx++}`);
       values.push(patch.slug);
     }

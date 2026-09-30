@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { withClient } from "./pool-helpers.js";
 
 export interface MigrateSchemasOptions {
   pool: pg.Pool;
@@ -25,9 +26,12 @@ export async function migrateAllSchemas(
 ): Promise<MigrateSchemasResult> {
   const { pool, concurrency = 5, onProgress, enforceRls } = options;
 
-  // Discover tenant schemas
-  const { rows } = await pool.query<{ slug: string }>(
-    `SELECT slug FROM tenants WHERE isolation_strategy = 'SCHEMA_PER_TENANT' AND (deleted_at IS NULL) ORDER BY slug`,
+  // Discover tenant schemas. The tenants registry is under FORCE RLS, so
+  // discovery runs under the control-plane bypass like every other lib read.
+  const { rows } = await withClient(pool, (client) =>
+    client.query<{ slug: string }>(
+      `SELECT slug FROM tenants WHERE isolation_strategy = 'SCHEMA_PER_TENANT' AND (deleted_at IS NULL) ORDER BY slug`,
+    ),
   );
 
   const schemas = rows.map((r) => `tenant_${r.slug}`);
@@ -91,6 +95,7 @@ async function migrateSchema(
 ): Promise<void> {
   // Use a hash of the schema name for a unique advisory lock key per schema
   const lockKey = hashSchemaLock(schema);
+  const quoted = quoteIdent(schema);
 
   for (const migration of migrations) {
     const client = await pool.connect();
@@ -100,12 +105,16 @@ async function migrateSchema(
       // Advisory lock scoped to this schema
       await client.query(`SELECT pg_advisory_xact_lock($1)`, [lockKey]);
 
-      // Set search_path to the tenant schema
-      await client.query(`SET LOCAL search_path = ${quoteIdent(schema)}, public`);
+      // Set search_path to the tenant schema. public stays on the path because
+      // the migration SQL uses extension types and functions installed there
+      // (ltree, uuid_generate_v4).
+      await client.query(`SET LOCAL search_path = ${quoted}, public`);
 
-      // Ensure _migrations table exists in this schema
+      // Ensure _migrations exists in this schema. It is schema-qualified so the
+      // bookkeeping can never resolve to public._migrations; if the tenant
+      // schema does not exist this fails and the schema is reported as failed.
       await client.query(`
-        CREATE TABLE IF NOT EXISTS _migrations (
+        CREATE TABLE IF NOT EXISTS ${quoted}._migrations (
           id SERIAL PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
           applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -114,7 +123,7 @@ async function migrateSchema(
 
       // Check if already applied
       const { rows } = await client.query(
-        "SELECT 1 FROM _migrations WHERE name = $1",
+        `SELECT 1 FROM ${quoted}._migrations WHERE name = $1`,
         [migration.name],
       );
       if (rows.length > 0) {
@@ -127,7 +136,7 @@ async function migrateSchema(
       }
 
       await client.query(migration.sql);
-      await client.query("INSERT INTO _migrations (name) VALUES ($1)", [
+      await client.query(`INSERT INTO ${quoted}._migrations (name) VALUES ($1)`, [
         migration.name,
       ]);
       await client.query("COMMIT");
@@ -161,6 +170,10 @@ function quoteIdent(name: string): string {
   // Simple identifier quoting — disallow anything that could break out
   if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
     throw new Error(`Invalid schema name: ${name}`);
+  }
+  // PostgreSQL truncates longer identifiers, which could name another schema.
+  if (Buffer.byteLength(name) > 63) {
+    throw new Error(`Schema name exceeds 63 bytes: ${name}`);
   }
   return `"${name}"`;
 }

@@ -1,7 +1,7 @@
 import pg from "pg";
 
 // Validate schema name to prevent SQL injection (only allows alphanumeric + underscores)
-function validateSchemaName(schemaName: string): string {
+export function validateSchemaName(schemaName: string): string {
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schemaName)) {
     throw new Error(`Invalid schema name: ${schemaName}`);
   }
@@ -16,8 +16,17 @@ function validateTableName(tableName: string): string {
   return tableName;
 }
 
+// PostgreSQL silently truncates identifiers longer than this many bytes.
+const MAX_IDENTIFIER_BYTES = 63;
+
 export function tenantSchemaName(tenantSlug: string): string {
-  return `tenant_${tenantSlug}`;
+  const schemaName = `tenant_${tenantSlug}`;
+  if (Buffer.byteLength(schemaName) > MAX_IDENTIFIER_BYTES) {
+    throw new Error(
+      `Schema name for tenant slug "${tenantSlug}" exceeds ${MAX_IDENTIFIER_BYTES} bytes`,
+    );
+  }
+  return schemaName;
 }
 
 export async function createSchema(
@@ -25,7 +34,9 @@ export async function createSchema(
   tenantSlug: string,
 ): Promise<void> {
   const schemaName = validateSchemaName(tenantSchemaName(tenantSlug));
-  await client.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+  // No IF NOT EXISTS: an existing schema may hold another tenant's data, so
+  // provisioning must fail rather than adopt it.
+  await client.query(`CREATE SCHEMA ${schemaName}`);
 }
 
 export async function dropSchema(

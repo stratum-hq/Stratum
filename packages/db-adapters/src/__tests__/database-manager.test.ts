@@ -20,6 +20,15 @@ describe("getDatabaseName", () => {
     expect(getDatabaseName("acme_corp_2")).toBe("stratum_tenant_acme_corp_2");
   });
 
+  it("accepts a slug whose database name is exactly 63 bytes", () => {
+    const slug = "a".repeat(48);
+    expect(getDatabaseName(slug)).toHaveLength(63);
+  });
+
+  it("throws when the database name would exceed PostgreSQL's 63-byte limit", () => {
+    expect(() => getDatabaseName("a".repeat(49))).toThrow(/exceeds 63 bytes/);
+  });
+
   it("throws on slug with hyphens", () => {
     expect(() => getDatabaseName("acme-corp")).toThrow(/Invalid tenant slug/);
   });
@@ -40,11 +49,6 @@ describe("getDatabaseName", () => {
     // 64 chars: 'a' + 63 'x'
     const longSlug = "a" + "x".repeat(63);
     expect(() => getDatabaseName(longSlug)).toThrow(/Invalid tenant slug/);
-  });
-
-  it("accepts maximum-length slug (63 chars)", () => {
-    const maxSlug = "a" + "x".repeat(62); // 63 chars total
-    expect(getDatabaseName(maxSlug)).toBe(`stratum_tenant_${maxSlug}`);
   });
 });
 

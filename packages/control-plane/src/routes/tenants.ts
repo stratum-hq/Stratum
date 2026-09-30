@@ -63,12 +63,20 @@ export function createTenantRoutes(stratum: Stratum) {
 
       const tenant = await stratum.createTenant(input, buildAuditContext(request));
 
-      // Provision isolation resources based on strategy
+      // Provision isolation resources based on strategy. If that fails, remove
+      // the tenant again so no tenant exists without its own storage.
       const strategy = tenant.isolation_strategy ?? "SHARED_RLS";
-      if (strategy === "SCHEMA_PER_TENANT") {
-        await setupSchemaForTenant(tenant.slug);
-      } else if (strategy === "DB_PER_TENANT") {
-        await setupDatabaseForTenant(tenant.slug);
+      try {
+        if (strategy === "SCHEMA_PER_TENANT") {
+          await setupSchemaForTenant(tenant.slug);
+        } else if (strategy === "DB_PER_TENANT") {
+          await setupDatabaseForTenant(tenant.slug);
+        }
+      } catch (err) {
+        await stratum.purgeTenant(tenant.id, buildAuditContext(request)).catch((purgeErr: unknown) => {
+          request.log.error({ err: purgeErr, tenant_id: tenant.id }, "failed to remove tenant after provisioning failure");
+        });
+        throw err;
       }
 
       reply.status(201).send(tenant);
@@ -92,6 +100,12 @@ export function createTenantRoutes(stratum: Stratum) {
         return;
       }
       const inputs = results.map((r) => (r as Extract<typeof r, { success: true }>).data);
+      // Batch create does not provision schemas or databases, so it only
+      // accepts tenants that need none.
+      if (inputs.some((i) => i.isolation_strategy !== "SHARED_RLS")) {
+        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Batch create supports only SHARED_RLS tenants; create SCHEMA_PER_TENANT and DB_PER_TENANT tenants individually" } });
+        return;
+      }
       const result = await stratum.batchCreateTenants(inputs, buildAuditContext(request));
       reply.status(201).send(result);
     });

@@ -1,5 +1,5 @@
 import pg from "pg";
-import { validateSlug } from "@stratum-hq/core";
+import { getDatabaseName } from "./manager.js";
 
 export interface DatabasePoolManagerOptions {
   /** Template connection config (host, port, user, password, ssl, etc.) — database name is overridden per tenant. */
@@ -41,7 +41,7 @@ export class DatabasePoolManager {
    * multi-region deployments where the same slug may exist in different regions.
    */
   async getPool(tenantSlug: string, regionId?: string): Promise<pg.Pool> {
-    validateSlug(tenantSlug);
+    const dbName = getDatabaseName(tenantSlug);
     const poolKey = regionId ? `${regionId}:${tenantSlug}` : tenantSlug;
     const existing = this.pools.get(poolKey);
     if (existing) {
@@ -54,7 +54,6 @@ export class DatabasePoolManager {
       await this.evictLRU();
     }
 
-    const dbName = `stratum_tenant_${tenantSlug}`;
     const pool = new pg.Pool({
       ...this.baseConfig,
       database: dbName,

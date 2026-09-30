@@ -1,4 +1,5 @@
 import { DatabasePoolManager } from "../database/pool-manager.js";
+import { getDatabaseName } from "../database/manager.js";
 
 // Minimal structural interface — avoids a hard runtime dependency on @prisma/client.
 interface PrismaClientLike {
@@ -32,17 +33,29 @@ export class DatabasePrismaAdapter {
     private readonly poolManager: DatabasePoolManager,
     private readonly PrismaClient: PrismaConstructor,
     private readonly baseDatasourceUrl: string,
+    private readonly maxClients: number = 50,
   ) {}
 
   /**
    * Returns a Prisma client connected to the tenant's dedicated database.
-   * Clients are cached per tenant slug; call disconnect() to free resources.
+   * Clients are cached per tenant slug, up to maxClients; the least recently
+   * used client is disconnected when the limit is reached.
    */
   getClient(tenantSlug: string): PrismaClientLike {
+    const dbName = getDatabaseName(tenantSlug);
     const existing = this.clients.get(tenantSlug);
-    if (existing) return existing;
+    if (existing) {
+      this.clients.delete(tenantSlug);
+      this.clients.set(tenantSlug, existing);
+      return existing;
+    }
 
-    const dbName = `stratum_tenant_${tenantSlug}`;
+    if (this.clients.size >= this.maxClients) {
+      const [oldestKey, oldest] = this.clients.entries().next().value as [string, PrismaClientLike];
+      this.clients.delete(oldestKey);
+      void oldest.$disconnect().catch(() => {});
+    }
+
     const tenantUrl = this.buildDatasourceUrl(this.baseDatasourceUrl, dbName);
 
     const client = new this.PrismaClient({
@@ -74,7 +87,8 @@ export class DatabasePrismaAdapter {
    *   postgres://user:pass@host:port/dbname[?params]
    */
   private buildDatasourceUrl(baseUrl: string, dbName: string): string {
-    // Replace the database portion of the URL (last path segment before query string).
-    return baseUrl.replace(/\/[^/?]+(\?|$)/, `/${dbName}$1`);
+    const url = new URL(baseUrl);
+    url.pathname = `/${dbName}`;
+    return url.toString();
   }
 }

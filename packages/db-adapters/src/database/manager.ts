@@ -2,6 +2,8 @@ import pg from "pg";
 import { validateSlug } from "@stratum-hq/core";
 
 const DB_PREFIX = "stratum_tenant_";
+// PostgreSQL silently truncates database names longer than this many bytes.
+const MAX_IDENTIFIER_BYTES = 63;
 
 /**
  * Returns the database name for a given tenant slug.
@@ -9,7 +11,13 @@ const DB_PREFIX = "stratum_tenant_";
  */
 export function getDatabaseName(tenantSlug: string): string {
   validateSlug(tenantSlug);
-  return `${DB_PREFIX}${tenantSlug}`;
+  const dbName = `${DB_PREFIX}${tenantSlug}`;
+  if (Buffer.byteLength(dbName) > MAX_IDENTIFIER_BYTES) {
+    throw new Error(
+      `Database name for tenant slug "${tenantSlug}" exceeds ${MAX_IDENTIFIER_BYTES} bytes`,
+    );
+  }
+  return dbName;
 }
 
 /**
