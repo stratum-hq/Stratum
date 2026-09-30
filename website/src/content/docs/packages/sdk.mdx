@@ -115,7 +115,6 @@ await client.purgeTenant(tenantId);
     app.use(expressMiddleware(client, {
       jwtClaimPath: "tenant_id",
       jwtSecret: process.env.JWT_SECRET,
-      headerName: "X-Tenant-ID",
       onError: (err, req) => console.error(err),
     }));
 
@@ -180,6 +179,7 @@ interface MiddlewareOptions {
   jwtSecret?: string;            // JWT verification secret (HS256)
   jwtVerify?: (token: string) => Record<string, unknown> | null;
   headerName?: string;           // Default: "X-Tenant-ID"
+  trustTenantHeader?: boolean;   // Read the header when JWT is configured. Default: false
   resolvers?: TenantResolver[];  // Custom resolution functions
   onError?: (err: Error, req: unknown) => void;
 }
@@ -190,14 +190,16 @@ interface MiddlewareOptions {
 The middleware resolves the tenant ID in this order:
 
 1. **JWT** -- extracts tenant ID from a Bearer token claim at `jwtClaimPath`
-2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`)
+2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`). When JWT verification is configured, this step runs only with `trustTenantHeader: true`.
 3. **Custom resolvers** -- your async functions, tried in order
 
 If no tenant ID is found, returns `400 MISSING_TENANT`.
 
 <Aside type="note">
   JWT resolution is only active when `jwtSecret` or `jwtVerify` is provided.
-  Without either, Bearer tokens are ignored.
+  Without either, Bearer tokens are ignored. When it is active, the verified JWT is
+  the tenant binding. A Bearer token that fails verification returns
+  `401 INVALID_TOKEN`, and the middleware does not try the header or the resolvers.
 </Aside>
 
 ### Custom Resolvers
