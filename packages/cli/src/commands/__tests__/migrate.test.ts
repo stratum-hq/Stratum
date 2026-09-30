@@ -93,6 +93,9 @@ describe("migrate", () => {
     expect(joined).toMatch(/ALTER TABLE orders ENABLE ROW LEVEL SECURITY/);
     expect(joined).toMatch(/ALTER TABLE orders FORCE ROW LEVEL SECURITY/);
     expect(joined).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(joined).toContain(
+      "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid",
+    );
     expect(joined).toMatch(/CREATE INDEX idx_orders_tenant_id ON orders/);
     expect(queries[queries.length - 1]).toBe("COMMIT");
     expect(pool.end).toHaveBeenCalledTimes(1);
