@@ -47,3 +47,48 @@ describe("getApiKey", () => {
     expect(result).toBeNull();
   });
 });
+
+describe("validateApiKey", () => {
+  const keyRow = {
+    id: "key-1", tenant_id: "tenant-1", key_hash: "h", key_prefix: "sk_live_", name: null,
+    created_at: new Date(), last_used_at: null, revoked_at: null, expires_at: null,
+    scopes: ["read"], rate_limit_max: null, rate_limit_window: null, hash_version: 1,
+  };
+
+  /** Run the validation connection normally and hand the stamp connection to `stamp`. */
+  function mockConnections(stamp: () => Promise<unknown>) {
+    const validationQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [keyRow] })
+      .mockResolvedValueOnce({ rows: [{ scopes: ["read"], role_scopes: null }] });
+    vi.mocked(poolHelpers.withClient)
+      .mockImplementationOnce(async (_pool, fn) =>
+        fn({ query: validationQuery } as unknown as import("pg").PoolClient))
+      .mockImplementationOnce(() => stamp() as Promise<never>);
+  }
+
+  it("waits for the last_used_at stamp before it resolves", async () => {
+    let finishStamp!: () => void;
+    const stampDone = new Promise<void>((resolve) => { finishStamp = resolve; });
+    mockConnections(() => stampDone);
+
+    let resolved = false;
+    const pending = apiKeyService.validateApiKey(makeMockPool(), "sk_live_abc").then((r) => {
+      resolved = true;
+      return r;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(vi.mocked(poolHelpers.withClient)).toHaveBeenCalledTimes(2);
+    expect(resolved).toBe(false);
+
+    finishStamp();
+    expect((await pending)?.key_id).toBe("key-1");
+  });
+
+  it("still authenticates the key when the last_used_at stamp fails", async () => {
+    mockConnections(() => Promise.reject(new Error("connection lost")));
+
+    const result = await apiKeyService.validateApiKey(makeMockPool(), "sk_live_abc");
+
+    expect(result?.key_id).toBe("key-1");
+  });
+});
