@@ -86,7 +86,7 @@ export type {
 
 export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
-export type { KeyRotationResult } from "./services/key-rotation-service.js";
+export type { KeyRotationResult, KeyRotationUnreadableRow } from "./services/key-rotation-service.js";
 export type { DeliveryStats } from "./services/event-service.js";
 export type { Role, CreateRoleInput, UpdateRoleInput } from "./services/role-service.js";
 

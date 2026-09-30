@@ -21,7 +21,8 @@ export const CreateAbacPolicyInputSchema = z.object({
     operator: z.enum(["eq", "neq", "in", "not_in", "contains", "gt", "gte", "lt", "lte"]),
     value: z.unknown(),
   })),
-  priority: z.number().int().optional(),
+  // abac_policies.priority is INTEGER (int4).
+  priority: z.number().int().min(-2147483648).max(2147483647).optional(),
   mode: z.enum(["LOCKED", "INHERITED", "DELEGATED"]).optional(),
 });
 

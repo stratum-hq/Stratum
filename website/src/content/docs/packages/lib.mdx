@@ -280,6 +280,26 @@ reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
 
+`rotateEncryptionKey` re-encrypts sensitive config values and webhook secrets in batches of 100. Each batch commits in its own transaction. If a run fails partway, run it again with the same keys. The second run skips values that already decrypt with the new key.
+
+```typescript
+interface KeyRotationResult {
+  config_entries_rotated: number;  // values re-encrypted by this run
+  webhooks_rotated: number;
+  already_rotated: number;         // values that already decrypt with the new key
+  unreadable: KeyRotationUnreadableRow[];  // values that decrypt with neither key
+}
+
+interface KeyRotationUnreadableRow {
+  table: "config_entries" | "webhooks";
+  id: string;
+}
+```
+
+A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key. When some values are unreadable, the run logs the warning `encryption key rotation left unreadable rows`.
+
+If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key is wrong.
+
 ### Usage metering
 
 ```typescript
