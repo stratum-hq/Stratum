@@ -170,3 +170,84 @@ describe("crypto key material outside development and test", () => {
     expect(mod.decrypt(mod.encrypt("unset-env"))).toBe("unset-env");
   });
 });
+
+describe("crypto previous HKDF salt during a salt change", () => {
+  const SALT_A = "a1".repeat(32);
+  const SALT_B = "b2".repeat(32);
+  const names = [
+    "STRATUM_HKDF_SALT",
+    "STRATUM_HKDF_SALT_PREVIOUS",
+    "STRATUM_ENCRYPTION_KEY",
+    "STRATUM_ENCRYPTION_KEY_PREVIOUS",
+    "NODE_ENV",
+  ] as const;
+  const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+
+  afterEach(() => {
+    for (const n of names) {
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+    }
+    vi.resetModules();
+  });
+
+  // Each fresh module instance models a process that starts with the current environment.
+  const freshCrypto = async () => {
+    vi.resetModules();
+    return import("../crypto.js");
+  };
+
+  const encryptUnder = async (key: string, salt: string, plaintext: string) => {
+    process.env.STRATUM_ENCRYPTION_KEY = key;
+    process.env.STRATUM_HKDF_SALT = salt;
+    delete process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
+    delete process.env.STRATUM_HKDF_SALT_PREVIOUS;
+    return (await freshCrypto()).encrypt(plaintext);
+  };
+
+  it("decrypts a value from the previous salt when only the salt changed", async () => {
+    process.env.NODE_ENV = "production";
+    const ciphertext = await encryptUnder("same-key", SALT_A, "salt-only");
+
+    process.env.STRATUM_HKDF_SALT = SALT_B;
+    process.env.STRATUM_HKDF_SALT_PREVIOUS = SALT_A;
+    expect((await freshCrypto()).decrypt(ciphertext)).toBe("salt-only");
+  });
+
+  it("decrypts a value from the previous key and previous salt together", async () => {
+    process.env.NODE_ENV = "production";
+    const ciphertext = await encryptUnder("old-key", SALT_A, "old-pair");
+
+    process.env.STRATUM_ENCRYPTION_KEY = "new-key";
+    process.env.STRATUM_HKDF_SALT = SALT_B;
+    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = "old-key";
+    process.env.STRATUM_HKDF_SALT_PREVIOUS = SALT_A;
+    expect((await freshCrypto()).decrypt(ciphertext)).toBe("old-pair");
+  });
+
+  it("does not decrypt a value from an earlier salt when STRATUM_HKDF_SALT_PREVIOUS is unset", async () => {
+    process.env.NODE_ENV = "production";
+    const ciphertext = await encryptUnder("old-key", SALT_A, "old-pair");
+
+    process.env.STRATUM_ENCRYPTION_KEY = "new-key";
+    process.env.STRATUM_HKDF_SALT = SALT_B;
+    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = "old-key";
+    await expect(freshCrypto().then((m) => m.decrypt(ciphertext))).rejects.toThrow();
+  });
+
+  it("encrypts and decrypts with an explicit salt instead of the configured salt", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.STRATUM_ENCRYPTION_KEY = "configured-key";
+    process.env.STRATUM_HKDF_SALT = SALT_A;
+    const mod = await freshCrypto();
+
+    const onB = mod.encryptWithKeyMaterial("explicit", "explicit-key", SALT_B);
+    expect(mod.decryptWithKeyMaterial(onB, "explicit-key", SALT_B)).toBe("explicit");
+    expect(mod.decryptWithKeyMaterial(onB, "explicit-key", SALT_A)).toBeNull();
+    expect(mod.decryptWithKeyMaterial(onB, "explicit-key")).toBeNull();
+
+    // With no salt argument, the configured salt applies.
+    const onConfigured = mod.encryptWithKeyMaterial("default", "explicit-key");
+    expect(mod.decryptWithKeyMaterial(onConfigured, "explicit-key", SALT_A)).toBe("default");
+  });
+});

@@ -279,31 +279,51 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. The package does not export the encryption functions; use the `Stratum` method below to change the key.
 
 ```typescript
-stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
+stratum.rotateEncryptionKey(oldKey, newKey, audit?, salts?): Promise<KeyRotationResult>
+
+interface KeyRotationSalts {
+  oldSalt?: string;  // hex; the salt the existing values use. Default: STRATUM_HKDF_SALT
+  newSalt?: string;  // hex; the salt the run encrypts under. Default: STRATUM_HKDF_SALT
+}
 ```
 
-`rotateEncryptionKey` re-encrypts sensitive config values and webhook secrets in batches of 100. Each batch commits in its own transaction. If a run fails partway, run it again with the same keys. The second run skips values that already decrypt with the new key.
+`rotateEncryptionKey` re-encrypts sensitive config values and webhook secrets in batches of 100. It decrypts each value with the old key and the old salt, and encrypts it with the new key and the new salt. Each batch commits in its own transaction. If a run fails partway, run it again with the same keys and salts. The second run skips values that already decrypt with the new key and the new salt.
+
+To change only the salt, give the same key as `oldKey` and `newKey`.
+
+During a rotation, `STRATUM_ENCRYPTION_KEY_PREVIOUS` and `STRATUM_HKDF_SALT_PREVIOUS` keep values that are not yet rotated readable. If the current key and salt do not decrypt a value, Stratum tries the previous key with the previous salt. If only one of the two previous variables is set, the other one uses its current value.
 
 ### Moving off the built-in development key
 
-In `development` and `test` (and when `NODE_ENV` is unset), Stratum falls back to a built-in development key and a built-in HKDF salt when `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT` are not set. Every other environment refuses to start without both. Values encrypted under the fallback must be re-encrypted before the deployment runs with real key material. The salt is part of key derivation and `rotateEncryptionKey` cannot change it, so do the steps in this order:
+In `development` and `test` (and when `NODE_ENV` is unset), Stratum falls back to a built-in development key and a built-in HKDF salt when `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT` are not set. Every other environment refuses to start without both. Values encrypted under the fallback must be re-encrypted before the deployment runs with real key material. Move them to a new random key and a new random salt in this order:
 
-1. Set `STRATUM_HKDF_SALT` to the hex form of the built-in salt, `7374726174756d2d6e6f6e2d70726f64756374696f6e2d686b64662d73616c742d7631`. An HKDF salt is not secret. Keep this value afterwards: data encrypted under a different salt cannot be read or rotated.
-2. Set `STRATUM_ENCRYPTION_KEY` to new random key material, and `STRATUM_ENCRYPTION_KEY_PREVIOUS` to `stratum-dev-key` so existing values stay readable until the rotation finishes.
-3. Rotate from the built-in key to the new one. If it fails partway, run it again with the same keys:
+1. Set `STRATUM_ENCRYPTION_KEY` to new random key material.
+2. Set `STRATUM_HKDF_SALT` to a new random salt in hex, for example the output of `openssl rand -hex 32`. An HKDF salt is not secret.
+3. Set `STRATUM_ENCRYPTION_KEY_PREVIOUS` to `stratum-dev-key`.
+4. Set `STRATUM_HKDF_SALT_PREVIOUS` to the hex form of the built-in salt, `7374726174756d2d6e6f6e2d70726f64756374696f6e2d686b64662d73616c742d7631`. Steps 3 and 4 keep existing values readable until the rotation finishes.
+5. Restart the deployment, so that it reads the new variables.
+6. Rotate from the built-in pair to the new pair. If the run fails partway, run it again with the same arguments:
 
 ```typescript
-await stratum.rotateEncryptionKey("stratum-dev-key", process.env.STRATUM_ENCRYPTION_KEY!);
+await stratum.rotateEncryptionKey("stratum-dev-key", process.env.STRATUM_ENCRYPTION_KEY!, undefined, {
+  oldSalt: process.env.STRATUM_HKDF_SALT_PREVIOUS,
+  newSalt: process.env.STRATUM_HKDF_SALT,
+});
 ```
 
-Through the control plane, call `POST /api/v1/maintenance/rotate-encryption-key` with `stratum-dev-key` as `old_key` and the new key as `new_key`. Examine anything the result lists in `unreadable`, then unset `STRATUM_ENCRYPTION_KEY_PREVIOUS`.
+7. Examine anything the result lists in `unreadable`.
+8. Unset `STRATUM_ENCRYPTION_KEY_PREVIOUS` and `STRATUM_HKDF_SALT_PREVIOUS`.
+
+Keep the new salt afterwards. Data encrypted under a salt that is not configured cannot be read. To change the salt again later, rotate with that salt as `oldSalt`.
+
+The control plane route `POST /api/v1/maintenance/rotate-encryption-key` takes only `old_key` and `new_key`, and cannot change the salt. If you rotate through the control plane, set `STRATUM_HKDF_SALT` to the built-in salt value above instead of a new salt. Do not set `STRATUM_HKDF_SALT_PREVIOUS`. Then call the route with `stratum-dev-key` as `old_key` and the new key as `new_key`.
 
 ```typescript
 interface KeyRotationResult {
   config_entries_rotated: number;  // values re-encrypted by this run
   webhooks_rotated: number;
-  already_rotated: number;         // values that already decrypt with the new key
-  unreadable: KeyRotationUnreadableRow[];  // values that decrypt with neither key
+  already_rotated: number;         // values that already decrypt with the new key and salt
+  unreadable: KeyRotationUnreadableRow[];  // values that decrypt with neither pair
 }
 
 interface KeyRotationUnreadableRow {
@@ -314,7 +334,7 @@ interface KeyRotationUnreadableRow {
 
 A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key. When some values are unreadable, the run logs the warning `encryption key rotation left unreadable rows`.
 
-If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key is wrong.
+If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key or the old salt is wrong.
 
 ### Usage metering
 
