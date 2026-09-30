@@ -32,7 +32,7 @@ await adapter.scopedInsert("acme", "users", { name: "Alice" });
 - **TypeORM subscriber** -- auto-injects tenant_id on insert via AsyncLocalStorage
 - **Knex helper** -- `withTenantScope()` wraps query builders with automatic WHERE clause
 - **Sequelize adapter** -- `withMysqlTenantScope()` with try/finally session variable cleanup
-- **MySQL View utilities** -- `createTenantView()`, `dropTenantView()`, `setTenantSession()` for view-based isolation
+- **MySQL View utilities** -- `createTenantView()` is deprecated and throws, because MySQL views cannot read session variables; `dropTenantView()` and `setTenantSession()` remain
 - **GDPR purge** -- `purgeTenantData()` across all three strategies
 - **LRU pool manager** -- active query tracking, idle timeout, configurable eviction
 

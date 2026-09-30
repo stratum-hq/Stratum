@@ -78,10 +78,51 @@ describe("MongoCollectionAdapter", () => {
     });
   });
 
+  describe("baseCollections", () => {
+    it("rejects base collections whose tenant collection names could collide", () => {
+      const client = createMockClient(mockDb);
+      expect(
+        () =>
+          new MongoCollectionAdapter({
+            client,
+            databaseName: "testdb",
+            baseCollections: ["users", "users_corp"],
+          }),
+      ).toThrow(/ambiguous/);
+    });
+
+    it("scopedCollection only accepts registered bases when baseCollections is set", () => {
+      const client = createMockClient(mockDb);
+      const registered = new MongoCollectionAdapter({
+        client,
+        databaseName: "testdb",
+        baseCollections: ["users"],
+      });
+      registered.scopedCollection("acme", "users");
+      expect(mockDb.collection).toHaveBeenCalledWith("users_acme");
+      expect(() => registered.scopedCollection("acme", "orders")).toThrow(/not in baseCollections/);
+    });
+  });
+
   describe("purgeTenantData", () => {
-    it("identifies collections by suffix", async () => {
-      const result = await adapter.purgeTenantData("acme");
-      // Should process users_acme and orders_acme, not users_other
+    it("throws when baseCollections is not configured", async () => {
+      await expect(adapter.purgeTenantData("acme")).rejects.toThrow(/baseCollections/);
+      expect(mockDb.collection).not.toHaveBeenCalled();
+    });
+
+    it("purges exactly {base}_{slug} for each registered base collection", async () => {
+      const client = createMockClient(mockDb);
+      const registered = new MongoCollectionAdapter({
+        client,
+        databaseName: "testdb",
+        baseCollections: ["users", "orders"],
+      });
+      const result = await registered.purgeTenantData("acme");
+      expect((mockDb.collection as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+        ["users_acme"],
+        ["orders_acme"],
+      ]);
+      expect(mockDb.listCollections).not.toHaveBeenCalled();
       expect(result.collectionsProcessed).toBe(2);
       expect(result.success).toBe(true);
     });
