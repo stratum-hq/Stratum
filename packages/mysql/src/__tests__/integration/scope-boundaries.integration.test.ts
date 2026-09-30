@@ -406,11 +406,9 @@ describe("StratumTypeOrmSubscriber updates and deletes", () => {
 
   it("save() of a row that belongs to another tenant is refused without copying that tenant onto the entity", async () => {
     const entity: Partial<Note> = { id: 2, name: "changed" };
-    // The load that save() runs is tenant-scoped, so it does not find the other
-    // tenant's row and the insert that follows hits the table's primary key.
     await expect(
       asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).save(entity)),
-    ).rejects.toThrow(/Duplicate entry/);
+    ).rejects.toThrow(/another tenant/);
     expect(entity.tenant_id).not.toBe("tenant-b");
     expect(await notes()).toEqual(untouched);
   });

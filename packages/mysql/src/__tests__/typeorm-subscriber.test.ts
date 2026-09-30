@@ -130,9 +130,15 @@ function fakeQueryBuilder() {
   class SoftDelete {
     async execute() {}
   }
+  class Insert {
+    async execute() {}
+  }
   class Select {
     getQuery() {
       return "SELECT 1";
+    }
+    insert() {
+      return new Insert();
     }
     update() {
       return new Update();
@@ -168,7 +174,7 @@ describe("registerStratumSubscriber", () => {
     const dataSource = {
       isInitialized: true,
       subscribers: [] as unknown[],
-      createQueryBuilder: () => ({ update: () => ({}), delete: () => ({}), softDelete: () => ({}) }),
+      createQueryBuilder: () => ({ insert: () => ({}), update: () => ({}), delete: () => ({}), softDelete: () => ({}) }),
     };
     expect(() => registerStratumSubscriber(dataSource)).toThrow(/reads cannot be tenant-scoped/);
     expect(dataSource.subscribers).toHaveLength(0);

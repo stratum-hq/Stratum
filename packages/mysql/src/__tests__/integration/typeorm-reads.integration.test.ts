@@ -88,7 +88,24 @@ const TagSchema = new EntitySchema<Tag>({
   },
 });
 
-const ENTITIES = [OwnerSchema, NoteSchema, PinSchema, TagSchema];
+interface Card {
+  tenant_id: string;
+  id: number;
+  name: string;
+}
+
+// The primary key includes tenant_id, so each tenant has its own id space.
+const CardSchema = new EntitySchema<Card>({
+  name: "Q2Card",
+  tableName: "cards",
+  columns: {
+    tenant_id: { type: String, primary: true },
+    id: { type: Number, primary: true },
+    name: { type: String },
+  },
+});
+
+const ENTITIES = [OwnerSchema, NoteSchema, PinSchema, TagSchema, CardSchema];
 
 let pool: Pool;
 let dataSource: DataSource;
@@ -121,6 +138,9 @@ beforeAll(async () => {
     `CREATE TABLE \`${DB}\`.\`pins\` (id INT PRIMARY KEY, tenant_id VARCHAR(255) NOT NULL, owner_id INT)`,
   );
   await pool.query(`CREATE TABLE \`${DB}\`.\`tags\` (id INT PRIMARY KEY, name VARCHAR(255))`);
+  await pool.query(
+    `CREATE TABLE \`${DB}\`.\`cards\` (tenant_id VARCHAR(255) NOT NULL, id INT NOT NULL, name VARCHAR(255), PRIMARY KEY (tenant_id, id))`,
+  );
   dataSource = new DataSource({
     type: "mysql",
     url: `${MYSQL_URL}/${DB}`,
@@ -147,7 +167,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const table of ["owners", "notes", "pins", "tags"]) {
+  for (const table of ["owners", "notes", "pins", "tags", "cards"]) {
     await pool.query(`DELETE FROM \`${DB}\`.\`${table}\``);
   }
   await pool.query(`INSERT INTO \`${DB}\`.\`owners\` VALUES (1, 'tenant-a', 'alice'), (2, 'tenant-b', 'bob')`);
@@ -158,6 +178,7 @@ beforeEach(async () => {
   );
   await pool.query(`INSERT INTO \`${DB}\`.\`pins\` VALUES (1, 'tenant-a', 2), (2, 'tenant-b', 2)`);
   await pool.query(`INSERT INTO \`${DB}\`.\`tags\` VALUES (1, 't1'), (2, 't2'), (3, 't3')`);
+  await pool.query(`INSERT INTO \`${DB}\`.\`cards\` VALUES ('tenant-b', 2, 'b-card')`);
   sent.length = 0;
 });
 
@@ -351,5 +372,44 @@ describe("StratumTypeOrmSubscriber read scoping rules", () => {
     } finally {
       await plain.destroy();
     }
+  });
+});
+
+describe("StratumTypeOrmSubscriber save() of another tenant's row", () => {
+  async function cards(): Promise<Card[]> {
+    const [rows] = await pool.query(`SELECT * FROM \`${DB}\`.\`cards\` ORDER BY tenant_id, id`);
+    return rows as Card[];
+  }
+
+  it("refuses save() with another tenant's full composite key instead of creating a row", async () => {
+    await expect(
+      asA(() => dataSource.getRepository(CardSchema).save({ tenant_id: "tenant-b", id: 2, name: "changed" })),
+    ).rejects.toThrow(/another tenant/);
+    expect(await cards()).toEqual([{ tenant_id: "tenant-b", id: 2, name: "b-card" }]);
+  });
+
+  it("refuses an insert() with another tenant's primary key with the Stratum error", async () => {
+    await expect(
+      asA(() => dataSource.getRepository(NoteSchema).insert({ id: 2, name: "x", owner_id: 1 })),
+    ).rejects.toThrow(/another tenant/);
+  });
+
+  it("save() creates the current tenant's own row when only the tenant-local id matches", async () => {
+    await asA(() => dataSource.getRepository(CardSchema).save({ id: 2, name: "a-card" }));
+    expect(await cards()).toEqual([
+      { tenant_id: "tenant-a", id: 2, name: "a-card" },
+      { tenant_id: "tenant-b", id: 2, name: "b-card" },
+    ]);
+  });
+});
+
+describe("StratumTypeOrmSubscriber repeated execute()", () => {
+  it("adds the tenant condition once when an update builder is executed twice", async () => {
+    const qb = dataSource.createQueryBuilder().update(NoteSchema).set({ name: "renamed" }).where("id = 1");
+    await asA(() => qb.execute());
+    await asA(() => qb.execute());
+    const updates = sent.filter((sql) => /^UPDATE/i.test(sql));
+    expect(updates).toHaveLength(2);
+    for (const sql of updates) expect(sql.match(/`tenant_id` = \?/g)).toHaveLength(1);
   });
 });
