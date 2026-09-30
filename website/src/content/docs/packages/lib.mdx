@@ -270,13 +270,9 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 
 ### Encryption
 
+Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`. The package does not export the encryption functions; use the `Stratum` method below to change the key.
+
 ```typescript
-import { encrypt, decrypt, reEncrypt } from "@stratum-hq/lib";
-
-encrypt(plaintext: string): string           // "v1:iv:tag:ciphertext"
-decrypt(ciphertext: string): string
-reEncrypt(ciphertext: string, oldKey: string, newKey: string): string
-
 stratum.rotateEncryptionKey(oldKey, newKey, audit?): Promise<KeyRotationResult>
 ```
 

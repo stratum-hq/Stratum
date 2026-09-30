@@ -126,7 +126,7 @@ All tenants share the same tables. PostgreSQL Row-Level Security policies filter
 
 ### Schema-per-Tenant
 
-Each tenant gets a dedicated PostgreSQL schema with its own set of tables. Queries are routed to the correct schema by setting `search_path`. Tenants share the same database connection pool.
+Each tenant gets a dedicated PostgreSQL schema with its own set of tables. Stratum routes queries by setting `search_path` to the tenant schema alone, inside a transaction. `public` is not on the path, so a table missing from the tenant schema raises an error. The `extraSearchPath` option adds schemas after the tenant schema. Tenants share the same database connection pool.
 
 ### Database-per-Tenant
 

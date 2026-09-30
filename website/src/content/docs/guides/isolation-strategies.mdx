@@ -31,11 +31,11 @@ For a complete tutorial on setting up RLS with Prisma or Drizzle, see the [Prism
 
 ### How RLS Works
 
-Every tenant-scoped table has an RLS policy that checks `current_setting('app.current_tenant_id')`:
+Every tenant-scoped table has an RLS policy that compares `tenant_id` with the `app.current_tenant_id` setting. The policy reads the setting with `NULLIF(current_setting('app.current_tenant_id', true), '')`. A connection with no tenant context then matches no rows instead of raising an error. On a pooled connection, the setting reads as `''` after the transaction that set it ends.
 
 ```sql
 CREATE POLICY tenant_isolation ON orders
-  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+  USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 ```
 
 Before executing any query, Stratum sets the tenant context:
@@ -102,6 +102,16 @@ const tenant = await stratum.createTenant({
 ```
 
 When the control plane creates a `SCHEMA_PER_TENANT` tenant, it automatically provisions a dedicated schema named `tenant_{slug}` with the Stratum base tables.
+
+`SchemaRawAdapter`, `createSchemaTenantPool` and `setSchemaSearchPath` from `@stratum-hq/db-adapters` route queries. Each sets `search_path` to the tenant schema alone, inside a transaction. `public` is not on the path. An unqualified table that is missing from the tenant schema raises an error. It does not read a table that all tenants share.
+
+To add a schema after the tenant schema, pass `extraSearchPath`, for example a schema that holds extension functions. List only schemas that hold no tenant data:
+
+```typescript
+import { SchemaRawAdapter } from "@stratum-hq/db-adapters";
+
+const adapter = new SchemaRawAdapter(pool, { extraSearchPath: ["extensions"] });
+```
 
 ### Advantages
 
