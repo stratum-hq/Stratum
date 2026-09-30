@@ -1,10 +1,7 @@
-#!/usr/bin/env node
-
 import * as fs from "fs";
 import * as path from "path";
 import crypto from "node:crypto";
 import { execSync } from "child_process";
-import { fileURLToPath } from "url";
 import { parsePresetString, isValidPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
 import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
@@ -535,10 +532,4 @@ export function main(argv: string[]): void {
     console.log("  node --env-file=.env src/index.ts");
   }
   console.log("");
-}
-
-// Run when executed directly (not when imported by tests)
-const __filename = fileURLToPath(import.meta.url);
-if (process.argv[1] === __filename) {
-  main(process.argv.slice(2));
 }
