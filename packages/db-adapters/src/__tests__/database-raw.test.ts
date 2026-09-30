@@ -10,7 +10,7 @@ function makeAdapter(queryImpl: (text: string) => Promise<unknown>) {
       events.push(`query:${text}`);
       return queryImpl(text);
     }),
-    release: vi.fn(() => events.push("client.release")),
+    release: vi.fn((_err?: Error) => events.push("client.release")),
   };
   const pool = { connect: vi.fn(async () => client) };
   const poolManager = {
@@ -18,7 +18,7 @@ function makeAdapter(queryImpl: (text: string) => Promise<unknown>) {
     releasePool: vi.fn((slug: string) => events.push(`releasePool:${slug}`)),
   };
   const adapter = new DatabaseRawAdapter(poolManager as unknown as DatabasePoolManager);
-  return { adapter, poolManager, events };
+  return { adapter, poolManager, events, client };
 }
 
 describe("DatabaseRawAdapter", () => {
@@ -58,5 +58,35 @@ describe("DatabaseRawAdapter", () => {
     ).rejects.toThrow("boom");
 
     expect(poolManager.releasePool).toHaveBeenCalledWith("acme");
+  });
+
+  it("keeps the callback error and destroys the connection when ROLLBACK fails", async () => {
+    const { adapter, events, client } = makeAdapter(async (text) => {
+      if (text === "ROLLBACK") throw new Error("rollback failed");
+      return { rows: [] };
+    });
+
+    await expect(
+      adapter.executeWithTenantContext("acme", async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+
+    expect(client.release).toHaveBeenCalledTimes(1);
+    expect(client.release.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(events.at(-1)).toBe("releasePool:acme");
+  });
+
+  it("returns the connection to the pool when ROLLBACK succeeds", async () => {
+    const { adapter, client } = makeAdapter(async () => ({ rows: [] }));
+
+    await expect(
+      adapter.executeWithTenantContext("acme", async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+
+    expect(client.release).toHaveBeenCalledTimes(1);
+    expect(client.release.mock.calls[0][0]).toBeUndefined();
   });
 });

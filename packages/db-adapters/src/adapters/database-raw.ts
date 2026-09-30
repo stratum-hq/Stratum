@@ -45,16 +45,26 @@ export class DatabaseRawAdapter {
     const pool = await this.poolManager.getPool(tenantSlug);
     try {
       const client = await pool.connect();
+      // A failed ROLLBACK must not replace the caller's error. That error goes
+      // to client.release instead: a truthy argument makes pg-pool destroy the
+      // connection, so no later caller gets a connection in an unknown
+      // transaction state.
+      let releaseErr: Error | undefined;
       try {
         await client.query("BEGIN");
         const result = await queryFn(client);
         await client.query("COMMIT");
         return result;
       } catch (err) {
-        await client.query("ROLLBACK");
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackErr) {
+          releaseErr =
+            rollbackErr instanceof Error ? rollbackErr : new Error(String(rollbackErr));
+        }
         throw err;
       } finally {
-        client.release();
+        client.release(releaseErr);
       }
     } finally {
       this.poolManager.releasePool(tenantSlug);
