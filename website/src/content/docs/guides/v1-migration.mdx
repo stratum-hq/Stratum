@@ -17,7 +17,7 @@ authorization (API-key scopes), a set of pre-1.0 export renames, and one batch r
 shape. Everything else is additive.
 
 <Aside type="caution" title="Do these first">
-1. Set `STRATUM_HKDF_SALT` and a real JWT secret. Production hard-fails without them.
+1. Set `STRATUM_HKDF_SALT`, `STRATUM_ENCRYPTION_KEY` and a real JWT secret. Every environment other than `development` and `test` hard-fails without them.
 2. Set `STRATUM_API_KEY_HMAC_SECRET` to move API-key hashing from SHA-256 to HMAC-SHA256. Existing keys upgrade transparently on next use; without the secret you stay on SHA-256. Not breaking, but do it.
 3. Ensure your application database role is `NOBYPASSRLS` (the default `stratum_app` role is), then run the migrations, including `019_rls_policies.sql` and `020` (usage metering).
 </Aside>
