@@ -11,6 +11,7 @@ interface SchemaLike {
   add(obj: Record<string, unknown>): void;
   pre(method: string | string[], fn: (...args: unknown[]) => void): void;
   static(name: string, fn: (...args: never[]) => unknown): unknown;
+  statics?: Record<string, unknown>;
 }
 
 interface MongooseDocumentLike {
@@ -26,6 +27,7 @@ interface MongooseQueryLike {
 interface MongooseAggregateLike {
   pipeline(): Record<string, unknown>[];
   _pipeline: Record<string, unknown>[];
+  options?: { cursor?: unknown };
 }
 
 interface WatchableModelLike {
@@ -177,17 +179,29 @@ export function stratumPlugin(schema: SchemaLike): void {
   } as (...args: unknown[]) => void);
 
   // Pre-aggregate: reject cross-collection stages at any depth, then prepend
-  // $match stage. The checked pipeline is frozen: Mongoose hands this array to
-  // the driver cursor, so an edit made after the check would otherwise run.
+  // $match stage. The checked pipeline is a fresh copy. For .cursor() it is
+  // also frozen: Mongoose hands this array to a driver cursor that the caller
+  // can reach, so an edit made after the check would otherwise run. exec() and
+  // explain() keep it unfrozen, because Mongoose edits the pipeline of a
+  // discriminator model before this hook each time the Aggregate runs.
   schema.pre("aggregate", function (this: unknown, ...args: unknown[]) {
     const agg = this as MongooseAggregateLike;
     const next = args[0] as (() => void) | undefined;
     const ctx = getTenantContext();
     const safe = assertSafeAggregatePipeline(agg.pipeline());
-    agg._pipeline = freezePipeline([{ $match: { tenant_id: ctx.tenant_id } }, ...safe]);
+    const scoped = [{ $match: { tenant_id: ctx.tenant_id } }, ...safe];
+    agg._pipeline = agg.options?.cursor ? freezePipeline(scoped) : scoped;
     next?.();
   });
 
   // watch(): the change stream is filtered to the current tenant's documents.
+  // A watch() static defined before the plugin is refused rather than
+  // replaced; one defined after the plugin replaces the scoped watch().
+  if (schema.statics && Object.prototype.hasOwnProperty.call(schema.statics, "watch")) {
+    throw new Error(
+      "stratumPlugin: the schema already defines a watch() static, which the plugin would replace " +
+        "with a tenant-scoped watch(). Remove it, or apply the plugin to a schema without it.",
+    );
+  }
   schema.static("watch", scopedWatch);
 }

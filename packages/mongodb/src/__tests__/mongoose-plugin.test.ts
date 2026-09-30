@@ -119,16 +119,23 @@ describe("stratumPlugin", () => {
     const hooks = schema.hooks.get("aggregate")!;
     expect(hooks.length).toBe(1);
 
-    const agg = {
+    const makeAgg = (options: { cursor?: unknown }) => ({
+      options,
       _pipeline: [{ $group: { _id: "$x" } }] as Record<string, unknown>[],
       pipeline() {
         return this._pipeline;
       },
-    };
+    });
     const next = vi.fn();
+    const agg = makeAgg({});
     hooks[0].call(agg, next);
     expect(agg._pipeline).toEqual([{ $match: { tenant_id: "t1" } }, { $group: { _id: "$x" } }]);
-    expect(Object.isFrozen(agg._pipeline)).toBe(true);
+    expect(Object.isFrozen(agg._pipeline)).toBe(false);
+
+    const cursorAgg = makeAgg({ cursor: {} });
+    hooks[0].call(cursorAgg, next);
+    expect(cursorAgg._pipeline).toEqual([{ $match: { tenant_id: "t1" } }, { $group: { _id: "$x" } }]);
+    expect(Object.isFrozen(cursorAgg._pipeline)).toBe(true);
     expect(next).toHaveBeenCalled();
   });
 

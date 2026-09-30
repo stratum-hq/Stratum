@@ -57,9 +57,19 @@ describe("StratumTypeOrmSubscriber", () => {
   });
 
   it("restores the loaded tenant_id when a saved entity carries another one", () => {
+    (getTenantContext as ReturnType<typeof vi.fn>).mockReturnValue({ tenant_id: "t1" });
     const entity: Record<string, unknown> = { id: 1, name: "x", tenant_id: "t2" };
     subscriber.beforeUpdate({ entity, databaseEntity: { id: 1, name: "old", tenant_id: "t1" } });
     expect(entity).toEqual({ id: 1, name: "x", tenant_id: "t1" });
+  });
+
+  it("refuses a save() of a loaded row that belongs to another tenant", () => {
+    (getTenantContext as ReturnType<typeof vi.fn>).mockReturnValue({ tenant_id: "t1" });
+    const entity: Record<string, unknown> = { id: 1, name: "x" };
+    expect(() =>
+      subscriber.beforeUpdate({ entity, databaseEntity: { id: 1, name: "old", tenant_id: "t2" } }),
+    ).toThrow(/another tenant/);
+    expect(entity).toEqual({ id: 1, name: "x" });
   });
 });
 
