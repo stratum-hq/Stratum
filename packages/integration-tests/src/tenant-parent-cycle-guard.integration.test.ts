@@ -18,6 +18,8 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   "postgresql://stratum_test:stratum_test@localhost:5433/stratum_test";
 
+const RLS_ROLE = "stratum_p3_rls_writer";
+
 let stratum: Stratum;
 let client: pg.Client;
 
@@ -34,6 +36,15 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  const c = new pg.Client({ connectionString: DATABASE_URL });
+  await c.connect();
+  await c.query(`DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${RLS_ROLE}') THEN
+      REVOKE ALL ON tenants FROM ${RLS_ROLE};
+      DROP ROLE ${RLS_ROLE};
+    END IF;
+  END $$`);
+  await c.end();
   await closePool();
 });
 
@@ -103,6 +114,32 @@ describe("tenant parent cycle guard (integration)", () => {
     const err = await rejection(
       c.query(`UPDATE tenants SET slug = $1 WHERE id = $2`, [uniqueSlug("r11"), B.id]),
     );
+
+    expect(err.code).toBe("23514");
+    expect(err.message).toMatch(/cycle/);
+  });
+
+  it("refuses a cycle-making update from a role that does not bypass row-level security", async () => {
+    const [A, , C] = await chain(3);
+    const c = await rawClient();
+    // A data-plane style writer: no superuser, no BYPASSRLS, and under RLS it
+    // sees only the tenant row named by app.current_tenant_id.
+    await c.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${RLS_ROLE}') THEN
+        CREATE ROLE ${RLS_ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS;
+      END IF;
+    END $$`);
+    await c.query(`GRANT SELECT, UPDATE ON tenants TO ${RLS_ROLE}`);
+
+    await c.query(`BEGIN`);
+    await c.query(`SET LOCAL ROLE ${RLS_ROLE}`);
+    await c.query(`RESET app.bypass_rls`);
+    await c.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [A.id]);
+    const visible = await c.query(`SELECT id FROM tenants`);
+    expect(visible.rows.map((r) => r.id)).toEqual([A.id]);
+
+    const err = await rejection(c.query(`UPDATE tenants SET parent_id = $1 WHERE id = $2`, [C.id, A.id]));
+    await c.query(`ROLLBACK`);
 
     expect(err.code).toBe("23514");
     expect(err.message).toMatch(/cycle/);
