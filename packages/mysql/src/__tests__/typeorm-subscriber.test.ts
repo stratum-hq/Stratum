@@ -73,11 +73,25 @@ describe("StratumTypeOrmSubscriber.beforeQuery", () => {
     expect(() => subscriber.beforeQuery({ query })).toThrow(/tenant_id on conflict/);
   });
 
-  it("allows an upsert that leaves tenant_id out of the conflict update", () => {
+  it("allows an upsert that leaves tenant_id out of the conflict update when every unique key has tenant_id", async () => {
     const query =
       "INSERT INTO `items`(`id`, `tenant_id`, `name`) VALUES (?, ?, ?) " +
       "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `x_tenant_id` = VALUES(`x_tenant_id`)";
-    expect(() => subscriber.beforeQuery({ query })).not.toThrow();
+    const queryRunner = {
+      query: vi.fn().mockResolvedValue([
+        { index_name: "PRIMARY", column_name: "tenant_id" },
+        { index_name: "PRIMARY", column_name: "id" },
+      ]),
+    };
+    await expect(subscriber.beforeQuery({ query, queryRunner })).resolves.toBeUndefined();
+    expect(queryRunner.query.mock.calls[0][1]).toEqual([null, "items"]);
+  });
+
+  it("refuses an upsert whose table's unique keys cannot be checked", async () => {
+    const query =
+      "INSERT INTO `items`(`id`, `tenant_id`, `name`) VALUES (?, ?, ?) " +
+      "ON DUPLICATE KEY UPDATE `name` = VALUES(`name`)";
+    await expect(subscriber.beforeQuery({ query })).rejects.toThrow(/cannot be checked/);
   });
 
   it("allows a plain insert that writes tenant_id", () => {

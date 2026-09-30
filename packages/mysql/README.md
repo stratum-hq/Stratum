@@ -46,7 +46,7 @@ import { MysqlTableAdapter } from "@stratum-hq/mysql";
 const adapter = new MysqlTableAdapter({
   pool,
   databaseName: "myapp",
-  // Every base table that has a per-tenant copy. Required by purgeTenantData.
+  // Every base table that has a per-tenant copy. Required by scopedTable and purgeTenantData.
   baseTables: ["users", "orders"],
 });
 
@@ -95,6 +95,8 @@ Inserts get the current tenant's `tenant_id`. Updates never change `tenant_id`: 
 
 Upserts (`repository.upsert()` and `.orUpdate()`) also get the current tenant's `tenant_id` on insert. If the conflict update writes `tenant_id`, the subscriber rejects the statement before it runs. To upsert, leave `tenant_id` out of the entity values and out of the `orUpdate()` columns.
 
+MySQL applies `ON DUPLICATE KEY UPDATE` on a conflict with any unique key of the table, whatever conflict columns you pass. The subscriber therefore allows an upsert only when every unique key of the target table, including the primary key, contains `tenant_id` (for example `PRIMARY KEY (tenant_id, id)`). It reads the keys from `information_schema` before the statement runs, and rejects the upsert otherwise.
+
 **Limitation:** TypeORM subscribers can intercept writes but not reads. Use the shared-table adapter's structured methods for tenant-scoped reads.
 
 ### Knex Helper
@@ -108,6 +110,8 @@ const users = await tenantKnex("users").where("name", "like", q).orWhere("email"
 ```
 
 Your where clauses are always grouped after the tenant filter, including on clones and when the builder is used as a subquery. `insert()` sets `tenant_id`, `update()` never changes it, and `onConflict().merge()`, `upsert()` and `truncate()` throw.
+
+Joins (`join()`, `leftJoin()`, `crossJoin()`, `joinRaw()` and the other join forms) and `union()` / `unionAll()` also throw, because the tenant filter covers only the builder's own table. To combine tables, use a tenant-scoped builder as a `whereIn()` subquery, or write the query with plain Knex and a `tenant_id` condition on every table.
 
 ### Sequelize Adapter
 

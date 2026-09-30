@@ -26,7 +26,8 @@ describe("MysqlTableAdapter", () => {
 
   describe("scopedTable", () => {
     it("returns the escaped tenant-scoped table name", () => {
-      const result = adapter.scopedTable("acme", "orders");
+      const registered = new MysqlTableAdapter({ pool, databaseName: "testdb", baseTables: ["orders"] });
+      const result = registered.scopedTable("acme", "orders");
       expect(result).toBe("`orders_acme`");
     });
 

@@ -18,6 +18,8 @@ export interface UpdateEvent {
 export interface BeforeQueryEvent {
   /** The SQL text that TypeORM is about to send to MySQL. */
   query: string;
+  /** The query runner that is about to send the query. */
+  queryRunner?: { query(sql: string, parameters?: unknown[]): Promise<unknown> };
 }
 
 export interface EntitySubscriberInterface {
@@ -36,6 +38,13 @@ export interface TypeOrmDataSourceLike {
 // quotes each column with backticks.
 const UPSERT_CLAUSE = /\bON\s+DUPLICATE\s+KEY\s+UPDATE\b/i;
 const TENANT_ASSIGNMENT = /`tenant_id`\s*=/i;
+// The target of an INSERT, as TypeORM writes it: `table` or `schema`.`table`.
+const INSERT_TARGET = /^\s*INSERT\s+(?:IGNORE\s+)?INTO\s+(?:`((?:[^`]|``)+)`\.)?`((?:[^`]|``)+)`/i;
+
+const UNIQUE_KEYS_SQL =
+  "SELECT INDEX_NAME AS index_name, COLUMN_NAME AS column_name " +
+  "FROM information_schema.STATISTICS " +
+  "WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ? AND NON_UNIQUE = 0";
 
 /**
  * TypeORM subscriber that injects tenant_id into inserted entities via ALS and
@@ -87,20 +96,61 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   }
 
   /**
-   * Rejects an upsert that writes tenant_id on a key conflict.
+   * Rejects an upsert that could update another tenant's row.
    *
    * A conflict update must never change the tenant of an existing row. A
    * subscriber cannot remove one column from the conflict update, so the
    * statement fails before it runs.
    *
+   * MySQL runs ON DUPLICATE KEY UPDATE on a conflict with any unique key of
+   * the table, whatever conflict columns were passed to upsert() or
+   * orUpdate(). The upsert is therefore allowed only when every unique key
+   * (including the primary key) of the target table contains tenant_id, so a
+   * conflict can only ever be with a row of the same tenant. The keys are read
+   * from information_schema through the same query runner.
+   *
    * @throws Error when the ON DUPLICATE KEY UPDATE clause assigns tenant_id.
+   * @returns A promise that rejects when a unique key of the table does not
+   *   include tenant_id, or when the table cannot be determined.
    */
-  beforeQuery(event: BeforeQueryEvent): void {
+  beforeQuery(event: BeforeQueryEvent): void | Promise<void> {
     const clause = event.query.split(UPSERT_CLAUSE)[1];
-    if (clause !== undefined && TENANT_ASSIGNMENT.test(clause)) {
+    if (clause === undefined) return;
+    if (TENANT_ASSIGNMENT.test(clause)) {
       throw new Error(
         "Stratum: an upsert must not update tenant_id on conflict. " +
           "Remove tenant_id from the entity values or from the orUpdate() columns.",
+      );
+    }
+    return assertUniqueKeysIncludeTenant(event);
+  }
+}
+
+async function assertUniqueKeysIncludeTenant(event: BeforeQueryEvent): Promise<void> {
+  const target = INSERT_TARGET.exec(event.query);
+  if (!target || !event.queryRunner) {
+    throw new Error(
+      "Stratum: an upsert is refused because its table's unique keys cannot be checked for tenant_id.",
+    );
+  }
+  const unquote = (name: string | undefined) => (name === undefined ? null : name.replace(/``/g, "`"));
+  const table = unquote(target[2]) as string;
+  const rows = (await event.queryRunner.query(UNIQUE_KEYS_SQL, [unquote(target[1]), table])) as {
+    index_name: string;
+    column_name: string;
+  }[];
+
+  const keys = new Map<string, boolean>();
+  for (const row of rows) {
+    const hasTenant = row.column_name.toLowerCase() === "tenant_id";
+    keys.set(row.index_name, (keys.get(row.index_name) ?? false) || hasTenant);
+  }
+  for (const [key, hasTenant] of keys) {
+    if (!hasTenant) {
+      throw new Error(
+        `Stratum: an upsert on "${table}" is refused, because its unique key "${key}" does not include tenant_id, ` +
+          "so a conflict could update another tenant's row. Add tenant_id to every unique key of the table, " +
+          "or look the row up by tenant before writing it.",
       );
     }
   }
