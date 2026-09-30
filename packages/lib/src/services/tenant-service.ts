@@ -27,10 +27,12 @@ import {
  * rewrites the paths of a whole subtree, so nothing else may read or write
  * ancestry while it runs. Creates and lifecycle transitions take it shared, so
  * they still run alongside each other (row locks order those) but never read a
- * parent path that an in-flight move is about to rewrite. Take it before
- * reading any row the change depends on.
+ * parent path that an in-flight move is about to rewrite. A subtree query that
+ * reads a tenant's path and then selects by that prefix also takes it shared,
+ * so a move cannot commit between the two statements. Take it before reading
+ * any row the change depends on.
  */
-async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
+export async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
   const fn = mode === "exclusive" ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared";
   await client.query(`SELECT ${fn}(('x' || substr(md5('stratum.tenant_tree'), 1, 16))::bit(64)::bigint)`);
 }
@@ -748,6 +750,7 @@ export async function getDescendants(
   includeArchived = false,
 ): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
+    await lockTree(client, "shared");
     const existsRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1`,
       [id],

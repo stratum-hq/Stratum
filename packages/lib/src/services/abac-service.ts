@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
+import { lockTree } from "./tenant-service.js";
 import {
   type AbacCondition,
   type AbacPolicy,
@@ -364,6 +365,7 @@ export async function deleteAbacPolicy(
     // regardless of any slug rename. ancestry_ltree is derived from slugs and
     // must not scope revocation. A prefix match lets
     // idx_tenant_ancestry_path_prefix (028) serve the query.
+    await lockTree(client, "shared");
     const tenantRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1`,
       [tenantId],
