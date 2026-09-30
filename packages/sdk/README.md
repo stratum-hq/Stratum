@@ -83,6 +83,7 @@ import {
   TenantNotFoundError,
   TenantSuspendedError,
   UnauthorizedError,
+  WebhookNotFoundError,
 } from "@stratum-hq/core";
 ```
 
@@ -91,16 +92,22 @@ import {
 | 401 | `UnauthorizedError` |
 | 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
 | 403, any other code | `ForbiddenError` |
-| 404 | `TenantNotFoundError` |
+| 404 `TENANT_NOT_FOUND` | `TenantNotFoundError` |
+| 404 `WEBHOOK_NOT_FOUND` | `WebhookNotFoundError` |
+| 404, any other code | `Error`, with the control plane's message |
 | 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
 
-The middleware answers these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target. Other errors go to your framework's error handler.
+An API key that is scoped to a tenant gets `ForbiddenError` (403 `FORBIDDEN`) for a descendant that is suspended or archived, not `TenantSuspendedError` or `TenantArchivedError`. An API key without the `admin` scope gets `ForbiddenError` from an admin operation, for example `purgeTenant`.
 
-Each control plane request has a time limit of `timeoutMs` milliseconds (default 10000). A request that takes longer rejects with a `TimeoutError` `DOMException`:
+The middleware answers these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target, and does not call `onError` for them. A control plane timeout gets 504 `CONTROL_PLANE_TIMEOUT`. An `UnauthorizedError` for the SDK's own API key gets 500 `CONTROL_PLANE_AUTH_FAILED` and a `console.error` line. The middleware calls `onError` for these two. Other errors go to your framework's error handler. Other adapters can use the same mapping: import `tenantErrorResponse` and `controlPlaneErrorResponse`.
+
+Each control plane request has a time limit of `timeoutMs` milliseconds (default 10000). A request that takes longer rejects with a `TimeoutError` `DOMException`. The value must be an integer from 1 to 4294967295, or `Infinity` to turn the time limit off. Any other value makes the constructor throw a `RangeError`:
 
 ```typescript
 const client = new StratumClient({ controlPlaneUrl, apiKey, timeoutMs: 5000 });
 ```
+
+A timeout does not mean that the operation failed. If `purgeTenant` times out, the purge can still complete. Call `getTenant(id)` to find out.
 
 ## Links
 

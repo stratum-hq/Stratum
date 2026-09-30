@@ -62,3 +62,7 @@ app.use("*", stratumMiddleware({ header: "x-tenant-id" }));
 - **ALS context** -- sets tenant context via `runWithTenantContext` for downstream handlers
 - **Optional resolve callback** -- fetch full tenant context from the control plane
 - **Lightweight** -- no heavy dependencies, structural types only
+
+If `resolve` rejects with a tenant error from `@stratum-hq/core`, the middleware answers the request itself: `TenantNotFoundError` gets 404 `TENANT_NOT_FOUND`, `TenantSuspendedError` gets 403 `TENANT_SUSPENDED`, `TenantArchivedError` gets 410 `TENANT_ARCHIVED`, and `ForbiddenError` gets 403 `FORBIDDEN`. `StratumClient.resolveTenant` throws these errors.
+
+The middleware also answers two control plane failures. A control plane timeout gets 504 `CONTROL_PLANE_TIMEOUT`. An `UnauthorizedError` for the SDK's own API key gets 500 `CONTROL_PLANE_AUTH_FAILED` and a `console.error` line, because the fault is in the server configuration and not in the request. Other errors go to the Hono error handler.

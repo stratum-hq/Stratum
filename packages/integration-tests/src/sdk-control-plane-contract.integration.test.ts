@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { StratumClient, expressMiddleware, getTenantContext } from "@stratum-hq/sdk";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
-import { ForbiddenError, TenantArchivedError, TenantNotFoundError, TenantSuspendedError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+  WebhookNotFoundError,
+} from "@stratum-hq/core";
 import {
   getPool,
   closePool,
@@ -206,6 +212,37 @@ describe("SDK against the real control plane (integration)", () => {
     const err = await client.resolveTenant(missingId).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(TenantNotFoundError);
     expect((err as Error).message).toBe(`Tenant not found: ${missingId}`);
+  });
+
+  // Every route can answer 404, so the client maps a 404 by its error code.
+  describe("404 mapping by error code", () => {
+    const missingId = "00000000-0000-4000-8000-000000000000";
+
+    it("maps a missing webhook to WebhookNotFoundError", async () => {
+      const client = await operatorClient();
+
+      const err = await client.getWebhook(missingId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(WebhookNotFoundError);
+      expect((err as Error).message).toBe(`Webhook not found: ${missingId}`);
+    });
+
+    it("maps a missing API key to a plain Error, not TenantNotFoundError", async () => {
+      const client = new StratumClient({ controlPlaneUrl: baseUrl, apiKey: adminKey, cache: { enabled: false } });
+
+      const err = await client.rotateApiKey(missingId).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(TenantNotFoundError);
+      expect((err as Error).message).toBe("API key not found or already revoked");
+    });
+  });
+
+  it("maps a purge by a key without the admin scope to ForbiddenError", async () => {
+    const key = await stratum.createApiKey(parentId);
+    await getPool().query("UPDATE api_keys SET scopes = $2 WHERE id = $1", [key.id, ["read", "write"]]);
+    const client = new StratumClient({ controlPlaneUrl: baseUrl, apiKey: key.plaintext_key, cache: { enabled: false } });
+
+    await expect(client.purgeTenant(childId)).rejects.toBeInstanceOf(ForbiddenError);
+    expect((await stratum.getTenant(childId)).id).toBe(childId);
   });
 });
 

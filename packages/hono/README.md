@@ -41,7 +41,7 @@ app.get("/users", (c) => {
 | `header` | Read a request header (default: `x-tenant-id`) |
 | `resolve` | Optional callback `(tenantId) => TenantContext` to populate ancestry, config, and permissions |
 
-If no tenant ID is found, the middleware responds with `400 { error: "Missing tenant ID" }`. Without a `resolve` callback the context is a placeholder (empty config/permissions) — provide `resolve` for real tenant data.
+If no tenant ID is found, the middleware responds with `400 { error: "Missing tenant ID" }`. If `resolve` rejects with a tenant error from `@stratum-hq/core`, for example from `StratumClient.resolveTenant`, the middleware responds with 404 `TENANT_NOT_FOUND`, 403 `TENANT_SUSPENDED`, 410 `TENANT_ARCHIVED`, or 403 `FORBIDDEN`. A control plane timeout gets 504 `CONTROL_PLANE_TIMEOUT`. An `UnauthorizedError` for the SDK's own API key gets 500 `CONTROL_PLANE_AUTH_FAILED` and a `console.error` line. Other errors go to the Hono error handler. Without a `resolve` callback the context is a placeholder (empty config/permissions) — provide `resolve` for real tenant data.
 
 ## Features
 

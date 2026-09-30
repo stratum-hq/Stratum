@@ -6,6 +6,7 @@ import {
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
+  UnauthorizedError,
 } from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
@@ -258,6 +259,67 @@ describe("expressMiddleware", () => {
       await middleware(req, res, next);
 
       expect(onError).toHaveBeenCalledWith(error, req);
+    });
+
+    it("answers a tenant error inline and does not call onError", async () => {
+      const onError = vi.fn();
+      const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(new TenantNotFoundError("t-1")) });
+      const middleware = expressMiddleware(client, { onError });
+      const res = makeRes();
+
+      await middleware(makeReq({ "x-tenant-id": "t-1" }), res, next);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(onError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("control plane failures", () => {
+    it("answers 504 CONTROL_PLANE_TIMEOUT when the control plane request times out", async () => {
+      const error = new DOMException("The operation timed out.", "TimeoutError");
+      const onError = vi.fn();
+      const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(error) });
+      const middleware = expressMiddleware(client, { onError });
+      const req = makeReq({ "x-tenant-id": "t-1" });
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(504);
+      expect(res.json).toHaveBeenCalledWith({ error: expect.objectContaining({ code: "CONTROL_PLANE_TIMEOUT" }) });
+      expect(onError).toHaveBeenCalledWith(error, req);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("answers 500 and logs the cause when the control plane rejects the SDK API key", async () => {
+      const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(new UnauthorizedError("Invalid or missing API key")) });
+      const middleware = expressMiddleware(client);
+      const res = makeRes();
+
+      await middleware(makeReq({ "x-tenant-id": "t-1" }), res, next);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: expect.objectContaining({ code: "CONTROL_PLANE_AUTH_FAILED" }) });
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("rejected the SDK API key"));
+      expect(next).not.toHaveBeenCalled();
+      log.mockRestore();
+    });
+
+    it("answers 504 when the impersonation target request times out", async () => {
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(makeResolvedTenantContext("caller-tenant"))
+          .mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError")),
+      });
+      const middleware = expressMiddleware(client, { impersonation: { enabled: true, authorize: () => true } });
+      const res = makeRes();
+
+      await middleware(makeReq({ "x-tenant-id": "caller-tenant", "x-impersonate-tenant": "target-tenant" }), res, next);
+
+      expect(res.status).toHaveBeenCalledWith(504);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 

@@ -43,7 +43,9 @@
   },
   "peerDependencies": {
     "mysql2": "^3.0.0",
-    "knex": ">=3.0.0"
+    "knex": ">=3.0.0",
+    "typeorm": "^1.0.0",
+    "sequelize": "^6.0.0"
   },
   "peerDependenciesMeta": {
     "typeorm": {

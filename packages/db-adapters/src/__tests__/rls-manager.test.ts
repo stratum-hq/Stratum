@@ -124,7 +124,9 @@ describe("RLS Manager", () => {
 
       // Second call: CREATE POLICY
       expect(calls[1][0]).toContain("CREATE POLICY tenant_isolation ON orders");
-      expect(calls[1][0]).toContain("current_setting('app.current_tenant_id')");
+      expect(calls[1][0]).toContain(
+        "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid",
+      );
     });
 
     it("skips creation when policy already exists", async () => {

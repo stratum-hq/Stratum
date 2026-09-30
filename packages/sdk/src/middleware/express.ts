@@ -3,7 +3,7 @@ import type { MiddlewareOptions } from "../types.js";
 import { runWithTenantContext } from "../context.js";
 import { assertJwtSupport } from "../resolvers/jwt.js";
 import { resolveTenantId } from "../resolvers/resolve.js";
-import { tenantErrorResponse } from "./tenant-errors.js";
+import { controlPlaneErrorResponse, tenantErrorResponse } from "./tenant-errors.js";
 
 // Minimal structural types for the Express surface this middleware touches, so
 // the SDK does not take a hard dependency on `express` types in its published API.
@@ -23,6 +23,22 @@ type ExpressResponseLike = {
 export function expressMiddleware(client: StratumClient, options?: MiddlewareOptions) {
   assertJwtSupport(options);
   return async (req: ExpressRequestLike, res: ExpressResponseLike, next: NextFn): Promise<void> => {
+    /** Send the response for a known resolution error. Return false for any other error. */
+    const answerResolutionError = (err: unknown, tenantId: string): boolean => {
+      const response = tenantErrorResponse(err, tenantId);
+      if (response) {
+        res.status(response.status).json(response.body);
+        return true;
+      }
+      const failure = controlPlaneErrorResponse(err);
+      if (!failure) return false;
+      if (options?.onError && err instanceof Error) {
+        options.onError(err, req);
+      }
+      res.status(failure.status).json(failure.body);
+      return true;
+    };
+
     try {
       // Resolve tenant ID: JWT → header → custom resolvers
       const resolution = await resolveTenantId(req, options);
@@ -43,11 +59,7 @@ export function expressMiddleware(client: StratumClient, options?: MiddlewareOpt
       try {
         context = await client.resolveTenant(tenantId);
       } catch (err) {
-        const response = tenantErrorResponse(err, tenantId);
-        if (response) {
-          res.status(response.status).json(response.body);
-          return;
-        }
+        if (answerResolutionError(err, tenantId)) return;
         throw err;
       }
 
@@ -76,11 +88,7 @@ export function expressMiddleware(client: StratumClient, options?: MiddlewareOpt
           try {
             impersonatedContext = await client.resolveTenant(impersonateTenantId);
           } catch (err) {
-            const response = tenantErrorResponse(err, impersonateTenantId);
-            if (response) {
-              res.status(response.status).json(response.body);
-              return;
-            }
+            if (answerResolutionError(err, impersonateTenantId)) return;
             throw err;
           }
           req.tenant = impersonatedContext;

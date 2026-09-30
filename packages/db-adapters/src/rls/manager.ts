@@ -21,7 +21,7 @@ export async function createPolicy(
   );
   if (parseInt(exists.rows[0].count, 10) === 0) {
     await client.query(
-      `CREATE POLICY tenant_isolation ON ${safe} USING (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
+      `CREATE POLICY tenant_isolation ON ${safe} USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
     );
   }
 }

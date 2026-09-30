@@ -34,7 +34,7 @@ export async function createIsolationPolicy(
   const safe = validateTableName(tableName);
   await client.query(
     `CREATE POLICY tenant_isolation ON ${safe}
-     USING (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
+     USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
   );
 }
 
