@@ -38,7 +38,7 @@ if (jwtSecretEnv && enforceSecretHygiene) {
 const jwtAudienceEnv = process.env.JWT_AUDIENCE || undefined;
 const jwtIssuerEnv = process.env.JWT_ISSUER || undefined;
 
-if (!jwtAudienceEnv && (nodeEnv === "production" || nodeEnv === "staging")) {
+if (!jwtAudienceEnv && enforceSecretHygiene) {
   console.warn("[stratum] JWT_AUDIENCE not set — Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
 }
 
