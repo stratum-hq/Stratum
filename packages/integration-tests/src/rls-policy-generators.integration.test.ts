@@ -182,3 +182,77 @@ describe("generated tenant_isolation policies after the tenant context ends", ()
     expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
   });
 });
+
+describe("db-adapters createPolicy with an existing tenant_isolation policy", () => {
+  it("rejects a same-named policy that does not filter by tenant, and leaves it in place", async () => {
+    await scratch.query(`CREATE POLICY tenant_isolation ON ${TABLE} USING (true)`);
+
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/tenant_isolation.*does not filter by tenant/);
+    });
+
+    const { rows } = await scratch.query(
+      `SELECT qual FROM pg_policies WHERE tablename = $1 AND policyname = 'tenant_isolation'`,
+      [TABLE],
+    );
+    expect(rows).toEqual([{ qual: "true" }]);
+  });
+
+  it("rejects a same-named policy whose WITH CHECK does not filter by tenant", async () => {
+    await scratch.query(
+      `CREATE POLICY tenant_isolation ON ${TABLE}
+       USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)
+       WITH CHECK (true)`,
+    );
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/WITH CHECK.*does not filter by tenant/);
+    });
+  });
+
+  it("rejects a same-named policy that compares tenant_id with a different setting", async () => {
+    await scratch.query(
+      `CREATE POLICY tenant_isolation ON ${TABLE}
+       USING (tenant_id = NULLIF(current_setting('app.other_tenant', true), '')::uuid)`,
+    );
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/does not filter by tenant/);
+    });
+  });
+
+  it("accepts the policy it generated itself when called again", async () => {
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await createPolicy(c, TABLE);
+      await createPolicy(c, TABLE);
+    });
+    await grantAndSeed();
+
+    expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
+  });
+
+  it("accepts the policy that stratum migrate generates", async () => {
+    const { code, out } = runCli(["migrate", TABLE]);
+    expect(code, out).toBe(0);
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).resolves.toBeUndefined();
+    });
+  });
+
+  it("creates the policy when only a same-named table in another schema has one", async () => {
+    await scratch.query(`CREATE SCHEMA other`);
+    await scratch.query(`CREATE TABLE other.${TABLE} (id INT PRIMARY KEY, tenant_id UUID NOT NULL)`);
+    await scratch.query(`CREATE POLICY tenant_isolation ON other.${TABLE} USING (true)`);
+
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await createPolicy(c, TABLE);
+    });
+    await grantAndSeed();
+
+    expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
+  });
+});

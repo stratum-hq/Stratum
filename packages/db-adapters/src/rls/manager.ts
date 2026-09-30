@@ -1,4 +1,7 @@
 import pg from "pg";
+import { tenantPolicyIssue, type PolicyRow } from "./policy-check.js";
+
+const TENANT_FILTER = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
 
 // Validate table name to prevent SQL injection (only allows alphanumeric + underscores)
 function validateTableName(tableName: string): string {
@@ -13,15 +16,27 @@ export async function createPolicy(
   tableName: string,
 ): Promise<void> {
   const safe = validateTableName(tableName);
-  // Cannot use parameterized queries inside DO blocks or for DDL identifiers.
-  // Table name is validated via allowlist regex above.
-  const exists = await client.query<{ count: string }>(
-    `SELECT count(*) FROM pg_policies WHERE tablename = $1 AND policyname = 'tenant_isolation'`,
+  // Look up the policy on the table that the name resolves to, in whichever
+  // schema that is, and check what it filters on: its name proves nothing.
+  const existing = await client.query<PolicyRow>(
+    `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check
+       FROM pg_policies p
+       JOIN pg_class c ON c.relname = p.tablename
+       JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = p.schemaname
+      WHERE c.oid = to_regclass($1) AND p.policyname = 'tenant_isolation'`,
     [safe],
   );
-  if (parseInt(exists.rows[0].count, 10) === 0) {
-    await client.query(
-      `CREATE POLICY tenant_isolation ON ${safe} USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
+  if (existing.rows.length === 0) {
+    // Cannot use parameterized queries inside DO blocks or for DDL identifiers.
+    // Table name is validated via allowlist regex above.
+    await client.query(`CREATE POLICY tenant_isolation ON ${safe} USING (${TENANT_FILTER})`);
+    return;
+  }
+  const issue = tenantPolicyIssue(existing.rows[0]);
+  if (issue !== null) {
+    throw new Error(
+      `[stratum] Table ${safe} already has a tenant_isolation policy, but ${issue} ` +
+        `(expected ${TENANT_FILTER}). Drop or correct that policy, then call createPolicy again.`,
     );
   }
 }
