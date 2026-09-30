@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 import { Stratum } from "@stratum-hq/lib";
 import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
@@ -18,6 +20,7 @@ import { uniqueSlug } from "./helpers/fixtures.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI = path.resolve(__dirname, "../../cli/dist/index.js");
+const DOCS = path.resolve(__dirname, "../../../website/src/content/docs/packages/cli.mdx");
 
 const BASE_URL =
   process.env.DATABASE_URL ||
@@ -80,6 +83,64 @@ async function plantParent(id: string, parentId: string): Promise<void> {
   }
 }
 
+/**
+ * Runs the repair SQL as the CLI docs print it. The test reads the block from
+ * the docs page, so the docs and the tested SQL cannot differ. It connects as
+ * the NOBYPASSRLS role, the way an operator connects.
+ */
+async function runDocumentedRepair(memberId: string, newParentSql: string): Promise<void> {
+  const doc = fs.readFileSync(DOCS, "utf8");
+  const section = doc.slice(doc.indexOf("#### Repair a tenant parent cycle"));
+  const sql = /```sql\n([\s\S]*?)```/.exec(section)?.[1];
+  expect(sql, "repair SQL block in cli.mdx").toBeDefined();
+  const filled = sql!
+    .replace("'<new-parent-id>'", newParentSql)
+    .replace("<cycle-member-id>", memberId);
+  expect(filled).not.toMatch(/'<[a-z-]+>'/);
+  const c = new pg.Client({ connectionString: appUrl });
+  await c.connect();
+  try {
+    await c.query(`SET statement_timeout = '5s'`);
+    await c.query(filled);
+  } finally {
+    await c.end();
+  }
+}
+
+/**
+ * Returns the slugs of tenants whose ancestry_path, depth or ancestry_ltree
+ * do not match their parent_id chain. The expected values come from this
+ * TypeScript walk, not from the SQL under test.
+ */
+async function inconsistentTenants(): Promise<string[]> {
+  const res = await getPool().query(
+    `SELECT id, parent_id, slug, ancestry_path, depth, ancestry_ltree::text AS lt FROM tenants`,
+  );
+  const rows = res.rows as Array<{
+    id: string;
+    parent_id: string | null;
+    slug: string;
+    ancestry_path: string;
+    depth: number;
+    lt: string;
+  }>;
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const bad: string[] = [];
+  for (const r of rows) {
+    const ancestors: string[] = [];
+    // The length limit ends the walk on a cycle that is still in the data.
+    for (let p = r.parent_id; p && ancestors.length <= rows.length; p = byId.get(p)?.parent_id ?? null) {
+      ancestors.unshift(p);
+    }
+    const expectedPath = ancestors.length === 0 ? "/" : `/${ancestors.join("/")}`;
+    const expectedLtree = [...ancestors.map((id) => byId.get(id)!.slug), r.slug].join(".");
+    if (r.ancestry_path !== expectedPath || r.depth !== ancestors.length || r.lt !== expectedLtree) {
+      bad.push(r.slug);
+    }
+  }
+  return bad.sort();
+}
+
 beforeAll(async () => {
   await runMigrations();
   const pool = getPool();
@@ -92,6 +153,8 @@ beforeAll(async () => {
   `);
   await pool.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await pool.query(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`);
+  // The documented repair writes tenants as this role.
+  await pool.query(`GRANT UPDATE ON tenants TO ${APP_ROLE}`);
   stratum = new Stratum({ pool });
 });
 
@@ -130,20 +193,49 @@ describe("stratum doctor: tenant parent cycles", () => {
     expect(cycleLine(out)).toContain("1 cycle(s)");
     for (const t of [A, B, C]) expect(out).toContain(t.name);
     expect(out).toMatch(/parent_id .*outside the cycle.*NULL/);
+    expect(out).toMatch(/recompute ancestry_path and depth: \S+#repair-a-tenant-parent-cycle/);
     expect(code, out).toBe(1);
   });
 
-  it("passes again after the fix it states: parent_id of one member set to NULL", async () => {
-    const [A, , C] = await chain(3);
-    await plantParent(A.id, C.id);
-    // The 029 guard is on again here, so the fix must be a write it accepts.
-    await getPool().query(
-      `UPDATE tenants SET parent_id = NULL WHERE id = $1`,
-      [A.id],
-    );
+  it("moveTenant of a cycle member can leave another member with a wrong ancestry_path and depth", async () => {
+    const [X] = await chain(1);
+    const [A, B, C] = await chain(3);
+    await plantParent(A.id, C.id); // A -> C -> B -> A
 
+    // moveTenant derives the new paths from the stored ancestry_path of B.
+    // A is now below C, but its stored path still says it is a root.
+    await stratum.moveTenant(B.id, X.id);
+
+    expect(await inconsistentTenants()).toEqual([A.slug]);
+  });
+
+  it("the documented repair to a parent outside the cycle leaves every tenant consistent", async () => {
+    const [X] = await chain(1);
+    const [A, B, C] = await chain(4);
+    await plantParent(A.id, C.id); // A -> C -> B -> A; the 4th tenant hangs under C
+    expect(await inconsistentTenants()).toContain(A.slug);
+
+    await runDocumentedRepair(B.id, `'${X.id}'`);
+
+    expect(await inconsistentTenants()).toEqual([]);
     const { code, out } = runDoctor();
+    expect(cycleLine(out)).toContain("None found");
+    expect(code, out).toBe(0);
+  });
 
+  it("the documented repair with NULL makes the member a root and leaves every tenant consistent", async () => {
+    const [A, B, C] = await chain(4);
+    await plantParent(A.id, C.id);
+
+    await runDocumentedRepair(B.id, "NULL");
+
+    expect(await inconsistentTenants()).toEqual([]);
+    const row = await getPool().query(
+      `SELECT parent_id, depth, ancestry_path FROM tenants WHERE id = $1`,
+      [B.id],
+    );
+    expect(row.rows[0]).toEqual({ parent_id: null, depth: 0, ancestry_path: "/" });
+    const { code, out } = runDoctor();
     expect(cycleLine(out)).toContain("None found");
     expect(code, out).toBe(0);
   });

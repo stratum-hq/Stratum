@@ -55,6 +55,9 @@ const STRATUM_TABLES = [
 
 const MAX_TREE_DEPTH = 20;
 
+const CYCLE_REPAIR_DOCS =
+  "https://docs.stratum-hq.org/packages/cli/#repair-a-tenant-parent-cycle";
+
 // ── Individual checks ────────────────────────────────────────────────
 
 async function checkConnectivity(
@@ -327,8 +330,11 @@ async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
     const names = members.map((m) => `${m.name} (${m.id.slice(0, 8)}...)`);
     return `Cycle: ${[...names, names[0]].join(" → ")}`;
   });
+  // moveTenant is not a safe fix: it derives new paths from the stored
+  // ancestry_path of the moved tenant, which a cycle can make wrong.
   details.push(
     "Fix: set parent_id of one tenant in each cycle to a tenant outside the cycle, or to NULL",
+    `Then, in the same transaction, recompute ancestry_path and depth: ${CYCLE_REPAIR_DOCS}`,
   );
 
   return {
