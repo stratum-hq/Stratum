@@ -12,8 +12,20 @@
 -- with this error, instead of carrying the ltree around the loop. It is named
 -- so that it runs before maintain_tenant_ancestry_ltree (BEFORE triggers run in
 -- name order).
+--
+-- The walk must see the whole chain even when the writer is under row-level
+-- security (019), where a session sees only its own tenant row. SECURITY
+-- DEFINER would not help: FORCE ROW LEVEL SECURITY applies to the table owner
+-- too, and the recommended owner is the application role without BYPASSRLS.
+-- The function therefore turns on the 019 bypass setting for its own duration
+-- only (a function SET clause is restored when the function exits, on error
+-- too). The function reads nothing back to the caller: it returns the row it
+-- was given or raises. search_path is pinned below to pg_catalog and the
+-- schema this migration runs in, which is where 001 created tenants.
 CREATE OR REPLACE FUNCTION refuse_tenant_parent_cycle()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET app.bypass_rls = 'on'
+AS $$
 BEGIN
   IF NEW.parent_id = NEW.id OR EXISTS (
     WITH RECURSIVE up(id, parent_id, seen) AS (
@@ -34,6 +46,13 @@ BEGIN
   RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+DO $pin$ BEGIN
+  EXECUTE format(
+    'ALTER FUNCTION refuse_tenant_parent_cycle() SET search_path = pg_catalog, %I',
+    current_schema()
+  );
+END $pin$;
 
 DROP TRIGGER IF EXISTS guard_tenant_parent_cycle ON tenants;
 CREATE TRIGGER guard_tenant_parent_cycle

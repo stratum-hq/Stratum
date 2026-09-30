@@ -75,6 +75,18 @@ async function tenantIn(state: (typeof states)[number]): Promise<TenantNode> {
   return t;
 }
 
+/**
+ * A role owned by the tenant. Written in SQL because the library refuses to
+ * create a role for a tenant that is not active.
+ */
+async function tenantRole(tenantId: string): Promise<{ id: string }> {
+  const res = await getPool().query<{ id: string }>(
+    `INSERT INTO roles (name, scopes, tenant_id) VALUES ($1, $2, $3) RETURNING id`,
+    [uniqueSlug("role"), ["read"], tenantId],
+  );
+  return res.rows[0];
+}
+
 async function count(sql: string, params: unknown[]): Promise<number> {
   const res = await getPool().query(sql, params);
   return res.rowCount ?? 0;
@@ -147,6 +159,25 @@ describe.each(states)("writes to a $state tenant through the library (integratio
     expect(await count(`SELECT 1 FROM principal_roles WHERE principal_id = $1`, [principal])).toBe(0);
   });
 
+  it("refuses updateRole on the tenant's role and leaves it unchanged", async () => {
+    const t = await tenantIn(s);
+    const role = await tenantRole(t.id);
+    await expect(
+      stratum.updateRole(role.id, { scopes: ["read", "write", "admin"] }),
+    ).rejects.toBeInstanceOf(s.error);
+    const row = await getPool().query(`SELECT scopes FROM roles WHERE id = $1`, [role.id]);
+    expect(row.rows[0].scopes).toEqual(["read"]);
+  });
+
+  it("refuses assignRoleToKey with the tenant's role and writes nothing", async () => {
+    const t = await tenantIn(s);
+    const role = await tenantRole(t.id);
+    const key = await stratum.createApiKey((await activeTenant()).id, "k");
+    await expect(stratum.assignRoleToKey(key.id, role.id)).rejects.toBeInstanceOf(s.error);
+    const row = await getPool().query(`SELECT role_id FROM api_keys WHERE id = $1`, [key.id]);
+    expect(row.rows[0].role_id).toBeNull();
+  });
+
   it("refuses recordUsage and writes nothing", async () => {
     const t = await tenantIn(s);
     await expect(
@@ -183,6 +214,17 @@ describe.each(states.filter((s) => s.enter !== null))(
       ).rejects.toBeInstanceOf(s.error);
       const row = await getPool().query(`SELECT description FROM webhooks WHERE id = $1`, [webhook.id]);
       expect(row.rows[0].description).toBe("before");
+    });
+
+    it("refuses assignRoleToKey for a key of the tenant and writes nothing", async () => {
+      const t = await activeTenant();
+      const key = await stratum.createApiKey(t.id, "k");
+      const role = await stratum.createRole({ name: uniqueSlug("role"), scopes: ["read"] });
+      await s.enter!(t);
+
+      await expect(stratum.assignRoleToKey(key.id, role.id)).rejects.toBeInstanceOf(s.error);
+      const row = await getPool().query(`SELECT role_id FROM api_keys WHERE id = $1`, [key.id]);
+      expect(row.rows[0].role_id).toBeNull();
     });
 
     it("still deactivates a webhook of the tenant", async () => {
