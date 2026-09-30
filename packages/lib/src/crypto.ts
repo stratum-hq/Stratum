@@ -5,6 +5,13 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const CURRENT_KEY_VERSION = "v1";
 
+// Fixed, public salt used only outside production when STRATUM_HKDF_SALT is
+// unset. It must stay stable: a per-process salt would make every value
+// encrypted by an earlier process (or another replica) undecryptable. An HKDF
+// salt is not secret; the key material is. Production still requires an
+// explicit STRATUM_HKDF_SALT.
+const NON_PRODUCTION_DEFAULT_SALT = "stratum-non-production-hkdf-salt-v1";
+
 const HKDF_SALT: Buffer = (() => {
   if (process.env.STRATUM_HKDF_SALT) {
     return Buffer.from(process.env.STRATUM_HKDF_SALT, "hex");
@@ -12,7 +19,7 @@ const HKDF_SALT: Buffer = (() => {
   if (process.env.NODE_ENV === "production") {
     throw new Error("STRATUM_HKDF_SALT must be set in production");
   }
-  return crypto.randomBytes(32);
+  return Buffer.from(NON_PRODUCTION_DEFAULT_SALT, "utf8");
 })();
 
 function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
