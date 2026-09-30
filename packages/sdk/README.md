@@ -83,18 +83,24 @@ import {
   TenantNotFoundError,
   TenantSuspendedError,
   UnauthorizedError,
+  ValidationError,
   WebhookNotFoundError,
 } from "@stratum-hq/core";
 ```
 
 | Control plane response | Error |
 |---|---|
+| 400 `VALIDATION_ERROR` | `ValidationError`, with the issues in `details.issues` |
+| 400, any other code | `Error`, with the control plane's message |
 | 401 | `UnauthorizedError` |
 | 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
 | 403, any other code | `ForbiddenError` |
 | 404 `TENANT_NOT_FOUND` | `TenantNotFoundError` |
 | 404 `WEBHOOK_NOT_FOUND` | `WebhookNotFoundError` |
+| 404 `REGION_NOT_FOUND` | `RegionNotFoundError` |
 | 404, any other code | `Error`, with the control plane's message |
+| 409 `REGION_IN_USE` | `RegionInUseError` |
+| 409 `REGION_NOT_ACTIVE` | `RegionNotActiveError` |
 | 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
 
 An API key that is scoped to a tenant gets `ForbiddenError` (403 `FORBIDDEN`) for a descendant that is suspended or archived, not `TenantSuspendedError` or `TenantArchivedError`. An API key without the `admin` scope gets `ForbiddenError` from an admin operation, for example `purgeTenant`.

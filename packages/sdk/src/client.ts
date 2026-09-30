@@ -1,10 +1,14 @@
 import {
   ErrorCode,
   ForbiddenError,
+  RegionInUseError,
+  RegionNotActiveError,
+  RegionNotFoundError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
   UnauthorizedError,
+  ValidationError,
   WebhookNotFoundError,
 } from "@stratum-hq/core";
 import type { ResolvedTenantContext, TenantNode, CreateTenantInput, UpdateTenantInput, MoveTenantInput, Webhook, CreateWebhookInput, UpdateWebhookInput, Region, CreateRegionInput, UpdateRegionInput } from "@stratum-hq/core";
@@ -42,7 +46,13 @@ function validTimeoutMs(value: number): number {
 }
 
 interface ErrorBody {
-  error?: { code?: string; message?: string; details?: { tenant_id?: unknown } };
+  error?: {
+    code?: string;
+    message?: string;
+    details?: { tenant_id?: unknown; region_id?: unknown; issues?: unknown };
+    /** Deprecated copy of `details.issues`. An older control plane sends only this field. */
+    issues?: unknown;
+  };
 }
 
 /**
@@ -65,12 +75,31 @@ function responseError(status: number, body: ErrorBody): Error {
   const message = error?.message;
   const rawTenantId = error?.details?.tenant_id;
   const tenantId = typeof rawTenantId === "string" ? rawTenantId : "unknown";
+  const rawRegionId = error?.details?.region_id;
+  const regionId = typeof rawRegionId === "string" ? rawRegionId : "unknown";
+  if (status === 400 && code === ErrorCode.VALIDATION_ERROR) {
+    const details = error?.details;
+    if (Array.isArray(details?.issues)) {
+      return new ValidationError(message ?? "Validation failed", details);
+    }
+    const legacyIssues = error?.issues;
+    return new ValidationError(message ?? "Validation failed", Array.isArray(legacyIssues) ? { issues: legacyIssues } : undefined);
+  }
   // Every route can answer 404, so only the error code tells what is missing.
   if (status === 404 && code === ErrorCode.TENANT_NOT_FOUND) {
     return withMessage(new TenantNotFoundError(tenantId), message);
   }
   if (status === 404 && code === ErrorCode.WEBHOOK_NOT_FOUND) {
     return withMessage(new WebhookNotFoundError("unknown"), message);
+  }
+  if (status === 404 && code === ErrorCode.REGION_NOT_FOUND) {
+    return withMessage(new RegionNotFoundError(regionId), message);
+  }
+  if (status === 409 && code === ErrorCode.REGION_IN_USE) {
+    return withMessage(new RegionInUseError(regionId), message);
+  }
+  if (status === 409 && code === ErrorCode.REGION_NOT_ACTIVE) {
+    return withMessage(new RegionNotActiveError(regionId), message);
   }
   if (status === 403) {
     return code === ErrorCode.TENANT_SUSPENDED

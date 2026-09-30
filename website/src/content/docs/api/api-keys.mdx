@@ -231,3 +231,7 @@ Removes the role, reverting the key to its own default scopes.
 | `FORBIDDEN` | 403 | Insufficient scope |
 | `NOT_FOUND` | 404 | Key or role not found |
 | `VALIDATION_ERROR` | 400 | Invalid request body |
+
+A `VALIDATION_ERROR` about the request body lists each failed field in `error.details.issues`. Each item has a `path`, a `message`, and a zod issue `code`.
+
+The key and role routes also send the same issues in a top-level `details` field, and in `error.issues`. Both copies are deprecated and go away in the next major release, so read `error.details.issues`.

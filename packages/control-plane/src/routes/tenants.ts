@@ -21,6 +21,7 @@ import {
   teardownDatabaseForTenant,
 } from "../services/isolation-service.js";
 import { buildAuditContext } from "./audit-logs.js";
+import { validationErrorBody } from "../middleware/error-handler.js";
 import { createTenantScopeGuard, createTenantCreateGuard, createTenantBatchCreateGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
 
 export function createTenantRoutes(stratum: Stratum) {
@@ -60,7 +61,7 @@ export function createTenantRoutes(stratum: Stratum) {
     app.post("/", { preHandler: createScopeGuard }, async (request, reply) => {
       const parsed = CreateTenantInputSchema.safeParse(request.body);
       if (!parsed.success) {
-        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: parsed.error.issues } });
+        reply.status(400).send(validationErrorBody("Validation failed", parsed.error.issues));
         return;
       }
       const input = parsed.data;
@@ -146,7 +147,7 @@ export function createTenantRoutes(stratum: Stratum) {
       const results = body.tenants.map((t) => CreateTenantInputSchema.safeParse(t));
       const failed = results.find((r) => !r.success);
       if (failed && !failed.success) {
-        reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Validation failed", issues: failed.error.issues } });
+        reply.status(400).send(validationErrorBody("Validation failed", failed.error.issues));
         return;
       }
       const inputs = results.map((r) => (r as Extract<typeof r, { success: true }>).data);
