@@ -36,20 +36,18 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
   const inflightSpans = new Map<string, any>();
 
   app.addHook("onRequest", async (request: FastifyRequest, _reply: FastifyReply) => {
-    const span = tracer.startSpan(`HTTP ${request.method} ${request.routeOptions?.url ?? request.url}`, {
+    // A query string can carry cursors or filter values, so spans record the path only.
+    const path = request.url.split("?", 1)[0];
+    const route = request.routeOptions?.url ?? path;
+    const span = tracer.startSpan(`HTTP ${request.method} ${route}`, {
       kind: SpanKind.SERVER,
       attributes: {
         "http.method": request.method,
-        "http.url": request.url,
-        "http.route": request.routeOptions?.url ?? request.url,
+        "http.url": path,
+        "http.route": route,
         "http.request_id": request.id as string,
       },
     });
-
-    // Attach tenant_id from the authenticated key if available
-    if (request.apiKey?.tenant_id) {
-      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
-    }
 
     inflightSpans.set(request.id as string, span);
   });
@@ -59,6 +57,10 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
     if (!span) return;
     inflightSpans.delete(request.id as string);
 
+    // Authentication runs as a preHandler, after onRequest, so the tenant is known only here.
+    if (request.apiKey?.tenant_id) {
+      span.setAttribute("stratum.tenant_id", request.apiKey.tenant_id);
+    }
     span.setAttribute("http.status_code", reply.statusCode);
 
     if (reply.statusCode >= 400) {
