@@ -19,33 +19,50 @@ import {
   getAncestorIds,
 } from "@stratum-hq/core";
 
+/**
+ * Serialize changes to the tree's shape on one advisory key. A move takes it
+ * exclusively: it checks for cycles against the destination's ancestry and
+ * rewrites the paths of a whole subtree, so nothing else may read or write
+ * ancestry while it runs. Creates and lifecycle transitions take it shared, so
+ * they still run alongside each other (row locks order those) but never read a
+ * parent path that an in-flight move is about to rewrite. Take it before
+ * reading any row the change depends on.
+ */
+async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
+  const fn = mode === "exclusive" ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared";
+  await client.query(`SELECT ${fn}(('x' || substr(md5('stratum.tenant_tree'), 1, 16))::bit(64)::bigint)`);
+}
+
+/**
+ * Load the parent for a tenant being created or moved, and require it to be
+ * active: a suspended or archived subtree must not grow, so an active tenant
+ * always has an active parent. FOR SHARE holds the parent row until commit, so
+ * a concurrent suspend or archive of the parent (which locks it FOR UPDATE)
+ * waits for this transaction and then sees the new child.
+ */
+async function loadActiveParent(client: pg.PoolClient, parentId: string): Promise<TenantNode> {
+  const res = await client.query<TenantNode>(
+    `SELECT * FROM tenants WHERE id = $1 FOR SHARE`,
+    [parentId],
+  );
+  if (res.rows.length === 0) {
+    throw new TenantNotFoundError(parentId);
+  }
+  const parent = res.rows[0];
+  if (parent.status === "archived") {
+    throw new TenantArchivedError(parentId);
+  }
+  if (parent.status === "suspended") {
+    throw new TenantSuspendedError(parentId);
+  }
+  return parent;
+}
+
 export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
-    // Advisory lock on parent to serialize sibling inserts
     if (input.parent_id) {
-      await client.query(
-        `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-        [input.parent_id],
-      );
-
-      // Verify parent exists and is active
-      const parentRes = await client.query<TenantNode>(
-        `SELECT * FROM tenants WHERE id = $1`,
-        [input.parent_id],
-      );
-      if (parentRes.rows.length === 0) {
-        throw new TenantNotFoundError(input.parent_id);
-      }
-      if (parentRes.rows[0].status === "archived") {
-        throw new TenantArchivedError(input.parent_id);
-      }
-      // A suspended or archived subtree must not grow: an active tenant always
-      // has an active parent. See suspendTenant/resumeTenant for the inverse.
-      if (parentRes.rows[0].status === "suspended") {
-        throw new TenantSuspendedError(input.parent_id);
-      }
-
-      const parent = parentRes.rows[0];
+      await lockTree(client, "shared");
+      const parent = await loadActiveParent(client, input.parent_id);
       const ancestry_path = appendToPath(parent.ancestry_path, parent.id);
 
       // Inherit region_id from parent if not explicitly provided
@@ -301,8 +318,12 @@ export async function updateTenant(
  * suspended rows, because lifecycle operations act on exactly those states.
  */
 async function loadForTransition(client: pg.PoolClient, id: string): Promise<TenantNode> {
+  // Transitions read the tree (children, parent) to keep "an active tenant's
+  // parent is active", so they must not interleave with a move. FOR UPDATE
+  // then orders them against creates and other transitions on this tenant.
+  await lockTree(client, "shared");
   const res = await client.query<TenantNode>(
-    `SELECT * FROM tenants WHERE id = $1`,
+    `SELECT * FROM tenants WHERE id = $1 FOR UPDATE`,
     [id],
   );
   if (res.rows.length === 0) {
@@ -377,8 +398,10 @@ export async function resumeTenant(pool: pg.Pool, id: string): Promise<TenantNod
       throw new InvalidTenantStateError(id, tenant.status, "resume", ["suspended", "archived"]);
     }
     if (tenant.parent_id) {
+      // FOR SHARE: a concurrent suspend or archive of the parent waits for
+      // this resume and then sees an active child.
       const parentRes = await client.query<{ status: string }>(
-        `SELECT status FROM tenants WHERE id = $1`,
+        `SELECT status FROM tenants WHERE id = $1 FOR SHARE`,
         [tenant.parent_id],
       );
       const parentStatus = parentRes.rows[0]?.status;
@@ -413,15 +436,7 @@ export async function moveTenant(
   newParentId: string,
 ): Promise<TenantNode> {
   return withTransaction(pool, async (client) => {
-    // Lock both old and new parents to prevent concurrent moves
-    await client.query(
-      `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-      [id],
-    );
-    await client.query(
-      `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-      [newParentId],
-    );
+    await lockTree(client, "exclusive");
 
     // Load tenant being moved
     const tenantRes = await client.query<TenantNode>(
@@ -433,15 +448,7 @@ export async function moveTenant(
     }
     const tenant = tenantRes.rows[0];
 
-    // Load new parent
-    const newParentRes = await client.query<TenantNode>(
-      `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
-      [newParentId],
-    );
-    if (newParentRes.rows.length === 0) {
-      throw new TenantNotFoundError(newParentId);
-    }
-    const newParent = newParentRes.rows[0];
+    const newParent = await loadActiveParent(client, newParentId);
 
     // Cycle detection: newParent must not be a descendant of tenant.
     // Check if the moving tenant's ID appears in the new parent's ancestry_path
@@ -526,6 +533,7 @@ export async function batchCreateTenants(
 
   try {
     await withTransaction(pool, async (client) => {
+      await lockTree(client, "shared");
       // Map of slug → created tenant for intra-batch parent references
       const slugMap = new Map<string, TenantNode>();
 
@@ -541,22 +549,8 @@ export async function batchCreateTenants(
           if (batchParent) {
             parentNode = batchParent;
           } else {
-            // Look up in DB
-            const parentRes = await client.query<TenantNode>(
-              `SELECT * FROM tenants WHERE id = $1 AND status != 'archived'`,
-              [parentId],
-            );
-            if (parentRes.rows.length === 0) {
-              throw new TenantNotFoundError(parentId);
-            }
-            parentNode = parentRes.rows[0];
+            parentNode = await loadActiveParent(client, parentId);
           }
-
-          // Advisory lock on parent
-          await client.query(
-            `SELECT pg_advisory_xact_lock(('x' || substr(md5($1::text), 1, 16))::bit(64)::bigint)`,
-            [parentId],
-          );
 
           const ancestry_path = appendToPath(parentNode.ancestry_path, parentNode.id);
           const regionId = (input as Record<string, unknown>).region_id ?? (parentNode as Record<string, unknown>).region_id ?? null;

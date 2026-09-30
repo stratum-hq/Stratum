@@ -81,9 +81,9 @@ describe("createTenant", () => {
       depth: 1,
     });
 
-    // Query 1: pg_advisory_xact_lock
+    // Query 1: shared tree lock
     mockQuery.mockResolvedValueOnce({ rows: [] });
-    // Query 2: SELECT parent
+    // Query 2: SELECT parent FOR SHARE
     mockQuery.mockResolvedValueOnce({ rows: [parent] });
     // Query 3: INSERT child
     mockQuery.mockResolvedValueOnce({ rows: [child] });
@@ -103,9 +103,9 @@ describe("createTenant", () => {
     expect(result.parent_id).toBe("parent-1");
     expect(result.ancestry_path).toBe("/parent-1");
 
-    // Verify advisory lock was acquired
-    expect(mockQuery.mock.calls[0][0]).toContain("pg_advisory_xact_lock");
-    expect(mockQuery.mock.calls[0][1]).toEqual(["parent-1"]);
+    // Verify the shared tree lock was taken before the parent was read
+    expect(mockQuery.mock.calls[0][0]).toContain("pg_advisory_xact_lock_shared");
+    expect(mockQuery.mock.calls[1][0]).toContain("FOR SHARE");
   });
 
   it("creates a root tenant without parent", async () => {
@@ -220,13 +220,11 @@ describe("moveTenant", () => {
       status: "active",
     });
 
-    // Query 1: advisory lock on tenant
+    // Query 1: exclusive tree lock
     mockQuery.mockResolvedValueOnce({ rows: [] });
-    // Query 2: advisory lock on new parent
-    mockQuery.mockResolvedValueOnce({ rows: [] });
-    // Query 3: SELECT tenant being moved
+    // Query 2: SELECT tenant being moved
     mockQuery.mockResolvedValueOnce({ rows: [tenant] });
-    // Query 4: SELECT new parent
+    // Query 3: SELECT new parent
     mockQuery.mockResolvedValueOnce({ rows: [newParent] });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
@@ -251,8 +249,7 @@ describe("moveTenant", () => {
     });
 
     // Both queries return the same tenant
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 1
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 2
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // tree lock
     mockQuery.mockResolvedValueOnce({ rows: [tenant] }); // SELECT tenant
     mockQuery.mockResolvedValueOnce({ rows: [tenant] }); // SELECT new parent (same)
 
@@ -270,8 +267,7 @@ describe("moveTenant", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 1
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 2
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // tree lock
     mockQuery.mockResolvedValueOnce({ rows: [] }); // tenant not found
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
@@ -311,8 +307,7 @@ describe("moveTenant", () => {
       status: "active",
     });
 
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 1
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // advisory lock 2
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // tree lock
     mockQuery.mockResolvedValueOnce({ rows: [tenant] }); // SELECT tenant
     mockQuery.mockResolvedValueOnce({ rows: [newParent] }); // SELECT new parent
     mockQuery.mockResolvedValueOnce({ rows: [updatedTenant] }); // UPDATE tenant
@@ -344,11 +339,13 @@ describe("deleteTenant", () => {
       status: "active",
     });
 
-    // Query 1: SELECT existing tenant
+    // Query 1: shared tree lock
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    // Query 2: SELECT existing tenant FOR UPDATE
     mockQuery.mockResolvedValueOnce({ rows: [tenant] });
-    // Query 2: COUNT children
+    // Query 3: COUNT children
     mockQuery.mockResolvedValueOnce({ rows: [{ count: "0" }] });
-    // Query 3: UPDATE to archived (RETURNING * — deleteTenant now delegates to
+    // Query 4: UPDATE to archived (RETURNING * — deleteTenant now delegates to
     // archiveTenant, which reads the updated row back)
     mockQuery.mockResolvedValueOnce({ rows: [{ ...tenant, status: "archived" }], rowCount: 1 });
 
@@ -360,7 +357,7 @@ describe("deleteTenant", () => {
     await expect(tenantService.deleteTenant(pool, "delete-me")).resolves.toBeUndefined();
 
     // Verify the UPDATE sets status to 'archived'
-    const updateCall = mockQuery.mock.calls[2];
+    const updateCall = mockQuery.mock.calls[3];
     expect(updateCall[0]).toContain("status = 'archived'");
     expect(updateCall[0]).toContain("deleted_at = now()");
   });
@@ -371,6 +368,7 @@ describe("deleteTenant", () => {
 
     const tenant = makeTenant({ id: "parent-with-kids", status: "active" });
 
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // tree lock
     mockQuery.mockResolvedValueOnce({ rows: [tenant] });
     mockQuery.mockResolvedValueOnce({ rows: [{ count: "3" }] });
 
@@ -388,6 +386,7 @@ describe("deleteTenant", () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // tree lock
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
