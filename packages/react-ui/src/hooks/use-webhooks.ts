@@ -30,7 +30,7 @@ export function useWebhooks() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${tenant.id}`);
+      const data = await apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${encodeURIComponent(tenant.id)}`);
       setWebhooks(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -52,12 +52,12 @@ export function useWebhooks() {
   }, [tenant?.id, apiCall, refresh]);
 
   const deleteWebhook = useCallback(async (id: string) => {
-    await apiCall(`/api/v1/webhooks/${id}`, { method: "DELETE" });
+    await apiCall(`/api/v1/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" });
     await refresh();
   }, [apiCall, refresh]);
 
   const testWebhook = useCallback(async (id: string): Promise<WebhookTestResult> => {
-    return apiCall<WebhookTestResult>(`/api/v1/webhooks/${id}/test`, { method: "POST" });
+    return apiCall<WebhookTestResult>(`/api/v1/webhooks/${encodeURIComponent(id)}/test`, { method: "POST" });
   }, [apiCall]);
 
   return { webhooks, loading, error, refresh, createWebhook, deleteWebhook, testWebhook };

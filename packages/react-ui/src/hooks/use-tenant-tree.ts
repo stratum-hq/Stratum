@@ -47,7 +47,7 @@ export function useTenantTree(rootId?: string) {
     setError(null);
     try {
       const path = rootId
-        ? `/api/v1/tenants/${rootId}/descendants`
+        ? `/api/v1/tenants/${encodeURIComponent(rootId)}/descendants`
         : `/api/v1/tenants`;
       const res = await apiCall<TenantNode[] | { data: TenantNode[] }>(path);
       const nodes = Array.isArray(res) ? res : res.data;

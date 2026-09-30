@@ -23,8 +23,7 @@ import { StratumProvider } from "@stratum-hq/react";
 function App() {
   return (
     <StratumProvider
-      controlPlaneUrl="http://localhost:3001"
-      apiKey="sk_live_your_key"
+      controlPlaneUrl="/api/stratum"
       initialTenantId="optional-default-tenant"
     >
       <YourApp />
@@ -33,7 +32,13 @@ function App() {
 }
 ```
 
-The provider creates a `StratumClient` internally and manages the current tenant state.
+The provider manages the current tenant state and sends its requests to `controlPlaneUrl`.
+
+Never pass a control-plane API key to `StratumProvider` from browser code, including through
+`NEXT_PUBLIC_*`, `REACT_APP_*` or `VITE_*` variables, which are bundled into the page. Point
+`controlPlaneUrl` at a route on your own server (here `/api/stratum`) that authenticates the user
+and forwards the request with the key added. `stratum scaffold nextjs` and `stratum scaffold react`
+generate one.
 
 ## useStratum Hook
 
@@ -177,10 +182,7 @@ import {
 
 function App() {
   return (
-    <StratumProvider
-      controlPlaneUrl="http://localhost:3001"
-      apiKey="sk_live_your_key"
-    >
+    <StratumProvider controlPlaneUrl="/api/stratum">
       <Layout />
     </StratumProvider>
   );

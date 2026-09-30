@@ -275,7 +275,7 @@ export function DraggableTenantTree({
         const targetIndex = siblings.findIndex((s) => s.id === targetId);
         const position = Math.max(0, targetIndex);
 
-        await apiCall(`/api/v1/tenants/${draggedId}/reorder`, {
+        await apiCall(`/api/v1/tenants/${encodeURIComponent(draggedId)}/reorder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ position }),
@@ -284,7 +284,7 @@ export function DraggableTenantTree({
         onReorder?.(draggedId, position);
       } else {
         // Reparent — move to target as new parent
-        await apiCall(`/api/v1/tenants/${draggedId}/move`, {
+        await apiCall(`/api/v1/tenants/${encodeURIComponent(draggedId)}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ new_parent_id: targetId }),

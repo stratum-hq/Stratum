@@ -16,7 +16,7 @@ export function usePermissions() {
     setError(null);
     try {
       const result = await apiCall<Record<string, ResolvedPermission>>(
-        `/api/v1/tenants/${tenant.id}/permissions`,
+        `/api/v1/tenants/${encodeURIComponent(tenant.id)}/permissions`,
       );
       setPermissions(Object.values(result));
     } catch (err) {
@@ -33,7 +33,7 @@ export function usePermissions() {
   const createPermission = useCallback(
     async (key: string, value: unknown, mode: string, revocationMode: string) => {
       if (!tenant) return;
-      await apiCall(`/api/v1/tenants/${tenant.id}/permissions`, {
+      await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/permissions`, {
         method: "POST",
         body: JSON.stringify({ key, value, mode, revocation_mode: revocationMode }),
       });
@@ -45,7 +45,7 @@ export function usePermissions() {
   const deletePermission = useCallback(
     async (policyId: string) => {
       if (!tenant) return;
-      await apiCall(`/api/v1/tenants/${tenant.id}/permissions/${policyId}`, {
+      await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/permissions/${encodeURIComponent(policyId)}`, {
         method: "DELETE",
       });
       await fetchPermissions();

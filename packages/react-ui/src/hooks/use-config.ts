@@ -24,7 +24,7 @@ export function useConfig() {
     setError(null);
     try {
       const result = await apiCall<Record<string, ResolvedConfigEntry>>(
-        `/api/v1/tenants/${tenant.id}/config`,
+        `/api/v1/tenants/${encodeURIComponent(tenant.id)}/config`,
       );
       setConfig(
         Object.entries(result).map(([key, entry]) => ({
@@ -49,7 +49,7 @@ export function useConfig() {
   const setConfigValue = useCallback(
     async (key: string, value: unknown, locked = false) => {
       if (!tenant) return;
-      await apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, {
+      await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/config/${encodeURIComponent(key)}`, {
         method: "PUT",
         body: JSON.stringify({ value, locked }),
       });
@@ -61,7 +61,7 @@ export function useConfig() {
   const deleteConfigValue = useCallback(
     async (key: string) => {
       if (!tenant) return;
-      await apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, {
+      await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/config/${encodeURIComponent(key)}`, {
         method: "DELETE",
       });
       await fetchConfig();

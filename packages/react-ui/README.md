@@ -24,7 +24,8 @@ import {
 
 function App() {
   return (
-    <StratumProvider controlPlaneUrl="http://localhost:3001" apiKey="sk_live_your_key">
+    // "/api/stratum" is a server-side proxy on your own origin (see below).
+    <StratumProvider controlPlaneUrl="/api/stratum">
       <Layout />
     </StratumProvider>
   );
@@ -51,7 +52,20 @@ function Layout() {
 }
 ```
 
-The provider creates a `StratumClient` internally and manages the current tenant state.
+The provider manages the current tenant state and sends its requests to `controlPlaneUrl`.
+
+### Keep the API key on the server
+
+Everything the provider runs with is visible to whoever loads the page, and bundlers inline
+`NEXT_PUBLIC_*`, `REACT_APP_*` and `VITE_*` variables into the JavaScript they ship. So never
+pass a control-plane API key to `StratumProvider` from browser code. Point `controlPlaneUrl` at a
+route on your own server that authenticates the signed-in user, checks what they may do, and then
+forwards the request to the control plane with the key added. `stratum scaffold nextjs` and
+`stratum scaffold react` in `@stratum-hq/cli` generate such a proxy. The `apiKey` prop is optional
+and should only be used where the code does not run in a browser.
+
+`TenantThemeProvider`'s `branding.customCss` accepts plain CSS declarations only. Values with
+braces, at-rules, backslashes, quotes or `url()` are ignored.
 
 ## Components & Hooks
 
