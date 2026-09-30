@@ -49,7 +49,6 @@ See the [Stratum docs](https://github.com/stratum-hq/Stratum) for full reference
 `;
 }
 
-
 function getDbStartInfo(preset: StackPreset): string {
   switch (preset.database) {
     case "postgres":
