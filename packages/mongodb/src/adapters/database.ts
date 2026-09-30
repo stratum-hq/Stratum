@@ -24,7 +24,11 @@ export class MongoDatabaseAdapter implements MongoAdapter {
     });
   }
 
-  /** Returns a DatabaseLike reference for the tenant's dedicated database. */
+  /**
+   * Returns a DatabaseLike reference for the tenant's dedicated database.
+   * Each call holds the tenant's client until the caller calls releaseDatabase.
+   * A held client is never closed by eviction or by the idle check.
+   */
   async getDatabase(tenantSlug: string): Promise<DatabaseLike> {
     validateSlug(tenantSlug);
     const client = await this.poolManager.getClient(tenantSlug);
@@ -32,11 +36,20 @@ export class MongoDatabaseAdapter implements MongoAdapter {
     return client.db(dbName);
   }
 
+  /** Ends one hold on the tenant's client. Call it once for each getDatabase call. */
+  releaseDatabase(tenantSlug: string): void {
+    this.poolManager.releaseClient(tenantSlug);
+  }
+
   async purgeTenantData(tenantSlug: string): Promise<PurgeResult> {
     validateSlug(tenantSlug);
     try {
       const db = await this.getDatabase(tenantSlug);
-      await db.dropDatabase();
+      try {
+        await db.dropDatabase();
+      } finally {
+        this.poolManager.releaseClient(tenantSlug);
+      }
       await this.poolManager.closeClient(tenantSlug);
       return {
         success: true,

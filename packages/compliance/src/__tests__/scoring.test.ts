@@ -87,6 +87,37 @@ describe("scoreCoverage classification", () => {
     expect(r.drift).toBe(1);
   });
 
+  // A plain object inherits members such as `constructor` from Object.prototype.
+  // JSON.parse makes `__proto__` an own key, as it does for data from a request.
+  it("marks baseline keys that name Object.prototype members missing", () => {
+    const baseline = JSON.parse(
+      '{"constructor": true, "toString": true, "__proto__": true}',
+    ) as Record<string, unknown>;
+    const r = scoreCoverage(baseline, {});
+    expect(r.details).toEqual([
+      { key: "constructor", expected: true, actual: undefined, status: "missing" },
+      { key: "toString", expected: true, actual: undefined, status: "missing" },
+      { key: "__proto__", expected: true, actual: undefined, status: "missing" },
+    ]);
+    expect(r.missing).toBe(3);
+    expect(r.drift).toBe(0);
+  });
+
+  it("reads an own __proto__ entry in the resolved map", () => {
+    const baseline = JSON.parse('{"__proto__": true}') as Record<string, unknown>;
+    const resolved = JSON.parse('{"__proto__": {"value": true}}') as Record<
+      string,
+      { value: unknown }
+    >;
+    const r = scoreCoverage(baseline, resolved);
+    expect(r.details[0]).toEqual({
+      key: "__proto__",
+      expected: true,
+      actual: true,
+      status: "compliant",
+    });
+  });
+
   it("scores only baseline keys, ignoring extra resolved keys", () => {
     const r = scoreCoverage({ mfa: true }, wrap({ mfa: true, extra: 99 }));
     expect(r.total).toBe(1);

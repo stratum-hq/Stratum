@@ -89,7 +89,7 @@ The guard resolves tenant context from incoming requests using the same resoluti
 2. **JWT** -- extracts tenant ID from a verified Bearer token claim (requires `jwtSecret`)
 3. **Custom resolvers** -- your async functions, tried in order
 
-If no tenant is found, the guard throws `UnauthorizedException` (HTTP 401).
+If no tenant is found, the guard throws `UnauthorizedException` (HTTP 401). If the tenant is suspended, or the control plane denies access to it, the guard throws `ForbiddenException` (HTTP 403). If the tenant is archived, it throws `GoneException` (HTTP 410). The same rules apply to an impersonation target.
 
 ```typescript
 @UseGuards(StratumGuard)

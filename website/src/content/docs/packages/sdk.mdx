@@ -45,6 +45,7 @@ const client = new StratumClient({
     ttlMs: 60000,     // default: 60 seconds
     maxSize: 100,     // default: 100 entries
   },
+  timeoutMs: 10000,   // default: 10 seconds per control plane request
 });
 ```
 
@@ -58,8 +59,9 @@ const client = new StratumClient({
 | `getTenant(id)` | `TenantNode` | Get single tenant |
 | `updateTenant(id, input)` | `TenantNode` | Update tenant |
 | `moveTenant(id, input)` | `TenantNode` | Move in hierarchy |
-| `archiveTenant(id)` | `TenantNode` | Soft delete |
-| `deleteTenant(id)` | `void` | Delete tenant |
+| `archiveTenant(id)` | `void` | Archive a tenant (soft delete, reversible) |
+| `deleteTenant(id)` | `void` | Deprecated. Same request as `archiveTenant` |
+| `purgeTenant(id)` | `void` | Permanently delete a tenant and its data (admin scope) |
 | `rotateApiKey(keyId, name?)` | `CreatedApiKey` | Rotate an API key |
 | `listApiKeys(tenantId?)` | `ApiKeyRecord[]` | List API keys |
 | `listDormantKeys(days?)` | `ApiKeyRecord[]` | Find unused keys |
@@ -69,6 +71,32 @@ const client = new StratumClient({
 | `createRegion(input)` | `Region` | Create a region |
 | `invalidateCache(id)` | `void` | Invalidate single entry |
 | `clearCache()` | `void` | Clear all cached data |
+
+### Archive or purge a tenant
+
+`archiveTenant` and `purgeTenant` do different things. Choose the correct one before you call it.
+
+- `archiveTenant(id)` sends `DELETE /api/v1/tenants/:id`. The control plane marks the tenant as archived. The tenant row and its data stay in the database, and the archive is reversible.
+- `purgeTenant(id)` sends `POST /api/v1/tenants/:id/purge`. The control plane permanently deletes the tenant (GDPR Article 17). You cannot undo a purge.
+
+`deleteTenant(id)` is deprecated. It sends the same request as `archiveTenant`, so it does not remove data.
+
+A purge has these conditions and effects:
+
+- The API key must have the `admin` scope.
+- The tenant must have no children, of any status.
+- The control plane deletes the tenant row and the tenant's records in the Stratum tables: config, permissions, API keys, roles, webhooks, consent records and audit logs.
+- For a tenant with its own schema or database, the control plane also drops that schema or database.
+- For a pending tenant, the purge removes the records and never drops storage. Use a purge to remove a tenant whose storage provisioning failed.
+- Rows in your own tables that share a database with other tenants stay. Delete them yourself.
+
+```typescript
+// Soft delete: reversible.
+await client.archiveTenant(tenantId);
+
+// Hard delete: irreversible.
+await client.purgeTenant(tenantId);
+```
 
 ## Framework Integration
 
@@ -233,7 +261,12 @@ const client = new StratumClient({
 The SDK throws typed errors from `@stratum-hq/core`:
 
 ```typescript
-import { TenantNotFoundError, UnauthorizedError } from "@stratum-hq/core";
+import {
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+  UnauthorizedError,
+} from "@stratum-hq/core";
 
 try {
   await client.resolveTenant("bad-id");
@@ -241,8 +274,23 @@ try {
   if (err instanceof TenantNotFoundError) {
     // Tenant doesn't exist
   }
+  if (err instanceof TenantSuspendedError || err instanceof TenantArchivedError) {
+    // Tenant exists but is not active
+  }
   if (err instanceof UnauthorizedError) {
     // Invalid API key
   }
 }
 ```
+
+| Control plane response | Error |
+|---|---|
+| 401 | `UnauthorizedError` |
+| 403 `TENANT_SUSPENDED` | `TenantSuspendedError` |
+| 403, any other code | `ForbiddenError` |
+| 404 | `TenantNotFoundError` |
+| 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
+
+The Express and Fastify middleware answer these tenant errors with 404, 403, or 410, for the caller's tenant and for an impersonation target. Other errors go to your framework's error handler.
+
+A control plane request that takes longer than `timeoutMs` rejects with a `TimeoutError` `DOMException`.

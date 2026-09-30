@@ -13,6 +13,10 @@ export interface SchemaAdapterOptions {
   extraSearchPath?: string[];
 }
 
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
 export class SchemaRawAdapter {
   private readonly extraSearchPath: string[];
 
@@ -46,6 +50,11 @@ export class SchemaRawAdapter {
     const safe = validateSlug(tenantSlug);
     const schemaName = tenantSchemaName(safe);
     const client = await this.pool.connect();
+    // A failed ROLLBACK or RESET must not replace the result or the caller's
+    // error. That error goes to client.release instead: a truthy argument makes
+    // pg-pool destroy the connection, so no later caller gets a connection in
+    // an unknown transaction state or with an unknown search_path.
+    let releaseErr: Error | undefined;
     try {
       await client.query("BEGIN");
       // SET LOCAL is transaction-scoped; schemaName is derived from a validated slug.
@@ -56,11 +65,19 @@ export class SchemaRawAdapter {
       await client.query("COMMIT");
       return result;
     } catch (err) {
-      await client.query("ROLLBACK");
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackErr) {
+        releaseErr = toError(rollbackErr);
+      }
       throw err;
     } finally {
-      await resetSearchPath(client);
-      client.release();
+      try {
+        await resetSearchPath(client);
+      } catch (resetErr) {
+        releaseErr ??= toError(resetErr);
+      }
+      client.release(releaseErr);
     }
   }
 }

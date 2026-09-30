@@ -489,12 +489,28 @@
         },
         "required": ["old_key", "new_key"]
       },
+      "KeyRotationUnreadableRow": {
+        "type": "object",
+        "description": "A row whose value decrypts with neither the old key nor the new key. Rotation leaves it unchanged.",
+        "properties": {
+          "table": { "type": "string", "enum": ["config_entries", "webhooks"] },
+          "id": { "type": "string", "format": "uuid" }
+        },
+        "required": ["table", "id"]
+      },
       "RotateEncryptionKeyResult": {
         "type": "object",
         "properties": {
-          "re_encrypted_count": { "type": "integer" }
+          "config_entries_rotated": { "type": "integer", "description": "Sensitive config values that this run re-encrypted with the new key." },
+          "webhooks_rotated": { "type": "integer", "description": "Webhook secrets that this run re-encrypted with the new key." },
+          "already_rotated": { "type": "integer", "description": "Values that already decrypt with the new key, for example after an interrupted run. This run does not change them." },
+          "unreadable": {
+            "type": "array",
+            "description": "Rows whose value decrypts with neither key.",
+            "items": { "$ref": "#/components/schemas/KeyRotationUnreadableRow" }
+          }
         },
-        "required": ["re_encrypted_count"]
+        "required": ["config_entries_rotated", "webhooks_rotated", "already_rotated", "unreadable"]
       },
       "HealthResponse": {
         "type": "object",
@@ -2213,7 +2229,7 @@
       "post": {
         "tags": ["Maintenance"],
         "summary": "Rotate encryption key",
-        "description": "Re-encrypt all sensitive data with a new encryption key.",
+        "description": "Re-encrypt all sensitive data with a new encryption key. The operation is safe to repeat with the same keys. It returns 400 when encrypted values exist and none of them decrypts with either key, and then it changes no row.",
         "operationId": "rotateEncryptionKey",
         "requestBody": {
           "required": true,
@@ -2233,7 +2249,7 @@
             }
           },
           "400": {
-            "description": "Validation error",
+            "description": "Validation error, or no encrypted value decrypts with either key",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }

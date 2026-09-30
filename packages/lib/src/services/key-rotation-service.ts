@@ -1,20 +1,53 @@
 import pg from "pg";
 import { withTransaction } from "../pool-helpers.js";
-import { reEncrypt } from "../crypto.js";
+import { ValidationError } from "@stratum-hq/core";
+import { encryptWithKeyMaterial, decryptWithKeyMaterial } from "../crypto.js";
+
+/** A row that decrypts with neither the old key nor the new key. Rotation leaves it unchanged. */
+export interface KeyRotationUnreadableRow {
+  table: "config_entries" | "webhooks";
+  id: string;
+}
 
 export interface KeyRotationResult {
   config_entries_rotated: number;
   webhooks_rotated: number;
+  /** Rows that already decrypt with the new key, for example after an interrupted run. */
+  already_rotated: number;
+  /** Rows that decrypt with neither key. */
+  unreadable: KeyRotationUnreadableRow[];
 }
 
 // Lowest possible UUID; a keyset cursor starting here precedes every real row.
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
+type RotateOutcome = { kind: "rotated"; value: string } | { kind: "already_rotated" } | { kind: "unreadable" };
+
+// A run that fails partway leaves earlier batches committed under the new key.
+// Accepting those values, instead of failing on them, is what lets a re-run
+// with the same keys finish the rotation.
+function rotateValue(encrypted: string, oldKeyMaterial: string, newKeyMaterial: string): RotateOutcome {
+  const plaintext = decryptWithKeyMaterial(encrypted, oldKeyMaterial);
+  if (plaintext !== null) {
+    return { kind: "rotated", value: encryptWithKeyMaterial(plaintext, newKeyMaterial) };
+  }
+  if (decryptWithKeyMaterial(encrypted, newKeyMaterial) !== null) return { kind: "already_rotated" };
+  return { kind: "unreadable" };
+}
+
 /**
  * Re-encrypts all sensitive data (config entries and webhook secrets)
  * from oldKey to newKey in batches, walking the primary key with a keyset
- * cursor (id > lastId, ordered by id) so every row is rotated exactly once.
+ * cursor (id > lastId, ordered by id) so every row is visited exactly once.
  * Each batch is its own transaction so locks are held briefly.
+ *
+ * The run is safe to repeat with the same keys. A value that already decrypts
+ * with the new key stays as it is and counts in `already_rotated`. A value that
+ * decrypts with neither key stays as it is and appears in `unreadable`.
+ *
+ * Throws a ValidationError when encrypted values exist and none of them
+ * decrypts with either key. That result almost always means `oldKeyMaterial`
+ * is wrong, and the run has changed no row.
  *
  * After rotation, update the STRATUM_ENCRYPTION_KEY environment variable to
  * the new key.
@@ -27,6 +60,8 @@ export async function rotateEncryptionKey(
 ): Promise<KeyRotationResult> {
   let configCount = 0;
   let webhookCount = 0;
+  let alreadyRotated = 0;
+  const unreadable: KeyRotationUnreadableRow[] = [];
 
   // Process config entries in batches, advancing a keyset cursor by id.
   let lastConfigId = ZERO_UUID;
@@ -40,17 +75,22 @@ export async function rotateEncryptionKey(
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
-        const encryptedBlob = row.value;
-        const reEncrypted = reEncrypt(encryptedBlob, oldKeyMaterial, newKeyMaterial);
-        await client.query(
-          `UPDATE config_entries SET value = $1, updated_at = now() WHERE id = $2`,
-          [JSON.stringify(reEncrypted), row.id],
-        );
+        const outcome = rotateValue(row.value, oldKeyMaterial, newKeyMaterial);
+        if (outcome.kind === "already_rotated") {
+          alreadyRotated++;
+        } else if (outcome.kind === "unreadable") {
+          unreadable.push({ table: "config_entries", id: row.id });
+        } else {
+          await client.query(
+            `UPDATE config_entries SET value = $1, updated_at = now() WHERE id = $2`,
+            [JSON.stringify(outcome.value), row.id],
+          );
+          configCount++;
+        }
       }
       lastConfigId = batch.rows[batch.rows.length - 1].id;
       return batch.rows.length;
     });
-    configCount += count;
     if (count < batchSize) break;
   }
 
@@ -66,18 +106,38 @@ export async function rotateEncryptionKey(
       );
       if (batch.rows.length === 0) return 0;
       for (const row of batch.rows) {
-        const reEncrypted = reEncrypt(row.secret_hash, oldKeyMaterial, newKeyMaterial);
-        await client.query(
-          `UPDATE webhooks SET secret_hash = $1 WHERE id = $2`,
-          [reEncrypted, row.id],
-        );
+        const outcome = rotateValue(row.secret_hash, oldKeyMaterial, newKeyMaterial);
+        if (outcome.kind === "already_rotated") {
+          alreadyRotated++;
+        } else if (outcome.kind === "unreadable") {
+          unreadable.push({ table: "webhooks", id: row.id });
+        } else {
+          await client.query(
+            `UPDATE webhooks SET secret_hash = $1 WHERE id = $2`,
+            [outcome.value, row.id],
+          );
+          webhookCount++;
+        }
       }
       lastWebhookId = batch.rows[batch.rows.length - 1].id;
       return batch.rows.length;
     });
-    webhookCount += count;
     if (count < batchSize) break;
   }
 
-  return { config_entries_rotated: configCount, webhooks_rotated: webhookCount };
+  // A run that changed nothing and matched no value on either key must not look
+  // like a success, because the operator would then retire a key that is still in use.
+  if (unreadable.length > 0 && configCount + webhookCount + alreadyRotated === 0) {
+    throw new ValidationError(
+      "Key rotation found no encrypted value that decrypts with the old key or the new key. Check the old key. No row was changed.",
+      { unreadable: unreadable.length },
+    );
+  }
+
+  return {
+    config_entries_rotated: configCount,
+    webhooks_rotated: webhookCount,
+    already_rotated: alreadyRotated,
+    unreadable,
+  };
 }
