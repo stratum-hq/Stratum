@@ -14,7 +14,7 @@ import { uniqueSlug } from "./helpers/fixtures.js";
 // for a role subject to row-level security, and that validation completes on a
 // single pooled connection.
 
-const HMAC_SECRET_ENV = "STRATUM_API_KEY_HMAC_SECRET";
+const HMAC_ENV_NAME = "STRATUM_API_KEY_HMAC_SECRET";
 const APP_ROLE = "stratum_it_keys_app";
 
 const TEST_DATABASE_URL =
@@ -61,7 +61,7 @@ describe("API key lifecycle (integration)", () => {
 
   afterEach(async () => {
     await cleanTestData();
-    delete process.env[HMAC_SECRET_ENV];
+    delete process.env[HMAC_ENV_NAME];
   });
 
   afterAll(async () => {
@@ -198,7 +198,7 @@ describe("API key lifecycle (integration)", () => {
       const key = await stratum.createApiKey(tenant.id, "legacy");
       expect((await keyRow(key.id)).hash_version).toBe(1);
 
-      process.env[HMAC_SECRET_ENV] = "a8-upgrade-secret";
+      process.env[HMAC_ENV_NAME] = "a8-upgrade-secret";
       expect(await appStratum.validateApiKey(key.plaintext_key)).not.toBeNull();
       const version = await waitFor(async () => {
         const v = (await keyRow(key.id)).hash_version;
