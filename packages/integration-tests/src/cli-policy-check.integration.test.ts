@@ -108,6 +108,12 @@ function expectReportedNotIsolated(): void {
     const { out } = runCli(["health"]);
     expect(out).toContain("1 table(s) need migration");
   });
+
+  it("doctor fails the RLS policy check for the table and says why", () => {
+    const { out } = runCli(["doctor"]);
+    expect(out).not.toMatch(/All tables have (a )?tenant_isolation policy/);
+    expect(out).toMatch(/cli_orders: .*does not filter by tenant/);
+  });
 }
 
 describe("CLI isolation checks: a tenant_isolation policy that admits every row", () => {
@@ -187,6 +193,7 @@ describe("CLI isolation checks: policies that do filter by the current tenant", 
     expect(runCli(["migrate", "--scan"]).out).toContain("All tables are fully migrated!");
     expect(runCli(["migrate", "cli_orders"]).out).toContain("already fully migrated");
     expect(runCli(["health"]).out).not.toContain("need migration");
+    expect(runCli(["doctor"]).out).not.toMatch(/cli_orders: .*(tenant_isolation|filter by tenant)/);
   });
 });
 
