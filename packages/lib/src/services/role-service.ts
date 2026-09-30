@@ -1,5 +1,6 @@
 import pg from "pg";
 import { withClient, withTransaction } from "../pool-helpers.js";
+import { loadActiveTenant } from "./tenant-service.js";
 
 export interface Role {
   id: string;
@@ -26,6 +27,9 @@ export interface UpdateRoleInput {
 
 export async function createRole(pool: pg.Pool, input: CreateRoleInput): Promise<Role> {
   return withClient(pool, async (client) => {
+    if (input.tenant_id) {
+      await loadActiveTenant(client, input.tenant_id);
+    }
     const res = await client.query<Role>(
       `INSERT INTO roles (name, description, scopes, tenant_id)
        VALUES ($1, $2, $3, $4)
@@ -194,6 +198,9 @@ export async function assignRole(
   tenantId?: string,
 ): Promise<boolean> {
   return withClient(pool, async (client) => {
+    if (tenantId) {
+      await loadActiveTenant(client, tenantId);
+    }
     const res = await client.query<{ role_id: string }>(
       `INSERT INTO principal_roles (principal_type, principal_id, role_id)
        SELECT $1, $2, $3

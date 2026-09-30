@@ -116,7 +116,12 @@ export async function updateWebhook(
     if (existing.rows.length === 0) {
       throw new WebhookNotFoundError(id);
     }
-    if (existing.rows[0].tenant_id) {
+    // Deactivating a webhook only reduces what the tenant has, like deleting
+    // it, so it stays allowed for a tenant that is not active.
+    const onlyDeactivates = Object.entries(input).every(
+      ([field, value]) => value === undefined || (field === "active" && value === false),
+    );
+    if (existing.rows[0].tenant_id && !onlyDeactivates) {
       await loadActiveTenant(client, existing.rows[0].tenant_id);
     }
 

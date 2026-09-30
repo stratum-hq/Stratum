@@ -118,6 +118,42 @@ describe.each(states)("writes to a $state tenant through the library (integratio
     ).rejects.toBeInstanceOf(s.error);
     expect(await count(`SELECT 1 FROM consent_records WHERE tenant_id = $1`, [t.id])).toBe(0);
   });
+
+  it("refuses createAbacPolicy and writes nothing", async () => {
+    const t = await tenantIn(s);
+    await expect(
+      stratum.createAbacPolicy(t.id, {
+        name: "p", resource_type: "report", action: "read", effect: "allow", conditions: [],
+      }),
+    ).rejects.toBeInstanceOf(s.error);
+    expect(await count(`SELECT 1 FROM abac_policies WHERE tenant_id = $1`, [t.id])).toBe(0);
+  });
+
+  it("refuses createRole for the tenant and writes nothing", async () => {
+    const t = await tenantIn(s);
+    await expect(
+      stratum.createRole({ name: uniqueSlug("role"), scopes: ["read"], tenant_id: t.id }),
+    ).rejects.toBeInstanceOf(s.error);
+    expect(await count(`SELECT 1 FROM roles WHERE tenant_id = $1`, [t.id])).toBe(0);
+  });
+
+  it("refuses assignRole within the tenant and writes nothing", async () => {
+    const t = await tenantIn(s);
+    const role = await stratum.createRole({ name: uniqueSlug("role"), scopes: ["read"] });
+    const principal = uniqueSlug("user");
+    await expect(
+      stratum.assignRole("user", principal, role.id, t.id),
+    ).rejects.toBeInstanceOf(s.error);
+    expect(await count(`SELECT 1 FROM principal_roles WHERE principal_id = $1`, [principal])).toBe(0);
+  });
+
+  it("refuses recordUsage and writes nothing", async () => {
+    const t = await tenantIn(s);
+    await expect(
+      stratum.recordUsage(t.id, { metric: "api_calls", quantity: 1 }),
+    ).rejects.toBeInstanceOf(s.error);
+    expect(await count(`SELECT 1 FROM usage_events WHERE tenant_id = $1`, [t.id])).toBe(0);
+  });
 });
 
 describe.each(states.filter((s) => s.enter !== null))(
@@ -147,6 +183,29 @@ describe.each(states.filter((s) => s.enter !== null))(
       ).rejects.toBeInstanceOf(s.error);
       const row = await getPool().query(`SELECT description FROM webhooks WHERE id = $1`, [webhook.id]);
       expect(row.rows[0].description).toBe("before");
+    });
+
+    it("still deactivates a webhook of the tenant", async () => {
+      const t = await activeTenant();
+      const webhook = await stratum.createWebhook({
+        tenant_id: t.id, url: WEBHOOK_URL, secret: "s".repeat(32), events: ["tenant.updated"],
+      });
+      await s.enter!(t);
+
+      await expect(stratum.updateWebhook(webhook.id, { active: false })).resolves.toMatchObject({ active: false });
+    });
+
+    it("refuses to reactivate a webhook of the tenant", async () => {
+      const t = await activeTenant();
+      const webhook = await stratum.createWebhook({
+        tenant_id: t.id, url: WEBHOOK_URL, secret: "s".repeat(32), events: ["tenant.updated"],
+      });
+      await stratum.updateWebhook(webhook.id, { active: false });
+      await s.enter!(t);
+
+      await expect(stratum.updateWebhook(webhook.id, { active: true })).rejects.toBeInstanceOf(s.error);
+      const row = await getPool().query(`SELECT active FROM webhooks WHERE id = $1`, [webhook.id]);
+      expect(row.rows[0].active).toBe(false);
     });
   },
 );
