@@ -135,6 +135,6 @@ await stratum.resumeTenant(child.id); // ok
 ## Webhook events
 
 Each lifecycle transition emits an event you can subscribe a webhook to:
-`tenant.suspended`, `tenant.resumed`, `tenant.archived`, and `tenant.purged`
+`tenant.activated`, `tenant.suspended`, `tenant.resumed`, `tenant.archived`, and `tenant.purged`
 (plus `tenant.deleted` from the `deleteTenant` alias). See
 [Webhooks](/guides/webhooks/).
