@@ -8,6 +8,12 @@ export interface DrizzleLike {
   transaction<T>(fn: (tx: DrizzleLike) => Promise<T>): Promise<T>;
 }
 
+// drizzle-orm is an optional peer, so it is loaded only when this adapter runs.
+async function setTenantConfig(tx: DrizzleLike, tenantId: string): Promise<void> {
+  const { sql } = await import("drizzle-orm");
+  await tx.execute(sql`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`);
+}
+
 export class DrizzleAdapter extends BaseAdapter {
   constructor(pool: pg.Pool) {
     super(pool);
@@ -24,7 +30,10 @@ export class DrizzleAdapter extends BaseAdapter {
    * When contextFn returns an empty string the original methods are forwarded
    * without wrapping.
    */
-  withTenant(db: DrizzleLike, contextFn: () => string): DrizzleLike {
+  withTenant<D extends DrizzleLike>(
+    db: D,
+    contextFn: () => string,
+  ): Pick<D, "execute" | "transaction"> {
     const original = db;
 
     const wrappedTransaction = async <T>(fn: (tx: DrizzleLike) => Promise<T>): Promise<T> => {
@@ -36,10 +45,7 @@ export class DrizzleAdapter extends BaseAdapter {
         );
       }
       return original.transaction(async (tx: DrizzleLike) => {
-        await tx.execute({
-          sql: `SELECT set_config('app.current_tenant_id', $1, true)`,
-          params: [tenantId],
-        });
+        await setTenantConfig(tx, tenantId);
         return fn(tx);
       });
     };
@@ -53,27 +59,26 @@ export class DrizzleAdapter extends BaseAdapter {
         );
       }
       return original.transaction(async (tx: DrizzleLike) => {
-        await tx.execute({
-          sql: `SELECT set_config('app.current_tenant_id', $1, true)`,
-          params: [tenantId],
-        });
+        await setTenantConfig(tx, tenantId);
         return tx.execute(query);
       });
     };
 
+    // Typed as the caller's own Drizzle instance so `tx` keeps its query
+    // builder (`tx.select()...`) inside `transaction`.
     return {
       execute: wrappedExecute,
       transaction: wrappedTransaction,
-    };
+    } as unknown as Pick<D, "execute" | "transaction">;
   }
 }
 
 // Convenience function matching the other adapters' API shape.
-export function withTenant(
-  db: DrizzleLike,
+export function withTenant<D extends DrizzleLike>(
+  db: D,
   contextFn: () => string,
   pool: pg.Pool,
-): DrizzleLike {
+): Pick<D, "execute" | "transaction"> {
   const adapter = new DrizzleAdapter(pool);
   return adapter.withTenant(db, contextFn);
 }
