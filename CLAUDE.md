@@ -99,7 +99,7 @@ are as exercised as the packages above.
 | Package | Directory | Note |
 |---|---|---|
 | `@stratum-hq/demo` | `packages/demo` | MSSP hierarchy demo app: an Express-style API plus a Vite web front end. Not published. |
-| `@stratum-hq/integration-tests` | `packages/integration-tests` | 30 integration test files against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
+| `@stratum-hq/integration-tests` | `packages/integration-tests` | Integration tests against real PostgreSQL. Not published. Its `test` script is a no-op reminder; the real command is `test:integration`. |
 
 Not workspace packages, but present at the repo root: `website/` (Starlight docs),
 `landing/` (Astro marketing site), `examples/`, `docker/`, `scripts/`.
@@ -135,34 +135,20 @@ failure but is not one. Use `npx turbo test --force --concurrency=2` if that hap
 
 ## 4. The testing contract, and what the tests do not prove
 
-`npm test` runs **1,062 unit tests across 15 packages** (counted 2026-09-30), plus the
-root `test:root` task, which runs the repository policy tests in `scripts/__tests__/`.
-Read the next section before you treat that number as reassurance.
+`npm test` runs the unit tests of every package that has a `test` script, plus the root
+`test:root` task. The root task runs the repository policy tests in `scripts/__tests__/`.
+Read the next section before you treat a green run as reassurance.
 
-| Package | Tests |
-|---|---|
-| `@stratum-hq/lib` | 243 |
-| `@stratum-hq/control-plane` | 154 |
-| `@stratum-hq/db-adapters` | 126 |
-| `@stratum-hq/core` | 120 |
-| `@stratum-hq/create` | 93 |
-| `@stratum-hq/mysql` | 61 |
-| `@stratum-hq/sdk` | 57 |
-| `@stratum-hq/mongodb` | 54 |
-| `@stratum-hq/cli` | 49 |
-| `@stratum-hq/compliance` | 43 |
-| `@stratum-hq/react` | 19 |
-| `@stratum-hq/nestjs` | 16 |
-| `@stratum-hq/test-utils` | 10 |
-| `@stratum-hq/hono` | 9 |
-| `@stratum-hq/demo` | 8 |
+This file does not record test counts, because each change makes a recorded count wrong.
+To get the current counts, run `npx turbo test --force --concurrency=2`. Vitest prints a
+`Tests` line for each package.
 
 ### The important caveat
 
-**No unit test in `@stratum-hq/lib` touches a real database.** All 243 of them run without
+**No unit test in `@stratum-hq/lib` touches a real database.** All of them run without
 Postgres.
 
-Of the 20 test files in `packages/lib/src`, 12 stub the database layer entirely: they
+Most test files in `packages/lib/src` stub the database layer entirely: they
 `vi.mock("../../pool-helpers.js")` and use `makeMockPool()` from
 `packages/lib/src/services/__tests__/test-helpers.ts`, which literally returns
 `{} as import("pg").Pool`. Those tests assert on the **SQL strings the service passes to a
