@@ -56,11 +56,14 @@ beforeAll(async () => {
   pool = (await getTestPool()) as unknown as Pool;
   await pool.query(`DROP DATABASE IF EXISTS \`${DB}\``);
   await pool.query(`CREATE DATABASE \`${DB}\``);
+  // The primary key includes tenant_id: the subscriber refuses upserts on a
+  // table with a unique key that does not.
   await pool.query(
     `CREATE TABLE \`${DB}\`.\`items\` (
-      id INT PRIMARY KEY,
+      id INT NOT NULL,
       tenant_id VARCHAR(255) NOT NULL,
-      name VARCHAR(255)
+      name VARCHAR(255),
+      PRIMARY KEY (tenant_id, id)
     )`,
   );
   dataSource = newDataSource();

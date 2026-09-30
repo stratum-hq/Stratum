@@ -40,10 +40,19 @@ export class MysqlTableAdapter implements MysqlAdapter {
   /**
    * Validates slug and returns the escaped tenant-scoped table name
    * in the form `{baseTableName}_{tenantSlug}`.
+   *
+   * Throws when baseTables is not set: without the list, two tenants can get
+   * the same name, e.g. ("corp_acme", "orders") and ("acme", "orders_corp").
    */
   scopedTable(tenantSlug: string, baseTableName: string): string {
     validateSlug(tenantSlug);
-    if (this.baseTables && !this.baseTables.includes(baseTableName)) {
+    if (!this.baseTables) {
+      throw new Error(
+        "MysqlTableAdapter: scopedTable requires the baseTables option, " +
+          "listing every base table name that has a per-tenant copy",
+      );
+    }
+    if (!this.baseTables.includes(baseTableName)) {
       throw new Error(`MysqlTableAdapter: "${baseTableName}" is not in baseTables`);
     }
     const tableName = `${baseTableName}_${tenantSlug}`;

@@ -29,7 +29,7 @@ All tenants share the same MongoDB collections. A `tenant_id` field on every doc
 
 Each tenant gets its own set of collections, named `{collection}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' collections still live in the same database and are accessible to the same connection.
 
-List every base collection name in the `baseCollections` option of `MongoCollectionAdapter`. `purgeTenantData()` requires it and purges exactly `{base}_{tenantSlug}` for each entry. When it is set, `scopedCollection()` only accepts those names, and the adapter rejects a list where one name is another name followed by `_`, because the resulting tenant collection names could collide.
+List every base collection name in the `baseCollections` option of `MongoCollectionAdapter`. `scopedCollection()` and `purgeTenantData()` require it. `purgeTenantData()` purges exactly `{base}_{tenantSlug}` for each entry, `scopedCollection()` only accepts those names, and the adapter rejects a list where one name is another name followed by `_`, because the resulting tenant collection names could collide.
 
 **Tradeoff:** Good for applications that need different indexes per tenant (e.g., tenant-specific sort orders). Does not prevent a misconfigured query from reading another tenant's collection. Use `assertMongoIsolation()` to verify routing is correct.
 
@@ -212,6 +212,7 @@ MongoDB does not have a Row-Level Security equivalent. Unlike PostgreSQL, there 
 **What this means in practice:**
 
 - For `SHARED_COLLECTION` and `COLLECTION_PER_TENANT`: if a query is executed without the Mongoose plugin active (e.g., using the raw `MongoClient` directly), it will see all tenants' data.
+- `Model.collection`, `Model.db`, `connection.db` and `connection.watch()` are the raw driver objects, so the plugin does not scope them. `Model.watch()` is scoped: the plugin filters the change stream to documents whose `fullDocument.tenant_id` is the current tenant.
 - For `DATABASE_PER_TENANT`: isolation is at the connection level -- a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MongoDB offers.
 
 **Recommendations:**

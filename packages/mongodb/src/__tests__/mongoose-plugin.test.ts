@@ -17,6 +17,8 @@ interface MockSchema {
   path(name: string): unknown;
   add(obj: Record<string, unknown>): void;
   pre(method: string | string[], fn: (...args: unknown[]) => void): void;
+  statics: Record<string, unknown>;
+  static(name: string, fn: unknown): void;
 }
 
 function createMockSchema(): MockSchema {
@@ -39,6 +41,10 @@ function createMockSchema(): MockSchema {
         if (!schema.hooks.has(m)) schema.hooks.set(m, []);
         schema.hooks.get(m)!.push(fn as (this: unknown, next: () => void) => void);
       }
+    },
+    statics: {},
+    static(name: string, fn: unknown) {
+      schema.statics[name] = fn;
     },
   };
   return schema;
@@ -113,11 +119,16 @@ describe("stratumPlugin", () => {
     const hooks = schema.hooks.get("aggregate")!;
     expect(hooks.length).toBe(1);
 
-    const pipeline: Record<string, unknown>[] = [{ $group: { _id: "$x" } }];
-    const agg = { pipeline: () => pipeline };
+    const agg = {
+      _pipeline: [{ $group: { _id: "$x" } }] as Record<string, unknown>[],
+      pipeline() {
+        return this._pipeline;
+      },
+    };
     const next = vi.fn();
     hooks[0].call(agg, next);
-    expect(pipeline[0]).toEqual({ $match: { tenant_id: "t1" } });
+    expect(agg._pipeline).toEqual([{ $match: { tenant_id: "t1" } }, { $group: { _id: "$x" } }]);
+    expect(Object.isFrozen(agg._pipeline)).toBe(true);
     expect(next).toHaveBeenCalled();
   });
 

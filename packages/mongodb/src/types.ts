@@ -64,8 +64,9 @@ export interface MongoCollectionAdapterOptions {
   databaseName: string;
   /**
    * Every base collection name that has a per-tenant copy. Required by
+   * scopedCollection, which only accepts these base names, and by
    * purgeTenantData, which purges exactly `{base}_{slug}` for each entry and
-   * nothing else. When set, scopedCollection only accepts these base names.
+   * nothing else.
    * No entry may be another entry followed by `_`, since `{base}_{slug}` would
    * then be ambiguous between two tenants.
    */
