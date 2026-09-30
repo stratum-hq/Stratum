@@ -169,6 +169,42 @@ const orders = await Order.find({ status: "pending" });
 // For DATABASE_PER_TENANT, routes to the right database connection automatically
 ```
 
+### Change Streams and Delete Events
+
+The plugin replaces `Model.watch()` with a change stream that delivers only the current tenant's events. It matches each event on `fullDocument.tenant_id`. A delete event has no `fullDocument`, so by default the stream does not deliver it. Drop, rename and invalidate events are never delivered.
+
+To receive delete events, use the `watchDeletes` option. The stream then reads the tenant of a delete event from its pre-image. This option needs:
+
+- MongoDB 6.0 or later, as a replica set or a sharded cluster. Change streams do not run on a standalone server.
+- Change stream pre-images enabled on the collection.
+
+Enable the pre-images on the collection first:
+
+```typescript
+await mongoose.connection.db.command({
+  collMod: "orders",
+  changeStreamPreAndPostImages: { enabled: true },
+});
+```
+
+Then pass the option to the plugin:
+
+```typescript
+orderSchema.plugin(stratumPlugin, { watchDeletes: true });
+
+const stream = Order.watch();
+stream.on("change", (change) => {
+  if (change.operationType === "delete") console.log(change.fullDocumentBeforeChange);
+});
+stream.on("error", (err) => console.error(err));
+```
+
+- The stream always sets `fullDocumentBeforeChange: "required"`.
+- If the collection has no pre-images, the stream emits an `error` that names `changeStreamPreAndPostImages`, and then closes.
+- If a pre-image is not available for an event, the server stops the stream with an error. This occurs for a document written before you enabled pre-images, and for a pre-image that has expired.
+- An update event is not delivered if its pre-image belongs to another tenant.
+- On a discriminator model, Mongoose adds a filter on `fullDocument` to the stream, so delete events are not delivered.
+
 ## GDPR Compliance
 
 `purgeTenantData()` permanently deletes all documents belonging to a tenant. Call this after removing the tenant from the PostgreSQL control plane.

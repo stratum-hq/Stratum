@@ -34,38 +34,123 @@ interface WatchableModelLike {
   watch(pipeline?: Record<string, unknown>[], options?: Record<string, unknown>): unknown;
 }
 
+interface WatchModelLike extends WatchableModelLike {
+  collection: { collectionName: string };
+  db: { listCollections(): Promise<Array<{ name: string; options?: Record<string, unknown> }>> };
+}
+
+interface ChangeStreamLike {
+  closed?: boolean;
+  emit(event: string, ...args: unknown[]): boolean;
+  close(): unknown;
+}
+
+/** Options for `stratumPlugin`. */
+export interface StratumPluginOptions {
+  /**
+   * Deliver delete events from the scoped `watch()`. A delete event has no
+   * `fullDocument`, so the stream reads the tenant from the pre-image. This
+   * needs MongoDB 6.0 or later and `changeStreamPreAndPostImages` enabled on
+   * the collection. Default `false`.
+   */
+  watchDeletes?: boolean;
+}
+
 /** Marks the watch() static this plugin installs, to find Mongoose's own watch() below it. */
 const SCOPED_WATCH = Symbol("stratum.scopedWatch");
 
 /**
- * Model.watch() scoped to the current tenant. The change stream starts with
- * `$match: { "fullDocument.tenant_id": <tenant> }`, and fullDocument defaults
+ * Return the first stage of a scoped change stream for the tenant.
+ *
+ * With `watchDeletes`, a delete event matches on its pre-image. Every other
+ * event matches on `fullDocument`, and its pre-image must not belong to
+ * another tenant: an unscoped write can move a document between tenants, and
+ * the pre-image then holds the data of the old tenant.
+ */
+function tenantStage(tenantId: string, watchDeletes: boolean): Record<string, unknown> {
+  if (!watchDeletes) return { $match: { "fullDocument.tenant_id": tenantId } };
+  return {
+    $match: {
+      $or: [
+        { operationType: "delete", "fullDocumentBeforeChange.tenant_id": tenantId },
+        {
+          operationType: { $ne: "delete" },
+          "fullDocument.tenant_id": tenantId,
+          "fullDocumentBeforeChange.tenant_id": { $in: [tenantId, null] },
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Emit an error on the stream and close it when the collection of the model
+ * has no change stream pre-images. Without this check, the server reports the
+ * problem only at the first update or delete event, and that event is lost.
+ */
+function assertPreImages(model: WatchModelLike, stream: ChangeStreamLike): void {
+  const name = model.collection.collectionName;
+  model.db.listCollections().then(
+    (collections) => {
+      const info = collections.find((c) => c.name === name);
+      const preImages = info?.options?.changeStreamPreAndPostImages as { enabled?: boolean } | undefined;
+      if (preImages?.enabled || stream.closed) return;
+      stream.emit(
+        "error",
+        new Error(
+          `stratumPlugin: watchDeletes needs change stream pre-images on the collection "${name}". ` +
+            `Enable them with { collMod: "${name}", changeStreamPreAndPostImages: { enabled: true } } ` +
+            "(MongoDB 6.0 or later).",
+        ),
+      );
+      void stream.close();
+    },
+    (err: unknown) => {
+      if (stream.closed) return;
+      stream.emit("error", err);
+      void stream.close();
+    },
+  );
+}
+
+/**
+ * Return a Model.watch() scoped to the current tenant. The change stream
+ * starts with a tenant `$match` on `fullDocument`, and fullDocument defaults
  * to "updateLookup" so update events carry the document to match on. Events
  * without a fullDocument (delete, drop, rename, invalidate) are filtered out.
+ * With `watchDeletes`, delete events match on their pre-image instead, and
+ * `fullDocumentBeforeChange` is always "required".
  * The caller's stages are checked like aggregate stages and run after the
  * tenant $match.
  */
-function scopedWatch(
-  this: WatchableModelLike,
-  pipeline?: Record<string, unknown>[],
-  options?: Record<string, unknown>,
-): unknown {
-  const ctx = getTenantContext();
-  const stages = assertSafeAggregatePipeline(pipeline ?? []);
-  let base = Object.getPrototypeOf(this) as WatchableModelLike | null;
-  while (base && (base.watch as unknown as Record<symbol, unknown>)[SCOPED_WATCH]) {
-    base = Object.getPrototypeOf(base) as WatchableModelLike | null;
+function makeScopedWatch(watchDeletes: boolean) {
+  function scopedWatch(
+    this: WatchModelLike,
+    pipeline?: Record<string, unknown>[],
+    options?: Record<string, unknown>,
+  ): unknown {
+    const ctx = getTenantContext();
+    const stages = assertSafeAggregatePipeline(pipeline ?? []);
+    let base = Object.getPrototypeOf(this) as WatchableModelLike | null;
+    while (base && (base.watch as unknown as Record<symbol, unknown>)[SCOPED_WATCH]) {
+      base = Object.getPrototypeOf(base) as WatchableModelLike | null;
+    }
+    if (!base || typeof base.watch !== "function") {
+      throw new Error("stratumPlugin: Mongoose Model.watch() was not found.");
+    }
+    const stream = base.watch.call(
+      this,
+      [tenantStage(ctx.tenant_id, watchDeletes), ...stages],
+      watchDeletes
+        ? { fullDocument: "updateLookup", ...options, fullDocumentBeforeChange: "required" }
+        : { fullDocument: "updateLookup", ...options },
+    );
+    if (watchDeletes) assertPreImages(this, stream as ChangeStreamLike);
+    return stream;
   }
-  if (!base || typeof base.watch !== "function") {
-    throw new Error("stratumPlugin: Mongoose Model.watch() was not found.");
-  }
-  return base.watch.call(
-    this,
-    [{ $match: { "fullDocument.tenant_id": ctx.tenant_id } }, ...stages],
-    { fullDocument: "updateLookup", ...options },
-  );
+  (scopedWatch as unknown as Record<symbol, unknown>)[SCOPED_WATCH] = true;
+  return scopedWatch;
 }
-(scopedWatch as unknown as Record<symbol, unknown>)[SCOPED_WATCH] = true;
 
 /**
  * Mongoose plugin that auto-injects tenant_id from ALS context.
@@ -76,7 +161,8 @@ function scopedWatch(
  * deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete),
  * insertMany, bulkWrite, and aggregate, and replaces the model's watch() with
  * a tenant-filtered change stream. estimatedDocumentCount cannot be scoped and
- * is rejected.
+ * is rejected. Set `options.watchDeletes` to also deliver delete events from
+ * watch(); see `StratumPluginOptions`.
  *
  * Not scoped: `Model.collection` (and `Model.db`, `connection.db`,
  * `connection.watch()`) are the raw driver objects, and every operation on
@@ -89,7 +175,7 @@ function scopedWatch(
  * Each hook reads the current tenant from ALS via `getTenantContext()` from `@stratum-hq/sdk`.
  * If no ALS context is found, a TenantContextNotFoundError is thrown.
  */
-export function stratumPlugin(schema: SchemaLike): void {
+export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions = {}): void {
   // Idempotent: skip if tenant_id already defined
   if (!schema.path("tenant_id")) {
     schema.add({
@@ -203,5 +289,5 @@ export function stratumPlugin(schema: SchemaLike): void {
         "with a tenant-scoped watch(). Remove it, or apply the plugin to a schema without it.",
     );
   }
-  schema.static("watch", scopedWatch);
+  schema.static("watch", makeScopedWatch(options.watchDeletes === true));
 }
