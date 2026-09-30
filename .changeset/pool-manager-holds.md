@@ -1,6 +1,6 @@
 ---
-"@stratum-hq/db-adapters": patch
-"@stratum-hq/mongodb": patch
+"@stratum-hq/db-adapters": minor
+"@stratum-hq/mongodb": minor
 ---
 
 The per-tenant pool managers no longer create duplicate connections or close connections in use.

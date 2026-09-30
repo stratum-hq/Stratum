@@ -6,7 +6,11 @@ export interface DatabasePoolManagerOptions {
   baseConnectionConfig: pg.PoolConfig;
   /** Maximum number of tenant pools to keep open simultaneously. Default: 50. */
   maxPools?: number;
-  /** Milliseconds of inactivity before a pool is eligible for LRU eviction. Default: 30000. */
+  /**
+   * Milliseconds an idle connection stays open inside a tenant pool before pg
+   * closes it. The manager passes it to pg.Pool as idleTimeoutMillis. It does
+   * not control LRU eviction. Default: 30000.
+   */
   idleTimeoutMs?: number;
 }
 
