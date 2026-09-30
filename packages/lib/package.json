@@ -34,7 +34,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && cp -r src/migrations dist/migrations",
+    "build": "tsc && node ../../scripts/copy-dir.mjs src/migrations dist/migrations",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
