@@ -2,7 +2,7 @@
  * Stratum + Express example
  *
  * Demonstrates:
- *  - Tenant context resolved per-request from X-Tenant-ID header
+ *  - Tenant context resolved per request from a verified JWT claim
  *  - Config resolution endpoint
  *  - Tenant creation endpoint
  *  - SDK middleware wired into Express
@@ -25,7 +25,14 @@ const pool = new pg.Pool({
 const stratumLib = new Stratum({ pool, autoMigrate: true });
 await stratumLib.initialize();
 
-// Stratum SDK — wires Express middleware that resolves X-Tenant-ID per-request
+// The tenant binding comes from a signed token, so the server refuses to start
+// without the key that verifies it. Read it from the environment, never from code.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required: the example reads the tenant from a verified JWT.");
+}
+
+// Stratum SDK — wires Express middleware that resolves the tenant per request
 // and makes the tenant context available as req.tenant
 const sdk = stratumSdk({
   controlPlaneUrl: process.env.STRATUM_CONTROL_PLANE_URL ?? "http://localhost:3001",
@@ -40,9 +47,15 @@ const app = express();
 app.use(express.json());
 
 // Apply Stratum tenant middleware to all /api routes.
-// The middleware reads X-Tenant-ID from the request header,
-// resolves the full tenant context, and attaches it as req.tenant.
-app.use("/api", sdk.middleware());
+// The middleware verifies the HS256 bearer token with jsonwebtoken and reads
+// the tenant from its `tenant_id` claim. It then resolves the full tenant
+// context and attaches it as req.tenant.
+//
+// With jwtSecret set, the SDK ignores a client-sent tenant header, and it
+// rejects a bearer token that fails verification with 401. Set
+// trustTenantHeader: true only when a gateway you control sets the tenant
+// header and removes any copy the client sent.
+app.use("/api", sdk.middleware({ jwtSecret }));
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -96,7 +109,7 @@ app.post("/api/tenants", async (req, res) => {
 
 /**
  * GET /health
- * Simple health check — does not require a tenant header.
+ * Simple health check — does not require a token.
  */
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
@@ -110,11 +123,11 @@ const PORT = Number(process.env.PORT ?? 3000);
 app.listen(PORT, () => {
   console.log(`stratum-express example listening on http://localhost:${PORT}`);
   console.log();
-  console.log("Try it:");
-  console.log(`  curl -H "X-Tenant-ID: <uuid>" http://localhost:${PORT}/api/tenant`);
-  console.log(`  curl -H "X-Tenant-ID: <uuid>" http://localhost:${PORT}/api/config`);
+  console.log("Try it (see README.md to create a token):");
+  console.log(`  curl -H "Authorization: Bearer $TOKEN" http://localhost:${PORT}/api/tenant`);
+  console.log(`  curl -H "Authorization: Bearer $TOKEN" http://localhost:${PORT}/api/config`);
   console.log(`  curl -X POST http://localhost:${PORT}/api/tenants \\`);
   console.log(`    -H "Content-Type: application/json" \\`);
-  console.log(`    -H "X-Tenant-ID: <uuid>" \\`);
+  console.log(`    -H "Authorization: Bearer $TOKEN" \\`);
   console.log(`    -d '{"name":"Initech Solutions","slug":"initech"}'`);
 });
