@@ -30,6 +30,21 @@ export interface KeyRotationSalts {
 // Lowest possible UUID; a keyset cursor starting here precedes every real row.
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
+// Buffer.from(salt, "hex") stops at the first bad character and drops an odd last digit.
+// A salt that it shortens would encrypt the data under a salt the operator never configured.
+const HEX_SALT = /^(?:[0-9a-fA-F]{2})+$/;
+
+function assertHexSalts(salts: KeyRotationSalts): void {
+  for (const name of ["oldSalt", "newSalt"] as const) {
+    const salt = salts[name];
+    if (salt !== undefined && (typeof salt !== "string" || !HEX_SALT.test(salt))) {
+      throw new ValidationError(`Key rotation ${name} must be a non-empty, even-length hex string. No row was changed.`, {
+        field: name,
+      });
+    }
+  }
+}
+
 type RotateOutcome = { kind: "rotated"; value: string } | { kind: "already_rotated" } | { kind: "unreadable" };
 
 // A run that fails partway leaves earlier batches committed under the new key.
@@ -59,6 +74,9 @@ function rotateValue(
  * with the new key stays as it is and counts in `already_rotated`. A value that
  * decrypts with neither key stays as it is and appears in `unreadable`.
  *
+ * Throws a ValidationError before it reads a row when `salts.oldSalt` or
+ * `salts.newSalt` is not a non-empty, even-length hex string.
+ *
  * Throws a ValidationError when encrypted values exist and none of them
  * decrypts with either key. That result almost always means `oldKeyMaterial`
  * or `salts.oldSalt` is wrong, and the run has changed no row.
@@ -76,6 +94,8 @@ export async function rotateEncryptionKey(
   batchSize: number = 100,
   salts: KeyRotationSalts = {},
 ): Promise<KeyRotationResult> {
+  assertHexSalts(salts);
+
   let configCount = 0;
   let webhookCount = 0;
   let alreadyRotated = 0;

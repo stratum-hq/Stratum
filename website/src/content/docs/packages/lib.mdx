@@ -316,7 +316,20 @@ await stratum.rotateEncryptionKey("stratum-dev-key", process.env.STRATUM_ENCRYPT
 
 Keep the new salt afterwards. Data encrypted under a salt that is not configured cannot be read. To change the salt again later, rotate with that salt as `oldSalt`.
 
-The control plane route `POST /api/v1/maintenance/rotate-encryption-key` takes only `old_key` and `new_key`, and cannot change the salt. If you rotate through the control plane, set `STRATUM_HKDF_SALT` to the built-in salt value above instead of a new salt. Do not set `STRATUM_HKDF_SALT_PREVIOUS`. Then call the route with `stratum-dev-key` as `old_key` and the new key as `new_key`.
+To rotate through the control plane, do steps 1 to 5 for the control plane deployment. For step 6, call `POST /api/v1/maintenance/rotate-encryption-key` with the built-in pair as the old pair and the new pair as the new pair:
+
+```json
+{
+  "old_key": "stratum-dev-key",
+  "new_key": "<the value of STRATUM_ENCRYPTION_KEY>",
+  "old_salt": "7374726174756d2d6e6f6e2d70726f64756374696f6e2d686b64662d73616c742d7631",
+  "new_salt": "<the value of STRATUM_HKDF_SALT>"
+}
+```
+
+The route accepts the same key as `old_key` and `new_key` when `old_salt` and `new_salt` differ. A salt that the body does not give is the configured `STRATUM_HKDF_SALT`.
+
+A salt must be a non-empty, even-length hex string. `rotateEncryptionKey` throws a `ValidationError` for any other salt and changes no row. The control plane route answers `400 VALIDATION_ERROR`.
 
 ```typescript
 interface KeyRotationResult {
