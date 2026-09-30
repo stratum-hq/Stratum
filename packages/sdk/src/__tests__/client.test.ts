@@ -387,6 +387,35 @@ describe("StratumClient", () => {
       expect((err as ValidationError).details).toBeUndefined();
     });
 
+    it("keeps error.details when the response has details but no issues", async () => {
+      const client = makeClient();
+      const details = { field: "tenant_ids", limit: 100 };
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "VALIDATION_ERROR", message: "Batch limited to 100 tenants", details } },
+          400,
+        ),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details).toEqual(details);
+    });
+
+    it("adds the legacy error.issues to error.details when details has no issues", async () => {
+      const client = makeClient();
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "VALIDATION_ERROR", message: "Validation failed", details: { field: "slug" }, issues } },
+          400,
+        ),
+      );
+
+      const err = await client.createTenant({ name: "x" } as never).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details).toEqual({ field: "slug", issues });
+    });
+
     it("throws a plain Error on a 400 with another code", async () => {
       const client = makeClient();
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
@@ -414,7 +443,11 @@ describe("StratumClient", () => {
       expect((err as RegionInUseError).details).toEqual({ region_id: "r-1" });
     });
 
-    it("throws RegionNotActiveError on a 409 with code REGION_NOT_ACTIVE", async () => {
+    // The control plane sends REGION_NOT_ACTIVE from POST /api/v1/tenants/{id}/migrate-region.
+    // The SDK has no method for that route yet. The mapping reads only the status and
+    // the code, so this test sends the response through updateRegion. A future
+    // migrateRegion method gets the same mapping without a change.
+    it("throws RegionNotActiveError on a 409 with code REGION_NOT_ACTIVE from any route", async () => {
       const client = makeClient();
       const message = "Cannot migrate to region r-1: region is not active";
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(

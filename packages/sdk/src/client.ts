@@ -78,12 +78,13 @@ function responseError(status: number, body: ErrorBody): Error {
   const rawRegionId = error?.details?.region_id;
   const regionId = typeof rawRegionId === "string" ? rawRegionId : "unknown";
   if (status === 400 && code === ErrorCode.VALIDATION_ERROR) {
-    const details = error?.details;
-    if (Array.isArray(details?.issues)) {
-      return new ValidationError(message ?? "Validation failed", details);
-    }
+    const details = isObject(error?.details) ? error.details : undefined;
     const legacyIssues = error?.issues;
-    return new ValidationError(message ?? "Validation failed", Array.isArray(legacyIssues) ? { issues: legacyIssues } : undefined);
+    // An older control plane sends the issues only in the deprecated error.issues field.
+    if (!Array.isArray(details?.issues) && Array.isArray(legacyIssues)) {
+      return new ValidationError(message ?? "Validation failed", { ...details, issues: legacyIssues });
+    }
+    return new ValidationError(message ?? "Validation failed", details);
   }
   // Every route can answer 404, so only the error code tells what is missing.
   if (status === 404 && code === ErrorCode.TENANT_NOT_FOUND) {
