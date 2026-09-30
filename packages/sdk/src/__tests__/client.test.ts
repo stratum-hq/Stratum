@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StratumClient } from "../client.js";
 import type { ResolvedTenantContext, TenantNode } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -182,6 +188,113 @@ describe("StratumClient", () => {
       await expect(client.resolveTenant("t-1")).rejects.toThrow(
         "Internal server error",
       );
+    });
+
+    it("keeps the control plane's 404 message without a second prefix", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "TENANT_NOT_FOUND", message: "Tenant not found: t-missing" } },
+          404,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-missing").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantNotFoundError);
+      expect((err as Error).message).toBe("Tenant not found: t-missing");
+    });
+
+    it("throws TenantSuspendedError on a 403 with code TENANT_SUSPENDED", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          {
+            error: {
+              code: "TENANT_SUSPENDED",
+              message: "Tenant t-1 is suspended",
+              details: { tenant_id: "t-1" },
+            },
+          },
+          403,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantSuspendedError);
+      expect((err as Error).message).toBe("Tenant t-1 is suspended");
+    });
+
+    it("throws ForbiddenError on a 403 with any other code", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "FORBIDDEN", message: "Insufficient permissions for this operation" } },
+          403,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ForbiddenError);
+      expect((err as Error).message).toBe("Insufficient permissions for this operation");
+    });
+
+    it("throws TenantArchivedError on a 410 with code TENANT_ARCHIVED", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(
+          { error: { code: "TENANT_ARCHIVED", message: "Tenant t-1 is archived" } },
+          410,
+        ),
+      );
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TenantArchivedError);
+      expect((err as Error).message).toBe("Tenant t-1 is archived");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Request timeout
+  // -----------------------------------------------------------------------
+
+  describe("request timeout", () => {
+    /** A fetch that never answers and rejects only when its signal aborts. */
+    function stalledFetch() {
+      return vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+          }),
+      );
+    }
+
+    it("sends an abort signal with every request by default", async () => {
+      const client = makeClient();
+
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mockFetchResponse(makeResolvedTenantContext("t-1")),
+      );
+
+      await client.resolveTenant("t-1");
+
+      const [, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it("rejects a stalled request with a TimeoutError after timeoutMs", async () => {
+      const client = new StratumClient({
+        controlPlaneUrl: CONTROL_PLANE_URL,
+        apiKey: API_KEY,
+        timeoutMs: 20,
+      });
+      globalThis.fetch = stalledFetch() as unknown as typeof fetch;
+
+      const err = await client.resolveTenant("t-1").catch((e: unknown) => e);
+      expect((err as Error).name).toBe("TimeoutError");
     });
   });
 

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { expressMiddleware } from "../middleware/express.js";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
-import { TenantNotFoundError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -149,6 +154,78 @@ describe("expressMiddleware", () => {
 
       await middleware(req, res, next);
 
+      expect(next).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("tenant state and access errors", () => {
+    const cases = [
+      { name: "suspended", error: () => new TenantSuspendedError("t-1"), status: 403, code: "TENANT_SUSPENDED" },
+      { name: "archived", error: () => new TenantArchivedError("t-1"), status: 410, code: "TENANT_ARCHIVED" },
+      { name: "forbidden", error: () => new ForbiddenError("Insufficient permissions"), status: 403, code: "FORBIDDEN" },
+    ];
+
+    for (const c of cases) {
+      it(`answers ${c.status} ${c.code} when the caller tenant is ${c.name}`, async () => {
+        const client = makeClient({ resolveTenant: vi.fn().mockRejectedValue(c.error()) });
+        const middleware = expressMiddleware(client);
+        const req = makeReq({ "x-tenant-id": "t-1" });
+        const res = makeRes();
+
+        await middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(c.status);
+        expect(res.json).toHaveBeenCalledWith({
+          error: expect.objectContaining({ code: c.code }),
+        });
+        expect(next).not.toHaveBeenCalled();
+      });
+
+      it(`answers ${c.status} ${c.code} when the impersonation target is ${c.name}`, async () => {
+        const client = makeClient({
+          resolveTenant: vi
+            .fn()
+            .mockResolvedValueOnce(makeResolvedTenantContext("caller-tenant"))
+            .mockRejectedValueOnce(c.error()),
+        });
+        const middleware = expressMiddleware(client, {
+          impersonation: { enabled: true, authorize: () => true },
+        });
+        const req = makeReq({
+          "x-tenant-id": "caller-tenant",
+          "x-impersonate-tenant": "target-tenant",
+        });
+        const res = makeRes();
+
+        await middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(c.status);
+        expect(res.json).toHaveBeenCalledWith({
+          error: expect.objectContaining({ code: c.code }),
+        });
+        expect(next).not.toHaveBeenCalled();
+      });
+    }
+
+    it("answers 404 when the impersonation target is not found", async () => {
+      const client = makeClient({
+        resolveTenant: vi
+          .fn()
+          .mockResolvedValueOnce(makeResolvedTenantContext("caller-tenant"))
+          .mockRejectedValueOnce(new TenantNotFoundError("target-tenant")),
+      });
+      const middleware = expressMiddleware(client, {
+        impersonation: { enabled: true, authorize: () => true },
+      });
+      const req = makeReq({
+        "x-tenant-id": "caller-tenant",
+        "x-impersonate-tenant": "target-tenant",
+      });
+      const res = makeRes();
+
+      await middleware(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(404);
       expect(next).not.toHaveBeenCalled();
     });
   });

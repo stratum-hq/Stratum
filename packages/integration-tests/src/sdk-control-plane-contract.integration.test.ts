@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { StratumClient, expressMiddleware, getTenantContext } from "@stratum-hq/sdk";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
+import { ForbiddenError, TenantArchivedError, TenantNotFoundError, TenantSuspendedError } from "@stratum-hq/core";
 import {
   getPool,
   closePool,
@@ -112,4 +113,69 @@ describe("SDK against the real control plane (integration)", () => {
     expect((req.tenant as ResolvedTenantContext).tenant_id).toBe(childId);
     expect(alsTenantId).toBe(childId);
   });
+
+  // A scoped key cannot see past a descendant that is not active: the scope
+  // check fails closed with 403 FORBIDDEN first. An operator key reaches the
+  // tenant lookup, so it receives the tenant state errors.
+  async function operatorClient(): Promise<StratumClient> {
+    const key = await stratum.createApiKey(parentId);
+    await getPool().query("UPDATE api_keys SET tenant_id = NULL, scopes = $2 WHERE id = $1", [
+      key.id,
+      ["read", "write", "admin"],
+    ]);
+    return new StratumClient({ controlPlaneUrl: baseUrl, apiKey: key.plaintext_key, cache: { enabled: false } });
+  }
+
+  it("maps a suspended tenant to TenantSuspendedError, and the middleware answers 403", async () => {
+    await stratum.suspendTenant(childId);
+    const client = await operatorClient();
+
+    await expect(client.resolveTenant(childId)).rejects.toBeInstanceOf(TenantSuspendedError);
+
+    const status = await middlewareStatus(client, childId);
+    expect(status).toBe(403);
+  });
+
+  it("maps an archived tenant to TenantArchivedError, and the middleware answers 410", async () => {
+    await stratum.archiveTenant(childId);
+    const client = await operatorClient();
+
+    await expect(client.resolveTenant(childId)).rejects.toBeInstanceOf(TenantArchivedError);
+
+    const status = await middlewareStatus(client, childId);
+    expect(status).toBe(410);
+  });
+
+  it("maps a scoped key's denied descendant to ForbiddenError, and the middleware answers 403", async () => {
+    await stratum.suspendTenant(childId);
+    const client = new StratumClient({ controlPlaneUrl: baseUrl, apiKey: adminKey, cache: { enabled: false } });
+
+    await expect(client.resolveTenant(childId)).rejects.toBeInstanceOf(ForbiddenError);
+
+    const status = await middlewareStatus(client, childId);
+    expect(status).toBe(403);
+  });
+
+  it("keeps a single 'Tenant not found' prefix on a missing tenant", async () => {
+    const missingId = "00000000-0000-4000-8000-000000000000";
+    const client = await operatorClient();
+
+    const err = await client.resolveTenant(missingId).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TenantNotFoundError);
+    expect((err as Error).message).toBe(`Tenant not found: ${missingId}`);
+  });
 });
+
+/** Run the Express middleware for one tenant and return the status it sent, if any. */
+async function middlewareStatus(client: StratumClient, tenantId: string): Promise<number | undefined> {
+  const mw = expressMiddleware(client);
+  let status: number | undefined;
+  let nextErr: unknown;
+  await mw(
+    { headers: { "x-tenant-id": tenantId } },
+    { status: (code: number) => { status = code; return { json: () => undefined }; } },
+    (err?: unknown) => { nextErr = err; },
+  );
+  expect(nextErr).toBeUndefined();
+  return status;
+}
