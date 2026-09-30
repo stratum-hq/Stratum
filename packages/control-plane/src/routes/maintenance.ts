@@ -5,8 +5,8 @@ import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 export function createMaintenanceRoutes(stratum: Stratum) {
   return async function maintenanceRoutes(app: FastifyInstance): Promise<void> {
-    // Operator-level maintenance tasks; no per-tenant target to enforce.
-    declareTenantScope(app, "global");
+    // Maintenance acts across all tenants: global operator keys only.
+    declareTenantScope(app, "operator");
 
     // POST /api/v1/maintenance/purge-expired — Purge expired data
     app.post<{ Querystring: { retention_days?: string } }>("/purge-expired", async (request, reply) => {
@@ -16,7 +16,7 @@ export function createMaintenanceRoutes(stratum: Stratum) {
       const retentionDays = rawDays !== undefined && (Number.isNaN(rawDays) || rawDays < 1)
         ? undefined
         : rawDays !== undefined ? Math.min(rawDays, 3650) : undefined;
-      const result = await stratum.purgeExpiredData(retentionDays);
+      const result = await stratum.purgeExpiredData(retentionDays, buildAuditContext(request));
       reply.status(200).send(result);
     });
 

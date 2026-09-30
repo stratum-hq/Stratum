@@ -6,8 +6,9 @@ import { declareTenantScope } from "../middleware/tenant-scope.js";
 
 export function createRegionRoutes(stratum: Stratum) {
   return async function regionRoutes(app: FastifyInstance): Promise<void> {
-    // Operator-level region registry; no per-tenant target to enforce.
-    declareTenantScope(app, "global");
+    // The region registry is shared by all tenants: changing it is limited to
+    // global operator keys. Reads declare "global" below.
+    declareTenantScope(app, "operator");
 
     // POST /api/v1/regions — Create region
     app.post("/", async (request, reply) => {
@@ -17,13 +18,13 @@ export function createRegionRoutes(stratum: Stratum) {
     });
 
     // GET /api/v1/regions — List regions
-    app.get("/", async (_request, reply) => {
+    app.get("/", { config: { tenantScope: "global" } }, async (_request, reply) => {
       const regions = await stratum.listRegions();
       reply.status(200).send(regions);
     });
 
     // GET /api/v1/regions/:id — Get region by ID
-    app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
+    app.get<{ Params: { id: string } }>("/:id", { config: { tenantScope: "global" } }, async (request, reply) => {
       const region = await stratum.getRegion(request.params.id);
       reply.status(200).send(region);
     });

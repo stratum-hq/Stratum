@@ -8,10 +8,12 @@ export type TenantIdExtractor = (req: FastifyRequest) => string | null;
 /**
  * A route's tenant-scope declaration:
  *  - an extractor: enforce that the caller's key may reach the extracted tenant;
- *  - "global": operator-level route with no single tenant target, or one that
- *    scopes itself in its handler. The middleware performs no tenant check.
+ *  - "global": route with no single tenant target, or one that scopes itself
+ *    in its handler. The middleware performs no tenant check.
+ *  - "operator": route that acts across all tenants. Only global operator API
+ *    keys (tenant_id === null) may call it; tenant-scoped callers are refused.
  */
-export type TenantScopeDeclaration = TenantIdExtractor | "global";
+export type TenantScopeDeclaration = TenantIdExtractor | "global" | "operator";
 
 declare module "fastify" {
   interface FastifyContextConfig {
@@ -66,6 +68,18 @@ export async function assertTenantInScope(
   throw new ForbiddenError(
     "API key tenant scope does not grant access to this tenant",
   );
+}
+
+/** True when the caller is a global operator API key (no tenant scope). */
+export function isOperator(request: FastifyRequest): boolean {
+  return request.authMethod === "api_key" && request.apiKey?.tenant_id === null;
+}
+
+/** Refuse the request unless the caller is a global operator API key. */
+export function assertOperator(request: FastifyRequest): void {
+  if (!isOperator(request)) {
+    throw new ForbiddenError("This operation requires a global operator API key");
+  }
 }
 
 /**
@@ -204,6 +218,10 @@ export function createTenantScopeEnforcer(stratum: Stratum) {
       throw new ForbiddenError("Route has no tenant-scope declaration");
     }
     if (declaration === "global") return;
+    if (declaration === "operator") {
+      assertOperator(request);
+      return;
+    }
 
     await checkTenantScope(stratum, request, declaration);
   };

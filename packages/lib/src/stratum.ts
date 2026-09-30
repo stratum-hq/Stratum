@@ -738,8 +738,16 @@ export class Stratum {
   }
 
   // Data retention & GDPR operations
-  async purgeExpiredData(retentionDays?: number): Promise<{ deleted_count: number }> {
-    return retentionService.purgeExpiredData(this.pool, retentionDays);
+  async purgeExpiredData(retentionDays?: number, audit?: AuditContext): Promise<{ deleted_count: number }> {
+    const result = await retentionService.purgeExpiredData(this.pool, retentionDays);
+    // Written after the purge so the entry itself is not purged.
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "data.expired_purged", "system", "retention", null,
+        null, null, { retention_days: retentionDays ?? null, deleted_count: result.deleted_count },
+      );
+    }
+    return result;
   }
   async purgeTenant(tenantId: string, audit?: AuditContext): Promise<void> {
     this.logger.warn("purging tenant data", { tenant_id: tenantId });
