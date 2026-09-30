@@ -9,3 +9,4 @@ Fix the database setup that the pg, knex and mongoose presets generate, so that 
 - The `mongoose` presets no longer import `createTenantConnection`, which `@stratum-hq/mongodb` does not export. They use Mongoose directly, with the database and collection names of the `@stratum-hq/mongodb` adapters.
 - The MySQL `pg` preset types its query parameters so that `pool.execute` accepts them.
 - The generated README names the `app.current_tenant_id` setting.
+- The RLS policy example in the generated `init.sql` uses `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid`. A pooled connection reads the setting as an empty string after a tenant transaction ends, and the old example raised an error there instead of returning no rows.

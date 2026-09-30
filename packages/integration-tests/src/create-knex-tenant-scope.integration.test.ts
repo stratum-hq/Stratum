@@ -66,6 +66,12 @@ beforeAll(async () => {
   compileInPlace(path.join(project, "knexfile.ts"));
   compileInPlace(path.join(project, "src/stratum-knex.ts"));
 
+  // Use the policy expression that the generated init.sql documents, so the
+  // test checks the guidance and not a copy of it.
+  const initSql = fs.readFileSync(path.join(project, "init.sql"), "utf8");
+  const policyUsing = initSql.match(/^--\s+USING \((.*)\);$/m)?.[1];
+  expect(policyUsing, "init.sql documents a tenant_isolation policy").toBeDefined();
+
   admin = new pg.Client({ connectionString: BASE_URL });
   await admin.connect();
   await admin.query(`DROP TABLE IF EXISTS ${TABLE}`);
@@ -77,10 +83,7 @@ beforeAll(async () => {
     CREATE TABLE ${TABLE} (id SERIAL PRIMARY KEY, tenant_id UUID NOT NULL, item TEXT NOT NULL);
     ALTER TABLE ${TABLE} ENABLE ROW LEVEL SECURITY;
     ALTER TABLE ${TABLE} FORCE ROW LEVEL SECURITY;
-    -- After a transaction-local set_config ends, the setting reads as '' on
-    -- that connection, and ''::uuid is an error. NULLIF turns it into no rows.
-    CREATE POLICY tenant_isolation ON ${TABLE}
-      USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
+    CREATE POLICY tenant_isolation ON ${TABLE} USING (${policyUsing});
     INSERT INTO ${TABLE} (tenant_id, item) VALUES ('${TENANT_A}', 'a'), ('${TENANT_B}', 'b');
     GRANT SELECT ON ${TABLE} TO ${APP_ROLE};
   `);
@@ -135,5 +138,20 @@ describe("generated postgres-rls-knex project: withTenantScope", () => {
     await generated.withTenantScope(TENANT_A, async () => undefined);
     const res = await generated.knex.raw(`SELECT item FROM ${TABLE} ORDER BY item`);
     expect(res.rows).toEqual([]);
+  });
+
+  // After a transaction-local set_config ends, the setting reads as '' on that
+  // connection. The generated policy must return no rows there, not fail on
+  // the uuid cast. Every connection in the pool has run a scope first.
+  it("returns no rows on every pooled connection after a scope ends", async () => {
+    await Promise.all(
+      Array.from({ length: 4 }, () =>
+        generated.withTenantScope(TENANT_A, (trx) => trx.raw("SELECT pg_sleep(0.05)")),
+      ),
+    );
+    const results = await Promise.all(
+      Array.from({ length: 4 }, () => generated.knex.raw(`SELECT item FROM ${TABLE}`)),
+    );
+    for (const res of results) expect(res.rows).toEqual([]);
   });
 });
