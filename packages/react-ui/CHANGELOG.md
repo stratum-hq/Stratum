@@ -1,5 +1,20 @@
 # @stratum-hq/react
 
+## 0.5.1
+
+### Patch Changes
+
+- b47f84f: Make the build copy of `src/migrations` (lib) and `src/styles` (react) replace the old copy in `dist`. A rebuild without a clean no longer creates `dist/migrations/migrations` or `dist/styles/styles`, and it no longer keeps stale top-level files. Published tarballs do not change, because the release job builds from a clean checkout.
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [329cb16]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [329cb16]
+- Updated dependencies [cd7b950]
+- Updated dependencies [694a3d3]
+- Updated dependencies [694a3d3]
+  - @stratum-hq/core@1.4.0
+
 ## 0.5.0
 
 ### Minor Changes

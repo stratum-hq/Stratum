@@ -1,5 +1,40 @@
 # @stratum-hq/mysql
 
+## 0.4.0
+
+### Minor Changes
+
+- f5936fb: Add `registerStratumSubscriber(dataSource)`. It adds one `StratumTypeOrmSubscriber` to an initialized TypeORM data source, and a second call adds nothing. The subscriber now also rejects a TypeORM upsert whose conflict update writes `tenant_id`, so an upsert cannot give an existing row a different tenant.
+
+### Patch Changes
+
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- e7e7b74: `MysqlPoolManager` no longer creates a duplicate pool when two first requests for one tenant arrive while the manager is at `maxPools`.
+
+  - Concurrent first requests for one tenant now share one pool. Before, each request could create its own pool, and the manager lost track of the extra pool, which stayed open.
+  - Each `getPool` call now counts as one hold, also when it waits for a pool that another request is creating. Eviction skips a held pool.
+  - A release for a pool that `closePool` or `closeAll` removed no longer releases the new pool for the same tenant.
+  - If ending an evicted pool fails, the request that caused the eviction no longer fails. The manager ignores that error.
+  - `releasePool` now records the time of the release. The idle timeout counts from the end of the last use, as in the MongoDB and PostgreSQL pool managers. Before, a pool held for longer than `idleTimeoutMs` could close soon after its release.
+  - If one pool fails to end during the idle cleanup, the manager still closes the other idle pools, and the error does not become an unhandled promise rejection.
+  - `typeorm` (`^1.0.0`) and `sequelize` (`^6.0.0`) are now declared as optional peer dependencies. Before, `peerDependenciesMeta` named them, but `peerDependencies` did not.
+
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [329cb16]
+- Updated dependencies [b47f84f]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [329cb16]
+- Updated dependencies [cd7b950]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [ac561f9]
+- Updated dependencies [ac561f9]
+- Updated dependencies [ac561f9]
+- Updated dependencies [329cb16]
+- Updated dependencies [694a3d3]
+- Updated dependencies [694a3d3]
+  - @stratum-hq/core@1.4.0
+  - @stratum-hq/sdk@1.2.0
+
 ## 0.3.0
 
 ### Minor Changes

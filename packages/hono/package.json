@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/hono",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Stratum Hono integration — tenant extraction middleware with ALS context",
   "keywords": [
     "multi-tenancy",
@@ -39,7 +39,7 @@
   },
   "peerDependencies": {
     "@stratum-hq/core": "^1.0.0",
-    "@stratum-hq/sdk": "^1.0.0",
+    "@stratum-hq/sdk": "^1.2.0",
     "hono": ">=4.0.0"
   },
   "devDependencies": {

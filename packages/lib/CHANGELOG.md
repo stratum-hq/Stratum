@@ -1,5 +1,88 @@
 # @stratum-hq/lib
 
+## 1.4.0
+
+### Minor Changes
+
+- b47f84f: `@stratum-hq/lib` exports `STRATUM_TABLES`, the list of tables that Stratum's migrations create. `stratum scan` and `stratum migrate --all` now read this list to skip Stratum's own tables, so they no longer report `abac_policies`, `usage_events`, or `principal_roles` as application tables. `stratum scan --generate` no longer emits `CREATE POLICY` for a table that already has a `tenant_isolation` policy, so the generated script applies without error.
+- e7e7b74: Report invalid input as a validation error, not as a server or database error.
+
+  Breaking for some callers: `@stratum-hq/lib` now rejects input that it stored before, and `recordAuditEvent` throws a different error class.
+
+  - `@stratum-hq/lib`: `grantConsent` validates its input with `GrantConsentInputSchema`. It now throws a `ValidationError` and writes no row for:
+    - an empty `subject_id` or `purpose`.
+    - an `expires_at` that is only a date (`2026-12-31`), or a date and time without a time zone offset (`2026-12-31T00:00:00`). Before, PostgreSQL stored these values, and it read a time without an offset in the time zone of the database session.
+    - an `expires_at` that PostgreSQL cannot store, such as `infinity`. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/lib`: `createAbacPolicy` validates its input with `CreateAbacPolicyInputSchema`. It now throws a `ValidationError` and writes no row for:
+    - an empty `name`, `resource_type` or `action`, or a condition with an empty `attribute` or an unknown `operator`. Before, the policy was stored.
+    - a `priority` that is not an integer from -2147483648 to 2147483647. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/lib`: `recordAuditEvent` now throws a `ValidationError` for invalid input, with the zod issues in `details.issues`. Before, it threw a `ZodError`. A check such as `err instanceof ZodError` no longer matches. Check `err instanceof ValidationError` instead.
+  - `@stratum-hq/lib`: `recordAuditEvent` now throws a `ValidationError` for a `sourceIp` that is not an IP address. Before, the call failed with a PostgreSQL error.
+  - `@stratum-hq/core`: `RecordAuditEventInputSchema.sourceIp` now accepts only an IPv4 or IPv6 address, with an optional `/prefix` (`203.0.113.7`, `10.0.0.0/8`, `2001:db8::1/128`). This matches the `INET` column. The `source_ip` value that `queryAuditLogs` returns, such as `203.0.113.7/32`, is accepted. The schema rejects an IPv6 zone index (`fe80::1%eth0`) and an IPv4 address with leading zeros (`010.0.0.1`). Before, the schema accepted any string.
+  - `@stratum-hq/control-plane`: the error handler identifies a `ZodError` by its shape, so a `ZodError` from another copy of zod now gets a `400 VALIDATION_ERROR` response instead of a `500`.
+
+- 329cb16: Region conflicts now throw typed errors instead of a plain `Error`:
+
+  - `deleteRegion` throws `RegionInUseError` (code `REGION_IN_USE`, status code 409) when active tenants are still assigned to the region.
+  - `migrateRegion` throws `RegionNotActiveError` (code `REGION_NOT_ACTIVE`, status code 409) when the target region is not `active`.
+
+  `@stratum-hq/lib` now exports `RegionInUseError` and `RegionNotActiveError`. The thrown class changes from `Error` to these `StratumError` subclasses, so a caller can check the class or the `code`. The error messages do not change.
+
+  The control plane now answers `409` with these codes for `DELETE /api/v1/regions/:id` and `POST /api/v1/tenants/:id/migrate-region`. Before, it answered `500 INTERNAL_SERVER_ERROR`.
+
+- 7e9ebcf: `rotateEncryptionKey` can now resume after a partial failure.
+
+  The rotation commits in batches. Before this change, a run that failed partway could not be repeated: the second run failed on the first value that was already on the new key. Now the run keeps a value that already decrypts with the new key. It also continues past a value that decrypts with neither key.
+
+  `KeyRotationResult` has two new fields:
+
+  - `already_rotated`: the number of values that already decrypt with the new key.
+  - `unreadable`: the rows (`table` and `id`) whose value decrypts with neither key. The run leaves them unchanged.
+
+  `config_entries_rotated` and `webhooks_rotated` now count only the values that this run re-encrypted. A value that was already on the new key counts in `already_rotated`, not in these two fields.
+
+  A rotation with the wrong old key still fails, so the new tolerance for unreadable rows cannot hide a wrong key. If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. When some rows decrypt and some do not, the run completes and logs the warning `encryption key rotation left unreadable rows` with the count and the rows.
+
+  The control plane `POST /api/v1/maintenance/rotate-encryption-key` response now has these fields: `config_entries_rotated`, `webhooks_rotated`, `already_rotated`, and `unreadable`. The OpenAPI spec documented a `re_encrypted_count` field, which the endpoint never returned; the spec now shows the real response. The endpoint returns `400 VALIDATION_ERROR` when encrypted values exist and none of them decrypts with either key.
+
+- 694a3d3: Add the `tenant.activated` webhook event. `activateTenant` emits it when it moves a pending tenant to `active` (best effort: in rare failure cases around a lost database reply the event can be missed or, with concurrent activations, sent twice). A failed activation emits no event. `TenantEvent.TENANT_ACTIVATED` is the new enum member, and webhooks can now subscribe to it.
+- cd7b950: `validateApiKey` now updates `last_used_at` only when the stored value is more than 60 seconds old, and waits at most one second for that update. Concurrent requests with one key no longer wait on its row lock, and a blocked update no longer delays authentication. `last_used_at` can now lag the latest use by up to one minute. `listDormantKeys` counts in days, so its results do not change. A legacy-hash upgrade still runs on the first validation after an HMAC secret is set.
+
+  `activateTenant` now reads the tenant again when the database call fails with an error that is not a Stratum error, such as a dropped connection. If the tenant is `active`, the activation committed: the call succeeds and emits `tenant.activated` (best effort). Before, the call failed and no event was emitted.
+
+### Patch Changes
+
+- 9ed3e01: Subtree queries now use an index. `getDescendants`, CASCADE permission revocation and CASCADE ABAC policy revocation select descendants by the prefix of the tenant's own `ancestry_path`. Migration `028_ancestry_path_prefix_index.sql` adds the `text_pattern_ops` index that serves this prefix match. Before, each of these calls scanned the whole `tenants` table. The returned rows do not change.
+
+  While migration 028 builds the index, PostgreSQL blocks writes to `tenants`. On a large `tenants` table, you can build the index first with `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tenant_ancestry_path_prefix ON tenants (ancestry_path text_pattern_ops);`. The migration then finds the index and skips it.
+
+  CASCADE permission revocation and ABAC policy revocation now throw `TenantNotFoundError` when the tenant is removed while the revocation runs. Before, they threw a `TypeError`.
+
+- b47f84f: Make the build copy of `src/migrations` (lib) and `src/styles` (react) replace the old copy in `dist`. A rebuild without a clean no longer creates `dist/migrations/migrations` or `dist/styles/styles`, and it no longer keeps stale top-level files. Published tarballs do not change, because the release job builds from a clean checkout.
+- b47f84f: Declare sibling `@stratum-hq/*` dependencies with caret ranges instead of `"*"` or `>=`. An install now gets a sibling version that has the API the package calls, and never a future major version.
+- cd7b950: A missing region now gives a typed not-found error. Core adds `RegionNotFoundError` with the code `REGION_NOT_FOUND`. Lib re-exports it, the lib region functions throw it, and `migrateRegion` throws `TenantNotFoundError` for a missing tenant. The control plane answers 404 instead of 500 for these requests.
+- 9ed3e01: `withClient` and `withTransaction` now rethrow the original error when the ROLLBACK also fails. Before, the ROLLBACK error replaced it, so a caller that checks an error code such as `23505` saw the wrong error. When the ROLLBACK fails, the connection is now removed from the pool instead of reused.
+- 694a3d3: `validateApiKey` now waits for its `last_used_at` update, and for the legacy-hash upgrade, before it resolves. Before, the update ran in the background, so a `listDormantKeys` call made right after a validation could still report the key as dormant. The update still runs after the validation connection is released, so a pool with one connection still works. A failed update still does not fail authentication. A validation that updates `last_used_at` waits for one extra `UPDATE` round trip.
+- Updated dependencies [7e9ebcf]
+- Updated dependencies [329cb16]
+- Updated dependencies [b47f84f]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [9ed3e01]
+- Updated dependencies [329cb16]
+- Updated dependencies [cd7b950]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [9ed3e01]
+- Updated dependencies [e7e7b74]
+- Updated dependencies [ac561f9]
+- Updated dependencies [ac561f9]
+- Updated dependencies [ac561f9]
+- Updated dependencies [329cb16]
+- Updated dependencies [694a3d3]
+- Updated dependencies [694a3d3]
+  - @stratum-hq/core@1.4.0
+  - @stratum-hq/db-adapters@1.2.0
+  - @stratum-hq/sdk@1.2.0
+
 ## 1.3.0
 
 ### Minor Changes
