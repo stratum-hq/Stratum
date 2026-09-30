@@ -305,8 +305,9 @@ before you hit one.
 `lint:secrets` is **not** a ratchet. It expects zero and has no regenerate command on
 purpose. A finding is either a false positive, which you record by hand in
 `scripts/secret-allowlist.json` with a reason, or an incident, which you rotate. The demo
-stack's global-admin bootstrap key is already allowlisted, with the reasoning written out;
-do not add to that list casually. See `docs/secret-scanning.md`.
+stack's global-admin bootstrap key is not committed and is not in the allowlist: the seed
+mints a random key at seed time. Do not add to that list casually. See
+`docs/secret-scanning.md`.
 
 `lint:deps` **is** a ratchet over the current `npm audit` counts, per severity, split into
 `runtime` and `all`. It fails when a count rises, and it also fails when a count falls,
