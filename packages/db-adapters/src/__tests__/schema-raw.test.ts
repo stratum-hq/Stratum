@@ -51,4 +51,19 @@ describe("SchemaRawAdapter.executeWithTenantContext", () => {
     expect(release).toHaveBeenCalledTimes(1);
     expect(release.mock.calls[0][0]).toBeInstanceOf(Error);
   });
+
+  it("keeps the callback error and destroys the connection when ROLLBACK fails", async () => {
+    const { pool, release } = makePool(["ROLLBACK"]);
+    const adapter = new SchemaRawAdapter(pool);
+    const original = new Error("callback failed");
+
+    await expect(
+      adapter.executeWithTenantContext("acme", async () => {
+        throw original;
+      }),
+    ).rejects.toBe(original);
+
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.calls[0][0]).toBeInstanceOf(Error);
+  });
 });
