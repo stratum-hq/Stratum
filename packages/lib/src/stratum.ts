@@ -72,6 +72,19 @@ import type {
 import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
 
+/**
+ * Reduces a URL to scheme, host and path for audit state. Credentials, query
+ * string and fragment are dropped because they often carry access tokens.
+ */
+function redactUrlForAudit(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+  } catch {
+    return "[REDACTED]";
+  }
+}
+
 export interface StratumOptions {
   pool: pg.Pool;
   keyPrefix?: string;
@@ -649,7 +662,7 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.created", "webhook", webhook.id, input.tenant_id ?? null,
-        null, { url: webhook.url, events: webhook.events } as Record<string, unknown>,
+        null, { url: redactUrlForAudit(webhook.url), events: webhook.events } as Record<string, unknown>,
       );
     }
     return webhook;
@@ -666,9 +679,12 @@ export class Stratum {
     }
     const webhook = await webhookService.updateWebhook(this.pool, id, input);
     if (audit) {
+      const auditState: Record<string, unknown> = { ...input };
+      if (input.secret !== undefined) auditState.secret = "[REDACTED]";
+      if (input.url !== undefined) auditState.url = redactUrlForAudit(input.url);
       await auditService.createAuditEntry(
         this.pool, audit, "webhook.updated", "webhook", id, webhook.tenant_id,
-        null, (input.secret !== undefined ? { ...input, secret: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
+        null, auditState,
       );
     }
     return webhook;
@@ -828,7 +844,9 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "region.created", "region", region.id, null,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.control_plane_url
+          ? { ...input, control_plane_url: redactUrlForAudit(input.control_plane_url) }
+          : input) as unknown as Record<string, unknown>,
       );
     }
     return region;
@@ -844,7 +862,9 @@ export class Stratum {
     if (audit) {
       await auditService.createAuditEntry(
         this.pool, audit, "region.updated", "region", id, null,
-        null, input as unknown as Record<string, unknown>,
+        null, (input.control_plane_url
+          ? { ...input, control_plane_url: redactUrlForAudit(input.control_plane_url) }
+          : input) as unknown as Record<string, unknown>,
       );
     }
     return region;

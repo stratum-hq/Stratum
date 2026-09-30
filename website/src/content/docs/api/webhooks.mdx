@@ -205,6 +205,8 @@ GET /api/v1/audit-logs
 
 **Response:** `200 OK` -- array of audit entries.
 
+Known secrets are redacted in audit entries: sensitive config values and webhook secrets are recorded as `[REDACTED]`, and webhook URLs and region `control_plane_url` values are recorded with scheme, host and path only (credentials, query string and fragment are dropped).
+
 ---
 
 ## Rotate Encryption Key

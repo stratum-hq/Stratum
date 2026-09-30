@@ -6,6 +6,20 @@ export const RegionStatus = {
   INACTIVE: "inactive",
 } as const;
 
+// A control-plane URL must not embed credentials: it is stored in plaintext,
+// returned by the API and recorded in audit state.
+const ControlPlaneUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    try {
+      const parsed = new URL(value);
+      return parsed.username === "" && parsed.password === "";
+    } catch {
+      return false;
+    }
+  }, "control_plane_url must not contain credentials");
+
 export const RegionSchema = z.object({
   id: z.string().uuid(),
   display_name: z.string().min(1),
@@ -24,7 +38,7 @@ export type Region = z.infer<typeof RegionSchema>;
 export const CreateRegionInputSchema = z.object({
   display_name: z.string().min(1),
   slug: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
-  control_plane_url: z.string().url().optional(),
+  control_plane_url: ControlPlaneUrlSchema.optional(),
   is_primary: z.boolean().optional(),
   status: z.enum(["active", "draining", "inactive"]).optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -34,7 +48,7 @@ export type CreateRegionInput = z.input<typeof CreateRegionInputSchema>;
 
 export const UpdateRegionInputSchema = z.object({
   display_name: z.string().min(1).optional(),
-  control_plane_url: z.string().url().nullable().optional(),
+  control_plane_url: ControlPlaneUrlSchema.nullable().optional(),
   status: z.enum(["active", "draining", "inactive"]).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
