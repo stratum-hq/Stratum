@@ -9,8 +9,19 @@ export interface StratumMiddlewareOptions {
   header?: string;
   /** JWT claim name to extract tenant ID from */
   jwtClaim?: string;
-  /** URL path parameter name to extract tenant ID from */
+  /**
+   * URL path parameter name to extract tenant ID from. The client chooses the
+   * path, so this also requires `trustPathParam: true`.
+   */
   pathParam?: string;
+  /**
+   * Allow reading the tenant ID from the `pathParam` URL path parameter. A
+   * client can put any tenant ID in the path, so this must be enabled
+   * explicitly, and only when your application separately authorizes the
+   * caller for that tenant. Without it, `stratumMiddleware` throws at
+   * construction when `pathParam` is the tenant source. Default: false.
+   */
+  trustPathParam?: boolean;
   /**
    * Allow reading the tenant ID from a request header. A client can set any
    * header, so this must be enabled explicitly, and only when a gateway you
@@ -57,6 +68,13 @@ function extractFromPathParam(c: Context, param: string): string | undefined {
 export function stratumMiddleware(
   options: StratumMiddlewareOptions = {},
 ): MiddlewareHandler {
+  if (!options.jwtClaim && options.pathParam && options.trustPathParam !== true) {
+    throw new Error(
+      "[stratum] stratumMiddleware would read the tenant ID from an unverified URL path parameter. " +
+        "Use jwtClaim with a verified JWT, or set trustPathParam: true if your application authorizes the caller for that tenant.",
+    );
+  }
+
   if (!options.jwtClaim && !options.pathParam && options.trustTenantHeader !== true) {
     throw new Error(
       "[stratum] stratumMiddleware would read the tenant ID from an unverified request header. " +
