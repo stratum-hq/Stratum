@@ -11,6 +11,23 @@ if (!jwtSecretEnv) {
   }
 }
 
+// Placeholder secrets published in this repository's examples and scaffolds.
+const PLACEHOLDER_JWT_SECRETS = new Set([
+  "change-me-in-production",
+  "stratum-demo-secret-do-not-use-in-production",
+  "your-jwt-secret-change-in-production",
+]);
+const MIN_JWT_SECRET_BYTES = 32;
+
+if (jwtSecretEnv && nodeEnv === "production") {
+  if (PLACEHOLDER_JWT_SECRETS.has(jwtSecretEnv)) {
+    throw new Error("FATAL: JWT_SECRET is a published placeholder value. Set a random secret. Refusing to start.");
+  }
+  if (Buffer.byteLength(jwtSecretEnv, "utf8") < MIN_JWT_SECRET_BYTES) {
+    throw new Error(`FATAL: JWT_SECRET must be at least ${MIN_JWT_SECRET_BYTES} bytes in production. Refusing to start.`);
+  }
+}
+
 // Optional JWT audience / issuer binding. When set, a Bearer token is accepted
 // only if its `aud` (and `iss`) claim matches, so tokens minted for another
 // application that shares JWT_SECRET are refused. Unset keeps the previous
