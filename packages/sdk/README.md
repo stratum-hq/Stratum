@@ -5,7 +5,7 @@ HTTP client, LRU cache, and Express/Fastify middleware for the [Stratum](https:/
 ## Installation
 
 ```bash
-npm install @stratum-hq/sdk @stratum-hq/core
+npm install @stratum-hq/sdk @stratum-hq/core jsonwebtoken
 ```
 
 ## Quick Start
@@ -18,11 +18,19 @@ const s = stratum({
   apiKey: "sk_live_your_key",
 });
 
+// The tenant binding comes from a signed token, so the server does not start
+// without the key that verifies it. Without jwtSecret, the middleware reads
+// the tenant from the X-Tenant-ID header instead.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 // Express
-app.use(s.middleware({ jwtClaimPath: "tenant_id" }));
+app.use(s.middleware({ jwtClaimPath: "tenant_id", jwtSecret }));
 
 // Fastify
-app.register(s.plugin({ jwtClaimPath: "tenant_id" }));
+app.register(s.plugin({ jwtClaimPath: "tenant_id", jwtSecret }));
 
 // Direct client access
 const ctx = await s.client.resolveTenant("tenant-uuid");
@@ -39,10 +47,14 @@ const client = new StratumClient({
   cache: { enabled: true, ttlMs: 60000, maxSize: 100 },
 });
 
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 app.use(expressMiddleware(client, {
   jwtClaimPath: "tenant_id",
-  jwtSecret: process.env.JWT_SECRET,
-  headerName: "X-Tenant-ID",
+  jwtSecret,
 }));
 
 app.get("/data", (req, res) => {
@@ -79,6 +91,9 @@ The SDK throws typed errors from `@stratum-hq/core`:
 ```typescript
 import {
   ForbiddenError,
+  RegionInUseError,
+  RegionNotActiveError,
+  RegionNotFoundError,
   TenantArchivedError,
   TenantNotFoundError,
   TenantSuspendedError,
@@ -99,8 +114,8 @@ import {
 | 404 `WEBHOOK_NOT_FOUND` | `WebhookNotFoundError` |
 | 404 `REGION_NOT_FOUND` | `RegionNotFoundError` |
 | 404, any other code | `Error`, with the control plane's message |
-| 409 `REGION_IN_USE` | `RegionInUseError` |
-| 409 `REGION_NOT_ACTIVE` | `RegionNotActiveError` |
+| 409 `REGION_IN_USE` | `RegionInUseError`, with the region ID in `details.region_id` |
+| 409 `REGION_NOT_ACTIVE` | `RegionNotActiveError`, with the region ID in `details.region_id`. Only `POST /api/v1/tenants/{id}/migrate-region` sends this code, and the SDK has no method for that route yet. |
 | 410 `TENANT_ARCHIVED` | `TenantArchivedError` |
 
 An API key that is scoped to a tenant gets `ForbiddenError` (403 `FORBIDDEN`) for a descendant that is suspended or archived, not `TenantSuspendedError` or `TenantArchivedError`. An API key without the `admin` scope gets `ForbiddenError` from an admin operation, for example `purgeTenant`.

@@ -270,9 +270,11 @@ Returns the full tenant context including resolved config and permissions.
 |------|--------|-------------|
 | `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
 | `TENANT_ARCHIVED` | 410 | Tenant has been archived |
-| `HAS_CHILDREN` | 409 | Cannot archive tenant with active children |
-| `CYCLE_DETECTED` | 409 | Move would create a cycle |
-| `CONFLICT` | 409 | Slug already exists |
+| `TENANT_HAS_CHILDREN` | 409 | Cannot archive tenant with active children |
+| `TENANT_CYCLE_DETECTED` | 409 | Move would create a cycle |
+| `TENANT_ALREADY_EXISTS` | 409 | Slug already exists |
+| `REGION_NOT_FOUND` | 404 | The target region of `migrate-region` does not exist |
+| `REGION_NOT_ACTIVE` | 409 | The target region of `migrate-region` is not active |
 | `VALIDATION_ERROR` | 400 | Invalid request body |
 
 All errors follow this format:
@@ -281,10 +283,13 @@ All errors follow this format:
 {
   "error": {
     "code": "ERROR_CODE",
-    "message": "Human-readable message"
+    "message": "Human-readable message",
+    "details": { "region_id": "uuid" }
   }
 }
 ```
+
+`error.details` is optional. When it is present, it holds more data about the error. For example, a `REGION_NOT_ACTIVE` error has the `region_id`.
 
 A `VALIDATION_ERROR` about the request fields lists each failed field in `error.details.issues`:
 

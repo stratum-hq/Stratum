@@ -3,7 +3,7 @@
 // with the source files that define the real behavior. They read text only and
 // need no build and no database.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -124,6 +124,92 @@ describe("OpenAPI TenantContext schema", () => {
       resolveRef(property.additionalProperties),
       interfaceFields("packages/core/src/types/tenant.ts", "ResolvedPermission"),
     );
+  });
+});
+
+describe("OpenAPI error responses", () => {
+  const spec = JSON.parse(readFileSync(join(ROOT, "scripts", "openapi-spec.json"), "utf8"));
+  const schemas = spec.components.schemas;
+  const error = schemas.Error.properties.error;
+
+  function resolveRef(schema) {
+    const ref = schema?.$ref;
+    return ref ? schemas[ref.replace("#/components/schemas/", "")] : schema;
+  }
+
+  /** Return the names of the issue fields that validationErrorBody keeps. */
+  function issueFields() {
+    const source = readFileSync(join(ROOT, "packages/control-plane/src/middleware/error-handler.ts"), "utf8");
+    const fields = source.match(/\.map\(\(\{([^}]*)\}\)\s*=>/)?.[1];
+    if (!fields) throw new Error("issue normalization not found in error-handler.ts");
+    return fields.split(",").map((field) => field.trim());
+  }
+
+  it("describes the optional details.issues that validationErrorBody sends", () => {
+    const details = error.properties.details;
+    expect(details.type).toBe("object");
+    expect(error.required).not.toContain("details");
+    const item = resolveRef(details.properties.issues.items);
+    expect(Object.keys(item.properties).sort()).toEqual(issueFields().sort());
+    expect([...item.required].sort()).toEqual(issueFields().sort());
+  });
+
+  it("marks the top-level issues copy as deprecated", () => {
+    expect(error.properties.issues.deprecated).toBe(true);
+    expect(resolveRef(error.properties.issues.items)).toBe(resolveRef(error.properties.details.properties.issues.items));
+    expect(error.required).not.toContain("issues");
+  });
+
+  it("documents 409 REGION_IN_USE on DELETE /api/v1/regions/{id}", () => {
+    const responses = spec.paths["/api/v1/regions/{id}"].delete.responses;
+    expect(responses["409"].description).toMatch(/REGION_IN_USE/);
+  });
+
+  it("documents 409 REGION_NOT_ACTIVE and 404 REGION_NOT_FOUND on migrate-region", () => {
+    const responses = spec.paths["/api/v1/tenants/{id}/migrate-region"].post.responses;
+    expect(responses["409"].description).toMatch(/REGION_NOT_ACTIVE/);
+    expect(responses["404"].description).toMatch(/REGION_NOT_FOUND/);
+  });
+});
+
+describe("error code tables in the website API docs", () => {
+  // A client matches on error.code, so a code in the docs that the control
+  // plane never sends makes the client check fail without a sign.
+  const ROW = /^\| `([A-Z_]+)` \| \d{3} \|/gm;
+
+  /** Return the codes in core's ErrorCode and the literal codes of the control plane. */
+  function knownCodes() {
+    const core = readFileSync(join(ROOT, "packages/core/src/utils/errors.ts"), "utf8");
+    const block = core.match(/export enum ErrorCode \{([^}]*)\}/)[1];
+    const codes = new Set([...block.matchAll(/=\s*"(\w+)"/g)].map((m) => m[1]));
+    for (const file of sourceFiles(join(ROOT, "packages/control-plane/src"))) {
+      for (const [, code] of readFileSync(file, "utf8").matchAll(/code:\s*"([A-Z_]+)"/g)) codes.add(code);
+    }
+    return codes;
+  }
+
+  /** Return every .ts file under a directory, without tests. */
+  function sourceFiles(dir) {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return entry.name === "__tests__" ? [] : sourceFiles(path);
+      return entry.name.endsWith(".ts") ? [path] : [];
+    });
+  }
+
+  it("names only error codes that core or the control plane defines", () => {
+    const known = knownCodes();
+    const unknown = [];
+    let rows = 0;
+    for (const { name, text } of docs.filter((doc) => doc.name.includes("/docs/api/"))) {
+      for (const match of text.matchAll(ROW)) {
+        rows += 1;
+        if (!known.has(match[1])) unknown.push(`${name}:${lineOf(text, match.index)} ${match[1]}`);
+      }
+    }
+    // Zero rows means that the pattern no longer matches the tables, not that the tables are correct.
+    expect(rows).toBeGreaterThan(0);
+    expect(unknown).toEqual([]);
   });
 });
 
@@ -259,5 +345,57 @@ describe("tenant.purged in the website docs and in core", () => {
   it("marks TENANT_PURGED as @deprecated in the TenantEvent of core", () => {
     const source = readFileSync(join(ROOT, "packages/core/src/types/webhook.ts"), "utf8");
     expect(source).toMatch(/\/\*\*(?:(?!\*\/)[\s\S])*@deprecated(?:(?!\*\/)[\s\S])*\*\/\s*TENANT_PURGED:/);
+  });
+});
+
+describe("JWT secret snippets in the website docs and the package READMEs", () => {
+  // A middleware without a JWT secret does not verify tokens, and it reads the
+  // tenant from the header that any client can send. An unset environment
+  // variable gives an undefined secret, so an inline read turns verification
+  // off without an error. A snippet must read the secret into a variable and
+  // throw when it is missing, before the middleware gets it.
+  const INLINE_READ =
+    /\b(?:jwtSecret|secret)\s*:\s*(?:process\.env\.\w+|process\.env\[[^\]]+\]|config\.get\s*(?:<[^>]*>)?\s*\()/g;
+
+  const readmes = readdirSync(join(ROOT, "packages"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => join(ROOT, "packages", entry.name, "README.md"))
+    .filter((file) => existsSync(file))
+    .map((file) => ({ name: relative(ROOT, file), text: readFileSync(file, "utf8") }));
+
+  /** Return the line numbers that give a middleware a secret with no guard. */
+  function inlineReads(text) {
+    return [...text.matchAll(INLINE_READ)].map((match) => lineOf(text, match.index));
+  }
+
+  it("finds each form of an inline secret read in a sample", () => {
+    const sample = [
+      "app.use(s.middleware({ jwtSecret: process.env.JWT_SECRET }));",
+      'jwtSecret: config.get("JWT_SECRET"),',
+      'jwtSecret: config.get<string>("JWT_SECRET"),',
+      'app.use("*", jwt({ secret: process.env.JWT_SECRET!, alg: "HS256" }));',
+      'jwtSecret: process.env["JWT_SECRET"],',
+    ].join("\n");
+    expect(inlineReads(sample)).toEqual([1, 2, 3, 4, 5]);
+    const guarded = [
+      "const jwtSecret = process.env.JWT_SECRET;",
+      'if (!jwtSecret) throw new Error("JWT_SECRET is required.");',
+      "app.use(s.middleware({ jwtSecret }));",
+      'app.use("*", jwt({ secret: jwtSecret, alg: "HS256" }));',
+    ].join("\n");
+    expect(inlineReads(guarded)).toEqual([]);
+  });
+
+  it("reads each JWT secret into a guarded variable, not inline from the environment", () => {
+    const unsafe = [];
+    let mentions = 0;
+    for (const { name, text } of [...docs, ...readmes]) {
+      mentions += [...text.matchAll(/\bjwtSecret\b/g)].length;
+      for (const line of inlineReads(text)) unsafe.push(`${name}:${line}`);
+    }
+    // Zero mentions means that the scan read nothing, not that the snippets are safe.
+    expect(readmes.length).toBeGreaterThan(0);
+    expect(mentions).toBeGreaterThan(0);
+    expect(unsafe).toEqual([]);
   });
 });

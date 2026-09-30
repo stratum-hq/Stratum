@@ -21,9 +21,16 @@ import { getTenantContext } from "@stratum-hq/sdk";
 
 const app = new Hono();
 
+// The tenant binding comes from a signed token, so the server does not start
+// without the key that verifies it.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 // hono/jwt rejects a missing or invalid bearer token with 401.
 // It stores the verified claims as jwtPayload.
-app.use("*", jwt({ secret: process.env.JWT_SECRET!, alg: "HS256" }));
+app.use("*", jwt({ secret: jwtSecret, alg: "HS256" }));
 
 app.use("*", stratumMiddleware({
   // Read the tenant from the verified `tenant_id` claim
