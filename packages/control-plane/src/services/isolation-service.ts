@@ -35,7 +35,7 @@ export async function setupRLSForTable(tableName: string): Promise<void> {
     );
     await client.query(
       `CREATE POLICY tenant_isolation ON ${safe}
-       USING (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
+       USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
     );
   });
 }

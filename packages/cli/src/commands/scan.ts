@@ -108,7 +108,7 @@ function generateMigrationSQL(result: ScanResult): string {
     for (const table of tablesNeedingPolicy) {
       lines.push(
         `CREATE POLICY tenant_isolation ON ${quoteIdent(table.table_name)}` +
-        `  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);`,
+        `  USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);`,
       );
     }
     lines.push("");
