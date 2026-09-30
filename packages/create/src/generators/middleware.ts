@@ -5,6 +5,128 @@ export interface MiddlewareFile {
   content: string;
 }
 
+/**
+ * Verifies the bearer token and returns its tenant_id claim. Inserted into
+ * every generated server so the project needs nothing but jose. The tenant
+ * never comes from the hostname or a header such as x-tenant-id: any caller
+ * can choose those.
+ */
+const VERIFIED_TENANT = `import { jwtVerify } from "jose";
+
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+}
+const jwtKey = new TextEncoder().encode(jwtSecret);
+
+/**
+ * The tenant for a request, from the tenant_id claim of a bearer token that
+ * verifies with JWT_SECRET. tenantId is null when there is no bearer token.
+ * invalid is true when a token was sent but does not verify or has no
+ * tenant_id claim. Never take the tenant from the hostname or from a header
+ * such as x-tenant-id: any caller can choose those.
+ */
+async function verifiedTenant(
+  authorization: string | undefined,
+): Promise<{ tenantId: string | null; invalid: boolean }> {
+  if (!authorization?.startsWith("Bearer ")) return { tenantId: null, invalid: false };
+  try {
+    const { payload } = await jwtVerify(authorization.slice("Bearer ".length), jwtKey, {
+      algorithms: ["HS256"],
+    });
+    if (typeof payload.tenant_id === "string") return { tenantId: payload.tenant_id, invalid: false };
+  } catch {
+    // Fall through: a token that does not verify is rejected, never ignored.
+  }
+  return { tenantId: null, invalid: true };
+}`;
+
+const INVALID_TOKEN = `{ error: "Bearer token is invalid or has no tenant_id claim" }`;
+const TENANT_REQUIRED = `{ error: "A bearer token with a tenant_id claim is required" }`;
+
+/**
+ * Next.js middleware, following examples/with-nextjs: the tenant ID comes only
+ * from the tenant_id claim of a verified bearer token and is forwarded as
+ * x-tenant-id. The subdomain is forwarded as x-tenant-slug, never as the ID.
+ */
+export function nextjsTenantMiddleware(): string {
+  return `// middleware.ts (place in project root)
+// Next.js middleware for Stratum tenant resolution
+//
+// The tenant ID comes only from the tenant_id claim of a bearer token that
+// verifies with JWT_SECRET, and is forwarded as x-tenant-id. Any copy of the
+// tenant headers the client sent is removed first, so server code only ever
+// reads the values set here.
+//
+// The subdomain (acme.app.example.com) is forwarded as x-tenant-slug. It only
+// says which tenant's public pages to show. It does not prove the caller
+// belongs to that tenant, so never use it to read or write tenant data.
+
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify } from "jose";
+
+const TENANT_ID_HEADER = "x-tenant-id";
+const TENANT_SLUG_HEADER = "x-tenant-slug";
+
+/**
+ * The tenant_id claim of a token that verifies with JWT_SECRET, or null when
+ * the token is invalid, expired, or has no string tenant_id claim.
+ */
+async function verifiedTenantId(token: string): Promise<string | null> {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET must be set: the tenant is taken from a verified JWT.");
+  }
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      algorithms: ["HS256"],
+    });
+    return typeof payload.tenant_id === "string" ? payload.tenant_id : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  // Only this middleware may set the tenant headers.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-tenant-id");
+  requestHeaders.delete(TENANT_SLUG_HEADER);
+
+  // A bearer token that does not verify is rejected, never ignored.
+  const authorization = request.headers.get("authorization");
+  if (authorization?.startsWith("Bearer ")) {
+    const tenantId = await verifiedTenantId(authorization.slice("Bearer ".length));
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: { code: "INVALID_TOKEN", message: "Bearer token is invalid or has no tenant_id claim" } },
+        { status: 401 },
+      );
+    }
+    requestHeaders.set(TENANT_ID_HEADER, tenantId);
+  }
+
+  // Subdomain, e.g. "acme" from "acme.app.example.com": a slug, not an identity.
+  const hostname = (request.headers.get("host") ?? "").split(":")[0];
+  const rootDomain = process.env.ROOT_DOMAIN ?? "app.example.com";
+  if (hostname.endsWith(\`.\${rootDomain}\`)) {
+    const subdomain = hostname.slice(0, hostname.length - rootDomain.length - 1);
+    if (subdomain && subdomain !== "www") {
+      requestHeaders.set(TENANT_SLUG_HEADER, subdomain);
+    }
+  }
+
+  // With no verified tenant the request continues without x-tenant-id. Each
+  // route decides whether to require a tenant or serve a public page.
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
+`;
+}
+
 export function generateMiddleware(projectName: string, preset: StackPreset): MiddlewareFile[] {
   switch (preset.framework) {
     case "express":
@@ -27,19 +149,21 @@ function generateExpressMiddleware(projectName: string): MiddlewareFile[] {
     {
       filename: "src/index.ts",
       content: `import express from "express";
+${VERIFIED_TENANT}
 
 const app = express();
 const port = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
-// Tenant extraction middleware. The tenant comes from the subdomain the
-// request was routed to. Do not take it from a client-supplied header such as
-// x-tenant-id: any caller can set one and pick another tenant. Once you add
-// authentication, check that the signed-in user belongs to this tenant, or
-// derive the tenant from the verified session or JWT instead.
-app.use((req, _res, next) => {
-  const tenantId = req.hostname.split(".")[0];
+// Tenant resolution. The tenant comes only from a verified bearer token;
+// a token that does not verify is rejected with 401.
+app.use(async (req, res, next) => {
+  const { tenantId, invalid } = await verifiedTenant(req.headers.authorization);
+  if (invalid) {
+    res.status(401).json(${INVALID_TOKEN});
+    return;
+  }
   (req as any).tenantId = tenantId;
   next();
 });
@@ -50,6 +174,10 @@ app.get("/health", (_req, res) => {
 
 app.get("/tenants", async (req, res) => {
   const tenantId = (req as any).tenantId;
+  if (!tenantId) {
+    res.status(401).json(${TENANT_REQUIRED});
+    return;
+  }
   res.json({ tenantId, message: "Replace with your tenant queries" });
 });
 
@@ -66,18 +194,19 @@ function generateFastifyMiddleware(projectName: string): MiddlewareFile[] {
     {
       filename: "src/index.ts",
       content: `import Fastify from "fastify";
+${VERIFIED_TENANT}
 
 const fastify = Fastify({ logger: true });
 const port = Number(process.env.PORT) || 3000;
 
-// Tenant extraction hook. The tenant comes from the subdomain the
-// request was routed to. Do not take it from a client-supplied header such as
-// x-tenant-id: any caller can set one and pick another tenant. Once you add
-// authentication, check that the signed-in user belongs to this tenant, or
-// derive the tenant from the verified session or JWT instead.
-fastify.decorateRequest("tenantId", "");
-fastify.addHook("onRequest", async (request) => {
-  const tenantId = request.hostname?.split(".")[0] ?? "";
+// Tenant resolution. The tenant comes only from a verified bearer token;
+// a token that does not verify is rejected with 401.
+fastify.decorateRequest("tenantId", null);
+fastify.addHook("onRequest", async (request, reply) => {
+  const { tenantId, invalid } = await verifiedTenant(request.headers.authorization);
+  if (invalid) {
+    return reply.status(401).send(${INVALID_TOKEN});
+  }
   (request as any).tenantId = tenantId;
 });
 
@@ -85,8 +214,11 @@ fastify.get("/health", async () => {
   return { status: "ok", project: "${projectName}" };
 });
 
-fastify.get("/tenants", async (request) => {
+fastify.get("/tenants", async (request, reply) => {
   const tenantId = (request as any).tenantId;
+  if (!tenantId) {
+    return reply.status(401).send(${TENANT_REQUIRED});
+  }
   return { tenantId, message: "Replace with your tenant queries" };
 });
 
@@ -105,30 +237,7 @@ function generateNextjsMiddleware(projectName: string): MiddlewareFile[] {
   return [
     {
       filename: "middleware.ts",
-      content: `// Next.js edge middleware for tenant resolution
-import { NextRequest, NextResponse } from "next/server";
-
-export function middleware(request: NextRequest) {
-  // The tenant comes from the subdomain the request was routed to. Any
-  // x-tenant-id the client sent is removed first, so server code that reads
-  // x-tenant-id only ever sees the value set here. Once you add
-  // authentication, check that the signed-in user belongs to this tenant.
-  const hostname = request.headers.get("host") || "";
-  const tenantId = hostname.split(".")[0];
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.delete("x-tenant-id");
-  if (tenantId && tenantId !== "localhost" && tenantId !== "www") {
-    requestHeaders.set("x-tenant-id", tenantId);
-  }
-
-  return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
-`,
+      content: nextjsTenantMiddleware(),
     },
     {
       filename: "src/app/page.tsx",
@@ -140,7 +249,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>Tenant is resolved from the subdomain in <code>middleware.ts</code></li>
+        <li>The tenant comes from a verified JWT in <code>middleware.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>
@@ -157,16 +266,17 @@ function generateHonoMiddleware(projectName: string): MiddlewareFile[] {
       filename: "src/index.ts",
       content: `import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+${VERIFIED_TENANT}
 
-const app = new Hono();
+const app = new Hono<{ Variables: { tenantId: string | null } }>();
 
-// Tenant extraction middleware. The tenant comes from the subdomain the
-// request was routed to. Do not take it from a client-supplied header such as
-// x-tenant-id: any caller can set one and pick another tenant. Once you add
-// authentication, check that the signed-in user belongs to this tenant, or
-// derive the tenant from the verified session or JWT instead.
+// Tenant resolution. The tenant comes only from a verified bearer token;
+// a token that does not verify is rejected with 401.
 app.use("*", async (c, next) => {
-  const tenantId = new URL(c.req.url).hostname.split(".")[0];
+  const { tenantId, invalid } = await verifiedTenant(c.req.header("authorization"));
+  if (invalid) {
+    return c.json(${INVALID_TOKEN}, 401);
+  }
   c.set("tenantId", tenantId);
   await next();
 });
@@ -177,6 +287,9 @@ app.get("/health", (c) => {
 
 app.get("/tenants", (c) => {
   const tenantId = c.get("tenantId");
+  if (!tenantId) {
+    return c.json(${TENANT_REQUIRED}, 401);
+  }
   return c.json({ tenantId, message: "Replace with your tenant queries" });
 });
 
@@ -222,7 +335,7 @@ export class AppModule {}
     },
     {
       filename: "src/app.controller.ts",
-      content: `import { Controller, Get, Req } from "@nestjs/common";
+      content: `import { Controller, Get, Req, UnauthorizedException } from "@nestjs/common";
 
 @Controller()
 export class AppController {
@@ -233,6 +346,9 @@ export class AppController {
 
   @Get("tenants")
   tenants(@Req() req: any) {
+    if (!req.tenantId) {
+      throw new UnauthorizedException("A bearer token with a tenant_id claim is required");
+    }
     return { tenantId: req.tenantId, message: "Replace with your tenant queries" };
   }
 }
@@ -240,18 +356,22 @@ export class AppController {
     },
     {
       filename: "src/tenant.guard.ts",
-      content: `import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+      content: `import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from "@nestjs/common";
+${VERIFIED_TENANT}
 
+/**
+ * Sets request.tenantId from a verified bearer token, or null when there is
+ * no token. A token that does not verify is rejected with 401.
+ */
 @Injectable()
 export class TenantGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    // The tenant comes from the subdomain the request was routed to. Do not
-    // take it from a client-supplied header such as x-tenant-id: any caller
-    // can set one and pick another tenant. Once you add authentication, check
-    // that the signed-in user belongs to this tenant here.
-    const tenantId = request.hostname?.split(".")[0];
-    request.tenantId = tenantId || null;
+    const { tenantId, invalid } = await verifiedTenant(request.headers?.authorization);
+    if (invalid) {
+      throw new UnauthorizedException("Bearer token is invalid or has no tenant_id claim");
+    }
+    request.tenantId = tenantId;
     return true;
   }
 }

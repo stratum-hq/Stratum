@@ -1,5 +1,6 @@
 import pg from "pg";
 import { STRATUM_TABLES } from "@stratum-hq/lib";
+import { evaluatePolicies, type PolicyRow } from "./policy-check.js";
 
 export function getConnectionString(flags: Record<string, string | boolean>): string {
   const explicit = flags["database-url"] || flags["d"];
@@ -57,7 +58,14 @@ export interface TableInfo {
   has_tenant_id: boolean;
   rls_enabled: boolean;
   rls_forced: boolean;
+  /** True when the table's policies restrict rows to the current tenant. */
   has_policy: boolean;
+  /**
+   * Why the table's existing policies do not isolate it by tenant, or null.
+   * When set, a new tenant_isolation policy would not fix the table: an
+   * existing permissive policy has to be corrected or dropped by hand.
+   */
+  policy_issue?: string | null;
 }
 
 /**
@@ -78,12 +86,18 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
       ) AS has_tenant_id,
       COALESCE(pc.relrowsecurity, false) AS rls_enabled,
       COALESCE(pc.relforcerowsecurity, false) AS rls_forced,
-      EXISTS (
-        SELECT 1 FROM pg_policies p
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'policyname', p.policyname,
+          'permissive', p.permissive,
+          'cmd', p.cmd,
+          'qual', p.qual,
+          'with_check', p.with_check
+        ))
+        FROM pg_policies p
         WHERE p.tablename = t.tablename
           AND p.schemaname = 'public'
-          AND p.policyname = 'tenant_isolation'
-      ) AS has_policy
+      ), '[]'::json) AS policies
     FROM pg_tables t
     JOIN pg_class pc ON pc.relname = t.tablename AND pc.relnamespace = 'public'::regnamespace
     WHERE t.schemaname = 'public'
@@ -97,7 +111,12 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
     ORDER BY t.tablename;
   `, [STRATUM_TABLES]);
 
-  return result.rows;
+  // A policy counts only for what its expression does, not for its name.
+  return result.rows.map((row: Omit<TableInfo, "has_policy" | "policy_issue"> & { policies: PolicyRow[] }) => {
+    const { policies, ...rest } = row;
+    const verdict = evaluatePolicies(policies);
+    return { ...rest, has_policy: verdict.isolated, policy_issue: verdict.issue };
+  });
 }
 
 export async function checkExtensions(pool: pg.Pool): Promise<{ uuid_ossp: boolean; ltree: boolean }> {

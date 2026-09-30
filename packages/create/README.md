@@ -30,7 +30,7 @@ npx @stratum-hq/create my-app [options]
 
 - **express** (default) — Express server with Stratum middleware, tenant-aware routes, and TypeScript config.
 - **fastify** — Fastify server with the Stratum plugin registered.
-- **nextjs** — Next.js project with edge middleware for tenant resolution and server-side helpers.
+- **nextjs** — Next.js project with edge middleware that resolves the tenant from a verified JWT.
 
 ## After Scaffolding
 
@@ -42,6 +42,10 @@ npm run dev            # run the app
 ```
 
 The generated starter code does not create a `Stratum` instance, so it does not create Stratum's tables. To create them, construct `Stratum` with `autoMigrate: true` and call `initialize()` once at startup.
+
+## Tenant resolution
+
+Generated servers (the Express, Fastify, Hono and NestJS presets) and the Next.js middleware take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js middleware the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
 
 ## Links
 

@@ -119,6 +119,10 @@ function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string
 }
 
 function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, string>, preset: StackPreset): void {
+  // The generated tenant resolution verifies the tenant JWT with jose.
+  if (preset.framework !== "none") {
+    deps["jose"] = "^6.2.12";
+  }
   switch (preset.framework) {
     case "express":
       deps["express"] = "^4.18.0";
