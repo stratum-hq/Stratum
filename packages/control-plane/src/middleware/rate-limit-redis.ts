@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import type Redis from "ioredis";
+import { createPerKeyRateLimitMiddleware, rateLimitBucket } from "./per-key-rate-limit.js";
 
 export interface RedisRateLimitConfig {
   /** Maximum number of requests allowed in the window. */
@@ -34,12 +35,15 @@ return current
  * Create a Redis-backed per-key rate limiter.
  *
  * Returns a Fastify preHandler hook. If Redis is unavailable or slow (>500ms)
- * the request is allowed through (fail-open).
+ * the request is counted by the in-memory per-key limiter instead, so per-key
+ * limits stay enforced (per process) until Redis is reachable again.
  */
 export function createRedisRateLimiter(
   redis: Redis,
   defaults: RedisRateLimitConfig,
 ) {
+  const fallback = createPerKeyRateLimitMiddleware(defaults);
+
   // Pre-load the Lua script so subsequent calls use EVALSHA
   let scriptSha: string | null = null;
   redis
@@ -58,7 +62,7 @@ export function createRedisRateLimiter(
     // Skip for unauthenticated requests (health, docs)
     if (!request.apiKey) return;
 
-    const keyId = request.apiKey.id;
+    const keyId = rateLimitBucket(request);
     const max = request.apiKey.rate_limit_max ?? defaults.maxRequests;
     const windowMs = request.apiKey.rate_limit_window
       ? parseWindowStr(request.apiKey.rate_limit_window)
@@ -80,8 +84,8 @@ export function createRedisRateLimiter(
         500,
       );
     } catch {
-      // Redis unavailable or slow — fail-open
-      return;
+      // Redis unavailable or slow: count this request in memory instead
+      return fallback(request, reply);
     }
 
     // Set rate-limit headers on every response
