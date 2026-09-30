@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 export interface AuditContext {
   actor_id: string;
@@ -29,8 +30,8 @@ export const AuditLogQuerySchema = z.object({
   action: z.string().optional(),
   resource_type: z.string().optional(),
   actor_id: z.string().optional(),
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
+  to: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().uuid().optional(),
 });
@@ -63,7 +64,10 @@ export const RecordAuditEventInputSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
   sourceIp: z.string().nullable().optional(),
   occurredAt: z
-    .union([z.string().datetime({ offset: true }), z.date()])
+    .union([
+      z.string().datetime({ offset: true }).refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE),
+      z.date(),
+    ])
     .optional(),
 });
 // The INPUT type (pre-defaults): `actorType` and `metadata` carry Zod defaults,

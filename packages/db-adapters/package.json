@@ -41,7 +41,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@stratum-hq/core": "*",
+    "@stratum-hq/core": "^1.3.0",
     "pg": "^8.11.0"
   },
   "peerDependencies": {

@@ -6,7 +6,8 @@
   ],
   "scripts": {
     "build": "turbo build",
-    "test": "turbo test",
+    "test": "turbo test test:root",
+    "test:root": "vitest run --dir scripts",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint lint:root",
     "lint:root": "eslint . --ignore-pattern \"packages/**\"",

@@ -35,9 +35,14 @@ Add tenant isolation to existing tables:
 stratum migrate --scan      # show RLS status for all tables
 stratum migrate orders      # migrate a single table
 stratum migrate --all       # migrate all unmigrated tables interactively
+stratum migrate orders --tenant <tenant-uuid>   # assign existing rows to one tenant
 ```
 
-Each migration adds a `tenant_id UUID NOT NULL` column, enables `FORCE ROW LEVEL SECURITY`, creates a `tenant_isolation` policy, and indexes `tenant_id`.
+Each migration adds a `tenant_id UUID NOT NULL` column, enables `FORCE ROW LEVEL SECURITY`, creates a `tenant_isolation` policy, and indexes `tenant_id`. When a `tenants` table exists, the migration also adds a foreign key from `tenant_id` to `tenants(id)`.
+
+If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
+
+The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables.
 
 ### `stratum generate api-key`
 

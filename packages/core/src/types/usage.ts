@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 /**
  * Input to record a single usage event for a tenant.
@@ -14,8 +15,10 @@ import { z } from "zod";
  */
 export const RecordUsageInputSchema = z.object({
   metric: z.string().min(1).max(128),
-  quantity: z.number().int().nonnegative().default(1),
-  occurred_at: z.string().datetime().optional(),
+  // A larger number cannot round-trip exactly, and from 1e21 JavaScript writes
+  // it in exponent form, which the BIGINT column rejects.
+  quantity: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(1),
+  occurred_at: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
   idempotency_key: z.string().min(1).max(255).optional(),
   metadata: z.record(z.unknown()).default({}),
 });
@@ -45,8 +48,8 @@ export type UsageEvent = z.infer<typeof UsageEventSchema>;
 export const UsageAggregateQuerySchema = z.object({
   tenant_id: z.string().uuid(),
   metric: z.string().optional(),
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
+  to: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
 });
 export type UsageAggregateQuery = z.input<typeof UsageAggregateQuerySchema>;
 

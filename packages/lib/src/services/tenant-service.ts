@@ -27,10 +27,12 @@ import {
  * rewrites the paths of a whole subtree, so nothing else may read or write
  * ancestry while it runs. Creates and lifecycle transitions take it shared, so
  * they still run alongside each other (row locks order those) but never read a
- * parent path that an in-flight move is about to rewrite. Take it before
- * reading any row the change depends on.
+ * parent path that an in-flight move is about to rewrite. A subtree query that
+ * reads a tenant's path and then selects by that prefix also takes it shared,
+ * so a move cannot commit between the two statements. Take it before reading
+ * any row the change depends on.
  */
-async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
+export async function lockTree(client: pg.PoolClient, mode: "shared" | "exclusive"): Promise<void> {
   const fn = mode === "exclusive" ? "pg_advisory_xact_lock" : "pg_advisory_xact_lock_shared";
   await client.query(`SELECT ${fn}(('x' || substr(md5('stratum.tenant_tree'), 1, 16))::bit(64)::bigint)`);
 }
@@ -748,25 +750,26 @@ export async function getDescendants(
   includeArchived = false,
 ): Promise<TenantNode[]> {
   return withClient(pool, async (client) => {
-    const existsRes = await client.query<{ id: string }>(
-      `SELECT id FROM tenants WHERE id = $1`,
+    await lockTree(client, "shared");
+    const existsRes = await client.query<{ ancestry_path: string }>(
+      `SELECT ancestry_path FROM tenants WHERE id = $1`,
       [id],
     );
     if (existsRes.rows.length === 0) {
       throw new TenantNotFoundError(id);
     }
 
-    // Match descendants by the stable, ID-based ancestry_path (this tenant's id
-    // appears as a path segment of every descendant) so the subtree query reaches
-    // all current descendants regardless of any slug rename. ancestry_ltree is
-    // derived from slugs and must not scope this isolation boundary. Filter to
-    // active rows unless the caller opts into the full subtree.
+    // Match descendants by the stable, ID-based ancestry_path so the subtree
+    // query reaches all current descendants regardless of any slug rename.
+    // ancestry_ltree is derived from slugs and must not scope this isolation
+    // boundary. A prefix match lets idx_tenant_ancestry_path_prefix (028) serve
+    // the query. Filter to active rows unless the caller opts into the full subtree.
+    const subtreePath = appendToPath(existsRes.rows[0].ancestry_path, id);
     const res = await client.query<TenantNode>(
       `SELECT * FROM tenants
-       WHERE id != $1
-         AND (ancestry_path LIKE '%/' || $1 || '/%' OR ancestry_path LIKE '%/' || $1)${includeArchived ? "" : "\n         AND status = 'active'"}
+       WHERE (ancestry_path = $1 OR ancestry_path LIKE $2)${includeArchived ? "" : "\n         AND status = 'active'"}
        ORDER BY depth ASC`,
-      [id],
+      [subtreePath, `${subtreePath}/%`],
     );
     return res.rows;
   });

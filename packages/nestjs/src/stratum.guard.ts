@@ -1,10 +1,26 @@
-import { Inject, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
+import { Inject, Injectable, UnauthorizedException, ForbiddenException, GoneException } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import type { StratumClient } from "@stratum-hq/sdk";
 import { assertJwtSupport, resolveTenantId } from "@stratum-hq/sdk";
-import { TenantNotFoundError } from "@stratum-hq/core";
+import {
+  ForbiddenError,
+  TenantArchivedError,
+  TenantNotFoundError,
+  TenantSuspendedError,
+} from "@stratum-hq/core";
 import { STRATUM_CLIENT, STRATUM_OPTIONS } from "./constants.js";
 import type { StratumModuleOptions } from "./stratum.module.js";
+
+/**
+ * Convert a tenant state or access error into the matching HTTP exception.
+ * Other errors come back unchanged, so Nest answers them with a 500.
+ */
+function tenantStateException(err: unknown, tenantId: string): unknown {
+  if (err instanceof TenantSuspendedError) return new ForbiddenException(`Tenant ${tenantId} is suspended`);
+  if (err instanceof TenantArchivedError) return new GoneException(`Tenant ${tenantId} is archived`);
+  if (err instanceof ForbiddenError) return new ForbiddenException(`Access to tenant ${tenantId} is denied`);
+  return err;
+}
 
 @Injectable()
 export class StratumGuard implements CanActivate {
@@ -47,7 +63,7 @@ export class StratumGuard implements CanActivate {
       if (err instanceof TenantNotFoundError) {
         throw new UnauthorizedException(`Tenant not found: ${tenantId}`);
       }
-      throw err;
+      throw tenantStateException(err, tenantId);
     }
 
     req["tenant"] = callerContext;
@@ -73,7 +89,7 @@ export class StratumGuard implements CanActivate {
           if (err instanceof TenantNotFoundError) {
             throw new UnauthorizedException(`Impersonated tenant not found: ${impersonateTenantId}`);
           }
-          throw err;
+          throw tenantStateException(err, impersonateTenantId);
         }
 
         req["tenant"] = impersonatedContext;

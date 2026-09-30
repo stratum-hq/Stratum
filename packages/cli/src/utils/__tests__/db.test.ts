@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type pg from "pg";
+import { STRATUM_TABLES } from "@stratum-hq/lib";
 import { getConnectionString, scanTables } from "../db.js";
 
 const DEFAULT = "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
@@ -77,5 +78,23 @@ describe("scanTables SQL", () => {
     // Strip the correctly-escaped occurrence, then assert no bare '_%' remains.
     const withoutEscaped = sql.replace(/NOT LIKE '\\_%'/g, "");
     expect(withoutEscaped).not.toMatch(/NOT LIKE '_%'/);
+  });
+});
+
+describe("scanTables exclusions", () => {
+  it("passes the table list from @stratum-hq/lib as the exclusion parameter", async () => {
+    let sql = "";
+    let params: unknown[] | undefined;
+    const fakePool = {
+      query: (text: string, values?: unknown[]) => {
+        sql = text;
+        params = values;
+        return Promise.resolve({ rows: [] });
+      },
+    } as unknown as pg.Pool;
+    await scanTables(fakePool);
+    expect(sql).toContain("NOT (t.tablename = ANY($1::text[]))");
+    expect(params).toEqual([STRATUM_TABLES]);
+    expect(STRATUM_TABLES).toContain("principal_roles");
   });
 });

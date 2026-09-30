@@ -219,7 +219,7 @@ curl -X POST http://localhost:3001/api/v1/maintenance/rotate-encryption-key \
   -d '{"old_key": "current-key", "new_key": "new-key"}'
 ```
 
-The rotation is atomic: either all values are re-encrypted or none are. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
+The rotation commits in batches, so it is not atomic. If it fails partway, send the same request again: values already on the new key stay unchanged. The response lists values that decrypt with neither key in `unreadable`. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
 
 ## Best Practices
 

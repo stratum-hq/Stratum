@@ -76,6 +76,23 @@ Extra schemas come **after** the tenant schema, and each entry must be a plain i
 
 Prisma qualifies every table with its datasource schema, so `search_path` does not route it. For Prisma, use `new SchemaPrismaAdapter(PrismaClient, datasourceUrl).getClient(tenantSlug)`, which gives each tenant a client bound to its own schema.
 
+## Database-per-tenant pools
+
+`DatabasePoolManager` keeps one `pg.Pool` for each tenant database. Each `getPool(slug)` call holds the pool until you call `releasePool(slug)` with the same arguments. The manager never ends a held pool. Thus a request that is using a pool cannot lose it to eviction.
+
+```typescript
+const pool = await poolManager.getPool("acme");
+try {
+  await pool.query("SELECT 1");
+} finally {
+  poolManager.releasePool("acme");
+}
+```
+
+When the pool count reaches `maxPools`, the manager ends the least recently used pool that no caller holds. If every pool is held, the count goes above `maxPools` until a caller releases one. A pool that you never release stays open until `closePool` or `closeAll`. `DatabaseRawAdapter` releases its pool after each call.
+
+Concurrent first requests for one tenant share one pool.
+
 ## Security
 
 - All DDL validates table names against `/^[a-zA-Z_][a-zA-Z0-9_]*$/`.

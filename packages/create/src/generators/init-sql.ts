@@ -65,8 +65,11 @@ function generatePostgresInit(projectName: string, dbName: string, strategy: str
 --   ALTER TABLE your_table ENABLE ROW LEVEL SECURITY;
 --   ALTER TABLE your_table FORCE ROW LEVEL SECURITY;
 --   CREATE POLICY tenant_isolation ON your_table
---     USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+--     USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 --
+-- A pooled connection reads the setting as '' after a tenant transaction ends,
+-- or as NULL before the first one. NULLIF makes both return no rows; a bare
+-- ::uuid cast of '' raises an error.
 -- FORCE makes the policy apply to the table owner too; without it, a table
 -- created by the application role is not isolated for that role.
 -- The Stratum db-adapters package sets app.current_tenant_id automatically.
