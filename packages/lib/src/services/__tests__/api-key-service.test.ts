@@ -52,7 +52,7 @@ describe("validateApiKey", () => {
   const keyRow = {
     id: "key-1", tenant_id: "tenant-1", key_hash: "h", key_prefix: "sk_live_", name: null,
     created_at: new Date(), last_used_at: null, revoked_at: null, expires_at: null,
-    scopes: ["read"], rate_limit_max: null, rate_limit_window: null, hash_version: 1,
+    scopes: ["read"], rate_limit_max: null, rate_limit_window: null, hash_version: 1, stamp_due: true,
   };
 
   /** Run the validation connection normally and hand the stamp connection to `stamp`. */
@@ -82,6 +82,19 @@ describe("validateApiKey", () => {
 
     finishStamp();
     expect((await pending)?.key_id).toBe("key-1");
+  });
+
+  it("opens no stamp connection when the key was stamped less than a minute ago", async () => {
+    const validationQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ ...keyRow, stamp_due: false }] })
+      .mockResolvedValueOnce({ rows: [{ scopes: ["read"], role_scopes: null }] });
+    vi.mocked(poolHelpers.withClient).mockImplementationOnce(async (_pool, fn) =>
+      fn({ query: validationQuery } as unknown as import("pg").PoolClient));
+
+    const result = await apiKeyService.validateApiKey(makeMockPool(), "presented-key");
+
+    expect(result?.key_id).toBe("key-1");
+    expect(vi.mocked(poolHelpers.withClient)).toHaveBeenCalledTimes(1);
   });
 
   it("still authenticates the key when the last_used_at stamp fails", async () => {

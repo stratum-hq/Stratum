@@ -185,6 +185,54 @@ describe("API key service (integration)", () => {
       expect((await rawKeyRow(created.id)).last_used_at).not.toBeNull();
     });
 
+    it("does not stamp last_used_at again when the key was used less than a minute ago", async () => {
+      const tenant = await makeTenant("i404_stamp_recent");
+      const created = await stratum.createApiKey(tenant.id, "k");
+      await getPool().query(
+        "UPDATE api_keys SET last_used_at = now() - interval '10 seconds' WHERE id = $1",
+        [created.id],
+      );
+      const before = (await rawKeyRow(created.id)).last_used_at;
+
+      expect(await stratum.validateApiKey(created.plaintext_key)).not.toBeNull();
+      expect((await rawKeyRow(created.id)).last_used_at).toEqual(before);
+    });
+
+    it("stamps last_used_at again when the key was last used more than a minute ago", async () => {
+      const tenant = await makeTenant("i404_stamp_stale");
+      const created = await stratum.createApiKey(tenant.id, "k");
+      await getPool().query(
+        "UPDATE api_keys SET last_used_at = now() - interval '2 minutes' WHERE id = $1",
+        [created.id],
+      );
+      const before = (await rawKeyRow(created.id)).last_used_at!;
+
+      await stratum.validateApiKey(created.plaintext_key);
+      expect((await rawKeyRow(created.id)).last_used_at!.getTime()).toBeGreaterThan(before.getTime());
+    });
+
+    it("authenticates within seconds while another transaction holds the key row", async () => {
+      const tenant = await makeTenant("i404_stamp_locked");
+      const created = await stratum.createApiKey(tenant.id, "k");
+      const holder = await getPool().connect();
+      try {
+        await holder.query("BEGIN");
+        await holder.query("SELECT 1 FROM api_keys WHERE id = $1 FOR UPDATE", [created.id]);
+
+        const validation = stratum.validateApiKey(created.plaintext_key);
+        const outcome = await Promise.race([
+          validation.then((r) => ({ key_id: r?.key_id })),
+          new Promise((r) => setTimeout(() => r("still waiting"), 5000)),
+        ]);
+        await holder.query("ROLLBACK");
+        await validation;
+
+        expect(outcome).toEqual({ key_id: created.id });
+      } finally {
+        holder.release();
+      }
+    });
+
     it("returns the scopes column verbatim, including admin", async () => {
       const tenant = await makeTenant("apikey_admin");
       const created = await stratum.createApiKey(tenant.id, "k");

@@ -9,7 +9,7 @@ This is the simplest path to a multi-tenant API. Express handles HTTP, `pg` hand
 
 ## What You Get
 
-- Tenant resolution from headers via Stratum SDK middleware
+- Tenant resolution from the `tenant_id` claim of a verified JWT
 - Every SQL query automatically scoped to the current tenant
 - No manual `WHERE tenant_id = ?` clauses
 - Config and permissions resolved per-tenant from the Stratum control plane
@@ -21,8 +21,8 @@ This is the simplest path to a multi-tenant API. Express handles HTTP, `pg` hand
 ```bash
 mkdir my-api && cd my-api
 npm init -y
-npm install express pg @stratum-hq/lib @stratum-hq/db-adapters
-npm install -D typescript @types/express @types/pg tsx
+npm install express pg jsonwebtoken @stratum-hq/lib @stratum-hq/db-adapters
+npm install -D typescript @types/express @types/pg @types/jsonwebtoken tsx
 ```
 
 ### 2. Start PostgreSQL
@@ -97,19 +97,37 @@ CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
 
 ### Tenant Middleware
 
-The middleware reads the tenant ID from the `x-tenant-id` header and creates a tenant-scoped connection pool for the request:
+The middleware reads the tenant ID from the `tenant_id` claim of a verified JWT. Then it creates a tenant-scoped connection pool for the request:
 
 ```typescript
 // src/middleware.ts
 import { Pool } from "pg";
+import jwt from "jsonwebtoken";
 import { createTenantPool } from "@stratum-hq/db-adapters";
 import { Request, Response, NextFunction } from "express";
 
-export function tenantMiddleware(pool: Pool) {
+export function tenantMiddleware(pool: Pool, jwtSecret: string) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const tenantId = req.headers["x-tenant-id"] as string;
-    if (!tenantId) {
-      res.status(400).json({ error: "Missing x-tenant-id header" });
+    const authorization = req.headers.authorization;
+    if (!authorization?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Missing bearer token" });
+      return;
+    }
+
+    // A token that does not verify is rejected, never ignored.
+    let claims: string | jwt.JwtPayload;
+    try {
+      claims = jwt.verify(authorization.slice("Bearer ".length), jwtSecret, {
+        algorithms: ["HS256"],
+      });
+    } catch {
+      res.status(401).json({ error: "Invalid bearer token" });
+      return;
+    }
+
+    const tenantId = typeof claims === "object" ? claims.tenant_id : undefined;
+    if (typeof tenantId !== "string") {
+      res.status(401).json({ error: "Token has no tenant_id claim" });
       return;
     }
 
@@ -120,6 +138,14 @@ export function tenantMiddleware(pool: Pool) {
   };
 }
 ```
+
+<Aside type="caution">
+  Do not read the tenant from a request header such as `x-tenant-id`. Any client
+  can send that header and select another tenant. Read a header only when a
+  gateway you control sets it and removes any copy that the client sent. The SDK
+  middleware applies the same rule: with `jwtSecret` set, it reads the header
+  only with `trustTenantHeader: true`.
+</Aside>
 
 `createTenantPool` returns a pool wrapper that automatically calls `set_config('app.current_tenant_id', tenantId, true)` inside a transaction before every query. RLS policies do the rest.
 
@@ -142,8 +168,15 @@ const pool = new Pool({
 
 const stratum = new Stratum({ pool, autoMigrate: true });
 
+// The tenant binding comes from a signed token, so the server does not start
+// without the key that verifies it.
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) {
+  throw new Error("JWT_SECRET is required to verify bearer tokens.");
+}
+
 // Apply tenant middleware to all /api routes
-app.use("/api", tenantMiddleware(pool));
+app.use("/api", tenantMiddleware(pool, jwtSecret));
 
 // List orders (automatically filtered by RLS)
 app.get("/api/orders", async (req, res) => {
@@ -223,47 +256,52 @@ declare global {
 ## Running the App
 
 ```bash
+export JWT_SECRET=$(openssl rand -hex 32)
 npx tsx src/index.ts
 ```
 
 ## Testing Isolation
 
-Create two tenants and verify they cannot see each other's data:
+Create two tenants and verify they cannot see each other's data. Your identity provider issues the tokens in a real application. For local tests, sign one token for each tenant with the same `JWT_SECRET` as the server:
 
 ```bash
 # Create tenants via Stratum control plane
 TENANT_A="aaaaaaaa-0000-0000-0000-000000000001"
 TENANT_B="bbbbbbbb-0000-0000-0000-000000000002"
 
+# Sign a token for each tenant
+TOKEN_A=$(node -e 'console.log(require("jsonwebtoken").sign({ tenant_id: process.argv[1] }, process.env.JWT_SECRET, { algorithm: "HS256", expiresIn: "1h" }))' "$TENANT_A")
+TOKEN_B=$(node -e 'console.log(require("jsonwebtoken").sign({ tenant_id: process.argv[1] }, process.env.JWT_SECRET, { algorithm: "HS256", expiresIn: "1h" }))' "$TENANT_B")
+
 # Insert orders for Tenant A
 curl http://localhost:3000/api/orders -X POST \
-  -H "x-tenant-id: $TENANT_A" \
+  -H "Authorization: Bearer $TOKEN_A" \
   -H "Content-Type: application/json" \
   -d '{"product": "Widget", "quantity": 5, "total": "49.95"}'
 
 curl http://localhost:3000/api/orders -X POST \
-  -H "x-tenant-id: $TENANT_A" \
+  -H "Authorization: Bearer $TOKEN_A" \
   -H "Content-Type: application/json" \
   -d '{"product": "Sprocket", "quantity": 10, "total": "99.90"}'
 
 # Insert orders for Tenant B
 curl http://localhost:3000/api/orders -X POST \
-  -H "x-tenant-id: $TENANT_B" \
+  -H "Authorization: Bearer $TOKEN_B" \
   -H "Content-Type: application/json" \
   -d '{"product": "Gadget", "quantity": 2, "total": "29.90"}'
 
 # Tenant A sees 2 orders (Widget + Sprocket)
-curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_A"
+curl http://localhost:3000/api/orders -H "Authorization: Bearer $TOKEN_A"
 
 # Tenant B sees 1 order (Gadget)
-curl http://localhost:3000/api/orders -H "x-tenant-id: $TENANT_B"
+curl http://localhost:3000/api/orders -H "Authorization: Bearer $TOKEN_B"
 
 # Tenant B cannot delete Tenant A's order (returns 404, not 403)
 ORDER_A_ID=$(curl -s http://localhost:3000/api/orders \
-  -H "x-tenant-id: $TENANT_A" | jq -r '.[0].id')
+  -H "Authorization: Bearer $TOKEN_A" | jq -r '.[0].id')
 
 curl -X DELETE "http://localhost:3000/api/orders/$ORDER_A_ID" \
-  -H "x-tenant-id: $TENANT_B"
+  -H "Authorization: Bearer $TOKEN_B"
 # {"error": "Order not found"}
 ```
 

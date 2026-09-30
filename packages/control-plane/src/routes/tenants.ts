@@ -97,6 +97,9 @@ export function createTenantRoutes(stratum: Stratum) {
           // An error can arrive after the activation committed, for example
           // when the connection drops. Read the tenant again, and remove the
           // storage only when the tenant is known to be still pending.
+          // activateTenant already reads the tenant again after such an error
+          // and emits tenant.activated when it finds it active. The route does
+          // not emit it, so the event is not sent twice.
           const current = await stratum.getTenant(tenant.id, true).catch(() => undefined);
           if (current?.status === "active") {
             reply.status(201).send(current);
