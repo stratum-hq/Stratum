@@ -9,8 +9,8 @@ import { uniqueSlug } from "./helpers/fixtures.js";
  * membership + global null-tenant hooks + active filter), the GROUP BY status
  * stats, the failed-delivery join, and the retry state transition. Delivery
  * rows are seeded directly so the assertions never depend on the fire-and-forget
- * HTTP delivery loop; the one retry test points at a blocked host so its
- * background pass makes no committed change.
+ * HTTP delivery loop; the retry tests point at a blocked host so their
+ * background pass can only record a failed attempt.
  */
 describe("webhook persistence + DLQ (integration)", () => {
   let stratum: Stratum;
@@ -139,11 +139,12 @@ describe("webhook persistence + DLQ (integration)", () => {
 
   it("retryDelivery resets a failed delivery to pending and only acts on failed rows", async () => {
     const t1 = await rawTenant(uniqueSlug("wr1"));
-    // Blocked host so the fire-and-forget processDeliveries pass fails URL
-    // validation and commits nothing — the row stays exactly as retry left it.
+    // Blocked host, so the fire-and-forget processDeliveries pass that retry
+    // triggers can at most record one more failed attempt (status stays pending).
     const w1 = await rawWebhook(t1, ["tenant.created"], true, "http://127.0.0.1:9/x");
     const e1 = await rawEvent(t1);
     const failed = await rawDelivery(w1, e1, "failed");
+    await getPool().query(`UPDATE webhook_deliveries SET attempts = 5 WHERE id = $1`, [failed]);
     const pending = await rawDelivery(w1, e1, "pending");
 
     expect(await stratum.retryDelivery(failed)).toBe(true);
@@ -152,7 +153,8 @@ describe("webhook persistence + DLQ (integration)", () => {
       [failed],
     );
     expect(after.rows[0].status).toBe("pending");
-    expect(after.rows[0].attempts).toBe(0);
+    // Reset from 5; the background pass may already have counted one attempt.
+    expect(after.rows[0].attempts).toBeLessThanOrEqual(1);
 
     // Already pending → nothing to retry.
     expect(await stratum.retryDelivery(pending)).toBe(false);
