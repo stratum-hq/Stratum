@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import { stratumPlayground } from "./src/playground/vite-plugin.mjs";
 
 // Strata type families (documented in DESIGN.md). Loaded non-blocking from
 // the document head rather than via a render-blocking @import in the shared
@@ -9,6 +10,22 @@ const fontsHref =
 
 export default defineConfig({
   site: "https://docs.stratum-hq.org",
+  vite: {
+    plugins: [stratumPlayground()],
+    resolve: {
+      // The PGlite adapter lives in packages/, so its import of PGlite would
+      // otherwise resolve from the repository root instead of this site.
+      // package.json pins PGlite 0.4.2: later 0.4.x releases read
+      // process.exitCode behind a globalThis.process?.env check, and the
+      // Vite client build replaces that check with {}, so they fail in a browser.
+      dedupe: ["@electric-sql/pglite"],
+    },
+    // PGlite loads its WebAssembly relative to its own module, which breaks
+    // when the dev server pre-bundles it.
+    optimizeDeps: { exclude: ["@electric-sql/pglite"] },
+    // The Playground imports the library source and migrations from packages/.
+    server: { fs: { allow: [".."] } },
+  },
   integrations: [
     starlight({
       title: "Stratum",
