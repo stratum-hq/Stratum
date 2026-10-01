@@ -1,9 +1,22 @@
-import { FastifyInstance } from "fastify";
-import { SetConfigInputSchema } from "@stratum-hq/core";
+import { FastifyInstance, FastifyRequest } from "fastify";
+import { SetConfigInputSchema, type ResolveConfigOptions } from "@stratum-hq/core";
 import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { declareTenantScope, fromParamId } from "../middleware/tenant-scope.js";
 import { declareRequiredScope } from "../middleware/authorize.js";
+
+/**
+ * Library read options for a config read made by `request`'s caller.
+ *
+ * A sensitive value inherited from an ancestor is revealed only to a caller
+ * whose key belongs to the tenant that set it. A global key is not that
+ * tenant, so it gets no viewer and those values stay masked. The API never
+ * asks the library to reveal every sensitive value.
+ */
+export function configReadOptions(request: FastifyRequest): ResolveConfigOptions {
+  const viewerTenantId = request.apiKey?.tenant_id;
+  return viewerTenantId ? { viewerTenantId } : {};
+}
 
 export function createConfigRoutes(stratum: Stratum) {
   return async function configRoutes(app: FastifyInstance): Promise<void> {
@@ -12,7 +25,7 @@ export function createConfigRoutes(stratum: Stratum) {
     declareRequiredScope(app, { read: "read", write: "write" });
     // GET /api/v1/tenants/:id/config: Get resolved config
     app.get<{ Params: { id: string } }>("/", async (request, reply) => {
-      const resolved = await stratum.resolveConfig(request.params.id);
+      const resolved = await stratum.resolveConfig(request.params.id, configReadOptions(request));
       reply.status(200).send(resolved);
     });
 
@@ -51,7 +64,7 @@ export function createConfigRoutes(stratum: Stratum) {
 
     // GET /api/v1/tenants/:id/config/inheritance: Get full inheritance view
     app.get<{ Params: { id: string } }>("/inheritance", async (request, reply) => {
-      const inheritance = await stratum.getConfigWithInheritance(request.params.id);
+      const inheritance = await stratum.getConfigWithInheritance(request.params.id, configReadOptions(request));
       reply.status(200).send(inheritance);
     });
   };

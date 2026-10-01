@@ -9,6 +9,8 @@ export interface ConfigWithInheritance {
   source_tenant_id: string;
   inherited: boolean;
   locked: boolean;
+  /** True when a sensitive value inherited from an ancestor was withheld by the API. */
+  masked?: boolean;
 }
 
 export function useConfig() {
@@ -33,6 +35,7 @@ export function useConfig() {
           source_tenant_id: entry.source_tenant_id,
           inherited: entry.inherited,
           locked: entry.locked,
+          ...(entry.masked ? { masked: true } : {}),
         })),
       );
     } catch (err) {

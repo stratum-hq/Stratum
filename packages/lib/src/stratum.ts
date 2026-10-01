@@ -29,6 +29,7 @@ import type {
   BatchSetConfigEntry,
   ResolvedConfig,
   ResolvedConfigEntry,
+  ResolveConfigOptions,
   BatchSetConfigResult,
   PermissionPolicy,
   CreatePermissionInput,
@@ -378,10 +379,10 @@ export class Stratum {
   }
 
   // Tenant impersonation context
-  async getTenantContext(tenantId: string): Promise<TenantContext> {
+  async getTenantContext(tenantId: string, options?: ResolveConfigOptions): Promise<TenantContext> {
     const [tenant, config, permissions, ancestors] = await Promise.all([
       this.getTenant(tenantId),
-      this.resolveConfig(tenantId),
+      this.resolveConfig(tenantId, options),
       this.resolvePermissions(tenantId),
       this.getAncestors(tenantId),
     ]);
@@ -389,9 +390,15 @@ export class Stratum {
   }
 
   // Config operations
-  resolveConfig(tenantId: string): Promise<ResolvedConfig> {
+  /**
+   * Resolve a tenant's effective config. Sensitive values inherited from an
+   * ancestor come back masked (`value: null`, `masked: true`) unless
+   * `options.revealSensitive` is set, or `options.viewerTenantId` is the
+   * tenant that set them.
+   */
+  resolveConfig(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
     return traced("config.resolve", { tenant_id: tenantId }, async () => {
-      return configService.resolveConfig(this.pool, tenantId);
+      return configService.resolveConfig(this.pool, tenantId, options);
     });
   }
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
@@ -417,17 +424,17 @@ export class Stratum {
       );
     }
   }
-  getConfigWithInheritance(tenantId: string): Promise<ResolvedConfig> {
-    return configService.getConfigWithInheritance(this.pool, tenantId);
+  getConfigWithInheritance(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
+    return configService.getConfigWithInheritance(this.pool, tenantId, options);
   }
 
   // Config diff
-  async diffConfig(tenantIdA: string, tenantIdB: string): Promise<ConfigDiff> {
+  async diffConfig(tenantIdA: string, tenantIdB: string, options?: ResolveConfigOptions): Promise<ConfigDiff> {
     const [tenantA, tenantB, configA, configB] = await Promise.all([
       this.getTenant(tenantIdA),
       this.getTenant(tenantIdB),
-      this.resolveConfig(tenantIdA),
-      this.resolveConfig(tenantIdB),
+      this.resolveConfig(tenantIdA, options),
+      this.resolveConfig(tenantIdB, options),
     ]);
 
     const allKeys = new Set<string>([
@@ -448,6 +455,7 @@ export class Stratum {
         value: entry.value,
         status,
         source: entry.source_tenant_id,
+        ...(entry.masked ? { masked: true } : {}),
       };
     };
 
@@ -494,7 +502,9 @@ export class Stratum {
           missing++;
         } else if (parentEntry !== null && childEntry !== null) {
           const sameValue = JSON.stringify(parentEntry.value) === JSON.stringify(childEntry.value);
-          const childIsInherited = childEntry.status === "inherited";
+          // A masked entry is always inherited; its value is withheld, so it
+          // cannot be compared with the parent's.
+          const childIsInherited = childEntry.status === "inherited" || childEntry.masked === true;
 
           if (sameValue || childIsInherited) {
             // Child inherits or has the same value

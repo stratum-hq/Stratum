@@ -43,7 +43,7 @@ The `pool` is **borrowed, not owned**: Stratum never creates or closes it. With 
 The `Stratum` instance covers the full tenant lifecycle:
 
 - **Tenants**: `createTenant`, `getTenant`, `listTenants`, `updateTenant`, `moveTenant`, `getAncestors`, `getDescendants`, `batchCreateTenants`
-- **Config**: `resolveConfig`, `setConfig`, `deleteConfig`, `batchSetConfig`, `diffConfig`
+- **Config**: `resolveConfig`, `setConfig`, `deleteConfig`, `batchSetConfig`, `diffConfig`. A sensitive value inherited from an ancestor resolves masked (`value: null`, `masked: true`); pass `{ revealSensitive: true }` in trusted server code that needs the secret.
 - **Permissions & ABAC**: `resolvePermissions`, `createPermission`, `createAbacPolicy`, `evaluateAbac`
 - **API keys & roles**: `createApiKey`, `validateApiKey`, `rotateApiKey`, `createRole`, `assignRoleToKey`
 - **Webhooks & audit**: `createWebhook`, `testWebhook`, `queryAuditLogs`, `listFailedDeliveries`

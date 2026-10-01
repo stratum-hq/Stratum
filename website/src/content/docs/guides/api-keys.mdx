@@ -41,7 +41,11 @@ Three scopes control access:
 | `write` | POST, PUT, PATCH, DELETE on standard routes |
 | `admin` | Admin-only routes (key management, audit, GDPR, regions) |
 
-Scopes are flat and independent. A key with `["read", "write"]` can read and mutate standard routes. A key with `["admin"]` can access admin routes but needs `["read", "admin"]` for GET requests too.
+Scopes are ranked: `admin` includes `write`, and `write` includes `read`. A key with `["read", "write"]` can read and mutate standard routes. A key with `["admin"]` can also call admin routes. A refused request gets 403 `FORBIDDEN` with a message that names the scope the route requires.
+
+### Scope for app servers
+
+The SDK middleware (`expressMiddleware`, `fastifyPlugin`, `resolveTenant`), the NestJS guard and the Hono resolver call `GET /api/v1/tenants/:id/context`. That route needs only the `read` scope. Give an app server a `read` key scoped to the tenant it serves. The key resolves that tenant and its descendants. Use a global key only when one server serves tenants in more than one subtree.
 
 ### Admin-Only Routes
 
@@ -226,7 +230,7 @@ To move the data to a new HKDF salt, also send `old_salt` and `new_salt` in hex.
 ## Best Practices
 
 1. **Use tenant-scoped keys** for application services that only need one tenant
-2. **Use `read` scope** for monitoring and analytics
+2. **Use `read` scope** for app servers that resolve tenants, and for monitoring and analytics
 3. **Rotate keys regularly** using the rotate endpoint for zero-downtime replacement
 4. **Monitor dormant keys** and revoke keys unused for 90+ days
 5. **Never commit keys** to source control

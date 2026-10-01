@@ -54,6 +54,28 @@ Each entry tells you:
 | `source_tenant_id` | Which tenant set this value |
 | `inherited` | `true` if the value came from an ancestor |
 | `locked` | `true` if no descendant can override this key |
+| `sensitive` | Present and `true` when the value was set with `sensitive: true` |
+| `masked` | Present and `true` when an inherited sensitive value was withheld; `value` is then `null` |
+
+### Sensitive values
+
+A sensitive value set on an ancestor is inherited, but the API does not return it in a descendant's config. It comes back masked:
+
+```json
+{
+  "api_secret": {
+    "key": "api_secret",
+    "value": null,
+    "source_tenant_id": "msp-uuid",
+    "inherited": true,
+    "locked": false,
+    "sensitive": true,
+    "masked": true
+  }
+}
+```
+
+The value is returned only when the caller's key belongs to the tenant that set it (`source_tenant_id`). A global key is not that tenant, so it also gets the masked entry; it can read the value from the owning tenant's own config. A tenant's own sensitive values are returned decrypted to any key that may read that tenant. The same rule applies to `/config/inheritance`, `/api/v1/config/diff` and `/api/v1/tenants/:id/context`.
 
 ---
 

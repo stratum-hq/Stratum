@@ -164,7 +164,22 @@ await stratum.setConfig(tenantId, "api_secret", {
 });
 ```
 
-Sensitive values are encrypted before storage and decrypted when resolved. The encryption key is set via the `STRATUM_ENCRYPTION_KEY` environment variable. See the [field-level encryption documentation](/guides/api-keys/) for key rotation procedures.
+Sensitive values are encrypted before storage. The encryption key is set via the `STRATUM_ENCRYPTION_KEY` environment variable.
+
+Descendants inherit a sensitive value, but a read of a descendant's config returns it masked:
+
+```typescript
+const resolved = await stratum.resolveConfig(childId);
+// resolved.api_secret:
+// { key: "api_secret", value: null, source_tenant_id: parentId,
+//   inherited: true, locked: true, sensitive: true, masked: true }
+
+// Trusted server code that needs the secret itself:
+const forServer = await stratum.resolveConfig(childId, { revealSensitive: true });
+// forServer.api_secret.value === "sk_live_abc123"
+```
+
+A tenant's own sensitive values are decrypted when resolved. The control plane API and the React `ConfigEditor` reveal an inherited sensitive value only to a key of the tenant that set it; see [Config API](/api/config/#sensitive-values). See the [field-level encryption documentation](/guides/api-keys/) for key rotation procedures.
 
 ## Config Values
 
