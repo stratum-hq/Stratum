@@ -252,7 +252,7 @@ const runNextjs: Runner = async (files, req) => {
       headers: new Headers(),
     }),
   };
-  const { middleware } = load(files["middleware.ts"], { "next/server": { NextResponse } }) as {
+  const { middleware } = load(files["src/middleware.ts"], { "next/server": { NextResponse } }) as {
     middleware: (request: unknown) => Promise<{ status: number; headers: Headers }>;
   };
   const res = await middleware({
