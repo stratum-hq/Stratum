@@ -50,7 +50,7 @@ const stratum = new Stratum({
   keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
   logger: myLogger,          // Optional: StratumLogger (default: defaultLogger)
   autoMigrate: false,        // Optional: run migrations on initialize() (default: false)
-  enforceRls: false,         // Optional: hard-fail migration if the PG role has BYPASSRLS (default: false)
+  enforceRls: false,         // Optional: hard-fail initialize() and migrations if the PG role has BYPASSRLS (default: false)
 });
 ```
 
@@ -60,7 +60,7 @@ The pool is **borrowed, not owned**: Stratum never creates or closes the pool. Y
 stratum.initialize(): Promise<void>
 ```
 
-Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so migrations refuse to run under a `BYPASSRLS` role; `initialize()` logs a warning when it is off there.
+Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so `initialize()` and migrations refuse to run under a `BYPASSRLS` role. The role is checked on every `initialize()`, with or without `autoMigrate`, and on every `migrate()` call, not only when a migration is applied. `initialize()` logs a warning when `autoMigrate` is on and `enforceRls` is off there.
 
 ## API Reference
 

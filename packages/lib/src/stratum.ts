@@ -70,7 +70,7 @@ import type {
   UsageAggregateQuery,
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
-import { migrate } from "./migrate.js";
+import { assertRoleSubjectToRls, migrate } from "./migrate.js";
 import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
@@ -79,7 +79,11 @@ export interface StratumOptions {
   logger?: StratumLogger;
   /** Run migrations automatically on initialize(). Defaults to false. */
   autoMigrate?: boolean;
-  /** When true, migrations hard-fail if the PG role has BYPASSRLS. Use in production. */
+  /**
+   * When true, initialize() (and migrations) hard-fail if the PG role has
+   * BYPASSRLS. Checked on every initialize, whether or not a migration runs.
+   * Use in production.
+   */
   enforceRls?: boolean;
 }
 
@@ -125,6 +129,8 @@ export class Stratum {
       this.logger.info("running auto-migration");
       await migrate({ pool: this.pool, enforceRls: this.enforceRls });
       this.logger.info("auto-migration complete");
+    } else if (this.enforceRls) {
+      await assertRoleSubjectToRls(this.pool);
     }
   }
 

@@ -8,8 +8,29 @@ export interface MigrateOptions {
   enforceRls?: boolean;
 }
 
+/**
+ * Throws when the connecting role has BYPASSRLS, so row-level security would
+ * not apply to it. Used by every enforceRls entry point, so the check does not
+ * depend on migration 001 running.
+ */
+export async function assertRoleSubjectToRls(pool: pg.Pool): Promise<void> {
+  const { rows } = await pool.query<{ role: string; bypass: boolean }>(
+    "SELECT current_user AS role, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user",
+  );
+  if (rows[0]?.bypass) {
+    throw new Error(
+      `SECURITY: Application role "${rows[0].role}" has BYPASSRLS privilege. ` +
+        "Connect as a dedicated role without BYPASSRLS, or turn enforceRls off for development.",
+    );
+  }
+}
+
 export async function migrate(options: MigrateOptions): Promise<void> {
   const { pool, enforceRls } = options;
+
+  if (enforceRls) {
+    await assertRoleSubjectToRls(pool);
+  }
 
   // Create migrations tracking table
   await pool.query(`
