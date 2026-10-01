@@ -53,8 +53,14 @@ const REFUSED_METHODS = new Map<string, string>([
   ].map((method): [string, string] => [method, NOT_SCOPED]),
 ]);
 
+/**
+ * True when a column key resolves to tenant_id. Knex splits a key on " as "
+ * and on dots, so "notes.tenant_id" and "db.notes.TENANT_ID" name the same
+ * column as "tenant_id" (MySQL column names are case-insensitive).
+ */
 function isTenantColumn(name: string): boolean {
-  return name.toLowerCase() === TENANT_COLUMN;
+  const column = name.split(/\s+as\s+/i)[0].split(".").pop() ?? "";
+  return column.toLowerCase() === TENANT_COLUMN;
 }
 
 function withoutTenantColumn(row: Record<string, unknown>): Record<string, unknown> {
@@ -79,7 +85,9 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * you do not need to include it yourself:
  *   await scoped("users").insert({ name: "Alice" });
  *
- * UPDATE never changes tenant_id: the column is dropped from the update data.
+ * UPDATE never changes tenant_id: the column is dropped from the update data,
+ * however the key names it (any letter case, table- or schema-qualified).
+ * INSERT drops such keys too before it adds the tenant's tenant_id.
  * onConflict().merge(), upsert() and truncate() throw, because MySQL applies
  * none of them through the WHERE clause. onConflict().ignore() is allowed.
  *
@@ -192,7 +200,7 @@ export function withTenantScope(
         return (...args: unknown[]) => {
           if (prop === "insert") {
             const data = args[0] as Record<string, unknown> | Record<string, unknown>[];
-            const inject = (row: Record<string, unknown>) => ({ ...row, tenant_id: tenantId });
+            const inject = (row: Record<string, unknown>) => ({ ...withoutTenantColumn(row), tenant_id: tenantId });
             args[0] = Array.isArray(data) ? data.map(inject) : inject(data);
           } else if (prop === "update") {
             if (typeof args[0] === "string") {
