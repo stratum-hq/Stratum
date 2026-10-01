@@ -7,6 +7,8 @@ class MockSequelize {
   static Model = class {};
   static Op = { and: Symbol("and") };
   addHook = vi.fn();
+  private readonly queryInterface = {};
+  getQueryInterface = () => this.queryInterface;
   query = vi.fn().mockResolvedValue(undefined);
   transaction = vi
     .fn()
