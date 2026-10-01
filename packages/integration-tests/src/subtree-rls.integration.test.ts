@@ -408,7 +408,32 @@ describe("subtree read scope (migration 031)", () => {
     }
   });
 
-  it("puts a read-only subtree policy on every tenant-scoped table", async () => {
+  it("does not let a parent in subtree scope read its descendants' api_keys rows", async () => {
+    const c = await getPool().connect();
+    try {
+      await c.query("BEGIN");
+      const key = await c.query<{ id: string }>(
+        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name)
+         VALUES ($1, $2, 'sk_test_', 'subtree key') RETURNING id`,
+        [id.a1, `sub_hash_${run}`],
+      );
+      await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
+
+      await setTenantContext(c, id.mspA, { scope: "subtree" });
+      const asParent = await c.query("SELECT id FROM api_keys WHERE id = $1", [key.rows[0].id]);
+      expect(asParent.rowCount ?? 0).toBe(0);
+
+      // The owner still reads its own key, so the row exists and RLS hides it.
+      await setTenantContext(c, id.a1);
+      const asOwner = await c.query("SELECT id FROM api_keys WHERE id = $1", [key.rows[0].id]);
+      expect(asOwner.rowCount ?? 0).toBe(1);
+    } finally {
+      await c.query("ROLLBACK");
+      c.release();
+    }
+  });
+
+  it("puts a read-only subtree policy on every tenant-scoped table except api_keys", async () => {
     const res = await getPool().query<{ tablename: string; cmd: string; permissive: string }>(
       `SELECT tablename, cmd, permissive FROM pg_policies
         WHERE schemaname = current_schema() AND policyname = 'tenant_subtree_read'
@@ -417,7 +442,6 @@ describe("subtree read scope (migration 031)", () => {
     );
     expect(res.rows.map((r) => r.tablename)).toEqual([
       "abac_policies",
-      "api_keys",
       "audit_logs",
       "config_entries",
       "consent_records",
