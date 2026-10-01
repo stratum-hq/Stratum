@@ -348,3 +348,7 @@ A rough formula: `maxConnections = maxClients * maxPoolSize`. For `maxClients: 1
 ### Collection-per-Tenant
 
 Collection-per-tenant has minimal additional overhead over shared collection. Each collection gets its own indexes, which is the primary reason to choose this strategy: it allows tenant-specific index configurations without cross-tenant interference.
+
+## See also
+
+- Compare [Stratum with plain MongoDB](https://stratum-hq.org/compare/mongodb/), feature by feature
