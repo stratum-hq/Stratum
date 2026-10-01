@@ -48,22 +48,24 @@ checklist for judging any library, including ours.
 I work at a managed security service provider (MSSP). An MSSP runs security monitoring for
 many customers at once, so its tools are multi-tenant by necessity.
 
-Recently, during a normal workday, I ran into this problem again. One of our clients runs
-several AWS accounts under a single AWS organization. The client does not manage those
-accounts directly. A managed service provider (MSP) runs them on the client's behalf, so three
-parties have a stake in the same data: us, the MSP, and the client.
+Recently, during a normal workday, I ran into this problem again. We provide security services
+to a managed service provider (MSP). One of that MSP's clients has its own sub-clients, and the
+client manages them itself: each sub-client has its own AWS accounts under the client's AWS
+organization. The client has no XDR coverage of its own for those sub-clients, so the
+monitoring has to come through us. That is four levels with a stake in the same data: us (the
+MSSP), the MSP, the client, and each sub-client.
 
-The extended detection and response (XDR) platform we use cannot create sub-tenants for that
-client. Every AWS account's data lands in one tenant. Once it is there, we cannot separate it
-again:
+The extended detection and response (XDR) platform we use cannot create sub-tenants under
+that client. Every sub-client's data would land in the client's one tenant, and once it is
+there, we cannot separate it again:
 
-- An alert does not tell us which account it came from without manual digging.
-- We cannot give the MSP access to the accounts it manages and nothing else.
-- We cannot report, retain, or hand off data per account.
-- The client's own team can see all of it or none of it.
+- An alert does not tell us which sub-client it came from without manual digging.
+- We cannot give the client access to one sub-client's data without showing it all of them.
+- We cannot report, retain, or hand off data per sub-client.
+- A sub-client cannot be given a view of its own data and nothing else.
 
 None of this is exotic. The real structure is a tree: MSSP, then MSP, then client, then
-sub-account. The platform models one level of it. Everything below that level is flattened,
+sub-client. The platform models only part of it. Everything below the client is flattened,
 and the people who need narrow, delegated access get broad access or no access.
 
 That is the kind of problem Stratum is built for. Three things follow from it:
