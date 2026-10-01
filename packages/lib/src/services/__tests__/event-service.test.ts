@@ -212,6 +212,7 @@ describe("emitEvent", () => {
       pool,
       TenantEvent.TENANT_CREATED,
       "tenant-id-1",
+      "event-id-1",
     );
     expect(insertDeliveryQuery).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO webhook_deliveries"),

@@ -278,18 +278,32 @@ export async function listDeliveriesByEvent(
   });
 }
 
+/**
+ * Returns the active webhooks that subscribe to an event type for a tenant.
+ *
+ * @param eventId - When set, only webhooks created at or before that event's
+ *   `created_at` match, so a webhook registered after the event gets no
+ *   delivery for it.
+ */
 export async function getWebhooksForEvent(
   pool: pg.Pool,
   eventType: string,
   tenantId: string,
+  eventId?: string,
 ): Promise<Webhook[]> {
   return withClient(pool, async (client) => {
+    // The comparison stays in SQL because a JS Date keeps milliseconds only
+    // and created_at has microseconds. The bound is inclusive: two separate
+    // transactions with the same now() are concurrent, and the webhook that
+    // already exists keeps its delivery.
     const res = await client.query<Webhook>(
       `SELECT ${WEBHOOK_PUBLIC_COLS}, secret_hash FROM webhooks
        WHERE active = true
          AND $1 = ANY(events)
-         AND (tenant_id IS NULL OR tenant_id = $2)`,
-      [eventType, tenantId],
+         AND (tenant_id IS NULL OR tenant_id = $2)
+         AND ($3::uuid IS NULL
+              OR created_at <= (SELECT created_at FROM webhook_events WHERE id = $3::uuid))`,
+      [eventType, tenantId, eventId ?? null],
     );
     return res.rows;
   });

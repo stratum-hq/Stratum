@@ -126,6 +126,19 @@ app.post("/webhooks/stratum", express.raw({ type: "application/json" }), (req, r
 
 `signWebhookPayload(secret, timestamp, payload)` is exported too, if you need to produce a signature, for example in a test.
 
+## Which Webhooks Receive an Event
+
+Stratum records each event, then creates its deliveries in the background. An event goes to each webhook that meets all of these conditions:
+
+- The webhook is active.
+- The webhook subscribes to the event type.
+- The webhook belongs to the event's tenant, or it has no tenant.
+- Stratum created the webhook at or before the time it recorded the event.
+
+A webhook that you register after an event gets no delivery for that event, even when the background work runs after the registration.
+
+Stratum reads the subscription and the `active` flag of a webhook when it creates the deliveries, not as they were at the time of the event. A change to `events` or `active` in that short interval can add or remove a delivery for an event that Stratum recorded just before the change.
+
 ## Retry Logic
 
 A delivery fails on a non-2xx response or a network error. Stratum makes up to 5 attempts. After a failed attempt `n`, it waits `n² × 5` seconds before the next one (5, 20, 45 and 80 seconds). A delivery that fails its fifth attempt is marked `failed` and lands in the [dead-letter queue](#dead-letter-queue).
