@@ -204,12 +204,23 @@ ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- The tenants: npm run tenant:provision adds each one. slug names the
 -- tenant's own database (stratum_tenant_{slug}) or tables ({table}_{slug}),
 -- and the app looks it up by the tenant ID of a verified token. Do not change
--- a slug: those names are fixed when the tenant is provisioned.
+-- a slug: those names are fixed when the tenant is provisioned. ascii_bin
+-- compares IDs byte for byte, so an ID that differs in letter case or
+-- trailing spaces matches no tenant.
 CREATE TABLE IF NOT EXISTS _stratum_tenants (
-  id VARCHAR(36) PRIMARY KEY,
+  id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   slug VARCHAR(63) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- The app user (MYSQL_USER in docker-compose.yml) gets ALL on this database
+-- from the MySQL image, which names the database with _ escaped as \\_. The
+-- app user only reads _stratum_tenants: it creates, alters and drops nothing.
+-- npm run tenant:provision runs as the admin user and gives it read and write
+-- access to each tenant's own tables or database.
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${dbName.replace(/_/g, "\\_")}\`.* FROM '${dbName}'@'%';
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${dbName}\`.* FROM '${dbName}'@'%';
+GRANT SELECT ON \`${dbName}\`.\`_stratum_tenants\` TO '${dbName}'@'%';
 `;
 }

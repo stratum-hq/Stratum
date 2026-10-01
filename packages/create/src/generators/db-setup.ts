@@ -968,47 +968,56 @@ CREATE TABLE \`notes_{slug}\` (
 
 /**
  * scripts/provision-tenant.mjs of the MySQL presets: creates one tenant's
- * database or tables as the admin user and records its slug.
+ * database or tables as the admin user, gives the app user read and write
+ * access to them, and records its slug. A run that fails removes what it
+ * created, so it can run again.
  */
 function mysqlProvisionScript(database: boolean): string {
   const what = database
     ? "its own database (stratum_tenant_{slug}) and runs sql/tenant.sql in it"
     : "its copy of each table of sql/tenant.sql ({table}_{slug})";
-  const body = database
-    ? `  // The app user as MySQL names it, user@host, for the grant.
-  const app = await mysql.createConnection({ uri: process.env.DATABASE_URL });
-  const [[{ user: appUser }]] = await app.query("SELECT CURRENT_USER() AS user");
-  await app.end();
-  const at = appUser.lastIndexOf("@");
-
-  const database = \`stratum_tenant_\${slug}\`;
-  // Fails if the database exists: it may hold another tenant's data.
-  await admin.query(\`CREATE DATABASE \\\`\${database}\\\`\`);
-  // In a GRANT, _ in a database name matches any character, and \\_ only _.
-  await admin.query(\`GRANT SELECT, INSERT, UPDATE, DELETE ON \\\`\${database.replaceAll("_", "\\\\_")}\\\`.* TO ?@?\`, [
-    appUser.slice(0, at),
-    appUser.slice(at + 1),
-  ]);
-  const databaseUrl = new URL(superuserUrl);
-  databaseUrl.pathname = \`/\${database}\`;
-  const tenant = await mysql.createConnection({ uri: databaseUrl.toString(), multipleStatements: true });
-  try {
-    await tenant.query(readFileSync("sql/tenant.sql", "utf8"));
-  } finally {
-    await tenant.end();
-  }`
-    : `  // Fails if a table exists: it may hold another tenant's data.
-  await admin.query(readFileSync("sql/tenant.sql", "utf8").replaceAll("{slug}", slug));`;
+  const create = database
+    ? `    // Fails if the database exists: it may hold another tenant's data.
+    await admin.query(\`CREATE DATABASE \\\`\${database}\\\`\`);
+    created.push(\`DROP DATABASE \\\`\${database}\\\`\`);
+    // In a GRANT, _ in a database name matches any character, and \\_ only _.
+    const grantTarget = \`\\\`\${database.replaceAll("_", "\\\\_")}\\\`.*\`;
+    await admin.query(\`GRANT SELECT, INSERT, UPDATE, DELETE ON \${grantTarget} TO ?@?\`, appUser);
+    created.push(mysql.format(\`REVOKE IF EXISTS SELECT, INSERT, UPDATE, DELETE ON \${grantTarget} FROM ?@?\`, appUser));
+    const databaseUrl = new URL(superuserUrl);
+    databaseUrl.pathname = \`/\${database}\`;
+    const tenant = await mysql.createConnection({ uri: databaseUrl.toString(), multipleStatements: true });
+    try {
+      await tenant.query(readFileSync("sql/tenant.sql", "utf8"));
+    } finally {
+      await tenant.end();
+    }`
+    : `    // Fails if a table exists: it may hold another tenant's data. The tables
+    // the file creates are the ones that were not there before it ran.
+    const before = new Set(await tableNames());
+    let tables = [];
+    try {
+      await admin.query(readFileSync("sql/tenant.sql", "utf8").replaceAll("{slug}", slug));
+    } finally {
+      tables = (await tableNames()).filter((table) => !before.has(table));
+      for (const table of tables) created.push(\`DROP TABLE \\\`\${table}\\\`\`);
+    }
+    for (const table of tables) {
+      await admin.query(\`GRANT SELECT, INSERT, UPDATE, DELETE ON \\\`\${table}\\\` TO ?@?\`, appUser);
+      created.push(mysql.format(\`REVOKE IF EXISTS SELECT, INSERT, UPDATE, DELETE ON \\\`\${table}\\\` FROM ?@?\`, appUser));
+    }`;
 
   return `// Provisions one tenant: creates ${what},
-// and records the tenant's slug in _stratum_tenants, where the app looks it up.
+// gives the app user read and write access to ${database ? "it" : "them"}, and records the tenant's
+// slug in _stratum_tenants, where the app looks it up.
 //
 //   npm run tenant:provision -- <tenant-id> <slug>
 //
 // <tenant-id> is the tenant_id claim of the tenant's tokens. <slug> names the
 // tenant's ${database ? "database" : "tables"}: a lowercase letter, then lowercase letters, digits or
 // underscores. It runs as the admin user in DATABASE_SUPERUSER_URL, never as
-// the app user in DATABASE_URL.
+// the app user in DATABASE_URL. If it fails, it removes what it created, so
+// you can run it again.
 import { readFileSync } from "node:fs";
 import mysql from "mysql2/promise";
 
@@ -1017,23 +1026,54 @@ if (!tenantId || !slug) {
   console.error("Usage: npm run tenant:provision -- <tenant-id> <slug>");
   process.exit(1);
 }
+// _stratum_tenants.id holds at most 36 ASCII characters, such as a UUID.
+if (!/^[\\x21-\\x7e]{1,36}$/.test(tenantId)) throw new Error(\`Invalid tenant ID: \${tenantId}\`);
 // The Stratum slug rule, which @stratum-hq/mysql checks too.
-if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error(\`Invalid tenant slug: \${slug}\`);
+if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error(\`Invalid tenant slug: \${slug}\`);${
+    database
+      ? `
+const database = \`stratum_tenant_\${slug}\`;
+// MySQL database names are at most 64 characters.
+if (database.length > 64) throw new Error(\`Slug \${slug} is too long: \${database} has more than 64 characters\`);`
+      : ""
+  }
 for (const key of ["DATABASE_URL", "DATABASE_SUPERUSER_URL"]) {
   if (!process.env[key]) throw new Error(\`\${key} must be set (see .env.example)\`);
 }
 const superuserUrl = process.env.DATABASE_SUPERUSER_URL;
 
-const admin = await mysql.createConnection({ uri: superuserUrl, multipleStatements: true });
+// The app user as MySQL names it, user@host, for the grants.
+const app = await mysql.createConnection({ uri: process.env.DATABASE_URL });
+const [[{ user: currentUser }]] = await app.query("SELECT CURRENT_USER() AS user");
+await app.end();
+const at = currentUser.lastIndexOf("@");
+const appUser = [currentUser.slice(0, at), currentUser.slice(at + 1)];
+
+const admin = await mysql.createConnection({ uri: superuserUrl, multipleStatements: true });${
+    database
+      ? ""
+      : `
+const tableNames = async () =>
+  (await admin.query("SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()"))[0].map(
+    (row) => row.name,
+  );`
+  }
+// Statements that undo what this run created, run in reverse if it fails.
+const created = [];
 try {
   // Each tenant ID and each slug is provisioned once: a tenant that got a
   // slug another tenant had would reach that tenant's ${database ? "database" : "tables"}.
   const [existing] = await admin.query("SELECT id FROM _stratum_tenants WHERE id = ? OR slug = ?", [tenantId, slug]);
   if (existing.length > 0) throw new Error(\`Tenant \${tenantId} or slug \${slug} is already provisioned\`);
 
-${body}
+  try {
+${create}
 
-  await admin.query("INSERT INTO _stratum_tenants (id, name, slug) VALUES (?, ?, ?)", [tenantId, slug, slug]);
+    await admin.query("INSERT INTO _stratum_tenants (id, name, slug) VALUES (?, ?, ?)", [tenantId, slug, slug]);
+  } catch (err) {
+    for (const statement of created.reverse()) await admin.query(statement);
+    throw err;
+  }
 } finally {
   await admin.end();
 }

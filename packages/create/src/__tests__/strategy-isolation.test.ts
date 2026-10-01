@@ -227,6 +227,21 @@ describe("MySQL presets", () => {
     }
   });
 
+  it.each(mysqlPresets.map(formatPresetString))(
+    "%s leaves the app user only read access to _stratum_tenants, whose IDs compare byte for byte",
+    (name) => {
+      const preset = mysqlPresets.find((p) => formatPresetString(p) === name)!;
+      const sql = generatedFiles(preset).get("init.sql")!;
+      expect(sql).toContain("REVOKE IF EXISTS ALL PRIVILEGES ON `app`.* FROM 'app'@'%';");
+      expect(sql).toContain("GRANT SELECT ON `app`.`_stratum_tenants` TO 'app'@'%';");
+      expect(sql).not.toMatch(/GRANT (ALL|[A-Z, ]*(INSERT|UPDATE|DELETE|CREATE|DROP|ALTER))/);
+      expect(sql).toContain("id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY");
+      const script = generatedFiles(preset).get("scripts/provision-tenant.mjs")!;
+      expect(script).toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON");
+      expect(script.indexOf("Invalid tenant ID")).toBeLessThan(script.indexOf("mysql.createConnection("));
+    },
+  );
+
   it.each(mysqlPresets.map(formatPresetString))("%s provisions each tenant as the admin user", (name) => {
     const preset = mysqlPresets.find((p) => formatPresetString(p) === name)!;
     const files = generatedFiles(preset);

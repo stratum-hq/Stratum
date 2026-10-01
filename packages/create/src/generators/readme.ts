@@ -179,7 +179,9 @@ ${place} Tenants share no table, so the tables need no tenant column. ${tables}
 npm run tenant:provision -- <tenant-id> <slug>
 \`\`\`
 
-\`<tenant-id>\` is the \`tenant_id\` claim of the tenant's tokens, and \`<slug>\` names the tenant's ${where}: a lowercase letter, then lowercase letters, digits or underscores. The script runs as the admin user in \`DATABASE_SUPERUSER_URL\`, never as the app user. It creates the tenant's ${where} from \`sql/tenant.sql\`${database ? ", gives the app user read and write access to them" : ""}, and records the slug in \`_stratum_tenants\`. After you change \`sql/tenant.sql\`, apply the change to each tenant's ${where} as the admin user.
+\`<tenant-id>\` is the \`tenant_id\` claim of the tenant's tokens, and \`<slug>\` names the tenant's ${where}: a lowercase letter, then lowercase letters, digits or underscores. The script runs as the admin user in \`DATABASE_SUPERUSER_URL\`, never as the app user. It creates the tenant's ${where} from \`sql/tenant.sql\`, gives the app user read and write access to ${database ? "it" : "them"}, and records the slug in \`_stratum_tenants\`. If it fails, it removes what it created, so you can run it again. After you change \`sql/tenant.sql\`, apply the change to each tenant's ${where} as the admin user${database ? "" : ", and grant the app user read and write access to each table you add"}.
+
+The app user in \`DATABASE_URL\` creates, alters and drops nothing, and only reads \`_stratum_tenants\`: \`init.sql\` removes the rights the MySQL image gives it on the app's database.
 
 In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in \`_stratum_tenants\`. Never take the slug from the hostname or a request header, which any caller can choose.
 

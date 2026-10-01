@@ -31,6 +31,7 @@ const PREFIX = ROLE_PREFIX.replace(/[^a-z0-9_]/g, "");
 
 const TENANT_A = "00000000-0000-4000-8000-00000000000a";
 const TENANT_B = "00000000-0000-4000-8000-00000000000b";
+const TENANT_C = "00000000-0000-4000-8000-00000000000c";
 
 const ITEMS_COLUMNS = `(
   id VARCHAR(36) PRIMARY KEY,
@@ -51,7 +52,12 @@ await q(A, "INSERT INTO items (id, tenant_id, body) VALUES ('row-a', ?, 'a-note'
 const aSees = (await q(A, "SELECT body FROM items")).map((r: any) => r.body).sort();
 const aUpdated = (await q(A, "UPDATE items SET body = 'changed-by-a' WHERE id = 'row-b'")).affectedRows;
 const bBody = (await q(B, "SELECT body FROM items WHERE id = 'row-b'"))[0]?.body ?? null;
-console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody }));
+// A tenant ID that differs from A's only in letter case names no tenant.
+const caseVariant = await q(A.toUpperCase(), "SELECT body FROM items").then(
+  (rows: any) => rows.map((r: any) => r.body),
+  () => "refused",
+);
+console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody, caseVariant }));
 process.exit(0);
 `;
 
@@ -103,7 +109,7 @@ function isolationSuite(strategy: "database" | "table-prefix"): void {
   const preset = `mysql-${strategy}-pg-none`;
   const project = `${PREFIX}myiso-${strategy}`.replace(/_/g, "-");
   const short = strategy === "database" ? "d" : "t";
-  const slugs = [`${PREFIX}my${short}a`, `${PREFIX}my${short}b`];
+  const slugs = [`${PREFIX}my${short}a`, `${PREFIX}my${short}b`, `${PREFIX}my${short}c`];
 
   describe(`generated ${preset} project`, () => {
     let dir: string;
@@ -205,7 +211,101 @@ function isolationSuite(strategy: "database" | "table-prefix"): void {
         aUpdated: number;
         bBody: string | null;
       };
-      expect(result).toEqual({ aSees: ["a-note"], aUpdated: 0, bBody: "b-secret" });
+      expect(result).toEqual({ aSees: ["a-note"], aUpdated: 0, bBody: "b-secret", caseVariant: "refused" });
     }, 120_000);
+
+    it("refuses a tenant ID that does not fit before it creates anything", async () => {
+      const res = spawnSync("npm", ["run", "tenant:provision", "--", "x".repeat(37), slugs[2]], {
+        cwd: dir,
+        encoding: "utf8",
+        env: CHILD_ENV,
+      });
+      expect(res.status, res.stdout + res.stderr).not.toBe(0);
+      expect(res.stderr).toMatch(/Invalid tenant ID/);
+      expect(await leftovers(slugs[2])).toEqual({ databases: [], tables: [], records: [] });
+    }, 120_000);
+
+    it("removes what a failed run created, so it can run again", async () => {
+      const tenantSql = path.join(dir, "sql/tenant.sql");
+      const original = fs.readFileSync(tenantSql, "utf8");
+      fs.appendFileSync(tenantSql, "\nCREATE TABLE broken (;\n");
+      let res;
+      try {
+        res = spawnSync("npm", ["run", "tenant:provision", "--", TENANT_C, slugs[2]], {
+          cwd: dir,
+          encoding: "utf8",
+          env: CHILD_ENV,
+        });
+      } finally {
+        fs.writeFileSync(tenantSql, original);
+      }
+      expect(res.status, res.stdout + res.stderr).not.toBe(0);
+      expect(await leftovers(slugs[2])).toEqual({ databases: [], tables: [], records: [] });
+      run("npm", ["run", "tenant:provision", "--", TENANT_C, slugs[2]], dir);
+      expect((await leftovers(slugs[2])).records).toEqual([TENANT_C]);
+    }, 120_000);
+
+    /** What exists for a slug: its tenant database, its tenant tables, and its _stratum_tenants record. */
+    async function leftovers(slug: string): Promise<{ databases: string[]; tables: string[]; records: string[] }> {
+      const [dbs] = await root.query<mysql.RowDataPacket[]>(
+        "SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?",
+        [`stratum_tenant_${slug}`],
+      );
+      const [tables] = await root.query<mysql.RowDataPacket[]>(
+        "SELECT TABLE_NAME AS name FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME LIKE ?",
+        [dbName, `%\\_${slug}`],
+      );
+      const [records] = await root.query<mysql.RowDataPacket[]>(
+        `SELECT id FROM \`${dbName}\`._stratum_tenants WHERE slug = ?`,
+        [slug],
+      );
+      return {
+        databases: dbs.map((r) => r.name as string),
+        tables: tables.map((r) => r.name as string),
+        records: records.map((r) => r.id as string),
+      };
+    }
+
+    it("gives the app user no DDL rights and only read access to _stratum_tenants", async () => {
+      const appUrl = fs.readFileSync(path.join(dir, ".env"), "utf8").match(/^DATABASE_URL=(.*)$/m)![1];
+      const app = await mysql.createConnection({ uri: appUrl });
+      const tenantTable =
+        strategy === "database" ? `\`stratum_tenant_${slugs[0]}\`.notes` : `\`notes_${slugs[0]}\``;
+      const statements: Record<string, string> = {
+        "select _stratum_tenants": "SELECT slug FROM _stratum_tenants",
+        "insert _stratum_tenants": "INSERT INTO _stratum_tenants (id, name, slug) VALUES ('x', 'x', 'x')",
+        "update _stratum_tenants": "UPDATE _stratum_tenants SET slug = slug",
+        "delete _stratum_tenants": "DELETE FROM _stratum_tenants",
+        "alter _stratum_tenants": "ALTER TABLE _stratum_tenants ADD COLUMN extra INT",
+        "drop _stratum_tenants": "DROP TABLE _stratum_tenants",
+        "create table": "CREATE TABLE app_probe (id INT)",
+        "create database": `CREATE DATABASE \`${PREFIX}myprobe\``,
+        "select tenant table": `SELECT * FROM ${tenantTable}`,
+        "alter tenant table": `ALTER TABLE ${tenantTable} ADD COLUMN extra INT`,
+        "drop tenant table": `DROP TABLE ${tenantTable}`,
+      };
+      const outcome: Record<string, string> = {};
+      try {
+        for (const [name, sql] of Object.entries(statements)) {
+          outcome[name] = await app.query(sql).then(
+            () => "allowed",
+            (err: { code?: string }) => `refused ${err.code}`,
+          );
+        }
+      } finally {
+        await app.end();
+        await root.query(`DROP DATABASE IF EXISTS \`${PREFIX}myprobe\``);
+      }
+      const refused = (name: string) => [name, expect.stringMatching(/^refused /)];
+      expect(outcome).toEqual(
+        Object.fromEntries([
+          ["select _stratum_tenants", "allowed"],
+          ["select tenant table", "allowed"],
+          ...Object.keys(statements)
+            .filter((n) => !n.startsWith("select"))
+            .map(refused),
+        ]),
+      );
+    });
   });
 }
