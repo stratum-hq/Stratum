@@ -68,6 +68,54 @@ const tenantPrisma = prismaWithTenant(
 const orders = await tenantPrisma.order.findMany();
 ```
 
+### Supported Prisma versions
+
+The Prisma helpers support Prisma 5, 6 and 7: `prismaWithTenant`, `PrismaAdapter`, `SchemaPrismaAdapter` and `DatabasePrismaAdapter`.
+
+Prisma 7 removed the `datasources` option of the `PrismaClient` constructor. A Prisma 7 client connects through a driver adapter, such as `PrismaPg` from `@prisma/adapter-pg`. `prismaWithTenant` takes the client that you make, so it needs no change.
+
+### Schema-per-tenant and database-per-tenant
+
+`SchemaPrismaAdapter` gives each tenant a Prisma client bound to the tenant schema, `tenant_<slug>`. `DatabasePrismaAdapter` gives each tenant a Prisma client bound to the tenant database, `stratum_tenant_<slug>`. Both cache up to 50 clients and disconnect the least recently used client.
+
+With Prisma 5 and 6, give the `PrismaClient` class and the datasource URL. The adapters set the tenant schema or database in the URL:
+
+```typescript
+import { PrismaClient } from "@prisma/client";
+import { DatabasePoolManager, DatabasePrismaAdapter, SchemaPrismaAdapter } from "@stratum-hq/db-adapters";
+
+const poolManager = new DatabasePoolManager({
+  baseConnectionConfig: { connectionString: process.env.DATABASE_URL },
+});
+const schemas = new SchemaPrismaAdapter(PrismaClient, process.env.DATABASE_URL!);
+const databases = new DatabasePrismaAdapter(poolManager, PrismaClient, process.env.DATABASE_URL!);
+
+const orders = await schemas.getClient("acme").order.findMany();
+```
+
+Prisma 7 ignores a `schema` parameter in the connection URL, so a URL alone cannot route a tenant to its schema. With Prisma 7, also give the driver adapter class. The adapters make each tenant client with `new PrismaClient({ adapter: new PrismaPg({ connectionString }, { schema }) })`:
+
+```typescript
+import { PrismaClient } from "./generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { DatabasePoolManager, DatabasePrismaAdapter, SchemaPrismaAdapter } from "@stratum-hq/db-adapters";
+
+const poolManager = new DatabasePoolManager({
+  baseConnectionConfig: { connectionString: process.env.DATABASE_URL },
+});
+const schemas = new SchemaPrismaAdapter(PrismaClient, process.env.DATABASE_URL!, {
+  driverAdapter: PrismaPg,
+  maxClients: 50,
+});
+const databases = new DatabasePrismaAdapter(poolManager, PrismaClient, process.env.DATABASE_URL!, {
+  driverAdapter: PrismaPg,
+});
+
+const orders = await schemas.getClient("acme").order.findMany();
+```
+
+`SchemaPrismaAdapter` gives the driver adapter the tenant schema. `DatabasePrismaAdapter` gives it the tenant database URL, and the `schema` parameter of your URL when the URL has one. Any driver adapter class with the constructor `new (config, { schema })` works.
+
 ## RLS Management
 
 ### Enable RLS on a Table
