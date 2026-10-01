@@ -8,7 +8,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 const libMigrate = vi.hoisted(() => vi.fn());
 vi.mock("@stratum-hq/lib", () => ({ migrate: libMigrate }));
 const adminPool = vi.hoisted(() => ({ value: undefined as object | undefined }));
-const APP_POOL = { name: "app" };
+/** A pool stand-in whose login is `me`. */
+function loginPool(me: string) {
+  return { name: me, query: vi.fn(async () => ({ rows: [{ me }] })) };
+}
+const APP_POOL = loginPool("app");
 vi.mock("../db/connection.js", () => ({ getPool: () => APP_POOL, getAdminPool: () => adminPool.value }));
 
 const STRONG_SECRET = "s".repeat(48);
@@ -62,11 +66,19 @@ describe("migrations with DATABASE_ADMIN_URL", () => {
   });
 
   it("runs the migrations on the admin pool when one is configured, without the RLS check on the admin login", async () => {
-    const ADMIN = { name: "admin" };
+    const ADMIN = loginPool("admin");
     adminPool.value = ADMIN;
     const call = await migrateCall("production");
     expect(call.pool).toBe(ADMIN);
     expect(call.enforceRls).toBeUndefined();
+  });
+
+  it("refuses an admin URL that logs in as the same role as DATABASE_URL", async () => {
+    adminPool.value = loginPool("app");
+    await expect(migrateCall("production")).rejects.toThrow(
+      /DATABASE_ADMIN_URL and DATABASE_URL log in as the same role "app"/,
+    );
+    expect(libMigrate).not.toHaveBeenCalled();
   });
 
   it("passes STRATUM_CONTROL_ROLE to the migrations as the control role", async () => {

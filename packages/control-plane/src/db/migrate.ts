@@ -1,5 +1,11 @@
 import { migrate as runMigrations } from "@stratum-hq/lib";
+import type pg from "pg";
 import { getAdminPool, getPool } from "./connection.js";
+
+async function currentLogin(pool: pg.Pool): Promise<string> {
+  const res = await pool.query<{ me: string }>("SELECT current_user::text AS me");
+  return res.rows[0].me;
+}
 
 async function migrate(): Promise<void> {
   console.log("Running migrations...");
@@ -8,6 +14,15 @@ async function migrate(): Promise<void> {
   // the database's, else stratum_control.
   const controlRole = process.env.STRATUM_CONTROL_ROLE ? { controlRole: process.env.STRATUM_CONTROL_ROLE } : {};
   if (adminPool) {
+    // Migration 032 grants the control role to the admin login, so it must
+    // not be the application's login.
+    const admin = await currentLogin(adminPool);
+    if (admin === (await currentLogin(getPool()))) {
+      throw new Error(
+        `DATABASE_ADMIN_URL and DATABASE_URL log in as the same role "${admin}". DATABASE_ADMIN_URL must be a ` +
+          "separate login: the migrations make it a member of the control role, which passes every Stratum policy.",
+      );
+    }
     // The admin login owns the Stratum objects and is a member of the control
     // role. It may have BYPASSRLS, so the RLS check below is about the
     // application login, which Stratum.initialize() checks in buildApp().
