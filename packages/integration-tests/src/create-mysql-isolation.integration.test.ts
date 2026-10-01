@@ -1,0 +1,211 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import mysql from "mysql2/promise";
+import { scaffoldProject } from "./helpers/create-cli.js";
+import { ROLE_PREFIX } from "./helpers/role-model.js";
+
+/**
+ * Generates the MySQL presets of each strategy with the built
+ * `@stratum-hq/create`, installs them with the workspace builds of the Stratum
+ * packages, sets up a MySQL server as the generated docker-compose.yml and
+ * init.sql do, adds a tenant table as the generated files say to, follows the
+ * setup the generated project describes, and then uses the generated tenant
+ * helper as the application user. Tenant A must not read or change tenant B's
+ * rows.
+ *
+ * Needs a MySQL server: MYSQL_URL, a URL of a user that can create databases
+ * and users (for example mysql://root@localhost:3306). Without it the suite
+ * is skipped. Every database and user name carries the test role prefix.
+ * Installs need network access to the npm registry for third-party packages.
+ */
+
+const MYSQL_URL = process.env.MYSQL_URL;
+
+const PACKAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const WORKSPACE_PACKAGES = ["core", "lib", "sdk", "mysql"];
+const PREFIX = ROLE_PREFIX.replace(/[^a-z0-9_]/g, "");
+
+const TENANT_A = "00000000-0000-4000-8000-00000000000a";
+const TENANT_B = "00000000-0000-4000-8000-00000000000b";
+
+const ITEMS_COLUMNS = `(
+  id VARCHAR(36) PRIMARY KEY,
+  tenant_id VARCHAR(36) NOT NULL,
+  body TEXT NOT NULL
+)`;
+
+const CHECK = `
+const h: any = await import("./src/stratum-db.js");
+// A table-prefix helper takes a function that names the tenant's tables.
+const q = async (id: string, sql: string, params: unknown[] = []) =>
+  h.BASE_TABLES
+    ? await h.tenantQuery(id, (t: (base: string) => string) => sql.replace(/\\bitems\\b/g, t("items")), params)
+    : await h.tenantQuery(id, sql, params);
+const [A, B] = process.argv.slice(2);
+await q(B, "INSERT INTO items (id, tenant_id, body) VALUES ('row-b', ?, 'b-secret')", [B]);
+await q(A, "INSERT INTO items (id, tenant_id, body) VALUES ('row-a', ?, 'a-note')", [A]);
+const aSees = (await q(A, "SELECT body FROM items")).map((r: any) => r.body).sort();
+const aUpdated = (await q(A, "UPDATE items SET body = 'changed-by-a' WHERE id = 'row-b'")).affectedRows;
+const bBody = (await q(B, "SELECT body FROM items WHERE id = 'row-b'"))[0]?.body ?? null;
+console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody }));
+process.exit(0);
+`;
+
+let tmp: string;
+const tarballs: Record<string, string> = {};
+
+// The generated project reads its settings from its .env file. Node lets a
+// variable already in the environment win over .env.
+const CHILD_ENV: NodeJS.ProcessEnv = { ...process.env };
+for (const key of ["DATABASE_URL", "DATABASE_SUPERUSER_URL"]) delete CHILD_ENV[key];
+
+function run(cmd: string, args: string[], cwd: string): string {
+  const res = spawnSync(cmd, args, { cwd, encoding: "utf8", env: CHILD_ENV });
+  if (res.status !== 0) {
+    throw new Error(`${cmd} ${args.join(" ")} failed (${res.status})\n${res.stdout}\n${res.stderr}`);
+  }
+  return res.stdout;
+}
+
+/** The server URL with another user, password and database. */
+function serverUrl(user: string, password: string, database: string): string {
+  const u = new URL(MYSQL_URL!);
+  u.username = user;
+  u.password = password;
+  u.pathname = `/${database}`;
+  return u.toString();
+}
+
+describe.skipIf(!MYSQL_URL)("generated MySQL presets", () => {
+  beforeAll(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-create-mysql-"));
+    for (const name of WORKSPACE_PACKAGES) {
+      const [packed] = JSON.parse(
+        run("npm", ["pack", "--json", "--pack-destination", tmp], path.join(PACKAGES_DIR, name)),
+      ) as { filename: string }[];
+      tarballs[`@stratum-hq/${name}`] = `file:${path.join(tmp, packed.filename)}`;
+    }
+  }, 120_000);
+
+  afterAll(() => {
+    if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  isolationSuite("database");
+  isolationSuite("table-prefix");
+});
+
+function isolationSuite(strategy: "database" | "table-prefix"): void {
+  const preset = `mysql-${strategy}-pg-none`;
+  const project = `${PREFIX}myiso-${strategy}`.replace(/_/g, "-");
+  const short = strategy === "database" ? "d" : "t";
+  const slugs = [`${PREFIX}my${short}a`, `${PREFIX}my${short}b`];
+
+  describe(`generated ${preset} project`, () => {
+    let dir: string;
+    let root: mysql.Connection;
+    let dbName: string;
+    let appUser: string;
+
+    async function cleanup(): Promise<void> {
+      for (const db of [dbName, ...slugs.map((s) => `stratum_tenant_${s}`)]) {
+        await root.query(`DROP DATABASE IF EXISTS \`${db}\``);
+      }
+      await root.query("DROP USER IF EXISTS ?@'%'", [appUser]);
+    }
+
+    beforeAll(async () => {
+      dir = scaffoldProject(tmp, project, preset);
+      const compose = fs.readFileSync(path.join(dir, "docker-compose.yml"), "utf8");
+      const composeValue = (key: string) => compose.match(new RegExp(`${key}: (\\S+)`))![1];
+      dbName = composeValue("MYSQL_DATABASE");
+      appUser = composeValue("MYSQL_USER");
+      const appPassword = composeValue("MYSQL_PASSWORD");
+
+      const rootUrl = new URL(MYSQL_URL!);
+      const env = fs.readFileSync(path.join(dir, ".env.example"), "utf8");
+      fs.writeFileSync(
+        path.join(dir, ".env"),
+        env
+          .replace(/^DATABASE_URL=.*$/m, `DATABASE_URL=${serverUrl(appUser, appPassword, dbName)}`)
+          .replace(
+            /^DATABASE_SUPERUSER_URL=.*$/m,
+            `DATABASE_SUPERUSER_URL=${serverUrl(rootUrl.username, rootUrl.password, dbName)}`,
+          ),
+      );
+
+      // Install the workspace builds of the Stratum packages, so the test
+      // checks the code under test even before it is on npm.
+      const pkgPath = path.join(dir, "package.json");
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+        dependencies: Record<string, string>;
+        overrides?: Record<string, string>;
+      };
+      for (const [name, spec] of Object.entries(tarballs)) pkg.dependencies[name] = spec;
+      pkg.overrides = { ...pkg.overrides, "@stratum-hq/core": "$@stratum-hq/core", "@stratum-hq/sdk": "$@stratum-hq/sdk" };
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+      run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], dir);
+
+      // The database server as the generated docker-compose.yml sets it up:
+      // the database, its user with all privileges on it, then init.sql as root.
+      root = await mysql.createConnection({ uri: MYSQL_URL, multipleStatements: true });
+      await cleanup();
+      await root.query(`CREATE DATABASE \`${dbName}\``);
+      await root.query("CREATE USER ?@'%' IDENTIFIED BY ?", [appUser, appPassword]);
+      await root.query(`GRANT ALL ON \`${dbName.replace(/_/g, "\\_")}\`.* TO ?@'%'`, [appUser]);
+      await root.query(`USE \`${dbName}\``);
+      await root.query(fs.readFileSync(path.join(dir, "init.sql"), "utf8"));
+
+      // Add a tenant table, as the generated files say to.
+      const tenantSql = path.join(dir, "sql/tenant.sql");
+      const scripts = (JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { scripts: Record<string, string> }).scripts;
+      if (fs.existsSync(tenantSql)) {
+        const perTable = fs.readFileSync(tenantSql, "utf8").includes("{slug}");
+        fs.appendFileSync(tenantSql, `\nCREATE TABLE \`items${perTable ? "_{slug}" : ""}\` ${ITEMS_COLUMNS};\n`);
+        if (perTable) {
+          const helperPath = path.join(dir, "src/stratum-db.ts");
+          const helper = fs.readFileSync(helperPath, "utf8");
+          expect(helper).toContain('BASE_TABLES = ["notes"]');
+          fs.writeFileSync(helperPath, helper.replace('BASE_TABLES = ["notes"]', 'BASE_TABLES = ["notes", "items"]'));
+        }
+      } else {
+        // The project describes no tenant tables: create the table once.
+        await root.query(`CREATE TABLE items ${ITEMS_COLUMNS}`);
+      }
+
+      if (scripts["tenant:provision"]) {
+        run("npm", ["run", "tenant:provision", "--", TENANT_A, slugs[0]], dir);
+        run("npm", ["run", "tenant:provision", "--", TENANT_B, slugs[1]], dir);
+      }
+    }, 900_000);
+
+    afterAll(async () => {
+      if (root) {
+        await cleanup();
+        await root.end();
+      }
+    });
+
+    it("type-checks", () => {
+      run("npx", ["tsc", "--noEmit", "-p", "."], dir);
+    }, 120_000);
+
+    it("keeps each tenant's rows away from the other tenant", () => {
+      const check = path.join(dir, "isolation-check.ts");
+      fs.writeFileSync(check, CHECK);
+      const out = run("npx", ["tsx", "--env-file=.env", check, TENANT_A, TENANT_B], dir);
+      const line = out.split("\n").find((l) => l.startsWith("RESULT "));
+      expect(line, out).toBeDefined();
+      const result = JSON.parse(line!.slice("RESULT ".length)) as {
+        aSees: string[];
+        aUpdated: number;
+        bBody: string | null;
+      };
+      expect(result).toEqual({ aSees: ["a-note"], aUpdated: 0, bBody: "b-secret" });
+    }, 120_000);
+  });
+}

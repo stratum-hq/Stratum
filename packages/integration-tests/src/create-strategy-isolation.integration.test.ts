@@ -132,6 +132,8 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
     let dir: string;
     let roles: { boot: string; app: string; stratum: string };
     let tenants: [string, string];
+    let stratumMigrated = false;
+    let urls: Record<"app" | "stratum" | "boot", string>;
 
     beforeAll(async () => {
       dir = scaffoldProject(tmp, project, preset);
@@ -141,7 +143,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       const stratum = read("STRATUM_ADMIN_DATABASE_URL");
       const boot = read("DATABASE_SUPERUSER_URL");
       roles = { boot: boot.username, app: app.username, stratum: stratum.username };
-      const urls = {
+      urls = {
         app: urlFor(dbName, app.username, app.password),
         stratum: urlFor(dbName, stratum.username, stratum.password),
         boot: urlFor(dbName, boot.username, boot.password),
@@ -166,9 +168,15 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
       run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], dir);
 
-      // Add a tenant-scoped table, as the generated files say to.
+      // Add a tenant-scoped table, as the generated files say to. A Prisma
+      // schema that lists its database schemas needs one on every model.
       if (orm === "prisma") {
-        fs.appendFileSync(path.join(dir, "prisma/schema.prisma"), PRISMA_MODEL);
+        const schemaPath = path.join(dir, "prisma/schema.prisma");
+        const dbSchema = fs.readFileSync(schemaPath, "utf8").match(/^\s*schemas\s*=\s*\["(\w+)"\]/m)?.[1];
+        fs.appendFileSync(
+          schemaPath,
+          dbSchema ? PRISMA_MODEL.replace(/\n}\n$/, `\n  @@schema("${dbSchema}")\n}\n`) : PRISMA_MODEL,
+        );
         run("npx", ["prisma", "generate"], dir);
       } else if (fs.existsSync(path.join(dir, "sql/tenant.sql"))) {
         fs.appendFileSync(path.join(dir, "sql/tenant.sql"), `\n${ITEMS_TABLE}`);
@@ -192,10 +200,9 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
         await bootClient.end();
       }
 
-      const scripts = (JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { scripts: Record<string, string> }).scripts;
-      if (scripts["tenant:provision"]) {
-        // The project provisions each Stratum tenant: create the tenants with
-        // Stratum, then run the provisioning script for each one.
+      // Create Stratum's tables and the two tenants with Stratum, as the
+      // generated README says to before the project's own setup.
+      async function createStratumTenants(): Promise<[string, string]> {
         const appPool = new pg.Pool({ connectionString: urls.app, max: 1 });
         const stratumPool = new pg.Pool({ connectionString: urls.stratum, max: 2 });
         try {
@@ -203,16 +210,26 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
           const s = new Stratum({ pool: appPool, adminPool: stratumPool, controlRole: control });
           const ids: string[] = [];
           for (const slug of slugs) ids.push((await s.createTenant({ name: slug, slug })).id);
-          tenants = [ids[0], ids[1]];
+          return [ids[0], ids[1]];
         } finally {
           await appPool.end();
           await stratumPool.end();
         }
+      }
+
+      const scripts = (JSON.parse(fs.readFileSync(pkgPath, "utf8")) as { scripts: Record<string, string> }).scripts;
+      if (scripts["tenant:provision"]) {
+        // The project provisions each Stratum tenant: create the tenants with
+        // Stratum, then run the provisioning script for each one.
+        stratumMigrated = true;
+        tenants = await createStratumTenants();
         for (const id of tenants) run("npm", ["run", "tenant:provision", "--", id], dir);
       } else if (scripts["db:push"]) {
         // The project keeps a row-level security policy per tenant-scoped
         // table in prisma/rls.sql: add the same statements for the new table.
-        tenants = [FIXED_A, FIXED_B];
+        // Stratum's tables are already there when the project pushes its own.
+        stratumMigrated = true;
+        tenants = await createStratumTenants();
         const rlsPath = path.join(dir, "prisma/rls.sql");
         const statements = fs
           .readFileSync(rlsPath, "utf8")
@@ -253,6 +270,27 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       if (admin) {
         await cleanup();
         await admin.end();
+      }
+    });
+
+    it("gives the app role no right to create schemas or databases", async () => {
+      const r = await admin.query<{ create: boolean; createdb: boolean }>(
+        `SELECT has_database_privilege($1, $2, 'CREATE') AS create,
+                (SELECT rolcreatedb FROM pg_roles WHERE rolname = $1) AS createdb`,
+        [roles.app, dbName],
+      );
+      expect(r.rows[0]).toEqual({ create: false, createdb: false });
+    });
+
+    it("keeps Stratum's tables and rows through the project's setup", async () => {
+      if (!stratumMigrated) return;
+      const c = new pg.Client({ connectionString: urls.stratum });
+      await c.connect();
+      try {
+        const r = await c.query<{ slug: string }>("SELECT slug FROM tenants ORDER BY slug");
+        expect(r.rows.map((row) => row.slug)).toEqual([...slugs].sort());
+      } finally {
+        await c.end();
       }
     });
 

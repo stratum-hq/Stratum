@@ -34,22 +34,19 @@ export function postgresAppRoleSql(dbName: string, strategy?: string): string {
   let strategyGrant = "";
   if (strategy === "schema") {
     strategyGrant = `
--- schema-per-tenant: each tenant has its own schema. npm run tenant:provision
--- creates it as the superuser; the grant below also lets the app role create
+-- schema-per-tenant: each tenant has its own schema, which npm run
+-- tenant:provision creates as the superuser. The app role cannot create
 -- schemas. A schema named like a login comes first on that login's default
--- search path ("$user", public), so a schema the app creates could come
--- before public for the Stratum login or the bootstrap superuser. Both
--- search only public.
+-- search path ("$user", public), so the Stratum login and the bootstrap
+-- superuser search only public.
 ALTER ROLE ${stratum} IN DATABASE ${dbName} SET search_path = public;
 ALTER ROLE CURRENT_USER IN DATABASE ${dbName} SET search_path = public;
-GRANT CREATE ON DATABASE ${dbName} TO ${role};
 `;
   } else if (strategy === "database") {
     strategyGrant = `
--- database-per-tenant: each tenant has its own database. npm run
--- tenant:provision creates it as the superuser; this also lets the app role
--- create databases.
-ALTER ROLE ${role} CREATEDB;
+-- database-per-tenant: each tenant has its own database, which npm run
+-- tenant:provision creates as the superuser. The app role cannot create
+-- databases.
 `;
   }
   return `
@@ -108,6 +105,13 @@ CREATE POLICY tenant_isolation ON ${table}
 `;
 }
 
+/**
+ * The schema of the Prisma models of the PostgreSQL rls preset. prisma db push
+ * changes only the schemas the datasource lists, so with the models outside
+ * public it never drops or alters Stratum's tables there.
+ */
+export const PRISMA_APP_SCHEMA = "app";
+
 export function generatePresetInitSql(projectName: string, preset: StackPreset): string | null {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
 
@@ -138,7 +142,7 @@ function generatePostgresInit(projectName: string, dbName: string, preset: Stack
 -- ::uuid cast of '' raises an error.
 -- FORCE makes the policy apply to the table owner too; without it, a table
 -- created by the application role is not isolated for that role.
-${rlsTables(preset.orm)}`;
+${rlsTables(preset.orm, dbName)}`;
   }
 
   return `-- Initialize ${projectName} database
@@ -157,11 +161,18 @@ ${postgresAppRoleSql(dbName, strategy)}${rlsBlock}`;
  * Drizzle create their tables after this file runs, so their policies are in
  * the files those tools read.
  */
-function rlsTables(orm: string): string {
+function rlsTables(orm: string, dbName: string): string {
   if (orm === "prisma") {
+    const role = postgresAppRole(dbName);
     return `--
 -- The tables are created by Prisma (prisma/schema.prisma). npm run db:push
--- creates them and then applies their policies from prisma/rls.sql.
+-- creates them and then applies their policies from prisma/rls.sql. They are
+-- in their own schema, ${PRISMA_APP_SCHEMA}: prisma db push changes only that schema, so it
+-- never drops or alters Stratum's tables in public.
+CREATE SCHEMA ${PRISMA_APP_SCHEMA};
+GRANT USAGE ON SCHEMA ${PRISMA_APP_SCHEMA} TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA ${PRISMA_APP_SCHEMA} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA ${PRISMA_APP_SCHEMA} GRANT USAGE, SELECT ON SEQUENCES TO ${role};
 `;
   }
   if (orm === "drizzle") {
@@ -190,10 +201,14 @@ function generateMysqlInit(projectName: string, dbName: string): string {
 -- Ensure utf8mb4 for the database
 ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Tenant metadata table
+-- The tenants: npm run tenant:provision adds each one. slug names the
+-- tenant's own database (stratum_tenant_{slug}) or tables ({table}_{slug}),
+-- and the app looks it up by the tenant ID of a verified token. Do not change
+-- a slug: those names are fixed when the tenant is provisioned.
 CREATE TABLE IF NOT EXISTS _stratum_tenants (
   id VARCHAR(36) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  slug VARCHAR(63) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `;

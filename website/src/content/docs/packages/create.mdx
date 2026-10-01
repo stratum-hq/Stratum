@@ -67,7 +67,7 @@ A preset picks the database, isolation strategy, ORM, and framework in one strin
 npx @stratum-hq/create my-app --preset postgres-rls-prisma-express
 npx @stratum-hq/create my-app --preset postgres-schema-prisma-fastify
 npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono
-npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs
+npx @stratum-hq/create my-app --preset mysql-table-prefix-pg-nestjs
 ```
 
 | Database | Strategies | ORMs |
@@ -75,7 +75,7 @@ npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs
 | `postgres` | `rls` | `prisma`, `drizzle`, `sequelize`, `knex`, `pg` |
 | `postgres` | `schema`, `database` | `prisma`, `pg` |
 | `mongodb` | `database`, `collection` | `mongoose` |
-| `mysql` | `database`, `table-prefix` | `sequelize`, `knex`, `pg` |
+| `mysql` | `database`, `table-prefix` | `pg` (the `mysql2` driver) |
 
 Every combination in the table works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none` (database setup only).
 
@@ -85,10 +85,18 @@ An invalid preset, or a combination the table does not allow, exits with an erro
 
 ### Tenant isolation on PostgreSQL
 
-- **rls**: all tenants share the tables. Every tenant-scoped table has a `tenant_id` column and a `tenant_isolation` row-level security policy, and the generated helper sets `app.current_tenant_id` for each tenant query. A table without a policy is not filtered by tenant. The preset creates an example table, `notes`, with its policy: in `init.sql` (pg, Knex, Sequelize), in `src/schema.ts` (Drizzle), or in `prisma/rls.sql`, which `npm run db:push` applies after `prisma db push` (Prisma).
+- **rls**: all tenants share the tables. Every tenant-scoped table has a `tenant_id` column and a `tenant_isolation` row-level security policy, and the generated helper sets `app.current_tenant_id` for each tenant query. A table without a policy is not filtered by tenant. The preset creates an example table, `notes`, with its policy: in `init.sql` (pg, Knex, Sequelize), in `src/schema.ts` (Drizzle), or in `prisma/rls.sql`, which `npm run db:push` applies after `prisma db push` (Prisma). The Prisma models are in their own schema, `app`, so `prisma db push` never drops or alters Stratum's tables in `public`.
 - **schema** and **database**: each tenant's tables are in its own schema, `tenant_{slug}`, or its own database, `stratum_tenant_{slug}`, and the generated helper sends each query there with the `@stratum-hq/db-adapters` adapter for the strategy: `SchemaPrismaAdapter`, `SchemaRawAdapter`, `DatabasePrismaAdapter`, or `DatabaseRawAdapter`. These presets use no row-level security. Create each tenant with Stratum, then run `npm run tenant:provision -- <tenant-id>`, which creates the tenant's schema or database and its tables. The helper takes the tenant ID from the verified token and looks up the tenant's slug in Stratum; it never takes the slug from the hostname or a header. Drizzle, Sequelize, and Knex have no schema or database adapter, so the generator offers them only with `rls`.
+- The name of a tenant's schema or database is fixed when the tenant is provisioned and does not follow a later slug change. Do not change a provisioned tenant's slug, and never give a tenant a slug that another tenant had.
 
 Tables are created by the superuser in `DATABASE_SUPERUSER_URL`, never by the app role in `DATABASE_URL`, and Stratum's own tables by Stratum's login in `STRATUM_ADMIN_DATABASE_URL`.
+
+### Tenant isolation on MySQL
+
+- **database**: each tenant's tables are in its own database, `stratum_tenant_{slug}`, and the generated helper sends each query there with `MysqlDatabaseAdapter` from `@stratum-hq/mysql`.
+- **table-prefix**: each tenant has its own copy of each table, `{table}_{slug}`, and the generated helper names the tenant's tables with `MysqlTableAdapter`.
+
+Run `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. It runs as the admin user in `DATABASE_SUPERUSER_URL`, creates the tenant's database or tables from `sql/tenant.sql`, and records the slug in `_stratum_tenants`. The helper takes the tenant ID from the verified token and looks up the slug there; it never takes the slug from the hostname or a header. The names are fixed at provisioning, so do not change a slug or give a tenant a slug that another tenant had. The Knex and Sequelize helpers of `@stratum-hq/mysql` scope a shared table by `tenant_id`, which neither strategy uses, so the generator offers MySQL only with the `mysql2` driver.
 
 ## After Scaffolding
 

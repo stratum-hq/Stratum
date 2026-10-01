@@ -135,9 +135,9 @@ describe("generated package scripts", () => {
   const presets: Array<[StackPreset, string]> = [
     [{ database: "postgres", strategy: "rls", orm: "pg", framework: "express" }, "index"],
     [{ database: "postgres", strategy: "rls", orm: "pg", framework: "none" }, "index"],
-    [{ database: "mysql", strategy: "table-prefix", orm: "sequelize", framework: "nestjs" }, "main"],
+    [{ database: "mysql", strategy: "table-prefix", orm: "pg", framework: "nestjs" }, "main"],
     [{ database: "postgres", strategy: "rls", orm: "knex", framework: "express" }, "index"],
-    [{ database: "mysql", strategy: "database", orm: "knex", framework: "nestjs" }, "main"],
+    [{ database: "mysql", strategy: "database", orm: "pg", framework: "nestjs" }, "main"],
   ];
   for (const [preset, entry] of presets) {
     const label = `${preset.database}-${preset.strategy}-${preset.orm}-${preset.framework}`;

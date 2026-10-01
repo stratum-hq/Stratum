@@ -1,5 +1,5 @@
 import type { StackPreset } from "../matrix.js";
-import { tenantIsolationPolicySql } from "./init-sql.js";
+import { PRISMA_APP_SCHEMA, tenantIsolationPolicySql } from "./init-sql.js";
 
 export interface DbSetupFile {
   filename: string;
@@ -26,21 +26,26 @@ export function generateDbSetup(preset: StackPreset): DbSetupFile[] {
 function generatePrismaSetup(preset: StackPreset): DbSetupFile[] {
   const provider = preset.database === "mysql" ? "mysql" : "postgresql";
   const isolated = isIsolatedPostgres(preset);
+  // On the rls preset, Stratum's own tables share the database with the
+  // models, so the models get their own schema (see prismaSharedModels).
+  const ownSchema = preset.database === "postgres" && preset.strategy === "rls";
 
   const files: DbSetupFile[] = [
     {
       filename: "prisma/schema.prisma",
       content: `// Prisma schema for Stratum multi-tenancy
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client-js"${ownSchema ? `
+  previewFeatures = ["multiSchema"]` : ""}
 }
 
 datasource db {
   provider = "${provider}"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")${ownSchema ? `
+  schemas  = ["${PRISMA_APP_SCHEMA}"]` : ""}
 }
 
-${isolated ? prismaIsolatedModels(preset.strategy) : prismaSharedModels()}`,
+${isolated ? prismaIsolatedModels(preset.strategy) : prismaSharedModels(ownSchema)}`,
     },
   ];
 
@@ -88,11 +93,16 @@ export { prisma, pool };
   return files;
 }
 
-function prismaSharedModels(): string {
+function prismaSharedModels(ownSchema: boolean): string {
   return `// An example tenant-scoped model: every row carries the tenant it belongs to.
 // Stratum's own tables, such as tenants, are created by Stratum, not here.
 // Each tenant-scoped model needs a tenantId column and a row-level security
-// policy in prisma/rls.sql.
+// policy in prisma/rls.sql.${ownSchema ? `
+//
+// Every model is in the ${PRISMA_APP_SCHEMA} schema (@@schema("${PRISMA_APP_SCHEMA}")). Stratum's tables are in
+// public, and prisma db push changes only the schemas listed in the
+// datasource, so it never drops or alters them. Give each model you add
+// @@schema("${PRISMA_APP_SCHEMA}") too.` : ""}
 model Note {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
@@ -100,7 +110,8 @@ model Note {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([tenantId])
-  @@map("notes")
+  @@map("notes")${ownSchema ? `
+  @@schema("${PRISMA_APP_SCHEMA}")` : ""}
 }
 `;
 }
@@ -133,18 +144,21 @@ function isIsolatedPostgres(preset: StackPreset): boolean {
 const PRISMA_RLS_SQL = `-- Row-level security for the tenant-scoped tables of prisma/schema.prisma.
 -- npm run db:push applies this file as the superuser after prisma db push.
 -- Add the same statements for every tenant-scoped table you add: a table
--- without a policy is not filtered by tenant.
+-- without a policy is not filtered by tenant. The tables are in the
+-- ${PRISMA_APP_SCHEMA} schema.
 --
 -- FORCE makes the policy apply to the table owner too. The app role does not
 -- own the tables (the superuser creates them), and it is not a superuser and
 -- has no BYPASSRLS, so the policy applies to it.
-${tenantIsolationPolicySql("notes")}`;
+${tenantIsolationPolicySql(`${PRISMA_APP_SCHEMA}.notes`)}`;
 
 const PRISMA_DB_PUSH = `// Creates the tables of prisma/schema.prisma and their row-level security
 // policies (prisma/rls.sql). Run it with: npm run db:push
 //
 // Both steps run as the superuser in DATABASE_SUPERUSER_URL. The app role
-// (DATABASE_URL) cannot create tables, and must not own them.
+// (DATABASE_URL) cannot create tables, and must not own them. prisma db push
+// changes only the ${PRISMA_APP_SCHEMA} schema, which the datasource lists, so Stratum's
+// tables in public are left alone.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import pg from "pg";
@@ -191,7 +205,8 @@ export const stratum = new Stratum({
  * choose those. Throws when no active tenant has this ID.
  *
  * Do not change a tenant's slug after it is provisioned: the name of its
- * schema or database does not follow the slug.
+ * schema or database is fixed at provisioning and does not follow the slug.
+ * Never give a tenant a slug that another tenant had.
  */
 export async function tenantSlug(tenantId: string): Promise<string> {
   return (await stratum.getTenant(tenantId)).slug;
@@ -622,7 +637,7 @@ Tenant.init(
   { sequelize, tableName: "tenants", underscored: true },
 );
 
-${preset.database === "postgres" ? SEQUELIZE_POSTGRES_SCOPE : SEQUELIZE_COLUMN_SCOPE}
+${SEQUELIZE_POSTGRES_SCOPE}
 export { sequelize, Tenant };
 `,
     },
@@ -653,11 +668,6 @@ export async function withTenantScope<T>(
 // );
 `;
 
-const SEQUELIZE_COLUMN_SCOPE = `// For tenant isolation, add a tenantId scope to each model:
-//   MyModel.addScope("tenant", (tenantId) => ({ where: { tenant_id: tenantId } }));
-//   const rows = await MyModel.scope({ method: ["tenant", currentTenantId] }).findAll();
-`;
-
 function generateKnexSetup(preset: StackPreset): DbSetupFile[] {
   const client = preset.database === "mysql" ? "mysql2" : "pg";
 
@@ -681,7 +691,7 @@ export default config;
     },
     {
       filename: "src/stratum-knex.ts",
-      content: preset.database === "postgres" ? KNEX_POSTGRES_SCOPE : knexColumnScope(preset.database),
+      content: KNEX_POSTGRES_SCOPE,
     },
   ];
 }
@@ -713,23 +723,6 @@ export async function withTenantScope<T>(
 
 export { knex };
 `;
-
-function knexColumnScope(database: string): string {
-  return `// Knex with Stratum tenant-scoped queries
-import Knex from "knex";
-import config from "../knexfile.js";
-
-const knex = Knex(config);
-
-// Create a tenant-scoped query builder.
-export async function withTenantScope(tenantId: string, fn: (db: typeof knex) => Promise<void>) {
-  // For ${database}, scope queries by tenant_id column
-  await fn(knex);
-}
-
-export { knex };
-`;
-}
 
 // @stratum-hq/mongodb has no Mongoose connection helper. The generated code uses
 // Mongoose directly and copies the tenant names of the @stratum-hq/mongodb
@@ -803,33 +796,7 @@ export { mainConnection };
 
 function generatePgSetup(preset: StackPreset): DbSetupFile[] {
   if (preset.database === "mysql") {
-    return [
-      {
-        filename: "src/stratum-db.ts",
-        content: `// Raw MySQL client with Stratum tenant-scoped queries
-import mysql from "mysql2/promise";
-
-const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL,
-});
-
-// Execute a query scoped to a tenant by filtering on tenant_id
-export async function tenantQuery(
-  tenantId: string,
-  sql: string,
-  params: (string | number | bigint | boolean | Date | null)[] = [],
-) {
-  const [rows] = await pool.execute(sql, [...params, tenantId]);
-  return rows;
-}
-
-// Usage:
-// const orders = await tenantQuery("tenant-abc", "SELECT * FROM orders WHERE tenant_id = ?");
-
-export { pool };
-`,
-      },
-    ];
+    return generateMysqlSetup(preset);
   }
 
   if (isIsolatedPostgres(preset)) {
@@ -867,4 +834,209 @@ export { pool };
 `,
     },
   ];
+}
+
+// ─── MySQL ───────────────────────────────────────────────────────────────────
+// The MySQL presets route each tenant with the @stratum-hq/mysql adapter of
+// the strategy: MysqlDatabaseAdapter (a database per tenant) or
+// MysqlTableAdapter (a copy of each table per tenant). Both take the tenant's
+// slug, which the generated code looks up in _stratum_tenants by the tenant ID
+// of the verified token.
+
+function generateMysqlSetup(preset: StackPreset): DbSetupFile[] {
+  const database = preset.strategy === "database";
+  return [
+    { filename: "src/stratum-tenant.ts", content: mysqlTenantLookup(database ? "database" : "tables") },
+    { filename: "src/stratum-db.ts", content: database ? MYSQL_DATABASE_CLIENT : MYSQL_TABLE_CLIENT },
+    { filename: "sql/tenant.sql", content: database ? MYSQL_DATABASE_TENANT_SQL : MYSQL_TABLE_TENANT_SQL },
+    { filename: "scripts/provision-tenant.mjs", content: mysqlProvisionScript(database) },
+  ];
+}
+
+function mysqlTenantLookup(where: string): string {
+  return `// Maps a verified tenant ID to the tenant's slug. The slug names the tenant's
+// own database (stratum_tenant_{slug}) or tables ({table}_{slug}).
+import mysql, { type RowDataPacket } from "mysql2/promise";
+
+// The app's own database, as the app user in DATABASE_URL.
+export const pool = mysql.createPool({ uri: process.env.DATABASE_URL! });
+
+/**
+ * The slug of the tenant with this ID, from _stratum_tenants, where npm run
+ * tenant:provision records it. Pass only the tenant_id claim of a verified
+ * token, as the generated server resolves it. Never take the slug from the
+ * request, such as its host name or a header: any caller can choose those.
+ * Throws when no tenant with this ID is provisioned.
+ *
+ * Do not change a slug in _stratum_tenants: the names of the tenant's
+ * ${where} are fixed at provisioning and do not follow the slug.
+ */
+export async function tenantSlug(tenantId: string): Promise<string> {
+  const [rows] = await pool.query<RowDataPacket[]>("SELECT slug FROM _stratum_tenants WHERE id = ?", [tenantId]);
+  if (rows.length === 0) throw new Error(\`No provisioned tenant has the ID \${tenantId}\`);
+  return rows[0].slug as string;
+}
+`;
+}
+
+const MYSQL_DATABASE_CLIENT = `// MySQL client with Stratum database-per-tenant isolation: each tenant's
+// tables are in its own database, stratum_tenant_{slug}.
+import mysql from "mysql2/promise";
+import { MysqlDatabaseAdapter } from "@stratum-hq/mysql";
+import { tenantSlug } from "./stratum-tenant.js";
+
+// Opens one pool per tenant database, as the app user in DATABASE_URL, with
+// the tenant's database name in place of the one in the URL.
+export const adapter = new MysqlDatabaseAdapter({
+  createPool: (uri) => mysql.createPool(uri),
+  baseUri: process.env.DATABASE_URL!,
+});
+
+/** Runs one query in the tenant's database. Pass the tenant ID of a verified token. */
+export async function tenantQuery<T = unknown>(tenantId: string, sql: string, params: unknown[] = []): Promise<T> {
+  const slug = await tenantSlug(tenantId);
+  const pool = await adapter.getPool(slug);
+  try {
+    const [result] = await pool.query(sql, params);
+    return result as T;
+  } finally {
+    adapter.releasePool(slug);
+  }
+}
+
+// Usage:
+// const notes = await tenantQuery(tenantId, "SELECT * FROM notes");
+`;
+
+const MYSQL_TABLE_CLIENT = `// MySQL client with Stratum table-per-tenant isolation: each tenant has its
+// own copy of each table, {table}_{slug}, in the app's database.
+import { MysqlTableAdapter } from "@stratum-hq/mysql";
+import { pool, tenantSlug } from "./stratum-tenant.js";
+
+// Every table of sql/tenant.sql, by its name without the slug. Add each table
+// you add there.
+export const BASE_TABLES = ["notes"] as const;
+export type BaseTable = (typeof BASE_TABLES)[number];
+
+export const adapter = new MysqlTableAdapter({
+  pool,
+  databaseName: decodeURIComponent(new URL(process.env.DATABASE_URL!).pathname.slice(1)),
+  baseTables: [...BASE_TABLES],
+});
+
+/**
+ * Runs one query on the tenant's tables. sql gets table(), which returns the
+ * escaped name of the tenant's copy of a table: name every table with
+ * table("notes"), never by its plain name. Pass the tenant ID of a verified
+ * token.
+ */
+export async function tenantQuery<T = unknown>(
+  tenantId: string,
+  sql: (table: (base: BaseTable) => string) => string,
+  params: unknown[] = [],
+): Promise<T> {
+  const slug = await tenantSlug(tenantId);
+  const [result] = await pool.query(sql((base) => adapter.scopedTable(slug, base)), params);
+  return result as T;
+}
+
+// Usage:
+// const notes = await tenantQuery(tenantId, (table) => \`SELECT * FROM \${table("notes")}\`);
+`;
+
+const MYSQL_DATABASE_TENANT_SQL = `-- The tables of one tenant. npm run tenant:provision runs this file as the
+-- admin user in each new tenant's own database, so the tables need no tenant
+-- column. Add your tenant tables here.
+CREATE TABLE notes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+const MYSQL_TABLE_TENANT_SQL = `-- The tables of one tenant. npm run tenant:provision runs this file as the
+-- admin user for each new tenant, with {slug} replaced by the tenant's slug,
+-- so each tenant gets its own copy of each table and the tables need no
+-- tenant column. Name each table \`{table}_{slug}\`, and add {table} to
+-- BASE_TABLES in src/stratum-db.ts.
+CREATE TABLE \`notes_{slug}\` (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+/**
+ * scripts/provision-tenant.mjs of the MySQL presets: creates one tenant's
+ * database or tables as the admin user and records its slug.
+ */
+function mysqlProvisionScript(database: boolean): string {
+  const what = database
+    ? "its own database (stratum_tenant_{slug}) and runs sql/tenant.sql in it"
+    : "its copy of each table of sql/tenant.sql ({table}_{slug})";
+  const body = database
+    ? `  // The app user as MySQL names it, user@host, for the grant.
+  const app = await mysql.createConnection({ uri: process.env.DATABASE_URL });
+  const [[{ user: appUser }]] = await app.query("SELECT CURRENT_USER() AS user");
+  await app.end();
+  const at = appUser.lastIndexOf("@");
+
+  const database = \`stratum_tenant_\${slug}\`;
+  // Fails if the database exists: it may hold another tenant's data.
+  await admin.query(\`CREATE DATABASE \\\`\${database}\\\`\`);
+  // In a GRANT, _ in a database name matches any character, and \\_ only _.
+  await admin.query(\`GRANT SELECT, INSERT, UPDATE, DELETE ON \\\`\${database.replaceAll("_", "\\\\_")}\\\`.* TO ?@?\`, [
+    appUser.slice(0, at),
+    appUser.slice(at + 1),
+  ]);
+  const databaseUrl = new URL(superuserUrl);
+  databaseUrl.pathname = \`/\${database}\`;
+  const tenant = await mysql.createConnection({ uri: databaseUrl.toString(), multipleStatements: true });
+  try {
+    await tenant.query(readFileSync("sql/tenant.sql", "utf8"));
+  } finally {
+    await tenant.end();
+  }`
+    : `  // Fails if a table exists: it may hold another tenant's data.
+  await admin.query(readFileSync("sql/tenant.sql", "utf8").replaceAll("{slug}", slug));`;
+
+  return `// Provisions one tenant: creates ${what},
+// and records the tenant's slug in _stratum_tenants, where the app looks it up.
+//
+//   npm run tenant:provision -- <tenant-id> <slug>
+//
+// <tenant-id> is the tenant_id claim of the tenant's tokens. <slug> names the
+// tenant's ${database ? "database" : "tables"}: a lowercase letter, then lowercase letters, digits or
+// underscores. It runs as the admin user in DATABASE_SUPERUSER_URL, never as
+// the app user in DATABASE_URL.
+import { readFileSync } from "node:fs";
+import mysql from "mysql2/promise";
+
+const [tenantId, slug] = process.argv.slice(2);
+if (!tenantId || !slug) {
+  console.error("Usage: npm run tenant:provision -- <tenant-id> <slug>");
+  process.exit(1);
+}
+// The Stratum slug rule, which @stratum-hq/mysql checks too.
+if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error(\`Invalid tenant slug: \${slug}\`);
+for (const key of ["DATABASE_URL", "DATABASE_SUPERUSER_URL"]) {
+  if (!process.env[key]) throw new Error(\`\${key} must be set (see .env.example)\`);
+}
+const superuserUrl = process.env.DATABASE_SUPERUSER_URL;
+
+const admin = await mysql.createConnection({ uri: superuserUrl, multipleStatements: true });
+try {
+  // Each tenant ID and each slug is provisioned once: a tenant that got a
+  // slug another tenant had would reach that tenant's ${database ? "database" : "tables"}.
+  const [existing] = await admin.query("SELECT id FROM _stratum_tenants WHERE id = ? OR slug = ?", [tenantId, slug]);
+  if (existing.length > 0) throw new Error(\`Tenant \${tenantId} or slug \${slug} is already provisioned\`);
+
+${body}
+
+  await admin.query("INSERT INTO _stratum_tenants (id, name, slug) VALUES (?, ?, ?)", [tenantId, slug, slug]);
+} finally {
+  await admin.end();
+}
+console.log(\`Provisioned tenant \${tenantId} as \${slug}\`);
+`;
 }

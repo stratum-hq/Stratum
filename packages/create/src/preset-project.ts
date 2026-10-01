@@ -26,7 +26,7 @@ function writeFile(filePath: string, content: string): void {
   console.log(`  created  ${path.relative(process.cwd(), filePath)}`);
 }
 
-function generatePresetEnv(projectName: string, preset: StackPreset): string {
+export function generatePresetEnv(projectName: string, preset: StackPreset): string {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
 
@@ -47,6 +47,7 @@ function generatePresetEnv(projectName: string, preset: StackPreset): string {
       break;
     case "mysql":
       dbUrl = `mysql://${dbName}:dev_password@localhost:3306/${dbName}`;
+      adminUrlLine = `\n# Admin user: tenant provisioning only (npm run tenant:provision).\nDATABASE_SUPERUSER_URL=mysql://root:dev_root_password@localhost:3306/${dbName}\n`;
       break;
   }
 

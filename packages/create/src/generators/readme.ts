@@ -64,6 +64,9 @@ function getDbSetupNote(preset: StackPreset): string {
   if (preset.database === "postgres" && (preset.strategy === "schema" || preset.strategy === "database")) {
     return getProvisioningNote(preset);
   }
+  if (preset.database === "mysql") {
+    return getMysqlProvisioningNote(preset);
+  }
   if (preset.orm === "prisma") {
     if (preset.database === "postgres") {
       return `
@@ -140,7 +143,47 @@ Each tenant's tables are in its own ${place}. Tenants share no table, so the tab
 
 ${changes}
 
-In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in Stratum. Never take the slug from the hostname or a request header, which any caller can choose. Do not change a tenant's slug after it is provisioned: the ${where} name does not follow it.
+In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in Stratum. Never take the slug from the hostname or a request header, which any caller can choose.
+
+${slugReuseNote(where)}
+`;
+}
+
+/** The README warning that a provisioned name keeps the slug of provisioning time. */
+function slugReuseNote(where: "schema" | "database" | "tables"): string {
+  const names = where === "tables" ? "The table names are fixed" : `The ${where} name is fixed`;
+  const keeps = where === "tables" ? "they keep the slug the tenant had then and do not" : "it keeps the slug the tenant had then and does not";
+  return `${names} when the tenant is provisioned: ${keeps} follow a later slug change. Do not change a provisioned tenant's slug. Never give a tenant a slug that another tenant had, even after a rename or a deletion: the new tenant would reach the old tenant's ${where}.`;
+}
+
+/** Setup steps of the MySQL presets. */
+function getMysqlProvisioningNote(preset: StackPreset): string {
+  const database = preset.strategy === "database";
+  const where = database ? "database" : "tables";
+  const place = database
+    ? "Each tenant's tables are in its own database, `stratum_tenant_{slug}`."
+    : "Each tenant has its own copy of each table, `{table}_{slug}`, in the app's database.";
+  const helper = database
+    ? "`tenantQuery(tenantId, sql, params)` in `src/stratum-db.ts` runs a query in the tenant's own database"
+    : "`tenantQuery(tenantId, (table) => sql, params)` in `src/stratum-db.ts` runs a query on the tenant's own tables: name each table with `table(\"notes\")`, never by its plain name";
+  const tables = database
+    ? "Add your tenant tables to `sql/tenant.sql`."
+    : "Add your tenant tables to `sql/tenant.sql`, named `{table}_{slug}`, and add each `{table}` to `BASE_TABLES` in `src/stratum-db.ts`.";
+
+  return `
+### 3b. Provision each tenant
+
+${place} Tenants share no table, so the tables need no tenant column. ${tables}
+
+\`\`\`bash
+npm run tenant:provision -- <tenant-id> <slug>
+\`\`\`
+
+\`<tenant-id>\` is the \`tenant_id\` claim of the tenant's tokens, and \`<slug>\` names the tenant's ${where}: a lowercase letter, then lowercase letters, digits or underscores. The script runs as the admin user in \`DATABASE_SUPERUSER_URL\`, never as the app user. It creates the tenant's ${where} from \`sql/tenant.sql\`${database ? ", gives the app user read and write access to them" : ""}, and records the slug in \`_stratum_tenants\`. After you change \`sql/tenant.sql\`, apply the change to each tenant's ${where} as the admin user.
+
+In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in \`_stratum_tenants\`. Never take the slug from the hostname or a request header, which any caller can choose.
+
+${slugReuseNote(where)}
 `;
 }
 
@@ -155,9 +198,9 @@ function getStrategyDescription(preset: StackPreset): string {
 - The generated helper (${preset.orm === "prisma" ? "`SchemaPrismaAdapter`" : "`SchemaRawAdapter`"} from \`@stratum-hq/db-adapters\`) sends each query to the schema of the tenant in the verified token
 - Shared database, isolated schemas, no row-level security`;
     case "database":
-      if (preset.database !== "postgres") {
-        return `- **Database-per-tenant**: each tenant gets a fully isolated database
-- Connection routing directs queries to the correct database
+      if (preset.database === "mysql") {
+        return `- **Database-per-tenant**: each tenant's tables are in its own MySQL database, \`stratum_tenant_{slug}\`, which \`npm run tenant:provision\` creates
+- The generated helper (\`MysqlDatabaseAdapter\` from \`@stratum-hq/mysql\`) sends each query to the database of the tenant in the verified token
 - Maximum isolation at the cost of more resource usage`;
       }
       return `- **Database-per-tenant**: each tenant's tables are in its own PostgreSQL database, \`stratum_tenant_{slug}\`, which \`npm run tenant:provision\` creates
@@ -168,9 +211,9 @@ function getStrategyDescription(preset: StackPreset): string {
 - Collection names are prefixed or namespaced by tenant ID
 - Shared database, isolated collections`;
     case "table-prefix":
-      return `- **Table-prefix**: tenant-specific tables with a naming prefix
-- Tables are prefixed with the tenant identifier
-- Shared database, prefixed table names`;
+      return `- **Table-per-tenant**: each tenant has its own copy of each table, \`{table}_{slug}\`, which \`npm run tenant:provision\` creates
+- The generated helper (\`MysqlTableAdapter\` from \`@stratum-hq/mysql\`) names the tables of the tenant in the verified token
+- Shared database, one set of tables per tenant`;
     default:
       return "";
   }

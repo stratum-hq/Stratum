@@ -7,11 +7,11 @@ import { scaffoldProject } from "./helpers/create-cli.js";
 import { ROLE_PREFIX, dropTestRole } from "./helpers/role-model.js";
 
 /**
- * A generated postgres-schema project lets the app login create schemas (one
- * per tenant). A schema named like a login comes first on that login's
- * default search path, so the init.sql of such a project keeps every schema
- * the app creates off the search path of the Stratum login and of the
- * bootstrap superuser.
+ * A generated postgres-schema project creates each tenant's schema as the
+ * bootstrap superuser, so the app login cannot create schemas. A schema named
+ * like a login comes first on that login's default search path, so the
+ * init.sql of such a project also keeps every other schema off the search
+ * path of the Stratum login and of the bootstrap superuser.
  *
  * The project name, and so its database and role names, carries the test
  * role prefix, because roles are cluster-wide.
@@ -84,12 +84,14 @@ afterAll(async () => {
 });
 
 describe("generated postgres-schema project", () => {
-  it("lets the app login create schemas, for its tenants", async () => {
-    await asLogin("app", (c) => c.query(`CREATE SCHEMA "tenant_acme"`));
+  it("does not let the app login create schemas", async () => {
+    await expect(asLogin("app", (c) => c.query(`CREATE SCHEMA "tenant_acme"`))).rejects.toThrow(
+      /permission denied/,
+    );
   });
 
-  it("keeps schemas the app login creates off the search path of the Stratum login and the bootstrap superuser", async () => {
-    await asLogin("app", async (c) => {
+  it("keeps schemas named like a login off the search path of the Stratum login and the bootstrap superuser", async () => {
+    await asLogin("boot", async (c) => {
       // The owner of a schema can let every login use it.
       await c.query(`CREATE SCHEMA "${stratumRole}"; GRANT USAGE ON SCHEMA "${stratumRole}" TO PUBLIC`);
       await c.query(`CREATE SCHEMA "${bootstrapUser}"; GRANT USAGE ON SCHEMA "${bootstrapUser}" TO PUBLIC`);

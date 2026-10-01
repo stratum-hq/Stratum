@@ -168,13 +168,16 @@ describe("createPresetProject", () => {
 
   // ── MySQL presets ──
 
-  it("generates mysql-table-prefix-sequelize-nestjs project", () => {
-    const preset: StackPreset = { database: "mysql", strategy: "table-prefix", orm: "sequelize", framework: "nestjs" };
+  it("generates mysql-table-prefix-pg-nestjs project", () => {
+    const preset: StackPreset = { database: "mysql", strategy: "table-prefix", orm: "pg", framework: "nestjs" };
     createPresetProject("test-project", preset, projectDir, true);
 
     expect(fs.existsSync(path.join(projectDir, "docker-compose.yml"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "init.sql"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "src", "stratum-sequelize.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "stratum-db.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "stratum-tenant.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "sql", "tenant.sql"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "scripts", "provision-tenant.mjs"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "src", "main.ts"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "src", "app.module.ts"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "src", "tenant.guard.ts"))).toBe(true);
@@ -183,21 +186,21 @@ describe("createPresetProject", () => {
     expect(docker).toContain("mysql:8");
 
     const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
-    expect(pkg.dependencies["sequelize"]).toBeDefined();
+    expect(pkg.dependencies["mysql2"]).toBeDefined();
     expect(pkg.dependencies["@nestjs/core"]).toBeDefined();
     expect(pkg.dependencies["@stratum-hq/mysql"]).toBeDefined();
     expect(pkg.dependencies["@stratum-hq/nestjs"]).toBeDefined();
   });
 
-  it("generates mysql-database-knex-express project", () => {
-    const preset: StackPreset = { database: "mysql", strategy: "database", orm: "knex", framework: "express" };
+  it("generates mysql-database-pg-express project", () => {
+    const preset: StackPreset = { database: "mysql", strategy: "database", orm: "pg", framework: "express" };
     createPresetProject("test-project", preset, projectDir, true);
 
-    expect(fs.existsSync(path.join(projectDir, "knexfile.ts"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "src", "stratum-knex.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "stratum-db.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "scripts", "provision-tenant.mjs"))).toBe(true);
 
     const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
-    expect(pkg.dependencies["knex"]).toBeDefined();
+    expect(pkg.dependencies["mysql2"]).toBeDefined();
     expect(pkg.dependencies["express"]).toBeDefined();
   });
 

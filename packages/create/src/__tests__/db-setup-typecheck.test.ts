@@ -40,7 +40,7 @@ const PRESETS = [
   "postgres-schema-pg-none",
   "postgres-database-pg-none",
   "mysql-database-pg-none",
-  "mysql-database-knex-none",
+  "mysql-table-prefix-pg-none",
   "mongodb-database-mongoose-none",
   "mongodb-collection-mongoose-none",
 ].map((s) => parsePresetString(s) as StackPreset);

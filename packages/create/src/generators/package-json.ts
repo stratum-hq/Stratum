@@ -190,10 +190,13 @@ function getScripts(preset: StackPreset): Record<string, string> {
 }
 
 /**
- * Scripts that set up the database. They run with the superuser in
- * DATABASE_SUPERUSER_URL, never as the app role.
+ * Scripts that set up the database. They run with the superuser (the MySQL
+ * admin user) in DATABASE_SUPERUSER_URL, never as the app role.
  */
 function getDatabaseScripts(preset: StackPreset): Record<string, string> {
+  if (preset.database === "mysql") {
+    return { "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs" };
+  }
   if (preset.database !== "postgres") return {};
   if (preset.strategy === "schema" || preset.strategy === "database") {
     return { "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs" };

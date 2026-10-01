@@ -30,7 +30,10 @@ const MONGODB_STRATEGIES: Strategy[] = ["database", "collection"];
 const MONGODB_ORMS: Orm[] = ["mongoose"];
 
 const MYSQL_STRATEGIES: Strategy[] = ["database", "table-prefix"];
-const MYSQL_ORMS: Orm[] = ["sequelize", "knex", "pg"];
+// @stratum-hq/mysql routes queries to a tenant's database or tables only for
+// the raw mysql2 driver ("pg" here). Its Knex and Sequelize helpers scope a
+// shared table by tenant_id, which neither MySQL strategy uses.
+const MYSQL_ORMS: Orm[] = ["pg"];
 
 const ALL_FRAMEWORKS: Framework[] = ["express", "fastify", "nextjs", "hono", "nestjs", "none"];
 

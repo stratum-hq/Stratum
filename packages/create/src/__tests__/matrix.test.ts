@@ -175,12 +175,8 @@ describe("isValidPreset", () => {
   });
 
   // Valid MySQL combos
-  it("accepts mysql-database-sequelize-express", () => {
-    expect(isValidPreset({ database: "mysql", strategy: "database", orm: "sequelize", framework: "express" })).toBe(true);
-  });
-
-  it("accepts mysql-table-prefix-knex-nextjs", () => {
-    expect(isValidPreset({ database: "mysql", strategy: "table-prefix", orm: "knex", framework: "nextjs" })).toBe(true);
+  it("accepts mysql-table-prefix-pg-nextjs", () => {
+    expect(isValidPreset({ database: "mysql", strategy: "table-prefix", orm: "pg", framework: "nextjs" })).toBe(true);
   });
 
   it("accepts mysql-database-pg-fastify", () => {
@@ -207,6 +203,15 @@ describe("isValidPreset", () => {
   it("rejects mysql-database-mongoose-express (mongoose not valid for mysql)", () => {
     expect(isValidPreset({ database: "mysql", strategy: "database", orm: "mongoose", framework: "express" })).toBe(false);
   });
+
+  // @stratum-hq/mysql routes a tenant's database or tables only for the raw driver.
+  for (const strategy of ["database", "table-prefix"] as const) {
+    for (const orm of ["sequelize", "knex"] as const) {
+      it(`rejects mysql-${strategy}-${orm}-express (no ${strategy} adapter for ${orm})`, () => {
+        expect(isValidPreset({ database: "mysql", strategy, orm, framework: "express" })).toBe(false);
+      });
+    }
+  }
 
   // db-adapters has no schema or database adapter for these ORMs.
   for (const strategy of ["schema", "database"] as const) {
@@ -268,11 +273,12 @@ describe("getValidOptions", () => {
     expect(opts.databases).toEqual(["mysql"]);
   });
 
-  it("includes postgres and mysql for sequelize", () => {
-    const opts = getValidOptions({ orm: "sequelize" });
-    expect(opts.databases).toContain("postgres");
-    expect(opts.databases).toContain("mysql");
-    expect(opts.databases).not.toContain("mongodb");
+  it("includes only postgres for sequelize", () => {
+    expect(getValidOptions({ orm: "sequelize" }).databases).toEqual(["postgres"]);
+  });
+
+  it("includes postgres and mysql for pg", () => {
+    expect(getValidOptions({ orm: "pg" }).databases).toEqual(["postgres", "mysql"]);
   });
 });
 
