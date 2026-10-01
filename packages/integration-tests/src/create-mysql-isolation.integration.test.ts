@@ -55,7 +55,12 @@ const caseVariant = await q(A.toUpperCase(), "SELECT body FROM items").then(
   (rows: any) => rows.map((r: any) => r.body),
   () => "refused",
 );
-console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody, caseVariant }));
+// The tenant ID with a trailing space is refused before the lookup.
+const spaced = await q(A + " ", "SELECT body FROM items").then(
+  (rows: any) => rows.map((r: any) => r.body),
+  (e: Error) => (e.message.startsWith("Invalid tenant ID") ? "refused" : e.message),
+);
+console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody, caseVariant, spaced }));
 process.exit(0);
 `;
 
@@ -196,7 +201,13 @@ function isolationSuite(strategy: "database" | "table-prefix"): void {
         aUpdated: number;
         bBody: string | null;
       };
-      expect(result).toEqual({ aSees: ["a-note"], aUpdated: 0, bBody: "b-secret", caseVariant: "refused" });
+      expect(result).toEqual({
+        aSees: ["a-note"],
+        aUpdated: 0,
+        bBody: "b-secret",
+        caseVariant: "refused",
+        spaced: "refused",
+      });
     }, 120_000);
 
     it("refuses a tenant ID that does not fit before it creates anything", async () => {
