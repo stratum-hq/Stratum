@@ -1,5 +1,12 @@
 # @stratum-hq/db-adapters
 
+## 1.5.1
+
+### Patch Changes
+
+- 92d8c9c: `DatabasePoolManager` now sets each tenant's database name in a `connectionString` given in `baseConnectionConfig`, checks the result by parsing it as pg does, and refuses a `connectionString` it cannot set the name in. The error lists the supported forms (GHSA-r5mc-55fv-2cvp). `pg-connection-string` is now a direct dependency; it was already installed through `pg`.
+- 0f7fdc6: The Prisma helpers now accept a generated `PrismaClient` from Prisma 5 and Prisma 6 without a cast. Before, `prismaWithTenant(prisma, ...)` failed to compile with TS2345, so the Prisma presets of `@stratum-hq/create` failed `next build` and `tsc`. `prismaWithTenant`, `PrismaAdapter.withTenant`, `SchemaPrismaAdapter.getClient` and `DatabasePrismaAdapter.getClient` now return the type of your client, so calls such as `tenantPrisma.order.findMany()` are type-checked. Runtime behavior does not change.
+
 ## 1.5.0
 
 ### Minor Changes

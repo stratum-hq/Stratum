@@ -1,5 +1,14 @@
 # @stratum-hq/lib
 
+## 1.8.1
+
+### Patch Changes
+
+- Require `@stratum-hq/db-adapters` 1.5.1 or later, which routes each tenant of a database-per-tenant pool to its own database when given a connection string.
+- Updated dependencies [92d8c9c]
+- Updated dependencies [0f7fdc6]
+  - @stratum-hq/db-adapters@1.5.1
+
 ## 1.8.0
 
 ### Minor Changes
