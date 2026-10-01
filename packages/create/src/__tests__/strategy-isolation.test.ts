@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import ts from "typescript";
 import { generateDbSetup } from "../generators/db-setup.js";
 import { generatePresetInitSql } from "../generators/init-sql.js";
 import { generatePresetPackageJson } from "../generators/package-json.js";
@@ -243,14 +244,14 @@ describe("PostgreSQL rls Prisma presets", () => {
   );
 });
 
-const mysqlPresets = allPresets().filter((p) => p.database === "mysql");
+const mysqlPresets = allPresets().filter((p) => p.database === "mysql" && p.strategy !== "shared");
 
 const MYSQL_ADAPTER: Record<string, string> = {
   database: "MysqlDatabaseAdapter",
   "table-prefix": "MysqlTableAdapter",
 };
 
-describe("MySQL presets", () => {
+describe("MySQL database and table-prefix presets", () => {
   it("are offered only for the raw driver, which the strategy adapters route", () => {
     expect(new Set(mysqlPresets.map((p) => p.orm))).toEqual(new Set(["pg"]));
     expect(new Set(mysqlPresets.map((p) => p.strategy))).toEqual(new Set(["database", "table-prefix"]));
@@ -311,6 +312,120 @@ describe("MySQL presets", () => {
     expect(readme).toContain("npm run tenant:provision -- <tenant-id> <slug>");
     expect(readme).toMatch(/fixed when the tenant is provisioned/);
     expect(readme).toMatch(/Never give a tenant a slug that another tenant had/);
+  });
+});
+
+const mysqlShared = allPresets().filter((p) => p.database === "mysql" && p.strategy === "shared");
+
+/** The generated helper file of each MySQL shared-table preset, and the @stratum-hq/mysql call it scopes queries with. */
+const MYSQL_SHARED_HELPER: Record<string, { file: string; scopes: string[] }> = {
+  pg: {
+    file: "src/stratum-db.ts",
+    scopes: [
+      "const id = checkedTenantId(tenantId);",
+      "adapter.scopedSelect(id, ",
+      "adapter.scopedInsert(id, ",
+      "adapter.scopedUpdate(id, ",
+      "adapter.scopedDelete(id, ",
+    ],
+  },
+  knex: { file: "src/stratum-knex.ts", scopes: ["withTenantScope(knex, checkedTenantId(tenantId))"] },
+  sequelize: { file: "src/stratum-sequelize.ts", scopes: ["withMysqlTenantScope(sequelize, checkedTenantId(tenantId),"] },
+};
+
+/** Loads the generated src/stratum-tenant.ts of a preset as a module. */
+async function loadTenantCheck(preset: StackPreset): Promise<{ checkedTenantId(id: unknown): string }> {
+  const source = generatedFiles(preset).get("src/stratum-tenant.ts")!;
+  const js = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(js).toString("base64")}`);
+}
+
+describe("MySQL shared-table presets", () => {
+  it("are offered for the raw driver, Knex and Sequelize, each of which has a shared-table helper", () => {
+    expect(new Set(mysqlShared.map((p) => p.orm))).toEqual(new Set(["pg", "knex", "sequelize"]));
+  });
+
+  it.each(mysqlShared.map(formatPresetString))("%s scopes queries with the @stratum-hq/mysql helper of its ORM", (name) => {
+    const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+    const { file, scopes } = MYSQL_SHARED_HELPER[preset.orm];
+    const helper = generatedFiles(preset).get(file)!;
+    expect(helper).toContain('from "@stratum-hq/mysql"');
+    for (const call of scopes) expect(helper).toContain(call);
+    expect(helper).toContain('from "./stratum-tenant.js"');
+  });
+
+  it.each(mysqlShared.map(formatPresetString))("%s exports no query path that leaves the tenant out", (name) => {
+    const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+    for (const [file, content] of generatedFiles(preset)) {
+      expect(content, file).not.toContain("unscopedRawQuery");
+      expect(content, file).not.toMatch(/export (const|\{)[^\n]*\badapter\b/);
+      for (const helper of SHARED_TABLE_HELPERS) expect(content, file).not.toContain(helper);
+      // A shared-table project provisions nothing and routes by no slug.
+      expect(content, file).not.toMatch(/_stratum_tenants|tenantSlug|tenant:provision/);
+    }
+  });
+
+  it.each(mysqlShared.map(formatPresetString))("%s takes the tenant only from the verified token", (name) => {
+    const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+    const files = generatedFiles(preset);
+    for (const file of ["src/stratum-tenant.ts", MYSQL_SHARED_HELPER[preset.orm].file]) {
+      expect(files.get(file), file).not.toMatch(/\.headers\b|\.hostname\b|\.subdomains?\b|x-tenant-id/);
+    }
+  });
+
+  it("refuses a tenant ID that the tenant_id column could match for another tenant", async () => {
+    const { checkedTenantId } = await loadTenantCheck(mysqlShared[0]);
+    expect(checkedTenantId("00000000-0000-4000-8000-00000000000a")).toBe("00000000-0000-4000-8000-00000000000a");
+    // ascii_bin ignores trailing spaces, so "a " would match the rows of "a".
+    for (const bad of ["", "a ", " a", "a\tb", "x".repeat(37), "caf\u00e9", undefined, 42]) {
+      expect(() => checkedTenantId(bad), JSON.stringify(bad)).toThrow(/Invalid tenant ID/);
+    }
+  });
+
+  it.each(mysqlShared.map(formatPresetString))(
+    "%s creates a shared tenant table and gives the app user only DML on the app database",
+    (name) => {
+      const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+      const sql = generatedFiles(preset).get("init.sql")!;
+      expect(sql).toContain("tenant_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL");
+      expect(sql).toMatch(/INDEX notes_tenant_id_idx \(tenant_id/);
+      expect(sql).toContain("REVOKE IF EXISTS ALL PRIVILEGES ON `app`.* FROM 'app'@'%';");
+      expect(sql).toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON `app`.* TO 'app'@'%';");
+      expect(sql).not.toMatch(/GRANT [^;]*\b(ALL|CREATE|DROP|ALTER|INDEX|REFERENCES|TRIGGER)\b/);
+    },
+  );
+
+  it.each(mysqlShared.map(formatPresetString))("%s runs DDL only as the admin user", (name) => {
+    const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+    const files = generatedFiles(preset);
+    expect(files.get(".env.example")).toMatch(/^DATABASE_SUPERUSER_URL=mysql:\/\/root:/m);
+    expect(files.get(".env.example")).toMatch(/^DATABASE_URL=mysql:\/\/app:/m);
+    if (preset.orm === "knex") {
+      expect(files.get("knexfile.ts")).toContain("connection: process.env.DATABASE_SUPERUSER_URL,");
+      expect(files.get("src/stratum-knex.ts")).toContain("createKnex(appConfig)");
+    }
+  });
+
+  it.each(mysqlShared.map(formatPresetString))("%s README states what the helper does not scope", (name) => {
+    const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
+    const readme = generatedFiles(preset).get("README.md")!;
+    expect(readme).toMatch(/MySQL has no row-level security/);
+    expect(readme).toContain("DATABASE_SUPERUSER_URL");
+    if (preset.orm === "knex") {
+      expect(readme).toMatch(/[Jj]oins[^.]*throw/);
+      expect(readme).toContain("whereIn");
+      expect(readme).toContain("knex.raw()");
+    } else if (preset.orm === "sequelize") {
+      expect(readme).toContain("sequelize.query()");
+      expect(readme).toMatch(/`upsert\(\)`[^.]*refused/);
+      expect(readme).toMatch(/junction/);
+    } else {
+      expect(readme).toMatch(/equality/);
+      expect(readme).toContain("Not scoped: the exported `pool` itself.");
+    }
+    expect(readme).not.toMatch(/npm run tenant:provision/);
   });
 });
 

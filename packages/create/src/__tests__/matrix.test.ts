@@ -183,6 +183,22 @@ describe("isValidPreset", () => {
     expect(isValidPreset({ database: "mysql", strategy: "database", orm: "pg", framework: "fastify" })).toBe(true);
   });
 
+  // @stratum-hq/mysql scopes a shared table for the raw driver, Knex and Sequelize.
+  for (const orm of ["pg", "knex", "sequelize"] as const) {
+    it(`accepts mysql-shared-${orm}-express`, () => {
+      expect(isValidPreset({ database: "mysql", strategy: "shared", orm, framework: "express" })).toBe(true);
+    });
+  }
+
+  it("parses mysql-shared-knex-nestjs", () => {
+    expect(parsePresetString("mysql-shared-knex-nestjs")).toEqual({
+      database: "mysql",
+      strategy: "shared",
+      orm: "knex",
+      framework: "nestjs",
+    });
+  });
+
   // Invalid combos
   it("rejects mongodb-rls-prisma-express (rls not valid for mongodb)", () => {
     expect(isValidPreset({ database: "mongodb", strategy: "rls", orm: "prisma", framework: "express" })).toBe(false);
@@ -198,6 +214,17 @@ describe("isValidPreset", () => {
 
   it("rejects mysql-rls-sequelize-express (rls not valid for mysql)", () => {
     expect(isValidPreset({ database: "mysql", strategy: "rls", orm: "sequelize", framework: "express" })).toBe(false);
+  });
+
+  // @stratum-hq/mysql has no shared-table helper for Prisma or Drizzle.
+  for (const orm of ["prisma", "drizzle"] as const) {
+    it(`rejects mysql-shared-${orm}-express (no shared-table helper for ${orm})`, () => {
+      expect(isValidPreset({ database: "mysql", strategy: "shared", orm, framework: "express" })).toBe(false);
+    });
+  }
+
+  it("rejects postgres-shared-pg-express (shared is a MySQL strategy)", () => {
+    expect(isValidPreset({ database: "postgres", strategy: "shared", orm: "pg", framework: "express" })).toBe(false);
   });
 
   it("rejects mysql-database-mongoose-express (mongoose not valid for mysql)", () => {
@@ -273,8 +300,16 @@ describe("getValidOptions", () => {
     expect(opts.databases).toEqual(["mysql"]);
   });
 
-  it("includes only postgres for sequelize", () => {
-    expect(getValidOptions({ orm: "sequelize" }).databases).toEqual(["postgres"]);
+  it("includes postgres and mysql for sequelize", () => {
+    expect(getValidOptions({ orm: "sequelize" }).databases).toEqual(["postgres", "mysql"]);
+  });
+
+  it("offers only the shared strategy for mysql with knex", () => {
+    expect(getValidOptions({ database: "mysql", orm: "knex" }).strategies).toEqual(["shared"]);
+  });
+
+  it("offers the raw driver, knex and sequelize for mysql shared", () => {
+    expect(getValidOptions({ database: "mysql", strategy: "shared" }).orms).toEqual(["pg", "knex", "sequelize"]);
   });
 
   it("includes postgres and mysql for pg", () => {
@@ -330,8 +365,8 @@ describe("VALID_COMBINATIONS", () => {
     expect(VALID_COMBINATIONS.mongodb.strategies).toEqual(["database", "collection"]);
   });
 
-  it("mysql has database, table-prefix strategies", () => {
-    expect(VALID_COMBINATIONS.mysql.strategies).toEqual(["database", "table-prefix"]);
+  it("mysql has database, table-prefix, shared strategies", () => {
+    expect(VALID_COMBINATIONS.mysql.strategies).toEqual(["database", "table-prefix", "shared"]);
   });
 
   it("mongodb only supports mongoose", () => {

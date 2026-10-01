@@ -87,7 +87,7 @@ function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, s
       // mongoose handles the driver
       break;
     case "mysql":
-      if (preset.orm === "drizzle" || preset.orm === "pg") {
+      if (preset.orm === "drizzle" || preset.orm === "pg" || preset.orm === "knex") {
         deps["mysql2"] = "^3.23.1";
       }
       break;
@@ -196,6 +196,8 @@ function getScripts(preset: StackPreset): Record<string, string> {
  */
 function getDatabaseScripts(preset: StackPreset): Record<string, string> {
   if (preset.database === "mysql") {
+    // A shared-table project provisions nothing: tenants share the tables of init.sql.
+    if (preset.strategy === "shared") return {};
     return { "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs" };
   }
   if (preset.database === "mongodb") {

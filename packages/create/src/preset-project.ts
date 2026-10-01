@@ -53,7 +53,10 @@ export function generatePresetEnv(projectName: string, preset: StackPreset): str
       break;
     case "mysql":
       dbUrl = `mysql://${dbName}:dev_password@localhost:3306/${dbName}`;
-      adminUrlLine = `\n# Admin user: tenant provisioning only (npm run tenant:provision).\nDATABASE_SUPERUSER_URL=mysql://root:dev_root_password@localhost:3306/${dbName}\n`;
+      adminUrlLine =
+        preset.strategy === "shared"
+          ? `\n# Admin user: creating and changing tables only. The app user cannot.\nDATABASE_SUPERUSER_URL=mysql://root:dev_root_password@localhost:3306/${dbName}\n`
+          : `\n# Admin user: tenant provisioning only (npm run tenant:provision).\nDATABASE_SUPERUSER_URL=mysql://root:dev_root_password@localhost:3306/${dbName}\n`;
       break;
   }
 

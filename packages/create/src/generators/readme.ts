@@ -65,7 +65,7 @@ function getDbSetupNote(preset: StackPreset): string {
     return getProvisioningNote(preset);
   }
   if (preset.database === "mysql") {
-    return getMysqlProvisioningNote(preset);
+    return preset.strategy === "shared" ? getMysqlSharedNote(preset) : getMysqlProvisioningNote(preset);
   }
   if (preset.database === "mongodb") {
     return getMongoProvisioningNote(preset);
@@ -196,6 +196,81 @@ ${slugReuseNote(where)}
 `;
 }
 
+/**
+ * The README section of the MySQL shared-table presets. It repeats the limits
+ * of the @stratum-hq/mysql helper, because MySQL has no row-level security
+ * and a query the helper refuses or does not see is the app's to scope.
+ */
+function getMysqlSharedNote(preset: StackPreset): string {
+  return `
+### 3b. Tenant tables
+
+All tenants share each table, and the \`tenant_id\` column of a row names its tenant. \`init.sql\` creates an example tenant table, \`notes\`. Create each tenant table the same way, as the admin user in \`DATABASE_SUPERUSER_URL\`:
+
+- Give it a \`tenant_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL\` column. \`ascii_bin\` compares letter case exactly.
+- Give it an index that starts with \`tenant_id\`, or every scoped query reads the whole table.
+
+The app user in \`DATABASE_URL\` reads and writes rows in the app's database. It creates, alters, drops and truncates nothing: \`init.sql\` removes the other rights the MySQL image gives it.${
+    preset.orm === "knex"
+      ? " Knex migrations (`npx knex migrate:latest`) read the default export of `knexfile.ts`, which connects as the admin user; the app uses `appConfig`, the app user."
+      : ""
+  }
+
+### The tenant helper
+
+MySQL has no row-level security. A query is filtered by tenant only when it goes through the generated helper. Pass the helper only the tenant ID from the verified token, never a value from the hostname or a request header, which any caller can choose. The helper refuses a tenant ID that is not 1 to 36 printable ASCII characters without spaces (\`src/stratum-tenant.ts\`).
+
+${MYSQL_SHARED_HELPER_NOTES[preset.orm]}
+`;
+}
+
+/** What the tenant helper of each MySQL shared-table preset does and does not scope, from the @stratum-hq/mysql README. */
+const MYSQL_SHARED_HELPER_NOTES: Record<string, string> = {
+  knex: `\`tenantKnex(tenantId)\` in \`src/stratum-knex.ts\` returns a Knex table builder for the tenant, from \`withTenantScope\` of \`@stratum-hq/mysql\`:
+
+\`\`\`ts
+const notes = await tenantKnex(tenantId)("notes").where("body", "like", q);
+\`\`\`
+
+- Each query reads, changes or deletes only the tenant's rows. Your where clauses are grouped after the tenant condition, so an \`orWhere()\` cannot widen it.
+- \`insert()\` sets \`tenant_id\`, and \`update()\` never changes it.
+- Joins (\`join()\`, \`leftJoin()\`, \`joinRaw()\` and the other forms), \`union()\` and \`unionAll()\` throw, because the tenant condition covers only the builder's own table. To combine tables, use a tenant builder as a \`whereIn()\` subquery.
+- \`onConflict().merge()\`, \`upsert()\`, \`truncate()\` and \`modify()\` throw.
+- \`insert()\` and \`update()\` accept only column names made of ASCII letters, digits, \`_\` and \`$\`.
+- Not scoped: \`knex\` itself, \`knex.raw()\`, and a table without a \`tenant_id\` column. Write the \`tenant_id\` condition of such a query yourself.`,
+  sequelize: `\`withTenantScope(tenantId, fn)\` in \`src/stratum-sequelize.ts\` runs \`fn\` in a transaction, through \`withMysqlTenantScope\` of \`@stratum-hq/mysql\`. Pass the transaction to every query in \`fn\`:
+
+\`\`\`ts
+const notes = await withTenantScope(tenantId, (transaction) => Note.findAll({ transaction }));
+\`\`\`
+
+In \`fn\`, for every model with a \`tenant_id\` column:
+
+- \`findAll()\`, \`findOne()\`, \`count()\` and the other reads return only the tenant's rows, and includes of tenant models are filtered too.
+- \`update()\`, \`destroy()\`, \`increment()\` and \`decrement()\` change only the tenant's rows, and never write \`tenant_id\`.
+- \`create()\`, \`bulkCreate()\` and \`save()\` of a new instance set \`tenant_id\`.
+- \`upsert()\`, \`bulkCreate()\` with \`updateOnDuplicate\`, and \`truncate()\` are refused, because MySQL applies \`ON DUPLICATE KEY UPDATE\` on any unique key. Look the row up with \`findOne()\`, then \`update()\` or \`create()\` it.
+
+Not scoped: raw \`sequelize.query()\`, \`queryInterface\` calls by table name, models without a \`tenant_id\` column, the junction model of a many-to-many include, and any query outside \`fn\`.`,
+  pg: `\`tenantDb(tenantId)\` in \`src/stratum-db.ts\` returns the scoped queries of \`MysqlSharedAdapter\` from \`@stratum-hq/mysql\` for the tenant:
+
+\`\`\`ts
+const notes = await tenantDb(tenantId).select("notes", { id: 1 });
+await tenantDb(tenantId).insert("notes", { body: "hello" });
+\`\`\`
+
+- \`select()\`, \`update()\` and \`delete()\` read or change only the tenant's rows. \`delete()\` without conditions deletes all of the tenant's rows in the table.
+- \`insert()\` sets \`tenant_id\`, and \`update()\` never changes it.
+- Conditions are column equality only, joined with AND: \`{ id: 1, body: "x" }\` is \`id = 1 AND body = 'x'\`. There are no joins, ranges or ordering.
+- Not scoped: the exported \`pool\` itself. For any other query, use \`pool\` and write the \`tenant_id = ?\` condition yourself.`,
+};
+
+const MYSQL_SHARED_HELPER_NAME: Record<string, string> = {
+  pg: "`MysqlSharedAdapter`",
+  knex: "`withTenantScope`",
+  sequelize: "`withMysqlTenantScope`",
+};
+
 /** Setup steps of the MongoDB presets. */
 function getMongoProvisioningNote(preset: StackPreset): string {
   const collection = preset.strategy === "collection";
@@ -251,6 +326,10 @@ function getStrategyDescription(preset: StackPreset): string {
       return `- **Table-per-tenant**: each tenant has its own copy of each table, \`{table}_{slug}\`, which \`npm run tenant:provision\` creates
 - The generated helper (\`MysqlTableAdapter\` from \`@stratum-hq/mysql\`) names the tables of the tenant in the verified token
 - Shared database, one set of tables per tenant`;
+    case "shared":
+      return `- **Shared table**: all tenants share each table, and the \`tenant_id\` column of a row names its tenant
+- The generated helper (${MYSQL_SHARED_HELPER_NAME[preset.orm]} from \`@stratum-hq/mysql\`) adds the tenant of the verified token to each query it runs
+- MySQL has no row-level security, so a query that does not go through the helper is not filtered by tenant`;
     default:
       return "";
   }
