@@ -1,0 +1,122 @@
+---
+title: Why We Built Stratum
+accent: Stratum
+seoTitle: 'Why We Built Stratum: Multi-Tenancy for Node.js'
+description: Every B2B SaaS team reinvents multi-tenancy from scratch. We built Stratum so they never have to again. Open-source, MIT licensed.
+intro: Multi-tenancy in Node.js is broken. We fixed it.
+pubDate: 2026-03-27
+---
+import CodeBlock from '../../components/CodeBlock.astro';
+
+## The pain every SaaS team knows
+
+It always starts the same way. You're building a B2B product. Day one, you add
+`tenant_id` to your users table. Then your accounts table. Then orders,
+invoices, settings, every table you create. You write `WHERE tenant_id = $1`
+a hundred times. It works. Ship it.
+
+Month six: your first enterprise customer needs custom branding and a feature flag only
+they get. You hand-roll a config table. One column per setting. No inheritance, no hierarchy,
+just a key-value bag you query inline. Each new customer becomes a special case tracked in
+a spreadsheet someone keeps in their personal Google Drive.
+
+Month twelve: your security team comes back from a compliance audit. They need tenant-scoped
+audit logs, a GDPR data export endpoint, and a purge API, retroactively, across four
+services. You estimate three weeks. It takes eight.
+
+Month eighteen: a large financial services customer demands their data in an isolated schema.
+No shared tables. You've built your entire data layer on shared RLS (sort of) and now you're
+looking at a full migration. Three engineers, eleven weeks, one near-outage.
+
+By then you've built a worse version of multi-tenancy infrastructure, from scratch, while
+shipping a product on top of it. We've seen this story play out at security platforms,
+HR tools, dev tooling companies, and e-commerce SaaS. The details vary. The pain is identical.
+
+## The Node.js gap
+
+If you're a .NET team, you reach for [ABP.IO](https://abp.io).
+It's a full application framework with multi-tenancy as a first-class citizen: tenant
+resolution, per-tenant databases, config overrides, the works. It's opinionated and
+comprehensive.
+
+Ruby on Rails teams have [Apartment](https://github.com/influitive/apartment)
+(and more recently [activerecord-multi-tenant](https://github.com/ErvalhouS/activerecord-multi-tenant)).
+Mature, battle-tested, community-maintained.
+
+Node.js? You get a handful of npm packages with 20 GitHub stars, a few Medium posts from
+2019, and a lot of "just add `tenant_id`" advice in Stack Overflow answers.
+The ecosystem has no dominant multi-tenancy library. Every team rolls their own and
+rediscovers the same edge cases.
+
+That gap is where Stratum lives.
+
+## What Stratum does differently
+
+Stratum is not just `tenant_id` with a nicer API. It's infrastructure
+for the full multi-tenancy lifecycle.
+
+**Tree-structured tenants.** Real-world B2B isn't flat. You have organizations,
+teams within organizations, resellers who manage multiple clients. Stratum models tenants
+as an arbitrarily deep tree. A root org, resellers below it, clients below them.
+You define the shape; Stratum enforces the rules.
+
+**Config that flows down the tree.** Set `max_users = 100` on a
+reseller tenant and every client under them inherits it automatically. Override it for
+one client. Lock a key so no child can change it. This is config inheritance done right,
+not a key-value bag you query by hand.
+
+**Three isolation strategies, per tenant.** Shared tables with Row-Level
+Security. Separate schema per tenant. Dedicated database per tenant. You pick the right
+tradeoff for each customer tier. Start everyone on shared, move high-value customers to
+schema isolation, give your largest enterprise their own database, without
+rebuilding your data layer.
+
+**GDPR built in.** Data export and purge are not an afterthought. They're
+part of the core API. When the compliance audit comes (and it will), you
+call one method, not write a migration at 11pm.
+
+**Start flat, grow into hierarchy.** You don't have to adopt tree tenants
+on day one. Start with flat organizations. Add hierarchy when your business needs it.
+Stratum doesn't force an architecture on you; it grows with you.
+
+## The developer experience
+
+The full setup is five lines. You wire in your existing Postgres pool, let Stratum
+run its migrations, and you're ready to create tenants and assign config.
+
+<CodeBlock filename="quickstart.ts">
+
+```ts
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+// autoMigrate: true runs schema migrations on initialize()
+const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+await stratum.initialize();
+
+// Create a tenant
+const org = await stratum.createOrganization({ name: "Acme Corp", slug: "acme" });
+
+// Set config, children inherit automatically
+await stratum.setConfig(org.id, "max_users", { value: 100 });
+```
+
+</CodeBlock>
+
+No boilerplate migration files to manage. No config inheritance logic to write.
+No RLS policies to maintain by hand. Stratum handles the infrastructure so your
+team can focus on your actual product.
+
+## What's next
+
+We're actively working on DX improvements: better TypeScript types, first-class
+framework adapters for Express, Fastify, and NestJS, and a CLI for tenant management
+that works without writing code.
+
+We're also building a community. If you've felt this pain, if you've spent
+weeks re-implementing tenant isolation for the third time, we want to hear
+from you. Open an issue, start a discussion, or just star the repo so we know
+you're out there.
+
+Stratum is open source, MIT licensed, and free forever. The infrastructure problem
+of multi-tenancy in Node.js is solvable. We're solving it in the open.

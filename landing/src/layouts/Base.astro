@@ -2,8 +2,16 @@
 interface Props {
   title: string;
   description: string;
+  /** The Open Graph type. A blog post sets "article". */
+  ogType?: string;
+  /** An absolute URL or a site path. */
+  ogImage?: string;
+  /** An absolute URL. Defaults to this page on stratum-hq.org. */
+  canonical?: string;
 }
-const { title, description } = Astro.props;
+const { title, description, ogType = 'website', ogImage = '/og.png', canonical } = Astro.props;
+const pageUrl = new URL(Astro.url.pathname, 'https://stratum-hq.org').href;
+const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -31,21 +39,26 @@ const { title, description } = Astro.props;
   <meta name="description" content={description} />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
+  <meta property="og:type" content={ogType} />
+  <meta property="og:url" content={pageUrl} />
   <meta property="og:site_name" content="Stratum" />
-  <meta property="og:image" content="https://stratum-hq.org/og.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image" content={imageUrl} />
+  {ogImage === '/og.png' && (
+    <>
+      <!-- The size is known for the site image only. -->
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+    </>
+  )}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
-  <meta name="twitter:image" content="https://stratum-hq.org/og.png" />
+  <meta name="twitter:image" content={imageUrl} />
   <meta name="robots" content="index, follow" />
   <meta name="author" content="Stratum HQ" />
   <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
   <link rel="alternate" type="application/atom+xml" title="Stratum Blog (Atom)" href="/atom.xml" />
-  <link rel="canonical" href={new URL(Astro.url.pathname, 'https://stratum-hq.org').href} />
+  <link rel="canonical" href={canonical ?? pageUrl} />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -75,6 +88,7 @@ const { title, description } = Astro.props;
     ]
   }
   </script>
+  <slot name="head" />
   <script defer data-domain="stratum-hq.org" src="https://plausible.io/js/script.js"></script>
   <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

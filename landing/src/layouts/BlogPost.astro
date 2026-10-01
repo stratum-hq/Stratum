@@ -1,0 +1,307 @@
+---
+import Base from './Base.astro';
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import type { BlogPost } from '../lib/blog';
+import { postPath } from '../lib/blog';
+
+interface Props {
+  post: BlogPost;
+}
+const { post } = Astro.props;
+const { title, accent, seoTitle, description, intro, pubDate, updated, tags, canonical, ogImage, cta } =
+  post.data;
+
+const site = 'https://stratum-hq.org';
+const url = new URL(postPath(post), site).href;
+const imageUrl = new URL(ogImage ?? '/og.png', site).href;
+
+// The heading shows `accent` in the accent color. A value that is not in the
+// title is ignored, so a typo cannot drop words from the heading.
+const accentAt = accent ? title.indexOf(accent) : -1;
+const heading =
+  accent && accentAt >= 0
+    ? { before: title.slice(0, accentAt), accent, after: title.slice(accentAt + accent.length) }
+    : null;
+
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+const longDate = (d: Date) =>
+  d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: title,
+  description,
+  url,
+  mainEntityOfPage: canonical ?? url,
+  image: imageUrl,
+  datePublished: pubDate.toISOString(),
+  dateModified: (updated ?? pubDate).toISOString(),
+  ...(tags.length > 0 && { keywords: tags.join(', ') }),
+  author: { '@type': 'Organization', name: 'Stratum HQ', url: site },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Stratum HQ',
+    url: site,
+    logo: { '@type': 'ImageObject', url: `${site}/icon-512.png` },
+  },
+};
+---
+
+<Base
+  title={`${seoTitle ?? title} | Stratum Blog`}
+  description={description}
+  ogType="article"
+  ogImage={ogImage}
+  canonical={canonical}
+>
+  <Fragment slot="head">
+    <meta property="article:published_time" content={pubDate.toISOString()} />
+    {updated && <meta property="article:modified_time" content={updated.toISOString()} />}
+    {tags.map((tag) => <meta property="article:tag" content={tag} />)}
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </Fragment>
+
+<Nav />
+
+<!-- Article -->
+<article class="post">
+  <header class="post-header">
+    <p class="post-eyebrow">Blog</p>
+    <h1>
+      {heading ? (
+        <Fragment>{heading.before}<span class="accent">{heading.accent}</span>{heading.after}</Fragment>
+      ) : (
+        title
+      )}
+    </h1>
+    {intro && <p class="post-intro">{intro}</p>}
+    <p class="post-date">
+      <time datetime={isoDate(pubDate)}>{longDate(pubDate)}</time>
+      {updated && (
+        <Fragment>
+          {' '}(updated <time datetime={isoDate(updated)}>{longDate(updated)}</time>)
+        </Fragment>
+      )}
+    </p>
+  </header>
+
+  <div class="post-body">
+    <slot />
+  </div>
+
+  <!-- CTA -->
+  <div class="post-cta">
+    <div class="post-cta-install">
+      <code>npm install @stratum-hq/lib pg</code>
+    </div>
+    <div class="post-cta-links">
+      <a href={cta.href} class="btn-primary">{cta.label}</a>
+      <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">GitHub</a>
+    </div>
+  </div>
+</article>
+
+<Footer />
+
+<style>
+  .post {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
+  }
+
+  .post-header {
+    margin-bottom: var(--space-8);
+  }
+
+  .post-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+  }
+
+  .post-header h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-intro {
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-style: italic;
+    margin: 0 0 var(--space-3);
+  }
+
+  .post-date {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    margin: 0;
+  }
+
+  /* The post body is rendered by the MDX file, not by this template, so its
+     selectors are :global() under .post-body to reach that markup. */
+  .post-body :global(h2) {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: var(--space-8);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body :global(p) {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .post-body :global(strong) {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .post-body :global(em) {
+    font-style: italic;
+  }
+
+  .post-body :global(:not(pre) > code) {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    color: var(--sandstone);
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .post-body :global(a) {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .post-body :global(a:hover) {
+    color: var(--text-primary);
+  }
+
+  /* Lists */
+  .post-body :global(ul) {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4) 0;
+  }
+
+  .post-body :global(ul li) {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    padding-left: var(--space-4);
+    position: relative;
+    margin-bottom: var(--space-2);
+  }
+
+  .post-body :global(ul li::before) {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.7em;
+    width: 5px;
+    height: 5px;
+    background: var(--sandstone);
+    border-radius: 50%;
+  }
+
+  /* Tables */
+  .post-body :global(.table-wrapper) {
+    overflow-x: auto;
+    margin: var(--space-6) 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .post-body :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+
+  .post-body :global(th) {
+    text-align: left;
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    background: var(--code-bg);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .post-body :global(td) {
+    padding: var(--space-3) var(--space-4);
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .post-body :global(tbody tr:last-child td) {
+    border-bottom: none;
+  }
+
+  .post-body :global(tbody tr:hover td) {
+    background: var(--code-bg);
+  }
+
+  /* CTA */
+  .post-cta {
+    margin-top: var(--space-8);
+    padding-top: var(--space-8);
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .post-cta-install {
+    display: inline-block;
+    padding: var(--space-3) var(--space-6);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--code-text);
+  }
+
+  .post-cta-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .post {
+      padding: var(--space-8) var(--space-4);
+    }
+
+    .post-body :global(th),
+    .post-body :global(td) {
+      padding: var(--space-2) var(--space-3);
+    }
+  }
+</style>
+
+</Base>
