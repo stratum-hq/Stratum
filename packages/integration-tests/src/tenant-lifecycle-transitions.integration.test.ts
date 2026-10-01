@@ -152,6 +152,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
     await expect(stratum.suspendTenant(r.id)).rejects.toThrow(
       TenantHasChildrenError,
     );
+    await expect(stratum.suspendTenant(r.id)).rejects.toThrow(
+      `Cannot suspend tenant ${r.id}: it has active children. Suspend or archive its children first.`,
+    );
     expect(await statusOf(r.id)).toBe("active"); // parent untouched, no cascade
 
     // Leaf-first succeeds and does not touch the ancestor's state.
@@ -166,6 +169,9 @@ describe("Tenant lifecycle transitions (integration)", () => {
     await child(r.id);
     await expect(stratum.archiveTenant(r.id)).rejects.toThrow(
       TenantHasChildrenError,
+    );
+    await expect(stratum.archiveTenant(r.id)).rejects.toThrow(
+      `Cannot archive tenant ${r.id}: it has active children. Archive children first.`,
     );
     expect(await statusOf(r.id)).toBe("active");
   });

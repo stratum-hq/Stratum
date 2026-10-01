@@ -82,10 +82,13 @@ export class TenantAlreadyExistsError extends StratumError {
 }
 
 export class TenantHasChildrenError extends StratumError {
-  constructor(tenantId: string) {
+  /** `action` names the blocked transition. */
+  constructor(tenantId: string, action: "archive" | "suspend" = "archive") {
     super(
       ErrorCode.TENANT_HAS_CHILDREN,
-      `Cannot archive tenant ${tenantId}: it has active children. Archive children first.`,
+      action === "suspend"
+        ? `Cannot suspend tenant ${tenantId}: it has active children. Suspend or archive its children first.`
+        : `Cannot archive tenant ${tenantId}: it has active children. Archive children first.`,
       409,
     );
     this.name = "TenantHasChildrenError";
