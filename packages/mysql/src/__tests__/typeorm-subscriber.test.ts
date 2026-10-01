@@ -130,7 +130,27 @@ function fakeQueryBuilder() {
   class SoftDelete {
     async execute() {}
   }
-  return () => ({ update: () => new Update(), delete: () => new Delete(), softDelete: () => new SoftDelete() });
+  class Insert {
+    async execute() {}
+  }
+  class Select {
+    getQuery() {
+      return "SELECT 1";
+    }
+    insert() {
+      return new Insert();
+    }
+    update() {
+      return new Update();
+    }
+    delete() {
+      return new Delete();
+    }
+    softDelete() {
+      return new SoftDelete();
+    }
+  }
+  return () => new Select();
 }
 
 describe("registerStratumSubscriber", () => {
@@ -148,6 +168,16 @@ describe("registerStratumSubscriber", () => {
     const dataSource = { isInitialized: true, subscribers: [manual] as unknown[], createQueryBuilder: fakeQueryBuilder() };
     expect(registerStratumSubscriber(dataSource)).toBe(manual);
     expect(dataSource.subscribers).toHaveLength(1);
+  });
+
+  it("refuses to register when the select query builder cannot be tenant-scoped", () => {
+    const dataSource = {
+      isInitialized: true,
+      subscribers: [] as unknown[],
+      createQueryBuilder: () => ({ insert: () => ({}), update: () => ({}), delete: () => ({}), softDelete: () => ({}) }),
+    };
+    expect(() => registerStratumSubscriber(dataSource)).toThrow(/reads cannot be tenant-scoped/);
+    expect(dataSource.subscribers).toHaveLength(0);
   });
 
   it("rejects a data source that is not initialized", () => {

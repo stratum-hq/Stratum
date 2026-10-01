@@ -17,6 +17,14 @@ function makeMockClient() {
   } as unknown as import("pg").PoolClient;
 }
 
+// The generated policy as PostgreSQL 16 prints it in pg_policies.
+const GENERATED =
+  "(tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid)";
+
+function existingPolicy(qual: string) {
+  return { policyname: "tenant_isolation", permissive: "PERMISSIVE", cmd: "ALL", qual, with_check: null, roles: ["public"] };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -80,14 +88,14 @@ describe("RLS Manager", () => {
 
     it("accepts simple alphanumeric names", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "0" }],
+        rows: [],
       });
       await expect(createPolicy(client, "users")).resolves.toBeUndefined();
     });
 
     it("accepts names with underscores", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "0" }],
+        rows: [],
       });
       await expect(
         createPolicy(client, "tenant_data"),
@@ -96,7 +104,7 @@ describe("RLS Manager", () => {
 
     it("accepts names starting with underscore", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "0" }],
+        rows: [],
       });
       await expect(createPolicy(client, "_internal")).resolves.toBeUndefined();
     });
@@ -109,7 +117,7 @@ describe("RLS Manager", () => {
   describe("createPolicy", () => {
     it("checks for existing policy before creating", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "0" }],
+        rows: [],
       });
 
       await createPolicy(client, "orders");
@@ -119,7 +127,7 @@ describe("RLS Manager", () => {
 
       // First call: check pg_policies
       expect(calls[0][0]).toContain("pg_policies");
-      expect(calls[0][0]).toContain("tenant_isolation");
+      expect(calls[0][0]).toContain("to_regclass");
       expect(calls[0][1]).toEqual(["orders"]);
 
       // Second call: CREATE POLICY
@@ -129,9 +137,9 @@ describe("RLS Manager", () => {
       );
     });
 
-    it("skips creation when policy already exists", async () => {
+    it("skips creation when the existing policy filters by tenant", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "1" }],
+        rows: [existingPolicy(GENERATED)],
       });
 
       await createPolicy(client, "orders");
@@ -142,9 +150,20 @@ describe("RLS Manager", () => {
       expect(calls[0][0]).toContain("pg_policies");
     });
 
+    it("throws without creating a policy when the existing tenant_isolation policy does not filter by tenant", async () => {
+      (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        rows: [existingPolicy("true")],
+      });
+
+      await expect(createPolicy(client, "orders")).rejects.toThrow(
+        /orders has row-level security policies that do not isolate it.*tenant_isolation.*USING \(true\) does not filter by tenant/,
+      );
+      expect((client.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    });
+
     it("uses the validated table name in the SQL", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        rows: [{ count: "0" }],
+        rows: [],
       });
 
       await createPolicy(client, "user_accounts");
@@ -231,6 +250,11 @@ describe("RLS Manager", () => {
       expect(call[0]).toContain("pg_class");
       expect(call[0]).toContain("relrowsecurity");
       expect(call[1]).toEqual(["orders"]);
+    });
+
+    it("rejects an invalid table name without querying", async () => {
+      await expect(isRLSEnabled(client, "orders; SELECT 1")).rejects.toThrow("Invalid table name");
+      expect((client.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
     });
 
     it("returns true when RLS is enabled", async () => {

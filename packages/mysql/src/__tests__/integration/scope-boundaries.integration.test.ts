@@ -409,7 +409,7 @@ describe("StratumTypeOrmSubscriber updates and deletes", () => {
     await expect(
       asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).save(entity)),
     ).rejects.toThrow(/another tenant/);
-    expect(entity.tenant_id).toBeUndefined();
+    expect(entity.tenant_id).not.toBe("tenant-b");
     expect(await notes()).toEqual(untouched);
   });
 

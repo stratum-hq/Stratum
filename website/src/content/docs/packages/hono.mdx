@@ -50,7 +50,12 @@ app.get("/users", async (c) => {
 
 ## Read the tenant from a path parameter
 
-`pathParam` reads a URL path parameter, for example `pathParam: "tenantId"` for a route `/tenants/:tenantId/...`. The path is client-controlled like a header: any client can put another tenant's ID in it. Use `pathParam` only when your application separately authorizes the caller for that tenant, for example with a later middleware that compares it with a claim of the verified token.
+`pathParam` reads a URL path parameter, for example `pathParam: "tenantId"` for a route `/tenants/:tenantId/...`. The path is client-controlled like a header: any client can put another tenant's ID in it. Use `pathParam` only when your application separately authorizes the caller for that tenant, for example with a later middleware that compares it with a claim of the verified token. For this reason, path parameter mode requires `trustPathParam: true`; without it, `stratumMiddleware` throws at construction. When `jwtClaim` is also set, the JWT claim is the tenant source and `trustPathParam` is not needed.
+
+```typescript
+// Your application authorizes the caller for the tenant in the path.
+app.use("/tenants/:tenantId/*", stratumMiddleware({ pathParam: "tenantId", trustPathParam: true }));
+```
 
 ## Read the tenant from a header
 

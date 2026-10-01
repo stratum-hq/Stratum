@@ -47,9 +47,12 @@ app.get("/users", (c) => {
 
 ### Client-controlled sources
 
-`pathParam` and `header` both take the tenant ID from the request as the client sent it, so any client can name another tenant. Use them only when something you control authorizes the caller for that tenant (for example a later middleware that compares it with a claim of the verified token). Header mode additionally requires `trustTenantHeader: true`, which is appropriate only when a gateway you control sets the header, removes any client copy, and is the only way to reach the server:
+`pathParam` and `header` both take the tenant ID from the request as the client sent it, so any client can name another tenant. Use them only when something you control authorizes the caller for that tenant (for example a later middleware that compares it with a claim of the verified token). Path parameter mode therefore requires `trustPathParam: true`. Header mode requires `trustTenantHeader: true`, which is appropriate only when a gateway you control sets the header, removes any client copy, and is the only way to reach the server:
 
 ```typescript
+// Your application authorizes the caller for the tenant in the path.
+app.use("/tenants/:tenantId/*", stratumMiddleware({ pathParam: "tenantId", trustPathParam: true }));
+
 app.use("*", stratumMiddleware({ header: "x-tenant-id", trustTenantHeader: true }));
 ```
 
@@ -60,8 +63,9 @@ app.use("*", stratumMiddleware({ header: "x-tenant-id", trustTenantHeader: true 
 | Option | Behavior |
 |--------|----------|
 | `jwtClaim` | Read the claim from Hono's `jwtPayload` context variable |
-| `pathParam` | Read a URL path parameter (`c.req.param(name)`). Client-controlled: authorize the caller for that tenant separately |
+| `pathParam` | Read a URL path parameter (`c.req.param(name)`). Requires `trustPathParam: true`. Client-controlled: authorize the caller for that tenant separately |
 | `header` | Read a request header (default: `x-tenant-id`). Requires `trustTenantHeader: true` |
+| `trustPathParam` | Allow path parameter mode. Without it, `stratumMiddleware` throws at construction when `pathParam` is set and `jwtClaim` is not (default: `false`) |
 | `trustTenantHeader` | Allow header mode. Without it, and without `jwtClaim` or `pathParam`, `stratumMiddleware` throws at construction (default: `false`) |
 | `resolve` | Optional callback `(tenantId) => TenantContext` to populate ancestry, config, and permissions |
 

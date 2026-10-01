@@ -74,7 +74,7 @@ describe("stratumMiddleware", () => {
 
   it("extracts tenant ID from URL path parameter", async () => {
     const app = new Hono();
-    app.use("/tenants/:tenantId/*", stratumMiddleware({ pathParam: "tenantId" }));
+    app.use("/tenants/:tenantId/*", stratumMiddleware({ pathParam: "tenantId", trustPathParam: true }));
     app.get("/tenants/:tenantId/resources", (c) =>
       c.json({ tenantId: c.get("tenantId") }),
     );
@@ -166,7 +166,26 @@ describe("stratumMiddleware", () => {
 
     it("does not require trustTenantHeader for a JWT claim or path parameter source", () => {
       expect(() => stratumMiddleware({ jwtClaim: "org_id" })).not.toThrow();
-      expect(() => stratumMiddleware({ pathParam: "tenantId" })).not.toThrow();
+      expect(() => stratumMiddleware({ pathParam: "tenantId", trustPathParam: true })).not.toThrow();
+    });
+  });
+
+  describe("unverified tenant path parameter", () => {
+    it("refuses to read the tenant from a path parameter unless trustPathParam is true", () => {
+      expect(() => stratumMiddleware({ pathParam: "tenantId" })).toThrow(/trustPathParam/);
+      expect(() => stratumMiddleware({ pathParam: "tenantId", trustTenantHeader: true })).toThrow(
+        /trustPathParam/,
+      );
+    });
+
+    it("refuses to read the tenant from a path parameter even with a resolve callback unless trustPathParam is true", () => {
+      expect(() =>
+        stratumMiddleware({ pathParam: "tenantId", resolve: async (id) => ({ tenant_id: id }) as never }),
+      ).toThrow(/trustPathParam/);
+    });
+
+    it("does not require trustPathParam when a JWT claim is the tenant source", () => {
+      expect(() => stratumMiddleware({ jwtClaim: "org_id", pathParam: "tenantId" })).not.toThrow();
     });
   });
 
