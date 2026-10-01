@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/react",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "React components for multi-tenant admin UIs: tenant tree, config editor, permission editor",
   "keywords": [
