@@ -8,6 +8,14 @@ export interface SequelizeLike {
   transaction<T>(fn: (t: unknown) => Promise<T>): Promise<T>;
 }
 
+/**
+ * The transaction type of a Sequelize instance. Sequelize v6 declares
+ * `transaction()` without a callback last, and it resolves to a Transaction,
+ * so the inference reads the type from that overload. A SequelizeLike without
+ * that overload gives `unknown`.
+ */
+type TransactionOf<S> = S extends { transaction(): Promise<infer Tx> } ? Tx : unknown;
+
 type Options = Record<PropertyKey, unknown>;
 type AnyFunction = (this: unknown, ...args: unknown[]) => unknown;
 
@@ -85,10 +93,10 @@ const guardedInstances = new WeakSet<object>();
  * @throws Error when sequelize is not a Sequelize v6 instance, because the
  *   tenant scope could not be applied.
  */
-export async function withMysqlTenantScope<T>(
-  sequelize: SequelizeLike,
+export async function withMysqlTenantScope<T, S extends SequelizeLike = SequelizeLike>(
+  sequelize: S,
   tenantId: string,
-  fn: (sequelize: SequelizeLike, transaction: unknown) => Promise<T>,
+  fn: (sequelize: S, transaction: TransactionOf<S>) => Promise<T>,
 ): Promise<T> {
   assertTenantId(tenantId);
   installTenantScoping(sequelize);
@@ -98,7 +106,9 @@ export async function withMysqlTenantScope<T>(
       transaction,
     });
     try {
-      return await scopeStorage.run({ sequelize, tenantId }, () => fn(sequelize, transaction));
+      return await scopeStorage.run({ sequelize, tenantId }, () =>
+        fn(sequelize, transaction as TransactionOf<S>),
+      );
     } finally {
       await sequelize.query("SET @stratum_tenant_id = NULL", { transaction });
     }

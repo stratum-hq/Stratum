@@ -86,6 +86,13 @@ curl -X POST http://localhost:3001/api/v1/api-keys \
 - **Tenant-scoped** (`tenant_id` set): Can only access data for that tenant and its descendants
 - **Global** (`tenant_id` null): Unrestricted access to all tenants
 
+To create a global key, pass `null` as the tenant ID:
+
+```typescript
+// A global key has no tenant: tenant_id is null.
+const { plaintext_key, tenant_id } = await stratum.createApiKey(null, { name: "admin-service" });
+```
+
 Tenant scope enforcement checks the ancestry path on every request, a key scoped to tenant A cannot access tenant B's data, even via list endpoints.
 
 ## Per-Key Rate Limiting

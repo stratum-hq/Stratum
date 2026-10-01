@@ -19,7 +19,7 @@ Optional: `mongoose` for the auto-scoping plugin. The plugin supports Mongoose 8
 import { MongoClient } from "mongodb";
 import { MongoSharedAdapter } from "@stratum-hq/mongodb";
 
-const client = new MongoClient(process.env.MONGODB_URI);
+const client = new MongoClient(process.env.MONGODB_URI!);
 const adapter = new MongoSharedAdapter({
   client,
   databaseName: "myapp",
