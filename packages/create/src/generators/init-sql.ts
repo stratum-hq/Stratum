@@ -34,7 +34,12 @@ export function postgresAppRoleSql(dbName: string, strategy?: string): string {
   let strategyGrant = "";
   if (strategy === "schema") {
     strategyGrant = `
--- schema-per-tenant: the app creates one schema per tenant
+-- schema-per-tenant: the app creates one schema per tenant. A schema named
+-- like a login comes first on that login's default search path ("$user",
+-- public), so a schema the app creates could come before public for the
+-- Stratum login or the bootstrap superuser. Both search only public.
+ALTER ROLE ${stratum} SET search_path = public;
+ALTER ROLE CURRENT_USER SET search_path = public;
 GRANT CREATE ON DATABASE ${dbName} TO ${role};
 `;
   } else if (strategy === "database") {
@@ -62,7 +67,7 @@ GRANT CONNECT ON DATABASE ${dbName} TO ${stratum};
 GRANT USAGE, CREATE ON SCHEMA public TO ${stratum};
 
 -- Application role. The app connects as ${role} (DATABASE_URL), never as the
--- bootstrap superuser (DATABASE_ADMIN_URL): a superuser or BYPASSRLS role
+-- bootstrap superuser (DATABASE_SUPERUSER_URL): a superuser or BYPASSRLS role
 -- ignores every row-level security policy, FORCE included. It creates no
 -- objects in public: the superuser creates the application's tables (its
 -- migrations), and the app role reads and writes the ones the superuser

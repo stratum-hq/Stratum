@@ -38,7 +38,7 @@ function generatePresetEnv(projectName: string, preset: StackPreset): string {
       // row-level security applies to it. The superuser URL is for bootstrap
       // and migrations only.
       dbUrl = `postgres://${postgresAppRole(dbName)}:${POSTGRES_APP_PASSWORD}@localhost:5432/${dbName}`;
-      adminUrlLine = `\n# Superuser: bootstrap and migrations only. It bypasses row-level security.\nDATABASE_ADMIN_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}\n` +
+      adminUrlLine = `\n# Superuser: bootstrap and migrations only. It bypasses row-level security.\nDATABASE_SUPERUSER_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}\n` +
         `\n# Stratum's own login: the library's adminPool, which runs the Stratum migrations (see init.sql).\n` +
         `STRATUM_ADMIN_DATABASE_URL=postgres://${postgresStratumRole(dbName)}:${POSTGRES_STRATUM_PASSWORD}@localhost:5432/${dbName}\n`;
       break;

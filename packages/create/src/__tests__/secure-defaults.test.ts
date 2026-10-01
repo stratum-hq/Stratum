@@ -141,6 +141,24 @@ describe("generated postgres projects connect the app as a role that RLS applies
     });
   }
 
+  it("postgres-schema preset keeps the app's schemas off the search path of the Stratum login and the superuser", () => {
+    const files = genPreset({ database: "postgres", strategy: "schema", orm: "pg", framework: "express" });
+    const stratumUser = pgUser(envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL"));
+    const sql = files["init.sql"];
+    const grant = sql.indexOf("GRANT CREATE ON DATABASE");
+    expect(grant).toBeGreaterThan(-1);
+    expect(sql.indexOf(`ALTER ROLE ${stratumUser} SET search_path = public;`)).toBeGreaterThan(-1);
+    expect(sql.indexOf(`ALTER ROLE ${stratumUser} SET search_path = public;`)).toBeLessThan(grant);
+    expect(sql.indexOf("ALTER ROLE CURRENT_USER SET search_path = public;")).toBeLessThan(grant);
+    expect(sql.indexOf("ALTER ROLE CURRENT_USER SET search_path = public;")).toBeGreaterThan(-1);
+  });
+
+  it("names the superuser URL DATABASE_SUPERUSER_URL, not the admin login's DATABASE_ADMIN_URL", () => {
+    const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "express" });
+    expect(files[".env.example"]).toMatch(/^DATABASE_SUPERUSER_URL=/m);
+    expect(files[".env.example"]).not.toMatch(/DATABASE_ADMIN_URL/);
+  });
+
   it("rls preset init.sql tells the reader to FORCE row-level security", () => {
     const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "express" });
     expect(files["init.sql"]).toContain("FORCE ROW LEVEL SECURITY");

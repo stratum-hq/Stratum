@@ -134,7 +134,7 @@ export { pool };
   });
 
   // drizzle-kit creates tables, so on PostgreSQL it connects as the superuser
-  // in DATABASE_ADMIN_URL, kept for migrations. A table the app role owned
+  // in DATABASE_SUPERUSER_URL, kept for migrations. A table the app role owned
   // would not be subject to its own RLS policies; init.sql grants the app role
   // access to the tables the superuser creates.
   files.push({
@@ -146,7 +146,7 @@ export default {
   out: "./drizzle",
   ${preset.database === "mysql" ? 'dialect: "mysql",' : 'dialect: "postgresql",'}
   dbCredentials: {
-    url: ${preset.database === "mysql" ? "process.env.DATABASE_URL!" : "(process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL)!"},
+    url: ${preset.database === "mysql" ? "process.env.DATABASE_URL!" : "(process.env.DATABASE_SUPERUSER_URL ?? process.env.DATABASE_URL)!"},
   },
 } satisfies Config;
 `,
