@@ -2,18 +2,12 @@ import { DatabasePoolManager } from "../database/pool-manager.js";
 import { getDatabaseName } from "../database/manager.js";
 
 // Minimal structural interface; avoids a hard runtime dependency on @prisma/client.
+// The adapter calls only `$disconnect`, so the interface holds only that member.
 interface PrismaClientLike {
-  $extends: (extension: unknown) => PrismaClientLike;
-  $executeRaw: (
-    query: TemplateStringsArray,
-    ...values: unknown[]
-  ) => Promise<number>;
-  $transaction: <T>(fn: (tx: PrismaClientLike) => Promise<T>) => Promise<T>;
-  $connect: () => Promise<void>;
-  $disconnect: () => Promise<void>;
+  $disconnect(): Promise<void>;
 }
 
-type PrismaConstructor = new (options: { datasources: { db: { url: string } } }) => PrismaClientLike;
+type PrismaConstructor<C> = new (options: { datasources: { db: { url: string } } }) => C;
 
 /**
  * Prisma adapter for DB_PER_TENANT isolation.
@@ -26,12 +20,12 @@ type PrismaConstructor = new (options: { datasources: { db: { url: string } } })
  *   const prisma = adapter.getClient('acme_corp');
  *   const rows = await prisma.someModel.findMany();
  */
-export class DatabasePrismaAdapter {
-  private readonly clients: Map<string, PrismaClientLike> = new Map();
+export class DatabasePrismaAdapter<C extends PrismaClientLike = PrismaClientLike> {
+  private readonly clients: Map<string, C> = new Map();
 
   constructor(
     private readonly poolManager: DatabasePoolManager,
-    private readonly PrismaClient: PrismaConstructor,
+    private readonly PrismaClient: PrismaConstructor<C>,
     private readonly baseDatasourceUrl: string,
     private readonly maxClients: number = 50,
   ) {}
@@ -41,7 +35,7 @@ export class DatabasePrismaAdapter {
    * Clients are cached per tenant slug, up to maxClients; the least recently
    * used client is disconnected when the limit is reached.
    */
-  getClient(tenantSlug: string): PrismaClientLike {
+  getClient(tenantSlug: string): C {
     const dbName = getDatabaseName(tenantSlug);
     const existing = this.clients.get(tenantSlug);
     if (existing) {
@@ -51,7 +45,7 @@ export class DatabasePrismaAdapter {
     }
 
     if (this.clients.size >= this.maxClients) {
-      const [oldestKey, oldest] = this.clients.entries().next().value as [string, PrismaClientLike];
+      const [oldestKey, oldest] = this.clients.entries().next().value as [string, C];
       this.clients.delete(oldestKey);
       void oldest.$disconnect().catch(() => {});
     }

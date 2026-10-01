@@ -3,12 +3,12 @@ import { tenantSchemaName } from "../schema/manager.js";
 
 // Minimal interface for Prisma client operations used here.
 // Using a structural type avoids a hard runtime dependency on @prisma/client.
+// The adapter calls only `$disconnect`, so the interface holds only that member.
 interface PrismaClientLike {
-  $extends: (extension: unknown) => PrismaClientLike;
-  $disconnect: () => Promise<void>;
+  $disconnect(): Promise<void>;
 }
 
-type PrismaConstructor = new (options: { datasources: { db: { url: string } } }) => PrismaClientLike;
+type PrismaConstructor<C> = new (options: { datasources: { db: { url: string } } }) => C;
 
 /**
  * Prisma adapter for SCHEMA_PER_TENANT isolation.
@@ -23,17 +23,17 @@ type PrismaConstructor = new (options: { datasources: { db: { url: string } } })
  *   const prisma = adapter.getClient('acme_corp');
  *   const rows = await prisma.someModel.findMany();
  */
-export class SchemaPrismaAdapter {
-  private readonly clients: Map<string, PrismaClientLike> = new Map();
+export class SchemaPrismaAdapter<C extends PrismaClientLike = PrismaClientLike> {
+  private readonly clients: Map<string, C> = new Map();
 
   constructor(
-    private readonly PrismaClient: PrismaConstructor,
+    private readonly PrismaClient: PrismaConstructor<C>,
     private readonly baseDatasourceUrl: string,
     private readonly maxClients: number = 50,
   ) {}
 
   /** Returns a Prisma client bound to the tenant's schema. */
-  getClient(tenantSlug: string): PrismaClientLike {
+  getClient(tenantSlug: string): C {
     const schemaName = tenantSchemaName(validateSlug(tenantSlug));
     const existing = this.clients.get(schemaName);
     if (existing) {
@@ -43,7 +43,7 @@ export class SchemaPrismaAdapter {
     }
 
     if (this.clients.size >= this.maxClients) {
-      const [oldestKey, oldest] = this.clients.entries().next().value as [string, PrismaClientLike];
+      const [oldestKey, oldest] = this.clients.entries().next().value as [string, C];
       this.clients.delete(oldestKey);
       void oldest.$disconnect().catch(() => {});
     }

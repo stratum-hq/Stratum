@@ -5,6 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { unpublishedStratumVersions } from "./helpers/published-versions.js";
 import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
 
@@ -14,11 +15,15 @@ import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
  * to prove its tenant middleware answers 401 without a verified token and
  * takes the tenant from a valid HS256 token. The drizzle preset is installed
  * and built, and drizzle-kit generates a migration from the schema file its
- * config points at. Installs run one at a time and need network access to
- * the npm registry.
+ * config points at. A Prisma Next.js preset is installed with the workspace
+ * build of @stratum-hq/db-adapters, its client is generated, and `next build`
+ * type-checks the generated Prisma setup against the real PrismaClient.
+ * Installs run one at a time and need network access to the npm registry.
  */
 
 const DRIZZLE_PRESET = "postgres-rls-drizzle-none";
+const PRISMA_PRESET = "postgres-rls-prisma-nextjs";
+const DB_ADAPTERS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db-adapters");
 const JWT_SECRET = crypto.randomBytes(32).toString("base64url");
 const TENANT = "11111111-1111-1111-1111-111111111111";
 
@@ -170,4 +175,28 @@ describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${DRIZZLE_PRESET}, i
     expect(names).not.toContain("drizzle-kit");
     expect(names).not.toContain("esbuild");
   }, 120_000);
+});
+
+describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${PRISMA_PRESET}, installed and built`, () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = scaffoldProject(tmp, "prisma-app", PRISMA_PRESET);
+    install(dir);
+    // The registry can serve an older @stratum-hq/db-adapters than the
+    // workspace. Install the workspace build, so that the build checks the
+    // Prisma helper types of the code under test.
+    const [packed] = JSON.parse(run("npm", ["pack", "--json", "--pack-destination", tmp], DB_ADAPTERS_DIR)) as {
+      filename: string;
+    }[];
+    run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", path.join(tmp, packed.filename)], dir);
+    // The install skips scripts, so the postinstall of @prisma/client does not
+    // generate the client. Without this step, the build sees no real PrismaClient.
+    run("npx", ["prisma", "generate"], dir);
+  }, 600_000);
+
+  it("builds with next build", () => {
+    run("npm", ["run", "build"], dir);
+    expect(fs.existsSync(path.join(dir, ".next/BUILD_ID"))).toBe(true);
+  }, 300_000);
 });
