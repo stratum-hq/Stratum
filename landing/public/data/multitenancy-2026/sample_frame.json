@@ -1,0 +1,1012 @@
+[
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "aah20/grc_claw",
+  "package": "@grc-claw/rbac-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "ac12644/langgraph-tenancy-js",
+  "package": "langgraph-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "afoudaswe/gix_ai_copilot_nx",
+  "package": "@gixcopilot/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "agenticnucleus/whatsapp-multitenant",
+  "package": "@agenticnucleus/whatsapp-multitenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "ajaysingh452/multitenant-search",
+  "package": "@ajay.inpis/multitenant-search"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "alvaroveloso070/strapi-plugin-multitenancy",
+  "package": "strapi-plugin-multitenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "aristoteliss/nestjs-pipeline",
+  "package": "@nestjs-pipeline/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "arpayidcloud-byte/agentx",
+  "package": "@agentx-fast/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "ashwinsathian/better-auth-mongoose",
+  "package": "better-auth-mongoose-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "baileywickham/prisma-tenant-extension",
+  "package": "prisma-tenant-extension"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "basaltkit/basalt",
+  "package": "@basaltkit/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "bhanudeep/tenant-manager",
+  "package": "@bhanudeep/tenant-manager"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "blixis-io/framework",
+  "package": "@blixis-io/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "blue45f/spa-seo-gateway",
+  "package": "@heejun/spa-seo-gateway-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "cancioneschorriscortas-max/yggdrasil-forge",
+  "package": "@yggdrasil-forge/multitenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "cedarjs/cedar",
+  "package": "@cedarjs/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "chytre-digital/tenantkit",
+  "package": "@deverjak/tenantkit-adapter-supabase"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "cloudquery/frontend",
+  "package": "@cloudquery/api-platform-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "d-e-a-n-f/saga-bus",
+  "package": "@saga-bus/middleware-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "dbjpanda/convex-tenants",
+  "package": "@djpanda/convex-tenants"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "delphi-ai/multi-tenant-chat",
+  "package": "@delphi-ai/multi-tenant-chat"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "digital-trust-foundry/dtf-platform",
+  "package": "@dtfoundry/app-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "factornorg/org",
+  "package": "@factorn/nestjs-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "federicots/tenant-guard",
+  "package": "tenant-guard"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "flametrench/node",
+  "package": "@flametrench/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "flaviomartil/tenantkit",
+  "package": "@flavio.martil/tenantkit"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "follosoft/drizzle-multitenancy",
+  "package": "@follosoft/drizzle-multitenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "forwardimpact/monorepo",
+  "package": "@forwardimpact/svctenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "geex-framework/geex",
+  "package": "@geexcode/geex-extensions-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "globalbusinessadvisors/llm-marketplace",
+  "package": "@llm-dev-ops/llm-marketplace-tenant-management"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "gridwork-dev/caisson",
+  "package": "@caisson-sh/tenancy-rls"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "grimmcreative/payload-kreatika-multitenant",
+  "package": "@kreatika/payload-multitenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "guomonth/dsh-multi-tenant",
+  "package": "dsh-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "happyvertical/smrt",
+  "package": "@happyvertical/smrt-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "hendriabdg-coder/nestjs-multi-tenant",
+  "package": "@endrichtech/nestjs-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "jinyeongjung/nestjs-tenant-shield",
+  "package": "nestjs-tenant-shield"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "joelouf/tenancy",
+  "package": "@joelouf/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "karthick-ramachandran/tenancyjs",
+  "package": "tenancyjs-adapter-sequelize"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "klypalskyi/multitenant",
+  "package": "@multitenant/cli"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "kourosh-alasti/better-auth-tenancy",
+  "package": "better-auth-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "lennartki/n8n-nodes-multitenantmicrosoft",
+  "package": "@lennartki/n8n-nodes-multitenantmicrosoft"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "lexmata/nestjs-multi-tenancy",
+  "package": "@lexmata/nestjs-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "lifetose/prisma-tenant-guard",
+  "package": "prisma-tenant-guard"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "mafesoftware/paquetes",
+  "package": "@mafesoftware/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "manuelfederl/better-auth-multi-tenancy",
+  "package": "@four-leaves/better-auth-multi-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "manuelfederl/better-auth-multi-tenancy-rbac",
+  "package": "@four-leaves/better-auth-multi-tenancy-rbac"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "markusahlstrand/authhero",
+  "package": "@authhero/multi-tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "mateusflorez/drizzle-multitenant",
+  "package": "drizzle-multitenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "mehradamiri/tenant-idempotency",
+  "package": "tenant-idempotency"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "molecule-dev/molecule",
+  "package": "@molecule/api-multi-tenancy-schema"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "multisystemsuite/timezone-engine",
+  "package": "@multisystemsuite/timezone-engine-tenant-manager"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "multitenantkit/multitenantkit",
+  "package": "@multitenantkit/domain-contracts"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "nebutra/nebutra-sailor",
+  "package": "@nebutra/tenant-store"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "nestarc/nestjs-tenancy",
+  "package": "@nestarc/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "nestm-dev/tenant",
+  "package": "@nestm/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "novavey/multi-tenant-security-kit",
+  "package": "@novavey/multi-tenant-security-kit"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "npm-packages-modules/mern",
+  "package": "tenantforge"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "objectstack-ai/framework",
+  "package": "@objectstack/service-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "objectstack-ai/objectui",
+  "package": "@object-ui/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "oitydob-crypto/tenant-evidence-kit",
+  "package": "tenant-evidence-kit"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "openmindednewby/tenant-theme-web",
+  "package": "@dloizides/tenant-theme-web"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "oyinlola-tech/zudo",
+  "package": "@zudojs/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "payloadcms/payload",
+  "package": "@ruya.sa/plugin-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "peteabu/gram-tenant",
+  "package": "gram-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "quxkit/tenant-kit",
+  "package": "@quxkit/tenant-kit"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "reaatech/multi-tenant-mcp",
+  "package": "@reaatech/multi-tenant-mcp-middleware"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "refinedev/refine",
+  "package": "@abdokouta/react-multitenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "reymi-tech/nestjs-multitenant",
+  "package": "nestjs-multitenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "rikoriswandha/adonisjs-tenant",
+  "package": "@rikology/adonisjs-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "rivtor/rivtor-tenant",
+  "package": "@rivtor/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "robertciudica/tenant-ledger",
+  "package": "tenant-ledger"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "rudrendupaul/tenantguard",
+  "package": "tenantguard-cli"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "rutvik-sonani/mycli-cli",
+  "package": "@mycli-cli/tenancy-engine"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "samuelpeterson22/tenantproof",
+  "package": "tenantproof"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "sathish4000/tenancy-platform",
+  "package": "@tenancy-engine/sdk"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "silviosln/tenant-guard",
+  "package": "@silviosln/tenant-guard"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "studiomeyer-io/mcp-tenant-context",
+  "package": "mcp-tenant-context"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "subaru-hello/multi-tenant-saas-security",
+  "package": "@subaru-hello/tenant-invariant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "subodhkc/mcp-tenant-isolation",
+  "package": "mcp-tenant-isolation"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "sugarhoneyicetea/tenancy",
+  "package": "@chrono-os/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "syeedalireza/nest-multitenant",
+  "package": "nest-multitenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "szukalski/cdk-multi-tenant",
+  "package": "cdk-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "tabshift/payloadcms",
+  "package": "@tabshiftcms/plugin-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "tenant-auth/tenant-auth",
+  "package": "tenant-auth"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "tenantscale/sdk",
+  "package": "@tenantscale/sdk"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "tenantsdb/cli",
+  "package": "tenantsdb"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "thunderwerx-ltd/payload-plugin-multi-tenant-eu",
+  "package": "payload-plugin-multi-tenant-eu"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "usebetter-dev/usebetter",
+  "package": "@usebetterdev/tenant-cli"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "venturekit-dev/venturekit",
+  "package": "@venturekit-pro/tenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "viktorvelikov13/tenora",
+  "package": "@tenora/multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "vocoweb/vocoweb-tenant",
+  "package": "@vocoweb/tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "waymaker-ai/cofounder",
+  "package": "@waymakerai/aicofounder-multi-tenant"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "yoshixi/tenanso",
+  "package": "tenanso"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "your-org/apollo-next-multitenancy",
+  "package": "@econneq/apollo-next-multitenancy"
+ },
+ {
+  "stratum": "A_window_dedicated_census",
+  "repo": "zerotaldev/zerotal",
+  "package": "@zerotal/tenancy"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "classytic/mongokit",
+  "package": "@classytic/mongokit"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "algoshred/burdenoff-be-sdk-node",
+  "package": "@burdenoff/be-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "hros-aio/apis-factory",
+  "package": "@new-hros/libs-core"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "genius740code/fortress",
+  "package": "fortress-db"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "fengsoft/saas-core",
+  "package": "@fengsoft/saas-core"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "cocreate-app/cocreate-tidb",
+  "package": "@cocreate/tidb"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "christiancattaneo/jimmy",
+  "package": "jimmy-db"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "the-gig-agency/agentic-control-plane-kit",
+  "package": "agentic-control-plane-kit"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "bymaxone/nest-realtime",
+  "package": "@bymax-one/nest-realtime"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "vn-chemgio/xnest-kit",
+  "package": "xnest-kit"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "pa1nd/atelier",
+  "package": "@pa1nd/atelier"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "amun-ai/hypha-compute",
+  "package": "hypha-compute"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "amaretto-software-labs/identity-base",
+  "package": "@identity-base/angular-organizations"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "carsontkempf/learn",
+  "package": "learn-auth-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "expertflow/mtt-sql-plugin",
+  "package": "mtt-sql-plugin"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "foson-co/arkite-ui",
+  "package": "@arkite-ui/core"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "serhiimelnikov/rag-boilerplate",
+  "package": "rag-boilerplate"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "wristband-dev/typescript-m2m-auth",
+  "package": "@wristband/typescript-m2m-auth"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "allissonsimplicio/signature_module_sdk",
+  "package": "@alos32/signature-module-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "toprent-app/instagram-media-service",
+  "package": "@power-rent/instagram-media-service"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "dynamiatools/framework",
+  "package": "@dynamia-tools/saas-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "osamudasai/weshipyou-sdk",
+  "package": "weshipyou-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "fahara02/udb",
+  "package": "@udb_plus/sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "profullstack/orgs",
+  "package": "@profullstack/orgs"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "vllnt/convex-api-keys",
+  "package": "@vllnt/convex-api-keys"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "hypergaas/hypergaas",
+  "package": "@hypergaas/core"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "absolutejs/router",
+  "package": "@absolutejs/router"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "cosmicdriftgamestudio/kumiko-framework",
+  "package": "@cosmicdrift/kumiko-framework"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "launchbase-company/launchbase-cli",
+  "package": "launchbase"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "conreo/paperclip-codegraph",
+  "package": "paperclip-codegraph"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "evanz1215/vite-plugin-white-label",
+  "package": "vite-plugin-white-label"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "kyrobit/kyroguard",
+  "package": "@kyrobit/kyroguard"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "carlosmarte/mta-multi-tenant-application",
+  "package": "@thinkeloquent/core-no-cache"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "murich/supabase-multi-issuer-jwt",
+  "package": "@murich/supabase-multi-issuer-jwt"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "cesarguzmanlopez/memos-mcp",
+  "package": "mcp-for-memos"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "marcelnakatori/picturehouse",
+  "package": "@picturehouse/sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "letkode/form-schema-js",
+  "package": "@letkode/form-schema"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "wrk-t/nestjs-core",
+  "package": "@wrk-t/nestjs-core"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "halort/halort-design-system",
+  "package": "@halort/themes"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "apolocine/mosta-transit-apc",
+  "package": "@mostajs/transit-apc"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "rajanaggarwal11/pgrls",
+  "package": "pgrls"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "syntaxility/axiljs",
+  "package": "@axiljs/cloud"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "cocreate-app/cocreate-dynamodb",
+  "package": "@cocreate/dynamodb"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "msoukhomlinov/n8n-nodes-cipp-advanced",
+  "package": "n8n-nodes-cipp-advanced"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "bojo500/core-tenant-system",
+  "package": "mk-cts"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "ticatec/keelson",
+  "package": "@ticatec/keelson-express"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "iproute-tecnologia/wppapi-sdk-js",
+  "package": "wppapi-sdk"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "zoworkhq/zoblocks",
+  "package": "@zoblocks/theme"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "your-org/saas-creation-skill",
+  "package": "@lens.kamdem/saas-creator"
+ },
+ {
+  "stratum": "B_window_other_random50",
+  "repo": "masatotakayo-ops/project_ron",
+  "package": "@ronenterprise/sdk"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "nextauthjs/next-auth",
+  "package": "@tawashy/na-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "codedoctor/mongoose-user-store-multi-tenant",
+  "package": "mongoose-user-store-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "soajs/soajs",
+  "package": "soajs.multitenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "anetaj/strapi-plugin-multi-tenant",
+  "package": "strapi-plugin-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "ajinkya-cs/nestjs-mongo-multi-tenancy",
+  "package": "nestjs-mongo-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "ringierimu/webpack-multitenancy-plugin",
+  "package": "@roamafrica/webpack-multitenancy-plugin"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "dchosking/sequelizemultitenantmodule",
+  "package": "sequelizemultitenantmodule"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "teziapp/typeorm-multi-tenant",
+  "package": "typeorm-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "enhavo/enhavo",
+  "package": "@enhavo/multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "asim-jana/loopback4-multi-tenancy",
+  "package": "loopback4-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "wearenova/mongoose-tenant",
+  "package": "@wearenova/mongoose-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "avishwakarma/nestjs-tenancy",
+  "package": "nestjs-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "intelligix/prisma-multi-tenant",
+  "package": "prisma2-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "dzangolab/fastify",
+  "package": "@dzangolab/fastify-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "magicindustries/sequelize",
+  "package": "sequelize-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "quiqflow-2-0/quiqflow-multi-tenants-utils",
+  "package": "@quiqflow-org/quiqflow-multi-tenants-utils"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "hieutran094/nuxt3-multi-tenancy",
+  "package": "nuxt3-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "codedoctor/hapi-oauth-store-multi-tenant",
+  "package": "hapi-oauth-store-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "ikbendion/n8n-nodes-msgraph-multitenant",
+  "package": "n8n-nodes-msgraph-multitenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "hieuhani/nuxt-multi-tenancy-module",
+  "package": "nuxt-multi-tenancy-module"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "condenast/aviator-multi-tenant",
+  "package": "aviator-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "rkotcherr/multi-tenant-migrate",
+  "package": "multi-tenant-migrate"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "doonpy/nestjs-packages",
+  "package": "@doonpy/prisma-extension-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "sarang-tops/prisma-multi-tenant",
+  "package": "prisma-multi-tenant-v2"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "remcoplasmeyer/adonis-multitenancy",
+  "package": "@hipsjs/adonis-multitenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "arseny034/typeorm-multitenancy",
+  "package": "typeorm-multitenancy-nestjs"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "palmabit-it/mongoose-tenant",
+  "package": "mongoose-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "subdiox/nuxt-multi-tenancy",
+  "package": "nuxt-multi-tenancy-plus"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "codedoctor/hapi-user-store-multi-tenant",
+  "package": "hapi-user-store-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "miketerry-org/multitenant-nodemailer",
+  "package": "multitenant-nodemailer"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "deye9/node-multi-tenant",
+  "package": "node-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "sourcefuse/arc-saas",
+  "package": "@sourceloop/ctrl-plane-tenant-management-service"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "magikevolution/sails-hook-magik-tenant",
+  "package": "sails-hook-magik-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "waleed-abark/multi-tenant-mongoose",
+  "package": "multi-tenant-mongoose"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "shauliz/node-express-multitenant",
+  "package": "node-express-multitenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "n0isy/nestjs-multitenant",
+  "package": "@nestjs-multitenant/typeorm"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "damuel90/nestjs-tenancy",
+  "package": "@damuel90/nestjs-muntitenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "giogaspa/fastify-multitenant",
+  "package": "@giogaspa/fastify-multitenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "amira-assem-mdlabs/nestjs-multi-tenancy",
+  "package": "@amira_assem_mdlabs/nestjs-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "tlaverdure/laravel-echo-server",
+  "package": "laravel-echo-server-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "advcomm/tenant_replication_postgres",
+  "package": "@advcomm/tenant_replication_postgres"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "express-multitenancy/mongoose-store",
+  "package": "express-multitenancy-mongoose"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "jsaf80/prisma-multi-tenant",
+  "package": "prisma4-multi-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "osstotalsoft/rocket-toolkit",
+  "package": "@totalsoft/multitenancy-core"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "wgrisa/knex-postgres-multi-tenancy",
+  "package": "knex-postgres-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "craftup/node-mongo-tenant",
+  "package": "mongo-tenant"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "mshima/generator-jhipster-tenantview",
+  "package": "generator-jhipster-tenantview"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "miketerry-org/multitenant-config",
+  "package": "multitenant-config"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "yunology/ts-multi-tenancy",
+  "package": "@yunology/ts-multi-tenancy"
+ },
+ {
+  "stratum": "C_prewindow_dedicated_random50",
+  "repo": "paztek/mongoose-multitenancy",
+  "package": "mongoose-plugin-multitenancy"
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "deye9/node-multi-tenant",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "agusrdz/multitenant_demo",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "lanemc/multi-tenant-saas-toolkit",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "morka17/multi-tenant-user-role-base-app",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "anishlushte07/multi-tenant-application",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "daniccan/multi-tenant-node-app",
+  "package": ""
+ },
+ {
+  "stratum": "D_original_post",
+  "repo": "craftup/node-mongo-tenant",
+  "package": "mongo-tenant"
+ }
+]
