@@ -45,7 +45,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.types.json",
     "lint": "eslint .",
     "clean": "rm -rf dist"
   },

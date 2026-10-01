@@ -1,0 +1,7 @@
+# Prisma generates a full client here. The type test needs only the two
+# declaration files, so git keeps those and ignores the rest.
+*/client/*
+!*/client/index.d.ts
+!*/client/runtime/
+*/client/runtime/*
+!*/client/runtime/library.d.ts

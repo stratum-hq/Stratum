@@ -1,0 +1,18 @@
+// Fixture for the Prisma type test in src/__tests__/types/prisma-client.ts.
+// Only the generated declaration files are in git. See ../README.md.
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+
+  @@map("orders")
+}
