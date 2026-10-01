@@ -19,6 +19,7 @@ export const STRATUM_TABLES: readonly string[] = Object.freeze([
   "principal_roles",
   "regions",
   "roles",
+  "stratum_security",
   "tenants",
   "usage_events",
   "webhook_deliveries",

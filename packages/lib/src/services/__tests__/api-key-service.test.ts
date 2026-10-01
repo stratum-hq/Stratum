@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import crypto from "node:crypto";
 
 // Mock pool-helpers before importing api-key-service
 vi.mock("../../pool-helpers.js", () => ({
@@ -105,3 +106,39 @@ describe("validateApiKey", () => {
     expect(result?.key_id).toBe("key-1");
   });
 });
+
+describe("validateApiKey hash candidates", () => {
+  const HMAC_ENV_NAME = "STRATUM_API_KEY_HMAC_SECRET";
+  const sha256 = (k: string) => crypto.createHash("sha256").update(k).digest("hex");
+  const hmac = (k: string, s: string) => crypto.createHmac("sha256", s).update(k).digest("hex");
+
+  /** The [hash, version] pairs validateApiKey looks up for `key`, none of which match. */
+  async function lookups(options?: { allowLegacyHashes?: boolean }): Promise<Array<[unknown, unknown]>> {
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [] });
+    withMockQuery(mockQuery);
+    expect(await apiKeyService.validateApiKey(makeMockPool(), "presented-key", options)).toBeNull();
+    return mockQuery.mock.calls.map(([, params]) => [params[0], params[2]]);
+  }
+
+  afterEach(() => {
+    delete process.env[HMAC_ENV_NAME];
+  });
+
+  it("looks up only the SHA-256 hash with version 1 when no HMAC secret is set", async () => {
+    expect(await lookups()).toEqual([[sha256("presented-key"), 1]]);
+  });
+
+  it("looks up only the HMAC hash with version 2 once an HMAC secret is set", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    expect(await lookups()).toEqual([[hmac("presented-key", "unit-secret"), 2]]);
+  });
+
+  it("also looks up the SHA-256 hash with version 1 when legacy hashes are allowed", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    expect(await lookups({ allowLegacyHashes: true })).toEqual([
+      [hmac("presented-key", "unit-secret"), 2],
+      [sha256("presented-key"), 1],
+    ]);
+  });
+});
+

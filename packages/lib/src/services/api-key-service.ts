@@ -149,18 +149,34 @@ const STAMP_INTERVAL_SECONDS = 60;
  */
 const STAMP_TIMEOUT_MS = 1000;
 
+export interface ValidateApiKeyOptions {
+  /**
+   * Accept a key stored with the unkeyed SHA-256 hash (version 1) while
+   * STRATUM_API_KEY_HMAC_SECRET is set, and re-hash it with HMAC when it
+   * authenticates. Default false.
+   */
+  allowLegacyHashes?: boolean;
+}
+
 export async function validateApiKey(
   pool: pg.Pool,
   key: string,
+  options: ValidateApiKeyOptions = {},
 ): Promise<ValidatedApiKey | null> {
   const hmacSecret = getHmacSecret();
 
-  // Build candidate hashes: try HMAC first (if secret is set), then SHA-256 fallback
+  // Candidate hashes. With an HMAC secret, only HMAC hashes (version 2)
+  // authenticate, unless the caller opted in to the legacy SHA-256 hashes
+  // (version 1) for a migration window. A SHA-256 hash needs no secret to
+  // compute, so accepting it would let anyone who can write a key row choose
+  // the key. Without a secret, SHA-256 is the only hash there is.
   const candidates: Array<{ hash: string; version: number }> = [];
   if (hmacSecret) {
     candidates.push({ hash: hmacHash(key, hmacSecret), version: HASH_V2_HMAC });
   }
-  candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
+  if (!hmacSecret || options.allowLegacyHashes === true) {
+    candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
+  }
 
   // Everything below runs on one pooled connection: nothing here may acquire a
   // second connection while this one is held.
@@ -173,7 +189,7 @@ export async function validateApiKey(
                 (ak.last_used_at IS NULL OR ak.last_used_at < now() - make_interval(secs => $2)) AS stamp_due
          FROM api_keys ak
          LEFT JOIN tenants t ON t.id = ak.tenant_id
-         WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
+         WHERE ak.key_hash = $1 AND ak.hash_version = $3 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
            AND (ak.tenant_id IS NULL OR (
              t.status = 'active'
              AND NOT EXISTS (
@@ -182,7 +198,7 @@ export async function validateApiKey(
                  AND anc.status <> 'active'
              )
            ))`,
-        [candidate.hash, STAMP_INTERVAL_SECONDS],
+        [candidate.hash, STAMP_INTERVAL_SECONDS, candidate.version],
       );
 
       if (res.rows.length === 0) continue;
@@ -213,8 +229,9 @@ export async function validateApiKey(
   // When a stamp is due, we await it so that a read made after validateApiKey
   // resolves sees the new last_used_at. Without the await, listDormantKeys can
   // report a just-used key.
-  // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is
-  // available, re-hash with HMAC and update the stored hash in-place.
+  // Transparent upgrade: if we matched via legacy SHA-256 (allowed above only
+  // with allowLegacyHashes) and the HMAC secret is set, re-hash with HMAC and
+  // update the stored hash in place.
   const { row } = found;
   const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
   if (!upgrade && !row.stamp_due) return found.validated;

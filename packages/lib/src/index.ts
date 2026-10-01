@@ -6,6 +6,8 @@ export {
   type MigrateSchemasResult,
 } from "./migrate-schemas.js";
 export { STRATUM_TABLES } from "./stratum-tables.js";
+export { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
+export { bootstrapRolesSql, APP_READ_TABLES, type BootstrapRolesOptions } from "./role-model.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
   runScopedJob,
@@ -87,7 +89,13 @@ export type {
   RateLimiterOptions,
 } from "./services/rate-limit-service.js";
 
-export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
+export type {
+  ApiKeyRecord,
+  CreatedApiKey,
+  ValidatedApiKey,
+  CreateApiKeyOptions,
+  ValidateApiKeyOptions,
+} from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
 export type { KeyRotationResult, KeyRotationSalts, KeyRotationUnreadableRow } from "./services/key-rotation-service.js";
 export type { DeliveryStats } from "./services/event-service.js";

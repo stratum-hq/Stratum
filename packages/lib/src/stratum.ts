@@ -71,10 +71,37 @@ import type {
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { migrate } from "./migrate.js";
+import { markAdminPool } from "./pool-helpers.js";
+import { assertRoleName } from "./migration-sql.js";
+import { checkRoleModel, warnNoAdminPool } from "./role-model.js";
 import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
+  /**
+   * The application's pool. With `adminPool`, the library runs no query of
+   * its own on it; initialize() only checks its role. Without `adminPool`,
+   * the library runs every query on it through the legacy app.bypass_rls path.
+   */
   pool: pg.Pool;
+  /**
+   * The library's own pool: a login that is a member of the control role
+   * (migration 032). Every library query and autoMigrate run on it. Optional
+   * in 1.x, with a deprecation warning when absent; required in 2.0.
+   */
+  adminPool?: pg.Pool;
+  /**
+   * The control role. Default: the role the database's policies name, else
+   * `stratum_control`. autoMigrate passes it to migrate().
+   */
+  controlRole?: string;
+  /**
+   * Accept API keys stored with the legacy unkeyed SHA-256 hash (version 1)
+   * while STRATUM_API_KEY_HMAC_SECRET is set, and re-hash each one with HMAC
+   * when it authenticates. Default false: once the secret is set, only HMAC
+   * hashes authenticate. Without the secret, SHA-256 is the only hash and
+   * this option has no effect.
+   */
+  allowLegacyKeyHashes?: boolean;
   keyPrefix?: string;
   logger?: StratumLogger;
   /** Run migrations automatically on initialize(). Defaults to false. */
@@ -85,6 +112,10 @@ export interface StratumOptions {
 
 export class Stratum {
   private readonly pool: pg.Pool;
+  private readonly appPool: pg.Pool;
+  private readonly hasAdminPool: boolean;
+  private readonly controlRole: string | undefined;
+  private readonly allowLegacyKeyHashes: boolean;
   private readonly keyPrefix: string;
   private readonly logger: StratumLogger;
   private readonly autoMigrate: boolean;
@@ -92,11 +123,25 @@ export class Stratum {
   private initPromise: Promise<void> | null = null;
 
   constructor(options: StratumOptions) {
-    this.pool = options.pool;
+    // Every library query runs on this.pool: the admin pool when there is one.
+    this.pool = options.adminPool ?? options.pool;
+    this.appPool = options.pool;
+    this.hasAdminPool = options.adminPool !== undefined;
+    if (options.controlRole !== undefined) assertRoleName(options.controlRole, "control role");
+    this.controlRole = options.controlRole;
+    this.allowLegacyKeyHashes = options.allowLegacyKeyHashes ?? false;
     this.keyPrefix = options.keyPrefix ?? "sk_live_";
     this.logger = options.logger ?? defaultLogger;
     this.autoMigrate = options.autoMigrate ?? false;
     this.enforceRls = options.enforceRls ?? false;
+    if (options.adminPool) markAdminPool(options.adminPool);
+    else warnNoAdminPool(this.logger);
+    if (this.allowLegacyKeyHashes) {
+      this.logger.warn(
+        "allowLegacyKeyHashes is on: API keys with a SHA-256 hash (version 1) still authenticate " +
+          "while STRATUM_API_KEY_HMAC_SECRET is set. Turn it off once those keys are re-hashed or rotated.",
+      );
+    }
   }
 
   /**
@@ -123,8 +168,17 @@ export class Stratum {
         );
       }
       this.logger.info("running auto-migration");
-      await migrate({ pool: this.pool, enforceRls: this.enforceRls });
+      await migrate({ pool: this.pool, enforceRls: this.enforceRls, controlRole: this.controlRole });
       this.logger.info("auto-migration complete");
+    }
+    if (this.hasAdminPool) {
+      await checkRoleModel({
+        adminPool: this.pool,
+        appPool: this.appPool,
+        controlRole: this.controlRole,
+        strict: this.enforceRls,
+        logger: this.logger,
+      });
     }
   }
 
@@ -610,7 +664,7 @@ export class Stratum {
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
     return traced("api_key.validate", {}, async () => {
-      return apiKeyService.validateApiKey(this.pool, key);
+      return apiKeyService.validateApiKey(this.pool, key, { allowLegacyHashes: this.allowLegacyKeyHashes });
     });
   }
   revokeApiKey(keyId: string, audit?: AuditContext): Promise<boolean> {

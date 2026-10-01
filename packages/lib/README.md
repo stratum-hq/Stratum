@@ -38,6 +38,28 @@ const permissions = await stratum.resolvePermissions(customer.id);
 
 The `pool` is **borrowed, not owned**: Stratum never creates or closes it. With `autoMigrate: true`, `initialize()` runs the schema migrations on first start; leave it off and manage migrations yourself via `migrate`.
 
+## Admin pool and the control role (1.8, opt-in)
+
+Migration 032 adds a NOLOGIN **control role** (`stratum_control` by default). Every Stratum table has a `stratum_control_plane` policy for that role, so a login that is a member of it reaches every row, and a session cannot become a member by setting anything. Give the library its own pool on such a login, and keep `pool` for your application:
+
+```typescript
+const adminPool = new Pool({ connectionString: process.env.DATABASE_ADMIN_URL }); // member of stratum_control
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });            // the application role
+const stratum = new Stratum({ adminPool, pool, autoMigrate: true, enforceRls: true });
+```
+
+- Every library query and `autoMigrate` run on `adminPool`. The admin login needs neither SUPERUSER nor BYPASSRLS.
+- `initialize()` checks both logins: the admin login must be a member of the control role; the application login must not be a superuser, have BYPASSRLS, be a member of the control role, own Stratum tables or functions, write any Stratum table, or read `api_keys`, `webhooks`, `regions` or `stratum_security`. It warns about each problem; with `enforceRls: true` a problem with the application login throws.
+- `bootstrapRolesSql({ adminRole, appRole, controlRole })` returns the idempotent SQL a database administrator runs once (and again after a migration that adds a table): it creates the control role, makes the admin login a member, and limits the application login to `SELECT` on the read-list tables (`APP_READ_TABLES`).
+- Migration 032 creates the control role itself when the migrating role has CREATEROLE. Otherwise it stops with an error that prints the bootstrap SQL.
+- The control role name: `migrate({ controlRole })`, `migrateAllSchemas({ controlRole })` and `new Stratum({ controlRole })` set it, and so does `ALTER DATABASE ... SET stratum.control_role = '...'` for every session of one database. Without either, the migration reuses the role the database already has, else `stratum_control`. Roles are cluster-wide, so give databases that must stay apart their own name.
+- The legacy `app.bypass_rls` path stays open while `stratum_security.legacy_guc_bypass` is true, the 1.8 default. Once every client of the database uses `adminPool`, close it as a member of the control role: `UPDATE stratum_security SET legacy_guc_bypass = false`.
+- Without `adminPool`, Stratum behaves as before and logs a deprecation warning once. `adminPool` becomes required in 2.0, which also removes the legacy path.
+
+### API key hashes
+
+Once `STRATUM_API_KEY_HMAC_SECRET` is set, `validateApiKey` accepts only HMAC-SHA256 key hashes (version 2). Keys created before the secret was set carry an unkeyed SHA-256 hash (version 1) and are refused. To move them over, set `allowLegacyKeyHashes: true` for a transition window: a version 1 key then still authenticates and is re-hashed with HMAC on that use. Turn the option off afterwards and rotate the keys that were not used in the window (`SELECT id, name FROM api_keys WHERE hash_version = 1 AND revoked_at IS NULL`).
+
 ## API Summary
 
 The `Stratum` instance covers the full tenant lifecycle:

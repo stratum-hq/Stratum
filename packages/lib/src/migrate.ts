@@ -1,15 +1,25 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import { assertRoleName, isSuperuser, migrationSql, setControlRole } from "./migration-sql.js";
 
 export interface MigrateOptions {
   pool: pg.Pool;
   /** When true, SET stratum.enforce_rls = 'on' before running migrations (hard-fail on BYPASSRLS). */
   enforceRls?: boolean;
+  /**
+   * The name of the NOLOGIN control role that migration 032 creates and names
+   * in its policies. Default: the stratum.control_role setting of the session
+   * (for example from ALTER DATABASE ... SET), then the role the database
+   * already uses, then `stratum_control`. Roles are cluster-wide, so set it
+   * when several databases on one server need separate control roles.
+   */
+  controlRole?: string;
 }
 
 export async function migrate(options: MigrateOptions): Promise<void> {
-  const { pool, enforceRls } = options;
+  const { pool, enforceRls, controlRole } = options;
+  if (controlRole !== undefined) assertRoleName(controlRole, "control role");
 
   // Create migrations tracking table
   await pool.query(`
@@ -33,6 +43,8 @@ export async function migrate(options: MigrateOptions): Promise<void> {
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
+  const superuser = await isSuperuser(pool);
+
   for (const file of files) {
     const client = await pool.connect();
     try {
@@ -55,8 +67,9 @@ export async function migrate(options: MigrateOptions): Promise<void> {
       if (enforceRls) {
         await client.query("SET LOCAL stratum.enforce_rls = 'on'");
       }
+      await setControlRole(client, controlRole);
 
-      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
+      const sql = migrationSql(file, fs.readFileSync(path.join(migrationsDir, file), "utf-8"), superuser);
       await client.query(sql);
       await client.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
       await client.query("COMMIT");
