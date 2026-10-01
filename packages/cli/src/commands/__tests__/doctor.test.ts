@@ -195,4 +195,67 @@ describe("doctor", () => {
       },
     );
   });
+
+  describe("encryption key check", () => {
+    const names = ["NODE_ENV", "STRATUM_HKDF_SALT"] as const;
+    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+    const GOOD_KEY = "k".repeat(32);
+    const GOOD_SALT = "a1".repeat(32);
+
+    afterEach(() => {
+      for (const n of names) {
+        if (saved[n] === undefined) delete process.env[n];
+        else process.env[n] = saved[n];
+      }
+    });
+
+    const setEnv = (nodeEnv: string, key: string | undefined, salt: string | undefined) => {
+      process.env.NODE_ENV = nodeEnv;
+      if (key === undefined) delete process.env.STRATUM_ENCRYPTION_KEY;
+      else process.env.STRATUM_ENCRYPTION_KEY = key;
+      if (salt === undefined) delete process.env.STRATUM_HKDF_SALT;
+      else process.env.STRATUM_HKDF_SALT = salt;
+    };
+    const keyLine = () =>
+      logSpy.mock.calls.flat().find((line) => String(line).includes("Encryption key")) as string;
+
+    it.each([
+      ["a key shorter than 32 bytes", "k".repeat(31), GOOD_SALT, /at least 32 bytes/],
+      ["the built-in development key", "stratum-dev-key", GOOD_SALT, /built-in development key/],
+      ["no key", undefined, GOOD_SALT, /STRATUM_ENCRYPTION_KEY must be set/],
+      ["no HKDF salt", GOOD_KEY, undefined, /STRATUM_HKDF_SALT must be set/],
+      ["an HKDF salt that is not hex", GOOD_KEY, "not-hex", /STRATUM_HKDF_SALT must be/],
+    ])("fails and exits 1 in production with %s", async (_name, key, salt, message) => {
+      setEnv("production", key, salt);
+      (connectDb as Mock).mockResolvedValue(makeFakePool(STRATUM_TABLES));
+
+      await expect(doctor({})).rejects.toBeInstanceOf(ExitError);
+
+      expect(keyLine()).toContain("✗");
+      expect(output()).toMatch(message);
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it("passes in production with a key of at least 32 bytes and a hex salt", async () => {
+      setEnv("production", GOOD_KEY, GOOD_SALT);
+      (connectDb as Mock).mockResolvedValue(makeFakePool(STRATUM_TABLES));
+
+      await doctor({});
+
+      expect(keyLine()).toContain("✓");
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it("warns in development without a key, and says the built-in development key is used", async () => {
+      setEnv("development", undefined, undefined);
+      (connectDb as Mock).mockResolvedValue(makeFakePool(STRATUM_TABLES));
+
+      await doctor({});
+
+      expect(keyLine()).toContain("⚠");
+      expect(output()).toContain("built-in development key");
+      expect(output()).not.toMatch(/not be encrypted/);
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+  });
 });
