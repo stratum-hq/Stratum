@@ -44,6 +44,8 @@ function routeKeys(): Array<[string, unknown]> {
 
 // The scope each route required before scopes were declared per route. Kept
 // here so a change to any route's required scope is a visible, reviewed diff.
+// Deliberate change since: GET /tenants/:id/context moved from admin to read,
+// so an app server resolving tenants does not need an admin key.
 const EXPECTED_SCOPES: Record<string, string> = Object.fromEntries([
     ["GET /api/v1/tenants/", "read"],
     ["HEAD /api/v1/tenants", "read"],
@@ -66,8 +68,8 @@ const EXPECTED_SCOPES: Record<string, string> = Object.fromEntries([
     ["POST /api/v1/tenants/:id/purge", "admin"],
     ["GET /api/v1/tenants/:id/export", "admin"],
     ["HEAD /api/v1/tenants/:id/export", "admin"],
-    ["GET /api/v1/tenants/:id/context", "admin"],
-    ["HEAD /api/v1/tenants/:id/context", "admin"],
+    ["GET /api/v1/tenants/:id/context", "read"],
+    ["HEAD /api/v1/tenants/:id/context", "read"],
     ["GET /api/v1/tenants/:id/config/", "read"],
     ["HEAD /api/v1/tenants/:id/config", "read"],
     ["HEAD /api/v1/tenants/:id/config/", "read"],
