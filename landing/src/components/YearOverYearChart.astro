@@ -1,0 +1,358 @@
+---
+/**
+ * A grouped bar chart that compares two 12-month periods month by month, for
+ * use inside a blog post. It is plain HTML and CSS (no script), so it scales to
+ * any width with readable text. The plot is one labeled image for assistive
+ * technology, and the same numbers follow in a table under "Show the numbers".
+ */
+interface Props {
+  /** The chart heading. */
+  title: string;
+  /** One sentence that says what the chart shows, read in place of the bars. */
+  summary: string;
+  /** Twelve month labels, in order. */
+  months: string[];
+  prior: number[];
+  current: number[];
+  priorLabel: string;
+  currentLabel: string;
+  /** "compact" writes 1.1M and 77k; "plain" writes 1,281. */
+  format?: 'plain' | 'compact';
+  /** A source or definition line under the chart. */
+  note?: string;
+  /** False when the monthly values do not add up to a meaningful yearly total. */
+  showTotals?: boolean;
+}
+
+const {
+  title,
+  summary,
+  months,
+  prior,
+  current,
+  priorLabel,
+  currentLabel,
+  format = 'plain',
+  note,
+  showTotals = true,
+} = Astro.props;
+
+const plain = (n: number) => n.toLocaleString('en-US');
+const compact = (n: number) => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+};
+const fmt = format === 'compact' ? compact : plain;
+
+// A round axis maximum with four or five gridlines.
+const max = Math.max(...prior, ...current, 1);
+const rough = max / 4;
+const pow = 10 ** Math.floor(Math.log10(rough));
+const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= rough) ?? 10 * pow;
+const top = Math.ceil(max / step) * step;
+const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+
+const pct = (n: number) => `${((n / top) * 100).toFixed(2)}%`;
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+---
+
+<figure class="yoy">
+  <p class="yoy-title">{title}</p>
+  <div class="yoy-legend">
+    <span class="yoy-key"><span class="yoy-swatch yoy-swatch-prior"></span>{priorLabel}{showTotals && ` (total ${plain(sum(prior))})`}</span>
+    <span class="yoy-key"><span class="yoy-swatch yoy-swatch-current"></span>{currentLabel}{showTotals && ` (total ${plain(sum(current))})`}</span>
+  </div>
+
+  <div class="yoy-plot" role="img" aria-label={`${title}. ${summary}`}>
+    <div class="yoy-grid">
+      {ticks.map((t) => (
+        <div class="yoy-tick" style={`bottom: ${pct(t)}`}>
+          <span>{fmt(t)}</span>
+        </div>
+      ))}
+    </div>
+    <div class="yoy-groups">
+      {months.map((m, i) => (
+        <div class={`yoy-group${i < 3 ? ' yoy-group-start' : ''}${i > 8 ? ' yoy-group-end' : ''}`}>
+          <div class="yoy-bars">
+            <span class="yoy-bar yoy-bar-prior" style={`height: ${pct(prior[i])}`}></span>
+            <span class="yoy-bar yoy-bar-current" style={`height: ${pct(current[i])}`}></span>
+          </div>
+          <span class="yoy-month">{m}</span>
+          <span class="yoy-tip">
+            <strong>{m}</strong>
+            <span><span class="yoy-swatch yoy-swatch-prior"></span>{fmt(prior[i])}</span>
+            <span><span class="yoy-swatch yoy-swatch-current"></span>{fmt(current[i])}</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  {note && <figcaption class="yoy-note">{note}</figcaption>}
+
+  <details class="yoy-data">
+    <summary>Show the numbers</summary>
+    <div class="table-wrapper">
+      <table>
+        <caption class="yoy-sr">{title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Month</th>
+            <th scope="col">{priorLabel}</th>
+            <th scope="col">{currentLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {months.map((m, i) => (
+            <tr>
+              <th scope="row">{m}</th>
+              <td>{plain(prior[i])}</td>
+              <td>{plain(current[i])}</td>
+            </tr>
+          ))}
+          {showTotals && (
+            <tr>
+              <th scope="row">Total</th>
+              <td>{plain(sum(prior))}</td>
+              <td>{plain(sum(current))}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</figure>
+
+<style>
+  /* The two series colors pass the dataviz palette check (lightness, chroma,
+     color vision deficiency separation, contrast) against each theme's canvas. */
+  .yoy {
+    --yoy-prior: #5e90c8;
+    --yoy-current: var(--accent);
+    margin: var(--space-8) 0;
+  }
+
+  :global([data-theme='light']) .yoy {
+    --yoy-prior: #2f6aa8;
+  }
+
+  .yoy-title {
+    font-weight: 600;
+    color: var(--text-primary) !important;
+    margin-bottom: var(--space-2) !important;
+  }
+
+  .yoy-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
+  }
+
+  .yoy-key {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .yoy-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex: none;
+  }
+
+  .yoy-swatch-prior {
+    background: var(--yoy-prior);
+  }
+
+  .yoy-swatch-current {
+    background: var(--yoy-current);
+  }
+
+  .yoy-plot {
+    position: relative;
+    height: 220px;
+    margin-left: 40px;
+    margin-bottom: 28px;
+  }
+
+  .yoy-grid {
+    position: absolute;
+    inset: 0;
+  }
+
+  .yoy-tick {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .yoy-tick span {
+    position: absolute;
+    right: calc(100% + 6px);
+    top: -0.6em;
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .yoy-groups {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+  }
+
+  .yoy-group {
+    position: relative;
+    height: 100%;
+  }
+
+  .yoy-bars {
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .yoy-bar {
+    width: 38%;
+    max-width: 16px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .yoy-bar-prior {
+    background: var(--yoy-prior);
+  }
+
+  .yoy-bar-current {
+    background: var(--yoy-current);
+  }
+
+  .yoy-month {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    text-align: center;
+    font-size: 0.6875rem;
+    color: var(--text-tertiary);
+  }
+
+  .yoy-tip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-1);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .yoy-tip span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .yoy-tip strong {
+    color: var(--text-primary);
+  }
+
+  .yoy-group-start .yoy-tip {
+    left: 0;
+    transform: none;
+  }
+
+  .yoy-group-end .yoy-tip {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+
+  .yoy-group:hover {
+    background: var(--surface-2);
+  }
+
+  .yoy-group:hover .yoy-tip {
+    display: flex;
+  }
+
+  .yoy-note {
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-2);
+  }
+
+  .yoy-data summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--sandstone);
+  }
+
+  .yoy-data .table-wrapper {
+    margin-top: var(--space-3) !important;
+  }
+
+  .yoy-data td,
+  .yoy-data tbody th {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .yoy-data tbody th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: none;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.875rem;
+  }
+
+  .yoy-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .yoy-plot {
+      height: 180px;
+      margin-left: 34px;
+    }
+
+    .yoy-bar {
+      width: 40%;
+    }
+
+    .yoy-month {
+      font-size: 0.625rem;
+    }
+  }
+</style>
