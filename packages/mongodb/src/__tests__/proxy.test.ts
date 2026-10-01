@@ -30,6 +30,26 @@ describe("createTenantScopedCollection", () => {
     scoped = createTenantScopedCollection(mock, tenantId);
   });
 
+  describe("a filter that names another tenant", () => {
+    it("throws for find and $and alike, without calling the collection", () => {
+      expect(() => scoped.find({ tenant_id: "other" })).toThrow(/conflicts with the tenant context/);
+      expect(() => scoped.find({ $and: [{ tenant_id: "other" }] })).toThrow(/conflicts with the tenant context/);
+      expect(() =>
+        scoped.bulkWrite([{ deleteMany: { filter: { $or: [{ tenant_id: "other" }] } } }]),
+      ).toThrow(/conflicts with the tenant context/);
+      expect(mock.find).not.toHaveBeenCalled();
+      expect(mock.bulkWrite).not.toHaveBeenCalled();
+    });
+
+    it("passes the context's own tenant_id through", () => {
+      scoped.find({ $and: [{ tenant_id: tenantId }] });
+      expect(mock.find).toHaveBeenCalledWith(
+        { $and: [{ tenant_id: tenantId }], tenant_id: tenantId },
+        undefined,
+      );
+    });
+  });
+
   describe("tenant_id injection", () => {
     it("injects tenant_id into find filter", () => {
       scoped.find({ status: "active" });

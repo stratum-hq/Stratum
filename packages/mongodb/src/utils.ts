@@ -48,7 +48,63 @@ export function stripTenantIdFromUpdate(update: Record<string, unknown>): Record
   return result;
 }
 
+const LOGICAL_FILTER_OPERATORS = new Set(["$and", "$or", "$nor"]);
+
+/** True when a tenant_id condition matches only the given tenant: the ID itself, or `{ $eq: id }`. */
+function isOwnTenantCondition(path: string, value: unknown, tenantId: string): boolean {
+  if (path !== "tenant_id") return false;
+  if (value === tenantId) return true;
+  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const keys = Object.keys(value);
+    return keys.length === 1 && keys[0] === "$eq" && (value as Record<string, unknown>).$eq === tenantId;
+  }
+  return false;
+}
+
+/**
+ * Throws when a filter has a condition on tenant_id other than the current
+ * tenant's own ID (a plain value or `{ $eq: id }`), at the top level or inside
+ * $and / $or / $nor at any depth. Other tenant IDs, query operators such as
+ * $in or $ne, and dotted tenant_id paths are refused, so a filter that names
+ * another tenant fails the same way in every form instead of quietly matching
+ * the current tenant's documents or none.
+ */
+export function assertFilterTenant(filter: unknown, tenantId: string): void {
+  if (filter === null || typeof filter !== "object" || Array.isArray(filter)) return;
+  for (const [key, value] of Object.entries(filter as Record<string, unknown>)) {
+    if (isTenantIdPath(key)) {
+      if (!isOwnTenantCondition(key, value, tenantId)) {
+        throw new Error(
+          "A filter condition on tenant_id conflicts with the tenant context. A tenant-scoped collection only " +
+            "matches the current tenant's documents; use the raw collection for cross-tenant queries.",
+        );
+      }
+    } else if (LOGICAL_FILTER_OPERATORS.has(key) && Array.isArray(value)) {
+      for (const clause of value) assertFilterTenant(clause, tenantId);
+    }
+  }
+}
+
+/** Checks a filter with {@link assertFilterTenant} and returns a copy scoped to the tenant. */
+export function scopeFilter(filter: Record<string, unknown> | undefined, tenantId: string): Record<string, unknown> {
+  assertFilterTenant(filter, tenantId);
+  return { ...filter, tenant_id: tenantId };
+}
+
 const FILTERED_BULK_OPS = new Set(["updateOne", "updateMany", "replaceOne", "deleteOne", "deleteMany"]);
+
+/** Runs {@link assertFilterTenant} on the filter of each filtered bulkWrite operation. */
+export function assertBulkWriteFilterTenant(operations: unknown, tenantId: string): void {
+  if (!Array.isArray(operations)) return;
+  for (const op of operations) {
+    if (!op || typeof op !== "object") continue;
+    for (const [opType, body] of Object.entries(op as Record<string, unknown>)) {
+      if (FILTERED_BULK_OPS.has(opType) && body && typeof body === "object") {
+        assertFilterTenant((body as Record<string, unknown>).filter, tenantId);
+      }
+    }
+  }
+}
 
 /**
  * Scopes bulkWrite operations to a tenant. Only insertOne, updateOne, updateMany,
