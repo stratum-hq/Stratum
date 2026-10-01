@@ -42,13 +42,14 @@ The module is `@Global()`, so import it once. Then use the guard and decorator i
 
 ```typescript
 import { Controller, Get, UseGuards } from "@nestjs/common";
+import type { ResolvedTenantContext } from "@stratum-hq/core";
 import { StratumGuard, Tenant } from "@stratum-hq/nestjs";
 
 @Controller("data")
 @UseGuards(StratumGuard)
 export class DataController {
   @Get()
-  getData(@Tenant() tenant) {
+  getData(@Tenant() tenant: ResolvedTenantContext) {
     return { tenantId: tenant.tenant_id, config: tenant.resolved_config };
   }
 }
@@ -57,7 +58,7 @@ export class DataController {
 ## API
 
 - **`StratumModule.forRoot(options)` / `forRootAsync(options)`**: register the SDK client for DI. `forRootAsync` supports `useFactory` + `inject` for config that depends on other providers (e.g. `ConfigService`).
-- **`StratumGuard`**: resolves the tenant from a verified JWT claim, then the `X-Tenant-ID` header, then custom `resolvers`. When `jwtSecret` or `jwtVerify` is set, the guard reads the header only with `trustTenantHeader: true`, and it rejects a Bearer token that fails verification with 401. Set `jwtAudience` / `jwtIssuer` to also reject tokens whose `aud` / `iss` claim does not match. Sets `req.tenant` (full `TenantContext`), plus `req.impersonating` / `req.originalTenantId` when impersonation is enabled. Throws `UnauthorizedException` (401) if the request has no tenant ID, `NotFoundException` (404) if the tenant does not exist, `ForbiddenException` (403) if the tenant is suspended or access is denied, and `GoneException` (410) if the tenant is archived. A control plane timeout throws `GatewayTimeoutException` (504). A rejected SDK API key throws `InternalServerErrorException` (500) and writes the cause to `console.error`.
+- **`StratumGuard`**: resolves the tenant from a verified JWT claim, then the `X-Tenant-ID` header, then custom `resolvers`. When `jwtSecret` or `jwtVerify` is set, the guard reads the header only with `trustTenantHeader: true`, and it rejects a Bearer token that fails verification with 401. Set `jwtAudience` / `jwtIssuer` to also reject tokens whose `aud` / `iss` claim does not match. Sets `req.tenant` (the `ResolvedTenantContext`), plus `req.impersonating` / `req.originalTenantId` when impersonation is enabled. Throws `UnauthorizedException` (401) if the request has no tenant ID, `NotFoundException` (404) if the tenant does not exist, `ForbiddenException` (403) if the tenant is suspended or access is denied, and `GoneException` (410) if the tenant is archived. A control plane timeout throws `GatewayTimeoutException` (504). A rejected SDK API key throws `InternalServerErrorException` (500) and writes the cause to `console.error`.
 - **`@Tenant()`**: parameter decorator that extracts `req.tenant`.
 - **`StratumContextInterceptor`**: binds the resolved context to AsyncLocalStorage so services can call `getTenantContext()` from `@stratum-hq/sdk` without the request object.
 
