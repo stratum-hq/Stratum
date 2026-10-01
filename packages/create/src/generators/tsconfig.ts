@@ -38,13 +38,15 @@ export function generateTsconfig(framework: Framework, extraSources: string[] = 
         ...(framework === "nestjs"
           ? { experimentalDecorators: true, emitDecoratorMetadata: true }
           : {}),
+        // next build on Next.js 16 rewrites a tsconfig.json that lacks these
+        // options or the .next/dev/types include, so the project ships with them.
         ...(framework === "nextjs"
-          ? { jsx: "preserve", plugins: [{ name: "next" }] }
+          ? { jsx: "react-jsx", isolatedModules: true, resolveJsonModule: true, plugins: [{ name: "next" }] }
           : {}),
       },
       include:
         framework === "nextjs"
-          ? ["next-env.d.ts", "src", ...extraSources, ".next/types/**/*.ts"]
+          ? ["next-env.d.ts", "src", ...extraSources, ".next/types/**/*.ts", ".next/dev/types/**/*.ts"]
           : ["src", ...extraSources],
       exclude: ["node_modules", "dist"],
     },

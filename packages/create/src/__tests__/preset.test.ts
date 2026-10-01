@@ -61,7 +61,8 @@ describe("regression: --template path unchanged", () => {
   it("--template nextjs still generates correct files", () => {
     createProject("test-project", "nextjs", projectDir, true);
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "proxy.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(false);
   });
 });
 
@@ -204,13 +205,16 @@ describe("createPresetProject", () => {
     const preset: StackPreset = { database: "postgres", strategy: "rls", orm: "prisma", framework: "nextjs" };
     createPresetProject("test-project", preset, projectDir, true);
 
-    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "proxy.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(false);
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "prisma", "schema.prisma"))).toBe(true);
 
     const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
-    expect(pkg.dependencies["next"]).toBeDefined();
-    expect(pkg.dependencies["react"]).toBeDefined();
+    expect(pkg.dependencies["next"]).toBe("^16.3.8");
+    expect(pkg.dependencies["react"]).toBe("^19.2.0");
+    expect(pkg.dependencies["react-dom"]).toBe("^19.2.0");
+    expect(pkg.engines.node).toBe(">=20.9.0");
     expect(pkg.scripts.dev).toBe("next dev");
   });
 
@@ -256,19 +260,23 @@ describe("createPresetProject", () => {
     expect(tsconfig.compilerOptions.emitDecoratorMetadata).toBe(true);
   });
 
-  it("generates tsconfig with jsx for nextjs", () => {
+  it("generates the nextjs tsconfig that next build on Next 16 leaves unchanged", () => {
     const preset: StackPreset = { database: "postgres", strategy: "rls", orm: "prisma", framework: "nextjs" };
     createPresetProject("test-project", preset, projectDir, true);
 
     const tsconfig = JSON.parse(fs.readFileSync(path.join(projectDir, "tsconfig.json"), "utf8"));
-    expect(tsconfig.compilerOptions.jsx).toBe("preserve");
+    expect(tsconfig.compilerOptions.jsx).toBe("react-jsx");
+    expect(tsconfig.compilerOptions.isolatedModules).toBe(true);
+    expect(tsconfig.compilerOptions.resolveJsonModule).toBe(true);
+    expect(tsconfig.include).toContain(".next/types/**/*.ts");
+    expect(tsconfig.include).toContain(".next/dev/types/**/*.ts");
   });
 });
 
 // ─── Next.js file layout for every preset ────────────────────────────────────
 
 describe("Next.js presets", () => {
-  // Next.js runs middleware only from the directory that holds the app
+  // Next.js runs the proxy only from the directory that holds the app
   // directory, and next build needs a root layout.
   const presets: StackPreset[] = (Object.keys(VALID_COMBINATIONS) as Database[]).flatMap((database) =>
     VALID_COMBINATIONS[database].strategies.flatMap((strategy) =>
@@ -278,14 +286,15 @@ describe("Next.js presets", () => {
 
   for (const preset of presets) {
     const label = `${preset.database}-${preset.strategy}-${preset.orm}-nextjs`;
-    it(`${label} writes src/middleware.ts next to src/app, a root layout, and a tsconfig next build accepts`, () => {
+    it(`${label} writes src/proxy.ts next to src/app, a root layout, and a tsconfig next build accepts`, () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-next-preset-"));
       try {
         createPresetProject("test-project", preset, dir, true);
         expect(fs.existsSync(path.join(dir, "src", "app", "page.tsx"))).toBe(true);
         expect(fs.existsSync(path.join(dir, "src", "app", "layout.tsx"))).toBe(true);
-        expect(fs.existsSync(path.join(dir, "src", "middleware.ts"))).toBe(true);
-        expect(fs.existsSync(path.join(dir, "middleware.ts"))).toBe(false);
+        expect(fs.existsSync(path.join(dir, "src", "proxy.ts"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "src", "middleware.ts"))).toBe(false);
+        expect(fs.existsSync(path.join(dir, "proxy.ts"))).toBe(false);
         const { compilerOptions } = JSON.parse(fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8"));
         expect(compilerOptions.rootDir).toBeUndefined();
         expect(compilerOptions.moduleResolution).toBe("Bundler");
