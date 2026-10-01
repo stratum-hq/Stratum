@@ -296,3 +296,7 @@ A rough formula: `maxConnections = activeTenants * connectionsPerPool`. For 50 a
 Views referencing session variables (`@stratum_tenant_id`) may not use indexes efficiently because MySQL treats session variables as opaque runtime values. The optimizer cannot push them into index lookups.
 
 For high-performance workloads, use the shared-table adapter's structured methods instead. The parameterized `WHERE tenant_id = ?` in structured methods allows MySQL to use indexes normally.
+
+## See also
+
+- Compare [Stratum with plain MySQL](https://stratum-hq.org/compare/mysql/), feature by feature

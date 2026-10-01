@@ -8,8 +8,10 @@ interface Props {
   ogImage?: string;
   /** An absolute URL. Defaults to this page on stratum-hq.org. */
   canonical?: string;
+  /** Keeps the page out of search results. The 404 page sets it. */
+  noindex?: boolean;
 }
-const { title, description, ogType = 'website', ogImage = '/og.png', canonical } = Astro.props;
+const { title, description, ogType = 'website', ogImage = '/og.png', canonical, noindex = false } = Astro.props;
 const pageUrl = new URL(Astro.url.pathname, 'https://stratum-hq.org').href;
 const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
 ---
@@ -54,37 +56,26 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
   <meta name="twitter:image" content={imageUrl} />
-  <meta name="robots" content="index, follow" />
+  <meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'} />
   <meta name="author" content="Stratum HQ" />
   <link rel="alternate" type="application/rss+xml" title="Stratum Blog" href="/rss.xml" />
   <link rel="alternate" type="application/atom+xml" title="Stratum Blog (Atom)" href="/atom.xml" />
-  <link rel="canonical" href={canonical ?? pageUrl} />
+  {/* A page that is not indexed has no canonical URL. */}
+  {!noindex && <link rel="canonical" href={canonical ?? pageUrl} />}
+  <!-- The Organization node is on every page. Other nodes refer to it by its
+       @id. The home page adds the SoftwareSourceCode node for the library. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "SoftwareApplication",
-        "name": "Stratum",
-        "description": "Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR tooling, and ABAC policy engine.",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Node.js",
-        "programmingLanguage": ["TypeScript", "JavaScript"],
-        "license": "https://opensource.org/licenses/MIT",
-        "url": "https://stratum-hq.org",
-        "codeRepository": "https://github.com/stratum-hq/Stratum",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-      },
-      {
-        "@type": "Organization",
-        "name": "Stratum HQ",
-        "url": "https://stratum-hq.org",
-        "logo": "https://stratum-hq.org/icon-512.png",
-        "sameAs": [
-          "https://github.com/stratum-hq",
-          "https://www.npmjs.com/org/stratum-hq"
-        ]
-      }
+    "@type": "Organization",
+    "@id": "https://stratum-hq.org/#organization",
+    "name": "Stratum HQ",
+    "url": "https://stratum-hq.org/",
+    "logo": "https://stratum-hq.org/icon-512.png",
+    "sameAs": [
+      "https://github.com/stratum-hq",
+      "https://www.npmjs.com/org/stratum-hq",
+      "https://docs.stratum-hq.org/"
     ]
   }
   </script>

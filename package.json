@@ -15,6 +15,7 @@
     "lint:secrets:staged": "node scripts/check-secrets.mjs --staged",
     "lint:deps": "node scripts/check-deps.mjs",
     "lint:deps:write": "node scripts/check-deps.mjs --write",
+    "lint:links": "node scripts/check-site-links.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "clean": "turbo clean",
