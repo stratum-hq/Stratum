@@ -198,16 +198,17 @@ await withMysqlTenantScope(sequelize, "acme", async (scoped, transaction) => {
 
 Inside the callback, for every model with a `tenant_id` attribute:
 
-- `findAll()`, `findOne()`, `findByPk()`, `findAndCountAll()`, `count()`, `sum()`, `min()`, `max()` and `reload()` return only the tenant's rows. Includes of tenant models are filtered in their join condition, so an include that is not `required` still returns the parent row.
-- `update()`, `destroy()`, `restore()`, `increment()` and `decrement()` change only the tenant's rows, and `update()` never writes `tenant_id`.
-- `create()`, `save()` of a new instance and `bulkCreate()` write the tenant's `tenant_id`, whatever value the caller passed.
-- `save()`, `destroy()` and `restore()` of an instance whose row belongs to another tenant throw.
-- `upsert()`, `bulkCreate()` with `updateOnDuplicate`, `truncate()` and `include: { all: true }` are refused, and a model query that bypasses these methods (for example a direct `queryInterface` call) throws.
+- `findAll()`, `findOne()`, `findByPk()`, `findAndCountAll()`, `count()`, `sum()`, `min()`, `max()` and `reload()` return only the tenant's rows. Every include of a tenant model is filtered in its join condition, including includes added by default and named scopes, by an included model's own default scope, by `include: { all: true }` and by hooks, so an include that is not `required` still returns the parent row. A scope's own where clause is kept.
+- `update()`, `destroy()`, `restore()`, `increment()` and `decrement()` change only the tenant's rows, and `update()` never writes `tenant_id`. As outside the helper, `update()`, `destroy()` and `increment()` without a `where` are refused by Sequelize.
+- `create()`, `save()` of a new instance and `bulkCreate()` write the tenant's `tenant_id`, whatever value the caller passed, and add it to a `fields` list that leaves it out.
+- `save()`, `destroy()` and `restore()` of an instance whose row belongs to another tenant throw, and so do they for an existing instance of a model without a primary key, whose row cannot be checked.
+- `upsert()`, `bulkCreate()` with `updateOnDuplicate`, `truncate()`, and `or: true` or `right: true` on an include of a tenant model are refused.
+- A query whose options name a tenant model or instance but that did not go through these methods throws, also when it runs inside a model hook. This covers, for example, `queryInterface.select(Note, ...)`. `queryInterface` calls that take only a table name, such as `bulkInsert()`, `bulkUpdate()` and `bulkDelete()`, carry no model and are not scoped, like raw SQL.
 - `hooks: false` does not skip the filter.
 
 The helper also sets `@stratum_tenant_id` on the transaction's connection and clears it in a `finally` block. Pass the transaction to queries that must run in it.
 
-**Not scoped:** raw `sequelize.query()`, models without a `tenant_id` attribute, the through (junction) model of a many-to-many include, and any code outside the callback. The helper throws when it is given something other than a Sequelize v6 instance.
+**Not scoped:** raw `sequelize.query()`, `queryInterface` calls by table name, models without a `tenant_id` attribute, the through (junction) model of a many-to-many include, and any code outside the callback. The helper throws when it is given something other than a Sequelize v6 instance.
 
 ## MySQL Views (Not Supported)
 

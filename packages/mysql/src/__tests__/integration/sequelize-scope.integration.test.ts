@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { Sequelize, DataTypes, Model, type ModelStatic } from "sequelize";
+import { Sequelize, DataTypes, Model, Op, type ModelStatic } from "sequelize";
 import type { Pool } from "mysql2/promise";
 import { getTestPool, cleanupTestPool } from "./setup.js";
 import { withMysqlTenantScope, type SequelizeLike } from "../../integrations/sequelize.js";
@@ -22,6 +22,13 @@ let sequelize: Sequelize;
 let Note: ModelStatic<Model>;
 let Owner: ModelStatic<Model>;
 let Tag: ModelStatic<Model>;
+let ScopedNote: ModelStatic<Model>;
+let ScopedOwner: ModelStatic<Model>;
+let AndNote: ModelStatic<Model>;
+let HookNote: ModelStatic<Model>;
+let Keyless: ModelStatic<Model>;
+/** Rows a HookNote beforeFind hook read through queryInterface. */
+let hookRead: unknown;
 
 async function notes(): Promise<NoteRow[]> {
   const [rows] = await pool.query(`SELECT * FROM \`${DB}\`.\`notes\` ORDER BY id`);
@@ -92,6 +99,50 @@ beforeAll(async () => {
   );
   Note.belongsTo(Owner, { as: "owner", foreignKey: "owner_id" });
   Owner.hasMany(Note, { as: "notes", foreignKey: "owner_id" });
+
+  const noteAttributes = {
+    id: { type: DataTypes.INTEGER, primaryKey: true },
+    tenant_id: { type: DataTypes.STRING },
+    name: { type: DataTypes.STRING },
+    owner_id: { type: DataTypes.INTEGER },
+  };
+  // Models whose scopes add includes, on the same tables.
+  ScopedOwner = sequelize.define(
+    "ScopedOwner",
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true },
+      tenant_id: { type: DataTypes.STRING },
+      name: { type: DataTypes.STRING },
+    },
+    { ...common, tableName: "owners" },
+  );
+  ScopedNote = sequelize.define("ScopedNote", noteAttributes, { ...common, tableName: "notes" });
+  ScopedNote.belongsTo(ScopedOwner, { as: "owner", foreignKey: "owner_id" });
+  ScopedOwner.hasMany(ScopedNote, { as: "notes", foreignKey: "owner_id" });
+  ScopedNote.belongsTo(Owner, { as: "plainOwner", foreignKey: "owner_id" });
+  ScopedOwner.addScope("defaultScope", { include: [{ model: ScopedNote, as: "notes" }] }, { override: true });
+  ScopedNote.addScope("defaultScope", { include: [{ model: Owner, as: "plainOwner" }] }, { override: true });
+  ScopedNote.addScope("withOwner", { include: [{ model: Owner, as: "plainOwner" }] });
+  ScopedNote.addScope("withScopedOwner", { include: [{ model: ScopedOwner, as: "owner" }] });
+  AndNote = sequelize.define("AndNote", noteAttributes, {
+    ...common,
+    tableName: "notes",
+    defaultScope: { where: { [Op.and]: [{ id: { [Op.ne]: 3 } }] } },
+  });
+  HookNote = sequelize.define("HookNote", noteAttributes, { ...common, tableName: "notes" });
+  HookNote.belongsTo(Owner, { as: "owner", foreignKey: "owner_id" });
+  HookNote.addHook("beforeFind", async (options: { include?: unknown[]; readThroughQueryInterface?: boolean }) => {
+    options.include = [{ model: Owner, as: "owner" }];
+    if (options.readThroughQueryInterface) {
+      hookRead = await sequelize.getQueryInterface().select(Note as never, "notes", { where: {} } as never);
+    }
+  });
+  Keyless = sequelize.define(
+    "Keyless",
+    { tenant_id: { type: DataTypes.STRING }, name: { type: DataTypes.STRING } },
+    { ...common, tableName: "notes" },
+  );
+  Keyless.removeAttribute("id");
 });
 
 afterAll(async () => {
@@ -214,8 +265,12 @@ describe("withMysqlTenantScope Sequelize boundaries", () => {
     ).rejects.toThrow(/not tenant-scoped/);
   });
 
-  it("refuses include all, which it cannot filter", async () => {
-    await expect(asA(() => Note.findAll({ include: [{ all: true }] }))).rejects.toThrow(/include "all"/);
+  it("filters the includes that include all expands to", async () => {
+    const rows = await asA(() => Note.findAll({ include: [{ all: true }], order: [["id", "ASC"]] }));
+    expect(rows.map((n) => [Number(n.get("id")), (n.get("owner") as Model | null)?.get("name") ?? null])).toEqual([
+      [1, null],
+      [3, "alice"],
+    ]);
   });
 
   it("filters a nested include of a tenant model", async () => {
@@ -233,5 +288,88 @@ describe("withMysqlTenantScope Sequelize boundaries", () => {
 
   it("leaves queries outside the helper untouched", async () => {
     expect(ids(await Note.findAll())).toEqual([1, 2, 3]);
+  });
+});
+
+describe("withMysqlTenantScope Sequelize scopes and options", () => {
+  const ownerNames = (rows: Model[], as = "owner") =>
+    rows.map((n) => [Number(n.get("id")), (n.get(as) as Model | null)?.get("name") ?? null]);
+
+  it("filters an include added by a default scope", async () => {
+    const rows = await asA(() => ScopedNote.findAll({ order: [["id", "ASC"]] }));
+    expect(ownerNames(rows, "plainOwner")).toEqual([
+      [1, null],
+      [3, "alice"],
+    ]);
+  });
+
+  it("filters an include added by a named scope", async () => {
+    const rows = await asA(() => ScopedNote.scope("withOwner").findAll({ order: [["id", "ASC"]] }));
+    expect(ownerNames(rows, "plainOwner")).toEqual([
+      [1, null],
+      [3, "alice"],
+    ]);
+  });
+
+  it("filters an include added by the included model's default scope", async () => {
+    const rows = await asA(() => ScopedNote.scope("withScopedOwner").findAll({ order: [["id", "ASC"]] }));
+    const alice = rows.find((n) => Number(n.get("id")) === 3)?.get("owner") as Model;
+    expect(ids(alice.get("notes") as Model[])).toEqual([3]);
+    expect(rows.find((n) => Number(n.get("id")) === 1)?.get("owner")).toBeNull();
+  });
+
+  it("filters an include added by a beforeFind hook", async () => {
+    const rows = await asA(() => HookNote.findAll({ order: [["id", "ASC"]] }));
+    expect(ownerNames(rows)).toEqual([
+      [1, null],
+      [3, "alice"],
+    ]);
+  });
+
+  it("keeps both the tenant filter and a default scope's top-level Op.and", async () => {
+    expect(ids(await asA(() => AndNote.findAll()))).toEqual([1]);
+    expect(ids(await asA(() => AndNote.findAll({ where: { name: { [Op.ne]: "zzz" } } })))).toEqual([1]);
+    expect(await asA(() => AndNote.count({ where: { name: { [Op.ne]: "zzz" } } }))).toBe(1);
+  });
+
+  it("filters an Association object used as an include", async () => {
+    const association = (Note as unknown as { associations: Record<string, unknown> }).associations.owner;
+    const rows = await asA(() => Note.findAll({ include: [association as never], order: [["id", "ASC"]] }));
+    expect(ownerNames(rows)).toEqual([
+      [1, null],
+      [3, "alice"],
+    ]);
+  });
+
+  it("refuses or and right on an include of a tenant model", async () => {
+    await expect(asA(() => Note.findAll({ include: [{ model: Owner, as: "owner", or: true, where: { id: 2 } }] }))).rejects.toThrow(/Stratum/);
+    await expect(asA(() => Note.findAll({ include: [{ model: Owner, as: "owner", right: true }] }))).rejects.toThrow(/Stratum/);
+  });
+
+  it("still requires a where for destroy() and update(), as Sequelize does", async () => {
+    await expect(asA(() => Note.destroy())).rejects.toThrow(/where/);
+    await expect(asA(() => Note.destroy({ where: undefined }))).rejects.toThrow(/where/);
+    await expect(asA(() => Note.update({ name: "x" }, {} as never))).rejects.toThrow(/where/);
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("bulkCreate with a fields list still writes the current tenant's tenant_id", async () => {
+    await asA(() => Note.bulkCreate([{ id: 9, name: "f", owner_id: 1 }], { fields: ["id", "name", "owner_id"] }));
+    expect((await notes()).find((n) => n.id === 9)?.tenant_id).toBe("tenant-a");
+  });
+
+  it("refuses save() of an existing instance of a model without a primary key", async () => {
+    await expect(
+      asA(() => Keyless.build({ tenant_id: "tenant-a", name: "x" }, { isNewRecord: false }).save()),
+    ).rejects.toThrow(/Stratum/);
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("refuses a bypassing query made inside a model hook", async () => {
+    hookRead = undefined;
+    await expect(
+      asA(() => HookNote.findAll({ readThroughQueryInterface: true } as never)),
+    ).rejects.toThrow(/not tenant-scoped/);
+    expect(hookRead).toBeUndefined();
   });
 });
