@@ -12,7 +12,7 @@ import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
  * Config behaviors that need a real database: the ON CONFLICT upsert against the
- * UNIQUE(tenant_id, key) constraint, partial success within a single
+ * UNIQUE(tenant_id, key) constraint, all-or-nothing rollback of a single
  * batchSetConfig transaction, nearest-ancestor inheritance resolved over a real
  * ancestry_path, and that a sensitive value is stored encrypted yet decrypts
  * correctly when inherited by a descendant.
@@ -61,7 +61,7 @@ describe("config-service against real Postgres (integration)", () => {
     expect((await stratum.resolveConfig(t.id)).max_users.value).toBe(25);
   });
 
-  it("commits the unlocked keys of a batch while rejecting the locked one, in one transaction", async () => {
+  it("rolls back the whole batch when any key is locked, and reports the failed key", async () => {
     const root = await stratum.createTenant({
       name: "Root",
       slug: uniqueSlug("bsr"),
@@ -72,34 +72,80 @@ describe("config-service against real Postgres (integration)", () => {
       parent_id: root.id,
     });
     await set(root.id, "locked_key", 100, /* locked */ true);
+    await set(child.id, "free_key_a", "before");
 
     const result = await stratum.batchSetConfig(child.id, [
-      { key: "locked_key", value: 1 },
       { key: "free_key_a", value: 2 },
-      { key: "free_key_b", value: 3 },
+      { key: "locked_key", value: 1 },
+      { key: "free_key_b", value: 3, sensitive: true },
     ]);
 
-    expect(result.succeeded).toBe(2);
-    expect(result.failed).toBe(1);
-    expect(result.results.find((r) => r.key === "locked_key")?.status).toBe(
-      "error",
-    );
+    expect(result.rolled_back).toBe(true);
+    expect(result.succeeded).toBe(0);
+    expect(result.failed).toBe(3);
+    const locked = result.results.find((r) => r.key === "locked_key");
+    expect(locked?.status).toBe("error");
+    expect(locked?.error).toMatch(/locked by tenant/);
+    for (const key of ["free_key_a", "free_key_b"]) {
+      const r = result.results.find((x) => x.key === key);
+      expect(r?.status).toBe("error");
+      expect(r?.entry).toBeUndefined();
+      expect(r?.error).toMatch(/rolled back.*locked_key/);
+    }
 
-    // The two unlocked keys really persisted for the child...
-    const childRows = await getPool().query<{ key: string }>(
-      `SELECT key FROM config_entries WHERE tenant_id = $1 ORDER BY key`,
+    // Nothing in the batch was written: the earlier value is untouched and
+    // the new key does not exist.
+    const childRows = await getPool().query<{ key: string; value: unknown }>(
+      `SELECT key, value FROM config_entries WHERE tenant_id = $1 ORDER BY key`,
       [child.id],
     );
-    expect(childRows.rows.map((r) => r.key)).toEqual([
-      "free_key_a",
-      "free_key_b",
-    ]);
+    expect(childRows.rows).toEqual([{ key: "free_key_a", value: "before" }]);
 
-    // ...and the locked key still resolves to the ancestor's locked value.
     const resolved = await stratum.resolveConfig(child.id);
     expect(resolved.locked_key.value).toBe(100);
     expect(resolved.locked_key.locked).toBe(true);
-    expect(resolved.free_key_a.value).toBe(2);
+  });
+
+  it("rolls back the whole batch when an entry is invalid", async () => {
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("bsi"),
+    });
+
+    const result = await stratum.batchSetConfig(t.id, [
+      { key: "good", value: 1 },
+      { key: "no_value", value: undefined },
+      { key: "", value: 2 },
+    ]);
+
+    expect(result.rolled_back).toBe(true);
+    expect(result.succeeded).toBe(0);
+    expect(result.results.find((r) => r.key === "no_value")?.error).toMatch(/JSON/);
+    expect(result.results.find((r) => r.key === "")?.error).toMatch(/non-empty string/);
+    expect(result.results.find((r) => r.key === "good")?.error).toMatch(/rolled back/);
+
+    const rows = await getPool().query(
+      `SELECT key FROM config_entries WHERE tenant_id = $1`,
+      [t.id],
+    );
+    expect(rows.rows).toEqual([]);
+  });
+
+  it("commits every key of a batch with no failures, and reports no rollback", async () => {
+    const t = await stratum.createTenant({
+      name: "T",
+      slug: uniqueSlug("bso"),
+    });
+
+    const result = await stratum.batchSetConfig(t.id, [
+      { key: "a", value: 1 },
+      { key: "b", value: "x", sensitive: true },
+    ]);
+
+    expect(result).toMatchObject({ succeeded: 2, failed: 0, rolled_back: false });
+    const resolved = await stratum.resolveConfig(t.id);
+    expect(resolved.a.value).toBe(1);
+    expect(resolved.b.value).toBe("x");
   });
 
   it("deleteConfig removes the override and re-exposes the inherited parent value", async () => {

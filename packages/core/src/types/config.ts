@@ -74,10 +74,19 @@ export interface BatchSetConfigKeyResult {
   error?: string;
 }
 
+/**
+ * The outcome of a batch config write. The batch is atomic: when any entry is
+ * locked by an ancestor or invalid, nothing is written, `rolled_back` is true,
+ * `succeeded` is 0, and every result has status `"error"`. The entries that
+ * caused the rollback carry their own reason; the others say they were not
+ * applied because of those keys.
+ */
 export interface BatchSetConfigResult {
   results: BatchSetConfigKeyResult[];
   succeeded: number;
   failed: number;
+  /** True when the batch was rolled back and nothing was written. */
+  rolled_back?: boolean;
 }
 
 /** Per-key diff entry showing the value and status for one tenant side. */

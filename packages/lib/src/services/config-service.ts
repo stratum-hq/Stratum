@@ -190,9 +190,33 @@ export async function setConfig(
 }
 
 /**
- * Set multiple config keys for a tenant in a single transaction.
- * Partial success: locked keys are skipped and reported as errors,
- * while unlocked keys are set successfully within the same transaction.
+ * Return why a batch entry cannot be written, or null when it can.
+ * The value must serialize to JSON because config_entries.value is JSONB NOT NULL.
+ */
+function invalidBatchEntryReason(entry: BatchSetConfigEntry): string | null {
+  if (typeof entry.key !== "string" || entry.key.length === 0) {
+    return "Config key must be a non-empty string";
+  }
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(entry.value);
+  } catch {
+    serialized = undefined;
+  }
+  if (serialized === undefined) {
+    return `Config '${entry.key}' has a value that cannot be stored as JSON`;
+  }
+  return null;
+}
+
+/**
+ * Set multiple config keys for a tenant in a single, atomic transaction.
+ *
+ * Every entry is checked before anything is written. If any key is locked by
+ * an active ancestor or is invalid, the whole batch is rolled back: nothing is
+ * written, `rolled_back` is true, and each result has status "error". The
+ * offending keys carry their own reason; the rest name the keys that caused
+ * the rollback.
  */
 export async function batchSetConfig(
   pool: pg.Pool,
@@ -223,22 +247,42 @@ export async function batchSetConfig(
       }
     }
 
-    const results: BatchSetConfigKeyResult[] = [];
-    let succeeded = 0;
-    let failed = 0;
-
-    for (const entry of entries) {
+    // Check every entry before writing anything.
+    const failures = new Map<number, string>();
+    entries.forEach((entry, i) => {
+      const invalid = invalidBatchEntryReason(entry);
+      if (invalid) {
+        failures.set(i, invalid);
+        return;
+      }
       const lockerTenantId = lockedKeys.get(entry.key);
       if (lockerTenantId) {
-        results.push({
-          key: entry.key,
-          status: "error",
-          error: `Config '${entry.key}' is locked by tenant ${lockerTenantId} and cannot be overridden`,
-        });
-        failed++;
-        continue;
+        failures.set(
+          i,
+          `Config '${entry.key}' is locked by tenant ${lockerTenantId} and cannot be overridden`,
+        );
       }
+    });
 
+    if (failures.size > 0) {
+      const failedKeys = [...failures.keys()].map((i) => `'${entries[i].key}'`).join(", ");
+      const rolledBack = `Not applied: the batch was rolled back because ${failedKeys} failed`;
+      return {
+        results: entries.map((entry, i) => ({
+          key: entry.key,
+          status: "error" as const,
+          error: failures.get(i) ?? rolledBack,
+        })),
+        succeeded: 0,
+        failed: entries.length,
+        rolled_back: true,
+      };
+    }
+
+    const results: BatchSetConfigKeyResult[] = [];
+    let succeeded = 0;
+
+    for (const entry of entries) {
       const sensitive = entry.sensitive ?? false;
       const storedValue = sensitive
         ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
@@ -264,7 +308,7 @@ export async function batchSetConfig(
       succeeded++;
     }
 
-    return { results, succeeded, failed };
+    return { results, succeeded, failed: 0, rolled_back: false };
   });
 }
 

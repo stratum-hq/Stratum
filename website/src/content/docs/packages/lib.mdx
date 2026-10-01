@@ -129,6 +129,7 @@ stratum.batchComputeDrift(parentId, childIds): Promise<BatchDriftResult>
 ```
 
 - `resolveConfig(tenantId, options?)`: a sensitive value inherited from an ancestor comes back masked: `value: null`, `sensitive: true`, `masked: true`, with `source_tenant_id` naming the tenant that set it. A tenant's own sensitive values come back decrypted. Pass `{ revealSensitive: true }` in trusted server code that needs the inherited secret itself, and never send that result to a client. Pass `{ viewerTenantId }` to reveal only the values that tenant set. `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take the same options.
+- `batchSetConfig(tenantId, entries, audit?)`: atomic. If any key is locked by an ancestor or invalid, nothing is written and the result has `rolled_back: true` and `succeeded: 0`. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the rest say they were not applied.
 - `computeDrift(parentId, childId)`: classify each resolved config key on the child against the parent as `ok` / `override` / `missing` / `conflict` (a `conflict` is a child value that diverges from a **locked** parent key), with per-key detail and a rolled-up worst status.
 - `batchComputeDrift(parentId, childIds)`: `computeDrift` fanned out over many children, with a per-status summary count.
 
