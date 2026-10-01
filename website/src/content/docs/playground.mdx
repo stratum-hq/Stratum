@@ -41,8 +41,9 @@ import Playground from '../../components/Playground.astro';
     padding: 0 1rem !important;
   }
 
-  /* Hide prev/next nav on playground */
-  [data-page-url="/playground/"] .pagination-links {
+  /* Hide prev/next nav on playground. Starlight sets no data-page-url
+     attribute, so match the page by its own content instead. */
+  body:has(.playground-page) .pagination-links {
     display: none !important;
   }
 
