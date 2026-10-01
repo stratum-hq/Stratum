@@ -22,7 +22,7 @@ describe("hashApiKey", () => {
   it("refuses an HMAC secret shorter than 32 bytes outside development and test", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("STRATUM_API_KEY_HMAC_SECRET", "s".repeat(31));
-    expect(() => hashApiKey("sk_live_abc")).toThrow(
+    expect(() => hashApiKey("sk_test_abc")).toThrow(
       "STRATUM_API_KEY_HMAC_SECRET must be at least 32 bytes in production",
     );
   });
@@ -36,7 +36,7 @@ describe("hashApiKey", () => {
   it("accepts a 32-byte HMAC secret in production", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("STRATUM_API_KEY_HMAC_SECRET", "s".repeat(32));
-    expect(hashApiKey("sk_live_abc").hashVersion).toBe(2);
+    expect(hashApiKey("sk_test_abc").hashVersion).toBe(2);
   });
 
   it.each(["development", "test", ""])("accepts a shorter HMAC secret when NODE_ENV is %j", (nodeEnv) => {
