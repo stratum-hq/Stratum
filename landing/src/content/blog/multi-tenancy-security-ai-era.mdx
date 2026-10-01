@@ -4,8 +4,8 @@ accent: Who Decides the Tenant?
 seoTitle: 'Multi-Tenancy Security in the AI Era: Who Decides the Tenant?'
 description: AI tools multiplied Node.js multi-tenancy libraries. Many look polished, but deciding who the tenant is, and enforcing it, is often wrong. A checklist.
 intro: Multi-tenancy bugs are security bugs, including ours.
-pubDate: 2026-10-08
-draft: true
+pubDate: 2026-10-02
+draft: false
 tags:
   - multi-tenancy
   - security
@@ -40,8 +40,8 @@ checklist for judging any library, including ours.
   library.
 - In a scan of 203 packages, 45 (about 1 in 5) read the tenant from a request header. That is
   fine only when something you control checks it.
-- Stratum has published 17 security advisories, all fixed. Six of them include a version of
-  the same flaw: trusting a tenant the client chose.
+- Stratum has published 18 security advisories, and every one has a fix in a released version.
+  Seven of them include a version of the same flaw: trusting a tenant the client chose.
 
 ## Where this problem comes from
 
@@ -137,9 +137,10 @@ too, so that the table owner is also bound by the policy: 11 of the 12 RLS libra
 scan did. One example of doing this well is
 [`@usebetterdev/tenant`](https://www.npmjs.com/package/@usebetterdev/tenant), whose generated
 policies enable and force RLS, scope the tenant setting to the transaction, and return no rows
-when no tenant is set. Like most designs based on a session setting, Stratum's included, it also
-has a documented bypass for admin and background work, so its isolation also depends on the
-application controlling which code can run SQL on its connection.
+when no tenant is set. Like most designs based on a session setting, it also has a documented
+bypass for admin and background work, so its isolation also depends on the application
+controlling which code can run SQL on its connection. Stratum had the same dependency until
+version 1.8, which adds an opt-in role model to remove it; more on that below.
 
 So the database side is mostly in decent shape. The weak point is earlier: where the tenant ID
 comes from. RLS enforces whatever tenant you hand it. If the client picked that tenant, RLS
@@ -171,8 +172,9 @@ Stratum is built with heavy AI assistance. Its repository would count toward the
 the question for us is not whether AI-written code has these flaws. Ours did.
 
 As of this post, Stratum has published
-[17 security advisories](https://github.com/stratum-hq/Stratum/security/advisories): 2
-critical, 9 high, and 6 medium. All of them are fixed in released versions. Grouped by release:
+[18 security advisories](https://github.com/stratum-hq/Stratum/security/advisories): 2
+critical, 10 high, and 6 medium. Every one has a fix in a released version, and for the most
+recent one, part of the fix is opt-in until version 2.0. Grouped by release:
 
 - **July 2026** (lib 0.6.0, control-plane 0.4.0), 1 advisory: control-plane route
   authorization was opt-in, and is now default-deny. The NestJS guard trusted an
@@ -192,12 +194,24 @@ critical, 9 high, and 6 medium. All of them are fixed in released versions. Grou
 - **v1.6.0**, 1 advisory: tenant filters for reads and writes in the MySQL TypeORM
   subscriber. Hono took the tenant from a path parameter without an opt-in. An RLS check
   accepted a policy by its name alone.
+- **v1.8.0**, 1 advisory: Stratum's internal RLS bypass was a session setting, so SQL that runs
+  as the application's database role could reach Stratum's own tables across tenants. The fix
+  is a role model: Stratum's own cross-tenant work runs on a separate admin login, and the
+  application login cannot act as the control role. It is opt-in in 1.8 and the default in 2.0,
+  and installs that do not opt in behave as before. The
+  [hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/) walks through the
+  setup. The same release masks inherited sensitive config values unless trusted server code
+  asks for them, refuses missing, short, or development key material in production, scopes
+  MySQL (Knex) and MongoDB writes so they cannot move a row into another tenant, places the
+  generated Next.js middleware where Next.js runs it, and lets the control plane resolve a
+  tenant with a read-scoped key instead of an admin key.
 
 The advisories themselves have the affected and patched versions for each package.
 
 Look at how often the same class appears. The NestJS guard (July), the SDK middleware (v1.3.0),
 the Hono middleware's header and path parameter (v1.5.0 and v1.6.0), and the generated
-middleware in our scaffolding (v1.3.0 and v1.5.0) all trusted a tenant the client chose. That
+middleware in our scaffolding (v1.3.0, v1.5.0, and v1.8.0) all trusted a tenant the client
+chose. That
 is the flaw from the previous section, in our own code, more than once. We do not think it is a
 coincidence. Reading the tenant from the request is the shortest path to working code, and both
 people and AI tools take the shortest path when nothing stops them.
@@ -250,7 +264,9 @@ plane limits each key to its own subtree.
 **4. Is RLS forced, and which role runs the queries?** `ENABLE` without `FORCE` exempts the
 table owner. A superuser or a role with `BYPASSRLS` skips RLS entirely.
 *Stratum:* RLS is enabled and forced together, and the application role is meant to be neither
-a superuser nor `BYPASSRLS`. See the
+a superuser nor `BYPASSRLS`. With the 1.8 role model, Stratum's own work runs on a separate
+admin login, and the application login owns none of Stratum's tables. See the
+[hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/) and the
 [db-adapters docs](https://docs.stratum-hq.org/packages/db-adapters/).
 
 **5. Does isolation fail closed?** With no tenant set, a query should return no rows, not all
@@ -260,9 +276,12 @@ nothing. The MySQL TypeORM adapter refuses tenant reads and writes outside a ten
 
 **6. Is there a bypass, and who can use it?** Admin and background work usually needs one.
 Find it, and find out what can turn it on.
-*Stratum:* there is one, `app.bypass_rls`, set per transaction for system paths such as the
-control plane and migrations. Any code that can run SQL on the connection can set it, so keep
-raw SQL access in code you trust.
+*Stratum:* up to 1.7, the bypass was a session setting, `app.bypass_rls`, and any code that
+could run SQL on the connection could set it. In 1.8 you can opt in to the role model instead:
+Stratum's cross-tenant work moves to a separate admin login, and `stratum db lock` closes the
+session-setting path. Version 2.0 makes that the default. Until you opt in, the old path stays
+open, so keep raw SQL access in code you trust. See the
+[hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/).
 
 **7. Do the advertised isolation modes exist in the code?** One of the 21 libraries we read did
 not implement modes it advertised.
@@ -279,7 +298,7 @@ tenant cannot read another's rows.
 **9. How are security flaws reported and disclosed?** A private reporting route and published
 advisories with patched versions are a good sign. No advisories at all can mean no flaws, or no
 one looking.
-*Stratum:* security@stratum-hq.org, and 17 published advisories so far.
+*Stratum:* security@stratum-hq.org, and 18 published advisories so far.
 
 The fastest way to see hierarchy, delegation, and isolation working together is the
 [browser playground](https://docs.stratum-hq.org/playground/). It runs the real library on
