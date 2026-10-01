@@ -53,7 +53,10 @@ const STRATUM_TABLES = [
   "audit_logs",
 ];
 
-const MAX_TREE_DEPTH = 20;
+// Stratum accepts a tenant tree of any depth. Config resolution reads every
+// ancestor, so a deep tree makes it slower: doctor warns above this depth as a
+// performance hint, and never fails on depth.
+const DEFAULT_DEPTH_WARNING = 20;
 
 const CYCLE_REPAIR_DOCS =
   "https://docs.stratum-hq.org/packages/cli/#repair-a-tenant-parent-cycle";
@@ -435,7 +438,36 @@ function checkEncryptionKey(): CheckResult {
   };
 }
 
-async function checkTreeDepth(pool: pg.PoolClient): Promise<CheckResult> {
+interface DepthWarning {
+  threshold: number;
+  issue?: string;
+}
+
+/**
+ * Returns the depth above which doctor warns, from the --depth-warning flag,
+ * then STRATUM_DOCTOR_DEPTH_WARNING, then the default.
+ * An invalid value gives the default and an issue to report.
+ */
+function resolveDepthWarning(flags: Record<string, string | boolean>): DepthWarning {
+  const fromFlag = flags["depth-warning"] !== undefined;
+  const raw = fromFlag ? flags["depth-warning"] : process.env.STRATUM_DOCTOR_DEPTH_WARNING;
+  if (raw === undefined || raw === "") {
+    return { threshold: DEFAULT_DEPTH_WARNING };
+  }
+  if (typeof raw === "string" && /^[1-9]\d*$/.test(raw)) {
+    return { threshold: Number(raw) };
+  }
+  const source = fromFlag ? "--depth-warning" : "STRATUM_DOCTOR_DEPTH_WARNING";
+  return {
+    threshold: DEFAULT_DEPTH_WARNING,
+    issue: `${source} must be a positive integer; using ${DEFAULT_DEPTH_WARNING}`,
+  };
+}
+
+async function checkTreeDepth(
+  pool: pg.PoolClient,
+  { threshold, issue }: DepthWarning,
+): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT COALESCE(MAX(depth), 0) AS max_depth
     FROM tenants
@@ -443,34 +475,27 @@ async function checkTreeDepth(pool: pg.PoolClient): Promise<CheckResult> {
   `);
 
   const maxDepth = parseInt(res.rows[0].max_depth, 10);
+  const summary = `Max depth: ${maxDepth} (warning threshold: ${threshold})`;
+  const details: string[] = issue ? [issue] : [];
 
-  if (maxDepth > MAX_TREE_DEPTH) {
+  if (maxDepth > threshold) {
     const overRes = await pool.query(
       `SELECT id, name, depth FROM tenants WHERE depth > $1 AND status = 'active' ORDER BY depth DESC LIMIT 5;`,
-      [MAX_TREE_DEPTH],
+      [threshold],
     );
     const over = overRes.rows as Array<{ id: string; name: string; depth: number }>;
-    return {
-      status: "fail",
-      label: "Tree depth",
-      summary: `Max depth: ${maxDepth} (limit: ${MAX_TREE_DEPTH})`,
-      details: over.map((t) => `${t.name} (${t.id.slice(0, 8)}...): depth ${t.depth}`),
-    };
+    details.push(
+      ...over.map((t) => `${t.name} (${t.id.slice(0, 8)}...): depth ${t.depth}`),
+      "Advisory: Stratum accepts this depth, but config resolution reads every ancestor",
+    );
+    return { status: "warn", label: "Tree depth", summary, details };
   }
 
-  if (maxDepth > MAX_TREE_DEPTH * 0.8) {
-    return {
-      status: "warn",
-      label: "Tree depth",
-      summary: `Max depth: ${maxDepth} (limit: ${MAX_TREE_DEPTH}), approaching limit`,
-    };
+  if (issue) {
+    return { status: "warn", label: "Tree depth", summary, details };
   }
 
-  return {
-    status: "pass",
-    label: "Tree depth",
-    summary: `Max depth: ${maxDepth} (limit: ${MAX_TREE_DEPTH})`,
-  };
+  return { status: "pass", label: "Tree depth", summary };
 }
 
 // ── Main doctor command ──────────────────────────────────────────────
@@ -579,7 +604,10 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
     // j. Tree depth
     if (hasCoreSchema) {
       try {
-        results.push(await withRlsBypass(pool, (client) => checkTreeDepth(client)));
+        const depthWarning = resolveDepthWarning(flags);
+        results.push(
+          await withRlsBypass(pool, (client) => checkTreeDepth(client, depthWarning)),
+        );
       } catch {
         results.push({
           status: "warn",
