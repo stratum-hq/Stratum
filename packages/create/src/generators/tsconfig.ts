@@ -41,7 +41,15 @@ export function generateTsconfig(framework: Framework, extraSources: string[] = 
         // next build on Next.js 16 rewrites a tsconfig.json that lacks these
         // options or the .next/dev/types include, so the project ships with them.
         ...(framework === "nextjs"
-          ? { jsx: "react-jsx", isolatedModules: true, resolveJsonModule: true, plugins: [{ name: "next" }] }
+          ? {
+              jsx: "react-jsx",
+              lib: ["dom", "dom.iterable", "esnext"],
+              allowJs: true,
+              incremental: true,
+              isolatedModules: true,
+              resolveJsonModule: true,
+              plugins: [{ name: "next" }],
+            }
           : {}),
       },
       include:

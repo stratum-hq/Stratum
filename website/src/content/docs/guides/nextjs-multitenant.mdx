@@ -5,18 +5,18 @@ description: Build a multi-tenant Next.js app with subdomain routing, server com
 
 import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
-This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). Next.js middleware resolves the tenant. Server components read the result from a request header that only the middleware sets. PostgreSQL RLS enforces data isolation at the database level.
+This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). A Next.js proxy resolves the tenant. Server components read the result from a request header that only the proxy sets. PostgreSQL RLS enforces data isolation at the database level.
 
 ## Architecture Overview
 
 The setup has three layers:
 
-1. **Middleware** reads the tenant ID from a verified JWT and the tenant slug from the subdomain, then forwards them to downstream handlers
+1. **Proxy** reads the tenant ID from a verified JWT and the tenant slug from the subdomain, then forwards them to downstream handlers
 2. **Server components and API routes** read the tenant ID from headers and use Stratum to resolve config and permissions
 3. **Database queries** run through Stratum's `prismaWithTenant()` wrapper, which sets the PostgreSQL session variable for RLS
 
 ```
-Request → Middleware (resolve tenant) → Server Component / API Route → prismaWithTenant(prisma) → PostgreSQL RLS
+Request → Proxy (resolve tenant) → Server Component / API Route → prismaWithTenant(prisma) → PostgreSQL RLS
 ```
 
 ## Project Setup
@@ -59,27 +59,35 @@ CREATE POLICY tenant_isolation ON orders
   USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 ```
 
-## Tenant Resolution Middleware
+## Tenant Resolution Proxy
 
-The middleware resolves the tenant in two ways:
+The proxy resolves the tenant in two ways:
 
-- A bearer token gives the tenant ID. The middleware verifies the token with `jose` and reads its `tenant_id` claim.
+- A bearer token gives the tenant ID. The proxy verifies the token with `jose` and reads its `tenant_id` claim.
 - A subdomain gives the tenant slug. A subdomain only selects which tenant's public page to show. It does not prove that the caller belongs to that tenant.
 
-The middleware forwards the result in two request headers. First, define their names in one module:
+The proxy forwards the result in two request headers. First, define their names in one module:
 
 ```typescript
 // src/lib/tenant-headers.ts
-// src/middleware.ts deletes any client copy of these headers before it sets
-// them, so a handler that reads them sees only values that the middleware set.
+// src/proxy.ts deletes any client copy of these headers before it sets
+// them, so a handler that reads them sees only values that the proxy set.
 export const TENANT_ID_HEADER = "x-stratum-tenant-id";
 export const TENANT_SLUG_HEADER = "x-stratum-tenant-slug";
 ```
 
-Then create `src/middleware.ts`. With the `--src-dir` layout, Next.js reads the middleware file from `src/`, next to `app/`.
+Then create `src/proxy.ts`. With the `--src-dir` layout, Next.js reads the proxy file from `src/`, next to `app/`. Next.js 16 runs the proxy on the Node.js runtime.
+
+<Aside type="note">
+  `create-next-app@latest` installs Next.js 16, which reads `proxy.ts`. On
+  Next.js 15, name the file `src/middleware.ts` and the function `middleware`:
+  Next.js 15 does not read `proxy.ts`. Keep only one of the two files, because
+  Next.js 16 refuses a project that has both. To move a Next.js 15 project to
+  16, run `npx @next/codemod@canary middleware-to-proxy .`.
+</Aside>
 
 ```typescript
-// src/middleware.ts
+// src/proxy.ts
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { TENANT_ID_HEADER, TENANT_SLUG_HEADER } from "./lib/tenant-headers";
@@ -100,8 +108,8 @@ async function verifiedTenantId(token: string): Promise<string | null> {
   }
 }
 
-export async function middleware(request: NextRequest) {
-  // Only this middleware may set the tenant headers.
+export async function proxy(request: NextRequest) {
+  // Only this proxy may set the tenant headers.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete(TENANT_ID_HEADER);
   requestHeaders.delete(TENANT_SLUG_HEADER);
@@ -355,10 +363,10 @@ For production with real subdomains:
 
 1. **DNS**: Add a wildcard A record: `*.yourapp.com` pointing to your server
 2. **TLS**: Use a wildcard certificate for `*.yourapp.com` (Let's Encrypt supports this via DNS-01 challenge)
-3. **Middleware**: Set `ROOT_DOMAIN` to `yourapp.com`. The middleware reads the subdomain from the `host` header
+3. **Proxy**: Set `ROOT_DOMAIN` to `yourapp.com`. The proxy reads the subdomain from the `host` header
 
 ```typescript
-// In middleware.ts, add domain validation for production
+// In proxy.ts, add domain validation for production
 const allowedBaseDomains = ["yourapp.com", "localhost"];
 const parts = hostname.split(".");
 const baseDomain = parts.slice(-2).join(".");
@@ -378,7 +386,7 @@ cd my-saas
 npx @stratum-hq/cli init
 ```
 
-This generates the middleware, Stratum client library, API route helpers, and example server components. The `init` command detects Next.js and scaffolds the right files.
+This generates the proxy (`middleware.ts` on Next.js 15), Stratum client library, API route helpers, and example server components. The `init` command detects Next.js and scaffolds the right files.
 
 ## Generate a ready-to-run project
 

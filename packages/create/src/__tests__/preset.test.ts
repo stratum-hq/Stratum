@@ -268,6 +268,9 @@ describe("createPresetProject", () => {
     expect(tsconfig.compilerOptions.jsx).toBe("react-jsx");
     expect(tsconfig.compilerOptions.isolatedModules).toBe(true);
     expect(tsconfig.compilerOptions.resolveJsonModule).toBe(true);
+    expect(tsconfig.compilerOptions.allowJs).toBe(true);
+    expect(tsconfig.compilerOptions.incremental).toBe(true);
+    expect(tsconfig.compilerOptions.lib).toEqual(["dom", "dom.iterable", "esnext"]);
     expect(tsconfig.include).toContain(".next/types/**/*.ts");
     expect(tsconfig.include).toContain(".next/dev/types/**/*.ts");
   });
