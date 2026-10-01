@@ -25,6 +25,28 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # The generated MySQL and MongoDB presets of @stratum-hq/create run their
+      # isolation tests against these servers.
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval \"db.runCommand('ping')\""
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     env:
       DATABASE_URL: postgresql://stratum_test:stratum_test@localhost:5433/stratum_test
@@ -38,6 +60,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run integration tests
+        # Only this run gets the MySQL and MongoDB URLs. Those suites do not use
+        # adminPool, so the second run skips them and the job stays shorter.
+        env:
+          MYSQL_URL: mysql://root@localhost:3306
+          MONGODB_URL: mongodb://localhost:27017
         run: cd packages/integration-tests && npx vitest run --config vitest.config.ts
       # The same suites with adminPool on a login that is not a superuser and
       # reaches the Stratum tables only through the control role (migration

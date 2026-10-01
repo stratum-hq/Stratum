@@ -197,7 +197,7 @@ import React from "react";
 
 export function TenantLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Requests go to the server-side proxy in app/api/stratum, which holds the
+    // Requests go to the Stratum API route in app/api/stratum, which holds the
     // control-plane API key. Never give StratumProvider a key in the browser.
     <StratumProvider controlPlaneUrl="/api/stratum">
       <TenantBoundary>{children}</TenantBoundary>
@@ -471,8 +471,9 @@ STRATUM_API_KEY=sk_test_your_key_here
 
 # React / Next.js: keep STRATUM_API_KEY server-side. Never copy it into a
 # NEXT_PUBLIC_, REACT_APP_ or VITE_ variable, which the bundler inlines into
-# browser JavaScript. Browser calls go through the server-side proxy that
-# \`stratum scaffold nextjs\` or \`stratum scaffold react\` generates.
+# browser JavaScript. Browser calls go through the server-side route that
+# \`stratum scaffold nextjs\` (the Stratum API route, app/api/stratum) or
+# \`stratum scaffold react\` (stratum-proxy.ts) generates.
 
 # Optional tuning
 NODE_ENV=development

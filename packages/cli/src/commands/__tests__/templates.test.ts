@@ -95,7 +95,7 @@ describe("React templates keep the control-plane API key out of the browser", ()
     });
   }
 
-  it("scaffold nextjs generates a server-side proxy that holds the key and denies by default", async () => {
+  it("scaffold nextjs generates a Stratum API route that holds the key and denies by default", async () => {
     const files = await scaffoldOut("nextjs");
     const route = files[path.join("app", "api", "stratum", "[...path]", "route.ts")];
     expect(route).toBeDefined();

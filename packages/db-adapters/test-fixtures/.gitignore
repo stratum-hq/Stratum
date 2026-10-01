@@ -1,7 +1,9 @@
-# Prisma generates a full client here. The type test needs only the two
-# declaration files, so git keeps those and ignores the rest.
+# Prisma generates a full client here. The type test needs only
+# client/index.d.ts and one runtime declaration file, so git keeps those and
+# ignores the rest. Prisma 5 and 6 name it library.d.ts, Prisma 7 client.d.ts.
 */client/*
 !*/client/index.d.ts
 !*/client/runtime/
 */client/runtime/*
 !*/client/runtime/library.d.ts
+!*/client/runtime/client.d.ts

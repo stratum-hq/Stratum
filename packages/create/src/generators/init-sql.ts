@@ -150,7 +150,9 @@ export function generatePresetInitSql(projectName: string, preset: StackPreset):
       // MongoDB does not use SQL initialization
       return null;
     case "mysql":
-      return generateMysqlInit(projectName, dbName);
+      return preset.strategy === "shared"
+        ? generateMysqlSharedInit(projectName, dbName)
+        : generateMysqlInit(projectName, dbName);
   }
 }
 
@@ -222,6 +224,44 @@ CREATE INDEX notes_tenant_id_idx ON notes (tenant_id);
 ${tenantIsolationPolicySql("notes")}`;
 }
 
+/**
+ * init.sql of the MySQL shared-table presets: an example tenant table, and an
+ * app user that reads and writes rows but changes no schema. MySQL has no
+ * row-level security, so the generated helper is the only tenant scope.
+ */
+function generateMysqlSharedInit(projectName: string, dbName: string): string {
+  // In a GRANT, _ in a database name matches any character, and \_ only _.
+  const grantDb = dbName.replace(/_/g, "\\_");
+  return `-- Initialize ${projectName} database
+-- MySQL setup for Stratum multi-tenancy: shared tables
+
+-- Ensure utf8mb4 for the database
+ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- An example tenant table. All tenants share it, and tenant_id names the
+-- tenant of each row. Give every tenant table the same tenant_id column and
+-- an index that starts with tenant_id. ascii_bin compares letter case
+-- exactly, so "A" and "a" are different tenants. It ignores trailing spaces
+-- (PAD SPACE), so the generated helper refuses a tenant ID with spaces.
+CREATE TABLE IF NOT EXISTS notes (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX notes_tenant_id_idx (tenant_id, created_at)
+);
+
+-- The app user (MYSQL_USER in docker-compose.yml) gets ALL on this database
+-- from the MySQL image, which names the database with _ escaped as \\_. The
+-- app user keeps only SELECT, INSERT, UPDATE and DELETE: it creates, alters,
+-- drops and truncates nothing. Create and change tables as the admin user in
+-- DATABASE_SUPERUSER_URL.
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${grantDb}\`.* FROM '${dbName}'@'%';
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${dbName}\`.* FROM '${dbName}'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON \`${grantDb}\`.* TO '${dbName}'@'%';
+`;
+}
+
 function generateMysqlInit(projectName: string, dbName: string): string {
   return `-- Initialize ${projectName} database
 -- MySQL setup for Stratum multi-tenancy
@@ -233,8 +273,9 @@ ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- tenant's own database (stratum_tenant_{slug}) or tables ({table}_{slug}),
 -- and the app looks it up by the tenant ID of a verified token. Do not change
 -- a slug: those names are fixed when the tenant is provisioned. ascii_bin
--- compares IDs byte for byte, so an ID that differs in letter case or
--- trailing spaces matches no tenant.
+-- compares letter case exactly, so an ID in another letter case matches no
+-- tenant. It ignores trailing spaces (PAD SPACE), so the generated app
+-- refuses a tenant ID with spaces before it looks the ID up.
 CREATE TABLE IF NOT EXISTS _stratum_tenants (
   id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   name VARCHAR(255) NOT NULL,

@@ -11,7 +11,9 @@
 /** Next.js App Router route: app/api/stratum/[...path]/route.ts */
 export function nextjsProxyRoute(): string {
   return `// app/api/stratum/[...path]/route.ts
-// Server-side proxy between the browser and the Stratum control plane.
+// Stratum API route: the server-side link between the browser and the Stratum
+// control plane. It is not proxy.ts (middleware.ts before Next.js 16), which
+// resolves the tenant.
 //
 // The control-plane API key stays on the server. Never put it in a
 // NEXT_PUBLIC_ variable: those are bundled into the JavaScript every visitor

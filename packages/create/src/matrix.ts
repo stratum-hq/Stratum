@@ -3,7 +3,7 @@
 // Imported by create CLI, interactive wizard, and web docs.
 
 export type Database = "postgres" | "mongodb" | "mysql";
-export type Strategy = "rls" | "schema" | "database" | "collection" | "table-prefix";
+export type Strategy = "rls" | "schema" | "database" | "collection" | "table-prefix" | "shared";
 export type Orm = "prisma" | "drizzle" | "sequelize" | "knex" | "mongoose" | "pg";
 export type Framework = "express" | "fastify" | "nextjs" | "hono" | "nestjs" | "none";
 
@@ -29,11 +29,15 @@ const POSTGRES_ORMS_BY_STRATEGY: Partial<Record<Strategy, Orm[]>> = {
 const MONGODB_STRATEGIES: Strategy[] = ["database", "collection"];
 const MONGODB_ORMS: Orm[] = ["mongoose"];
 
-const MYSQL_STRATEGIES: Strategy[] = ["database", "table-prefix"];
-// @stratum-hq/mysql routes queries to a tenant's database or tables only for
-// the raw mysql2 driver ("pg" here). Its Knex and Sequelize helpers scope a
-// shared table by tenant_id, which neither MySQL strategy uses.
-const MYSQL_ORMS: Orm[] = ["pg"];
+const MYSQL_STRATEGIES: Strategy[] = ["database", "table-prefix", "shared"];
+// "pg" here is the raw mysql2 driver. @stratum-hq/mysql scopes a shared table
+// by tenant_id for that driver, Knex and Sequelize. It routes queries to a
+// tenant's own database or tables only for the raw driver.
+const MYSQL_ORMS: Orm[] = ["pg", "knex", "sequelize"];
+const MYSQL_ORMS_BY_STRATEGY: Partial<Record<Strategy, Orm[]>> = {
+  database: ["pg"],
+  "table-prefix": ["pg"],
+};
 
 const ALL_FRAMEWORKS: Framework[] = ["express", "fastify", "nextjs", "hono", "nestjs", "none"];
 
@@ -61,13 +65,14 @@ export const VALID_COMBINATIONS: Record<Database, DatabaseConfig> = {
     strategies: MYSQL_STRATEGIES,
     orms: MYSQL_ORMS,
     frameworks: ALL_FRAMEWORKS,
+    ormsByStrategy: MYSQL_ORMS_BY_STRATEGY,
   },
 };
 
 // ─── All valid values (for parsing) ─────────────────────────────────────────
 
 const ALL_DATABASES: Database[] = ["postgres", "mongodb", "mysql"];
-const ALL_STRATEGIES: Strategy[] = ["rls", "schema", "database", "collection", "table-prefix"];
+const ALL_STRATEGIES: Strategy[] = ["rls", "schema", "database", "collection", "table-prefix", "shared"];
 const ALL_ORMS: Orm[] = ["prisma", "drizzle", "sequelize", "knex", "mongoose", "pg"];
 
 // ─── Validation ──────────────────────────────────────────────────────────────

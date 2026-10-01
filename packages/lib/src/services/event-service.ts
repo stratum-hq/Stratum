@@ -295,8 +295,10 @@ export async function emitEvent(
     return res.rows[0];
   });
 
-  // Find matching webhooks
-  const webhooks = await getWebhooksForEvent(pool, type, tenantId);
+  // The emission runs in the background, so a webhook can be registered after
+  // the event and before this selection. Only the webhooks that existed at the
+  // event's created_at get a delivery.
+  const webhooks = await getWebhooksForEvent(pool, type, tenantId, eventRow.id);
 
   if (webhooks.length === 0) {
     return;

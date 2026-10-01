@@ -1,5 +1,11 @@
 import { validateSlug } from "@stratum-hq/core";
 import { tenantSchemaName } from "../schema/manager.js";
+import {
+  newDatasourceClient,
+  type PrismaDatasourceClientClass,
+  type PrismaDriverAdapterClientClass,
+  type PrismaDriverAdapterOptions,
+} from "./prisma-driver-adapter.js";
 
 // Minimal interface for Prisma client operations used here.
 // Using a structural type avoids a hard runtime dependency on @prisma/client.
@@ -8,29 +14,60 @@ interface PrismaClientLike {
   $disconnect(): Promise<void>;
 }
 
-type PrismaConstructor<C> = new (options: { datasources: { db: { url: string } } }) => C;
-
 /**
  * Prisma adapter for SCHEMA_PER_TENANT isolation.
  *
- * Prisma schema-qualifies every table with the datasource URL's `schema`
- * parameter, so `search_path` cannot route its queries. Each tenant therefore
- * gets its own Prisma client whose datasource URL names the tenant's schema.
- * Clients are cached per tenant slug, least recently used first out.
+ * Prisma schema-qualifies every table with the schema of its connection
+ * settings, so `search_path` cannot route its queries. Each tenant therefore
+ * gets its own Prisma client whose connection settings name the tenant's
+ * schema. Clients are cached per tenant slug, least recently used first out.
  *
- * Usage:
+ * Prisma 5 and 6 read the schema from the `schema` parameter of the datasource URL:
  *   const adapter = new SchemaPrismaAdapter(PrismaClient, baseUrl);
+ *
+ * Prisma 7 has no datasource URL option and ignores a `schema` URL parameter.
+ * Give the driver adapter class, and the adapter passes it the tenant's schema:
+ *   import { PrismaPg } from '@prisma/adapter-pg';
+ *   const adapter = new SchemaPrismaAdapter(PrismaClient, baseUrl, { driverAdapter: PrismaPg });
+ *
+ * Then, with either form:
  *   const prisma = adapter.getClient('acme_corp');
  *   const rows = await prisma.someModel.findMany();
  */
-export class SchemaPrismaAdapter<C extends PrismaClientLike = PrismaClientLike> {
+export class SchemaPrismaAdapter<C extends PrismaClientLike = PrismaClientLike, A = unknown> {
   private readonly clients: Map<string, C> = new Map();
+  private readonly maxClients: number;
+  private readonly createClient: (schemaName: string) => C;
 
+  constructor(PrismaClient: PrismaDatasourceClientClass<C>, baseDatasourceUrl: string, maxClients?: number);
   constructor(
-    private readonly PrismaClient: PrismaConstructor<C>,
-    private readonly baseDatasourceUrl: string,
-    private readonly maxClients: number = 50,
-  ) {}
+    PrismaClient: PrismaDriverAdapterClientClass<C, A>,
+    baseDatasourceUrl: string,
+    options: PrismaDriverAdapterOptions<A>,
+  );
+  constructor(
+    PrismaClient: PrismaDatasourceClientClass<C> | PrismaDriverAdapterClientClass<C, A>,
+    baseDatasourceUrl: string,
+    maxClientsOrOptions: number | PrismaDriverAdapterOptions<A> = 50,
+  ) {
+    if (typeof maxClientsOrOptions === "number") {
+      const Client = PrismaClient as PrismaDatasourceClientClass<C>;
+      this.maxClients = maxClientsOrOptions;
+      this.createClient = (schemaName) => {
+        const url = new URL(baseDatasourceUrl);
+        url.searchParams.set("schema", schemaName);
+        return newDatasourceClient(Client, url.toString());
+      };
+    } else {
+      const Client = PrismaClient as PrismaDriverAdapterClientClass<C, A>;
+      const { driverAdapter: DriverAdapter, maxClients = 50 } = maxClientsOrOptions;
+      this.maxClients = maxClients;
+      this.createClient = (schemaName) =>
+        new Client({
+          adapter: new DriverAdapter({ connectionString: baseDatasourceUrl }, { schema: schemaName }),
+        });
+    }
+  }
 
   /** Returns a Prisma client bound to the tenant's schema. */
   getClient(tenantSlug: string): C {
@@ -48,9 +85,7 @@ export class SchemaPrismaAdapter<C extends PrismaClientLike = PrismaClientLike> 
       void oldest.$disconnect().catch(() => {});
     }
 
-    const url = new URL(this.baseDatasourceUrl);
-    url.searchParams.set("schema", schemaName);
-    const client = new this.PrismaClient({ datasources: { db: { url: url.toString() } } });
+    const client = this.createClient(schemaName);
     this.clients.set(schemaName, client);
     return client;
   }

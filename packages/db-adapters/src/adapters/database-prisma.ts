@@ -1,5 +1,11 @@
 import { DatabasePoolManager } from "../database/pool-manager.js";
 import { getDatabaseName } from "../database/manager.js";
+import {
+  newDatasourceClient,
+  type PrismaDatasourceClientClass,
+  type PrismaDriverAdapterClientClass,
+  type PrismaDriverAdapterOptions,
+} from "./prisma-driver-adapter.js";
 
 // Minimal structural interface; avoids a hard runtime dependency on @prisma/client.
 // The adapter calls only `$disconnect`, so the interface holds only that member.
@@ -7,28 +13,61 @@ interface PrismaClientLike {
   $disconnect(): Promise<void>;
 }
 
-type PrismaConstructor<C> = new (options: { datasources: { db: { url: string } } }) => C;
-
 /**
  * Prisma adapter for DB_PER_TENANT isolation.
  *
  * Creates a Prisma client instance scoped to the tenant's dedicated database
  * by overriding the datasource URL with the per-tenant database name.
  *
- * Usage:
+ * Prisma 5 and 6 take the datasource URL:
  *   const adapter = new DatabasePrismaAdapter(poolManager, PrismaClient, baseUrl);
+ *
+ * Prisma 7 has no datasource URL option. Give the driver adapter class, and the
+ * adapter passes it the tenant database URL:
+ *   import { PrismaPg } from '@prisma/adapter-pg';
+ *   const adapter = new DatabasePrismaAdapter(poolManager, PrismaClient, baseUrl, { driverAdapter: PrismaPg });
+ *
+ * Then, with either form:
  *   const prisma = adapter.getClient('acme_corp');
  *   const rows = await prisma.someModel.findMany();
  */
-export class DatabasePrismaAdapter<C extends PrismaClientLike = PrismaClientLike> {
+export class DatabasePrismaAdapter<C extends PrismaClientLike = PrismaClientLike, A = unknown> {
   private readonly clients: Map<string, C> = new Map();
+  private readonly maxClients: number;
+  private readonly createClient: (tenantUrl: string) => C;
 
   constructor(
+    poolManager: DatabasePoolManager,
+    PrismaClient: PrismaDatasourceClientClass<C>,
+    baseDatasourceUrl: string,
+    maxClients?: number,
+  );
+  constructor(
+    poolManager: DatabasePoolManager,
+    PrismaClient: PrismaDriverAdapterClientClass<C, A>,
+    baseDatasourceUrl: string,
+    options: PrismaDriverAdapterOptions<A>,
+  );
+  constructor(
     private readonly poolManager: DatabasePoolManager,
-    private readonly PrismaClient: PrismaConstructor<C>,
+    PrismaClient: PrismaDatasourceClientClass<C> | PrismaDriverAdapterClientClass<C, A>,
     private readonly baseDatasourceUrl: string,
-    private readonly maxClients: number = 50,
-  ) {}
+    maxClientsOrOptions: number | PrismaDriverAdapterOptions<A> = 50,
+  ) {
+    if (typeof maxClientsOrOptions === "number") {
+      const Client = PrismaClient as PrismaDatasourceClientClass<C>;
+      this.maxClients = maxClientsOrOptions;
+      this.createClient = (url) => newDatasourceClient(Client, url);
+    } else {
+      const Client = PrismaClient as PrismaDriverAdapterClientClass<C, A>;
+      const { driverAdapter: DriverAdapter, maxClients = 50 } = maxClientsOrOptions;
+      this.maxClients = maxClients;
+      // Prisma 5 and 6 read the schema from the `schema` URL parameter. A driver
+      // adapter ignores that parameter and takes the schema as an option.
+      const schema = new URL(baseDatasourceUrl).searchParams.get("schema") ?? undefined;
+      this.createClient = (url) => new Client({ adapter: new DriverAdapter({ connectionString: url }, { schema }) });
+    }
+  }
 
   /**
    * Returns a Prisma client connected to the tenant's dedicated database.
@@ -52,9 +91,7 @@ export class DatabasePrismaAdapter<C extends PrismaClientLike = PrismaClientLike
 
     const tenantUrl = this.buildDatasourceUrl(this.baseDatasourceUrl, dbName);
 
-    const client = new this.PrismaClient({
-      datasources: { db: { url: tenantUrl } },
-    });
+    const client = this.createClient(tenantUrl);
 
     this.clients.set(tenantSlug, client);
     return client;
