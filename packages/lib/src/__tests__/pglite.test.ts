@@ -46,6 +46,14 @@ describe("Stratum on PGlite", () => {
     expect(descendants.map((t) => t.id).sort()).toEqual([msp.id, client.id].sort());
   });
 
+  it("creates a global API key, with tenant_id null, when tenantId is null", async () => {
+    const created = await stratum.createApiKey(null, { name: "global-service" });
+    expect(created.tenant_id).toBeNull();
+
+    const validated = await stratum.validateApiKey(created.plaintext_key);
+    expect(validated).toMatchObject({ key_id: created.id, tenant_id: null });
+  });
+
   it("inherits config down the tree and rejects an override of a locked key", async () => {
     const root = await stratum.createTenant({ name: "Config root", slug: "c_root" });
     const leaf = await stratum.createTenant({ name: "Config leaf", slug: "c_leaf", parent_id: root.id });
