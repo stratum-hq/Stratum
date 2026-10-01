@@ -35,7 +35,7 @@ const blog = defineCollection({
       .object({ label: z.string(), href: z.string() })
       .default({
         label: 'Read the docs',
-        href: 'https://docs.stratum-hq.org/getting-started/quick-start',
+        href: 'https://docs.stratum-hq.org/getting-started/quick-start/',
       }),
   }),
 });
