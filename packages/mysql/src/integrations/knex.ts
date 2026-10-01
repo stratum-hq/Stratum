@@ -99,11 +99,16 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * builder's table, not the joined or unioned rows. To combine tenant data, use
  * a tenant-scoped builder as a whereIn subquery, or write the query with an
  * explicit tenant_id condition on every table.
+ *
+ * The returned builder has the builder type of the Knex instance given. For a
+ * real Knex instance, that is Knex's own QueryBuilder, so `orWhere()`, the
+ * three-argument `where()` and the other Knex methods type-check. The methods
+ * that this function refuses also type-check, and throw when they run.
  */
-export function withTenantScope(
-  knex: KnexLike,
+export function withTenantScope<K extends KnexLike>(
+  knex: K,
   tenantId: string,
-): (tableName: string) => KnexQueryBuilderLike {
+): (tableName: string) => ReturnType<K> {
   // Statement objects this module created, so they can be recognized again on
   // clones, which copy the statement array but share the statement objects.
   const tenantStatements = new WeakSet<object>();
@@ -238,5 +243,5 @@ export function withTenantScope(
   }
 
   return (tableName: string) =>
-    scope(knex(tableName) as unknown as KnexBuilderInternals);
+    scope(knex(tableName) as unknown as KnexBuilderInternals) as unknown as ReturnType<K>;
 }

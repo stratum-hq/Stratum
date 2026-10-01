@@ -31,8 +31,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run --config vitest.integration.config.ts && vitest run --config vitest.integration.mongoose9.config.ts",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.types.json",
     "lint": "eslint .",
     "clean": "rm -rf dist"
   },
@@ -41,7 +41,8 @@
     "@stratum-hq/sdk": "^1.3.1"
   },
   "peerDependencies": {
-    "mongodb": "^6.0.0 || ^7.0.0"
+    "mongodb": "^6.0.0 || ^7.0.0",
+    "mongoose": "^8.0.0 || ^9.0.0"
   },
   "peerDependenciesMeta": {
     "mongoose": {
@@ -49,9 +50,14 @@
     }
   },
   "devDependencies": {
+    "@stratum-hq/lib": "*",
     "@stratum-hq/test-utils": "*",
+    "@types/express": "^4.17.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/pg": "^8.11.0",
     "mongodb": "^7.6.0",
     "mongoose": "^8.0.0",
+    "mongoose9": "npm:mongoose@^9.10.3",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
   },

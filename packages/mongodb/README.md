@@ -29,7 +29,7 @@ This option needs:
 Enable the pre-images on the collection first:
 
 ```typescript
-await connection.db.command({
+await connection.db!.command({
   collMod: "orders",
   changeStreamPreAndPostImages: { enabled: true },
 });
@@ -60,6 +60,8 @@ stream.on("error", (err) => console.error(err));
 ```bash
 npm install @stratum-hq/mongodb mongodb
 ```
+
+To use `stratumPlugin`, also install `mongoose`. The plugin supports Mongoose 8 and Mongoose 9 (peer range `^8.0.0 || ^9.0.0`).
 
 ## Database-per-tenant clients
 

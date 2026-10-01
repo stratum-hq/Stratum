@@ -1,15 +1,23 @@
 // ─── Structural types for MySQL (no hard dependency on mysql2 driver) ───
 
+/**
+ * A value that Stratum passes to `execute()`. mysql2 types the `execute()`
+ * values more narrowly than `query()` values, so `unknown[]` here would make a
+ * mysql2 connection unassignable to MysqlConnectionLike.
+ */
+export type MysqlExecuteValue = string | number | boolean | Date | null;
+
 export interface MysqlConnectionLike {
   query(sql: string, values?: unknown[]): Promise<unknown>;
-  execute(sql: string, values?: unknown[]): Promise<unknown>;
+  execute(sql: string, values?: MysqlExecuteValue[]): Promise<unknown>;
   release(): void;
   end(): Promise<void>;
 }
 
 export interface MysqlPoolLike {
   getConnection(): Promise<MysqlConnectionLike>;
-  query(sql: string, values?: unknown[]): Promise<unknown>;
+  /** Resolves to `[rows, fields]`, as mysql2's promise API does. */
+  query(sql: string, values?: unknown[]): Promise<[unknown, unknown]>;
   end(): Promise<void>;
 }
 

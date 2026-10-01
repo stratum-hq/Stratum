@@ -11,7 +11,7 @@ description: MongoDB tenant isolation with three strategies, Mongoose plugin, an
 npm install @stratum-hq/mongodb mongodb
 ```
 
-Optional: `mongoose` for the auto-scoping plugin.
+Optional: `mongoose` for the auto-scoping plugin. The plugin supports Mongoose 8 and Mongoose 9 (peer range `^8.0.0 || ^9.0.0`).
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ Optional: `mongoose` for the auto-scoping plugin.
 import { MongoClient } from "mongodb";
 import { MongoSharedAdapter } from "@stratum-hq/mongodb";
 
-const client = new MongoClient(process.env.MONGODB_URI);
+const client = new MongoClient(process.env.MONGODB_URI!);
 const adapter = new MongoSharedAdapter({
   client,
   databaseName: "myapp",
