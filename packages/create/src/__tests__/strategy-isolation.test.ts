@@ -15,9 +15,9 @@ import {
 
 // Each PostgreSQL strategy isolates tenants differently, so the generated
 // tenant helper must match the strategy. A schema or database preset routes
-// each tenant to its own schema or database and must not ship the helpers of
-// the shared-table strategy, which isolate nothing without a policy. An rls
-// preset must create the policy its helper depends on.
+// each tenant to its own schema or database and uses none of the helpers of
+// the shared-table strategy. An rls preset creates the policy its helper
+// depends on.
 
 function allPresets(): StackPreset[] {
   const presets: StackPreset[] = [];
@@ -83,7 +83,24 @@ describe("PostgreSQL schema and database presets", () => {
       const helper = files.get(preset.orm === "prisma" ? "src/stratum-prisma.ts" : "src/stratum-db.ts")!;
       expect(helper).toContain(ADAPTER[preset.strategy][preset.orm]);
       expect(helper).toContain("await tenantSlug(tenantId)");
-      expect(files.get("src/stratum-tenant.ts")).toContain("stratum.getTenant(tenantId)");
+      const lookup = files.get("src/stratum-tenant.ts")!;
+      expect(lookup).toContain("stratum.getTenant(tenantId)");
+      expect(lookup).toContain('"SELECT slug FROM provisioned_tenants WHERE tenant_id = $1"');
+      expect(lookup).not.toContain("getTenant(tenantId)).slug");
+    },
+  );
+
+  it.each(isolated.map(formatPresetString))(
+    "%s records each provisioned tenant in a table the app role can only read",
+    (name) => {
+      const preset = isolated.find((p) => formatPresetString(p) === name)!;
+      const files = generatedFiles(preset);
+      const sql = files.get("init.sql")!;
+      expect(sql).toContain("CREATE TABLE provisioned_tenants (\n  tenant_id uuid PRIMARY KEY,\n  slug text NOT NULL UNIQUE,");
+      expect(sql).toContain("REVOKE ALL ON provisioned_tenants FROM app_app;\nGRANT SELECT ON provisioned_tenants TO app_app;");
+      const script = files.get("scripts/provision-tenant.mjs")!;
+      expect(script).toContain("INSERT INTO public.provisioned_tenants (tenant_id, slug) VALUES ($1, $2)");
+      expect(script).toContain("WHERE tenant_id = $1 OR slug = $2");
     },
   );
 
@@ -103,14 +120,24 @@ describe("PostgreSQL schema and database presets", () => {
   );
 
   it.each(isolated.filter((p) => p.strategy === "database").map(formatPresetString))(
-    "%s gives the pool manager the URL parts, so pg cannot replace the tenant database name",
+    "%s gives the pool manager DATABASE_URL, so its settings such as sslmode apply to each tenant pool",
     (name) => {
       const preset = isolated.find((p) => formatPresetString(p) === name)!;
       const helper = generatedFiles(preset).get(
         preset.orm === "prisma" ? "src/stratum-prisma.ts" : "src/stratum-db.ts",
       )!;
-      const managerConfig = helper.slice(helper.indexOf("new DatabasePoolManager("));
-      expect(managerConfig.slice(0, managerConfig.indexOf("});"))).not.toContain("connectionString");
+      expect(helper).toContain("baseConnectionConfig: { connectionString: process.env.DATABASE_URL },");
+      expect(helper).not.toContain("new URL(process.env.DATABASE_URL");
+    },
+  );
+
+  it.each(isolated.filter((p) => p.strategy === "database").map(formatPresetString))(
+    "%s keeps PUBLIC from creating objects or temporary tables in each tenant database",
+    (name) => {
+      const preset = isolated.find((p) => formatPresetString(p) === name)!;
+      const script = generatedFiles(preset).get("scripts/provision-tenant.mjs")!;
+      expect(script).toContain('await client.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");');
+      expect(script).toContain('REVOKE TEMPORARY ON DATABASE "${database}" FROM PUBLIC');
     },
   );
 });
@@ -156,12 +183,13 @@ describe("PostgreSQL presets that provision as the superuser", () => {
   );
 
   it.each(isolated.map(formatPresetString))(
-    "%s README says a schema or database name is fixed at provisioning and a slug must not be reused",
+    "%s README says a schema or database name is fixed at provisioning and a provisioned slug is refused",
     (name) => {
       const preset = isolated.find((p) => formatPresetString(p) === name)!;
       const readme = generatedFiles(preset).get("README.md")!;
       expect(readme).toMatch(/fixed when the tenant is provisioned/);
-      expect(readme).toMatch(/Never give a tenant a slug that another tenant had/);
+      expect(readme).toMatch(/refuses a slug that names a provisioned/);
+      expect(readme).toContain("npm run tenant:provision -- <tenant-id> [slug]");
     },
   );
 });
@@ -255,5 +283,12 @@ describe("MySQL presets", () => {
     expect(readme).toContain("npm run tenant:provision -- <tenant-id> <slug>");
     expect(readme).toMatch(/fixed when the tenant is provisioned/);
     expect(readme).toMatch(/Never give a tenant a slug that another tenant had/);
+  });
+});
+
+describe("README of every preset", () => {
+  it.each(allPresets().map(formatPresetString))("%s does not overstate database-per-tenant isolation", (name) => {
+    const preset = allPresets().find((p) => formatPresetString(p) === name)!;
+    expect(generatedFiles(preset).get("README.md")).not.toMatch(/Maximum isolation/i);
   });
 });

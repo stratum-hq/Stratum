@@ -1,5 +1,5 @@
 import type { StackPreset } from "../matrix.js";
-import { PRISMA_APP_SCHEMA, tenantIsolationPolicySql } from "./init-sql.js";
+import { PRISMA_APP_SCHEMA, PROVISIONED_TENANTS, tenantIsolationPolicySql } from "./init-sql.js";
 
 export interface DbSetupFile {
   filename: string;
@@ -184,52 +184,50 @@ console.log("Applied prisma/rls.sql");
 /**
  * src/stratum-tenant.ts of the schema and database presets: the schema and
  * database adapters take a tenant slug, and the verified token carries the
- * tenant ID, so the generated code looks the slug up in Stratum.
+ * tenant ID, so the generated code looks up the slug that provisioning
+ * recorded for the tenant.
  */
-const TENANT_SLUG_LOOKUP = `// Maps a verified tenant ID to the tenant's Stratum slug. The slug names the
-// tenant's own schema (tenant_{slug}) or database (stratum_tenant_{slug}).
+const TENANT_SLUG_LOOKUP = `// Maps a verified tenant ID to the slug that names the tenant's own schema
+// (tenant_{slug}) or database (stratum_tenant_{slug}), as npm run
+// tenant:provision recorded it in ${PROVISIONED_TENANTS}.
 import { Pool } from "pg";
 import { Stratum } from "@stratum-hq/lib";
+
+// The app role in DATABASE_URL, which reads ${PROVISIONED_TENANTS} (see init.sql).
+const appPool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Stratum reads its own tables through its own login,
 // STRATUM_ADMIN_DATABASE_URL (see init.sql). The app role has no access to them.
 export const stratum = new Stratum({
-  pool: new Pool({ connectionString: process.env.DATABASE_URL }),
+  pool: appPool,
   adminPool: new Pool({ connectionString: process.env.STRATUM_ADMIN_DATABASE_URL }),
 });
 
 /**
- * The slug of the tenant with this ID. Pass only the tenant_id claim of a
+ * The slug that names the schema or database of the tenant with this ID: the
+ * one recorded when the tenant was provisioned, which a later change of the
+ * tenant's Stratum slug does not move. Pass only the tenant_id claim of a
  * verified token, as the generated server resolves it. Never take the slug
  * from the hostname or from a header such as x-tenant-slug: any caller can
- * choose those. Throws when no active tenant has this ID.
- *
- * Do not change a tenant's slug after it is provisioned: the name of its
- * schema or database is fixed at provisioning and does not follow the slug.
- * Never give a tenant a slug that another tenant had.
+ * choose those. Throws when Stratum has no tenant with this ID or the tenant
+ * is not provisioned.
  */
 export async function tenantSlug(tenantId: string): Promise<string> {
-  return (await stratum.getTenant(tenantId)).slug;
+  await stratum.getTenant(tenantId);
+  const { rows } = await appPool.query<{ slug: string }>(
+    "SELECT slug FROM ${PROVISIONED_TENANTS} WHERE tenant_id = $1",
+    [tenantId],
+  );
+  if (rows.length === 0) throw new Error(\`No provisioned tenant has the ID \${tenantId}\`);
+  return rows[0].slug;
 }
 `;
 
-/**
- * The DatabasePoolManager of the database presets. pg lets a connectionString
- * override the database name, which would send every tenant to the database
- * in DATABASE_URL, so the manager gets the parts of the URL instead.
- */
-const DATABASE_POOL_MANAGER = `// The manager opens one pool per tenant database and sets its name. It gets
-// the parts of DATABASE_URL, not the URL: pg lets a connectionString override
-// the database name, which would send every tenant to the same database.
-// Add any other connection settings you need, such as ssl, here.
-const url = new URL(process.env.DATABASE_URL!);
+/** The DatabasePoolManager of the database presets. */
+const DATABASE_POOL_MANAGER = `// The manager opens one pool per tenant database, with the settings of
+// DATABASE_URL and the tenant's database name.
 export const poolManager = new DatabasePoolManager({
-  baseConnectionConfig: {
-    host: url.hostname,
-    port: Number(url.port) || 5432,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-  },
+  baseConnectionConfig: { connectionString: process.env.DATABASE_URL },
 });`;
 
 function prismaIsolatedClient(strategy: string): string {
@@ -361,27 +359,31 @@ CREATE TABLE notes (
 
 /**
  * scripts/provision-tenant.mjs: creates one tenant's schema or database and
- * its tables, as the superuser, and gives the app role read and write access.
+ * its tables, as the superuser, gives the app role read and write access, and
+ * records the tenant in provisioned_tenants. A run that fails removes what it
+ * created, so it can run again.
  */
 function provisionTenantScript(preset: StackPreset): string {
   const schema = preset.strategy === "schema";
   const prisma = preset.orm === "prisma";
   const what = schema ? "schema (tenant_{slug})" : "database (stratum_tenant_{slug})";
+  const where = schema ? "schema" : "database";
   const tables = prisma ? "pushes prisma/schema.prisma into it" : "runs sql/tenant.sql in it";
   const adapterImport = schema
     ? `import { createSchema, tenantSchemaName } from "@stratum-hq/db-adapters";`
-    : `import { createDatabase, getDatabaseName } from "@stratum-hq/db-adapters";`;
+    : `import { createDatabase, dropDatabase, getDatabaseName } from "@stratum-hq/db-adapters";`;
 
-  const grants = (target: string) => `await client.query(\`GRANT USAGE ON SCHEMA ${target} TO \${appRole}\`);
-  await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO \${appRole}\`);
-  await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT USAGE, SELECT ON SEQUENCES TO \${appRole}\`);`;
+  const grants = (target: string, indent: string) => `${indent}await client.query(\`GRANT USAGE ON SCHEMA ${target} TO \${appRole}\`);
+${indent}await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO \${appRole}\`);
+${indent}await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT USAGE, SELECT ON SEQUENCES TO \${appRole}\`);`;
 
-  const pushPrisma = (urlVar: string) => `
-// Push prisma/schema.prisma as the superuser, which then owns the tables.
-execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
-  stdio: "inherit",
-  env: { ...process.env, DATABASE_URL: ${urlVar} },
-});`;
+  const pushPrisma = (urlVar: string, indent: string) => `${indent}// Push prisma/schema.prisma as the superuser, which then owns the tables.
+${indent}execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
+${indent}  stdio: "inherit",
+${indent}  env: { ...process.env, DATABASE_URL: ${urlVar} },
+${indent}});`;
+
+  const record = `INSERT INTO public.${PROVISIONED_TENANTS} (tenant_id, slug) VALUES ($1, $2)`;
 
   const body = schema
     ? `const schema = tenantSchemaName(slug);
@@ -391,13 +393,33 @@ try {
   await client.query("BEGIN");
   // Fails if the schema exists: it may hold another tenant's data.
   await createSchema(client, slug);
-  ${grants("${schema}")}${
-    prisma
-      ? ""
-      : `
+${grants("${schema}", "  ")}${
+        prisma
+          ? `
+  await client.query("COMMIT");
+} catch (err) {
+  await client.query("ROLLBACK");
+  await client.end();
+  throw err;
+}
+
+const schemaUrl = new URL(superuserUrl);
+schemaUrl.searchParams.set("schema", schema);
+try {
+${pushPrisma("schemaUrl.toString()", "  ")}
+  await client.query(${JSON.stringify(record)}, [tenantId, slug]);
+} catch (err) {
+  // Remove the schema this run created, so it can run again.
+  await client.query(\`DROP SCHEMA \${schema} CASCADE\`);
+  throw err;
+} finally {
+  await client.end();
+}
+`
+          : `
   await client.query(\`SET LOCAL search_path TO \${schema}\`);
-  await client.query(readFileSync("sql/tenant.sql", "utf8"));`
-  }
+  await client.query(readFileSync("sql/tenant.sql", "utf8"));
+  await client.query(${JSON.stringify(record)}, [tenantId, slug]);
   await client.query("COMMIT");
 } catch (err) {
   await client.query("ROLLBACK");
@@ -405,53 +427,63 @@ try {
 } finally {
   await client.end();
 }
-${
-  prisma
-    ? `
-const schemaUrl = new URL(superuserUrl);
-schemaUrl.searchParams.set("schema", schema);${pushPrisma("schemaUrl.toString()")}
 `
-    : ""
-}console.log(\`Provisioned schema \${schema} for tenant \${tenantId}\`);
+      }console.log(\`Provisioned schema \${schema} for tenant \${tenantId}\`);
 `
     : `const database = getDatabaseName(slug);
+const databaseUrl = new URL(superuserUrl);
+databaseUrl.pathname = \`/\${database}\`;
 const admin = new pg.Client({ connectionString: superuserUrl });
 await admin.connect();
+let created = false;
 try {
   // Fails if the database exists: it may hold another tenant's data.
   await createDatabase(admin, slug);
+  created = true;
+  const client = new pg.Client({ connectionString: databaseUrl.toString() });
+  await client.connect();
+  try {
+    // Only the roles granted these by name create objects in public or
+    // temporary tables in the tenant's database.
+    await client.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+    await client.query(\`REVOKE TEMPORARY ON DATABASE "\${database}" FROM PUBLIC\`);
+${grants("public", "    ")}${
+        prisma
+          ? ""
+          : `
+    await client.query(readFileSync("sql/tenant.sql", "utf8"));`
+      }
+  } finally {
+    await client.end();
+  }
+${prisma ? `${pushPrisma("databaseUrl.toString()", "  ")}
+` : ""}  await admin.query(${JSON.stringify(record)}, [tenantId, slug]);
+} catch (err) {
+  // Remove the database this run created, so it can run again.
+  if (created) await dropDatabase(admin, slug);
+  throw err;
 } finally {
   await admin.end();
 }
-
-const databaseUrl = new URL(superuserUrl);
-databaseUrl.pathname = \`/\${database}\`;
-const client = new pg.Client({ connectionString: databaseUrl.toString() });
-await client.connect();
-try {
-  ${grants("public")}${
-    prisma
-      ? ""
-      : `
-  await client.query(readFileSync("sql/tenant.sql", "utf8"));`
-  }
-} finally {
-  await client.end();
-}
-${prisma ? `${pushPrisma("databaseUrl.toString()")}
-` : ""}console.log(\`Provisioned database \${database} for tenant \${tenantId}\`);
+console.log(\`Provisioned database \${database} for tenant \${tenantId}\`);
 `;
 
   return `// Provisions one tenant: creates its own ${what}
-// and ${tables}.
+// and ${tables}, then records the tenant in ${PROVISIONED_TENANTS},
+// where the app looks up the ${where} of a verified tenant ID.
 //
 // Create the tenant with Stratum first, then run:
-//   npm run tenant:provision -- <tenant-id>
+//   npm run tenant:provision -- <tenant-id> [slug]
+//
+// The slug names the ${where}. It defaults to the tenant's Stratum slug. A
+// slug that names a provisioned ${where} is refused, even after the tenant
+// that had it was renamed, so pass another slug for that tenant.
 //
 // It runs as the superuser in DATABASE_SUPERUSER_URL, which creates and owns
 // the tenant's tables, and gives the app role in DATABASE_URL read and write
-// access to them. It reads the tenant's slug through Stratum's own login,
-// STRATUM_ADMIN_DATABASE_URL.
+// access to them. It reads the tenant through Stratum's own login,
+// STRATUM_ADMIN_DATABASE_URL. If it fails, it removes what it created, so you
+// can run it again.
 ${prisma ? `import { execFileSync } from "node:child_process";
 ` : `import { readFileSync } from "node:fs";
 `}import pg from "pg";
@@ -460,7 +492,7 @@ ${adapterImport}
 
 const tenantId = process.argv[2];
 if (!tenantId) {
-  console.error("Usage: npm run tenant:provision -- <tenant-id>");
+  console.error("Usage: npm run tenant:provision -- <tenant-id> [slug]");
   process.exit(1);
 }
 for (const key of ["DATABASE_URL", "DATABASE_SUPERUSER_URL", "STRATUM_ADMIN_DATABASE_URL"]) {
@@ -475,10 +507,32 @@ const appPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const stratumPool = new pg.Pool({ connectionString: process.env.STRATUM_ADMIN_DATABASE_URL });
 let slug;
 try {
-  slug = (await new Stratum({ pool: appPool, adminPool: stratumPool }).getTenant(tenantId)).slug;
+  // Throws when Stratum has no tenant with this ID.
+  const tenant = await new Stratum({ pool: appPool, adminPool: stratumPool }).getTenant(tenantId);
+  slug = process.argv[3] ?? tenant.slug;
 } finally {
   await appPool.end();
   await stratumPool.end();
+}
+// The Stratum slug rule.
+if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error(\`Invalid tenant slug: \${slug}\`);
+
+// Each tenant and each slug is provisioned once.
+const check = new pg.Client({ connectionString: superuserUrl });
+await check.connect();
+try {
+  const { rows } = await check.query(
+    "SELECT tenant_id, slug FROM public.${PROVISIONED_TENANTS} WHERE tenant_id = $1 OR slug = $2",
+    [tenantId, slug],
+  );
+  if (rows.some((row) => row.tenant_id === tenantId)) throw new Error(\`Tenant \${tenantId} is already provisioned\`);
+  if (rows.length > 0) {
+    throw new Error(
+      \`Slug \${slug} names the ${where} of tenant \${rows[0].tenant_id}. Pass another slug: npm run tenant:provision -- \${tenantId} <slug>\`,
+    );
+  }
+} finally {
+  await check.end();
 }
 
 ${body}`;

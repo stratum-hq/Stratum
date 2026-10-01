@@ -49,6 +49,9 @@ ALTER ROLE CURRENT_USER IN DATABASE ${dbName} SET search_path = public;
 -- databases.
 `;
   }
+  if (strategy === "schema" || strategy === "database") {
+    strategyGrant += provisionedTenantsSql(role, strategy);
+  }
   return `
 -- Stratum's control role (migration 032 of @stratum-hq/lib). Every Stratum
 -- table gets a policy for it, and only its members reach rows across
@@ -85,6 +88,31 @@ ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA public GRANT USAGE, SELECT
 -- and later already start this way; older versions grant it to PUBLIC.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ${strategyGrant}`;
+}
+
+/** Name of the table that records each provisioned tenant of a schema or database preset. */
+export const PROVISIONED_TENANTS = "provisioned_tenants";
+
+/**
+ * The record of provisioned tenants: the app reads a tenant's slug here, by
+ * the tenant ID of a verified token, so a tenant's schema or database does
+ * not follow a later change of its Stratum slug.
+ */
+function provisionedTenantsSql(role: string, strategy: string): string {
+  return `
+-- The provisioned tenants. npm run tenant:provision records each tenant here,
+-- as the superuser, with the slug that names its ${strategy} (${strategy === "schema" ? "tenant_{slug}" : "stratum_tenant_{slug}"}).
+-- The app looks the slug up here by the tenant ID of a verified token, so a
+-- tenant keeps its ${strategy} when its Stratum slug changes, and a tenant that
+-- is not provisioned reaches none. The app role only reads it.
+CREATE TABLE ${PROVISIONED_TENANTS} (
+  tenant_id uuid PRIMARY KEY,
+  slug text NOT NULL UNIQUE,
+  provisioned_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE ALL ON ${PROVISIONED_TENANTS} FROM ${role};
+GRANT SELECT ON ${PROVISIONED_TENANTS} TO ${role};
+`;
 }
 
 const POLICY_USING = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";

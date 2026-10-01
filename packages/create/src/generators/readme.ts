@@ -136,21 +136,21 @@ Each tenant's tables are in its own ${place}. Tenants share no table, so the tab
 2. Provision the tenant:
 
    \`\`\`bash
-   npm run tenant:provision -- <tenant-id>
+   npm run tenant:provision -- <tenant-id> [slug]
    \`\`\`
 
-   The script runs as the superuser in \`DATABASE_SUPERUSER_URL\`, never as the app role. It creates the tenant's ${where}, ${tables}, and gives the app role read and write access to the tables.
+   The script runs as the superuser in \`DATABASE_SUPERUSER_URL\`, never as the app role. It creates the tenant's ${where}, ${tables}, gives the app role read and write access to the tables, and records the tenant in \`provisioned_tenants\`. The slug names the ${where} and defaults to the tenant's Stratum slug. If the script fails, it removes what it created, so you can run it again.
 
 ${changes}
 
-In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in Stratum. Never take the slug from the hostname or a request header, which any caller can choose.
+In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the slug recorded for the tenant in \`provisioned_tenants\`, which the app role can only read, and refuses a tenant that is not provisioned. Never take the slug from the hostname or a request header, which any caller can choose.
 
-${slugReuseNote(where)}
+The ${where} name is fixed when the tenant is provisioned: it does not follow a later change of the tenant's Stratum slug. The script refuses a slug that names a provisioned ${where}, also when another tenant now has that slug in Stratum: pass another slug for the new tenant.
 `;
 }
 
 /** The README warning that a provisioned name keeps the slug of provisioning time. */
-function slugReuseNote(where: "schema" | "database" | "tables"): string {
+function slugReuseNote(where: "database" | "tables"): string {
   const names = where === "tables" ? "The table names are fixed" : `The ${where} name is fixed`;
   const keeps = where === "tables" ? "they keep the slug the tenant had then and do not" : "it keeps the slug the tenant had then and does not";
   return `${names} when the tenant is provisioned: ${keeps} follow a later slug change. Do not change a provisioned tenant's slug. Never give a tenant a slug that another tenant had, even after a rename or a deletion: the new tenant would reach the old tenant's ${where}.`;
@@ -203,11 +203,11 @@ function getStrategyDescription(preset: StackPreset): string {
       if (preset.database === "mysql") {
         return `- **Database-per-tenant**: each tenant's tables are in its own MySQL database, \`stratum_tenant_{slug}\`, which \`npm run tenant:provision\` creates
 - The generated helper (\`MysqlDatabaseAdapter\` from \`@stratum-hq/mysql\`) sends each query to the database of the tenant in the verified token
-- Maximum isolation at the cost of more resource usage`;
+- The app connects to every tenant database as the same app user, so the helper's choice of database is what keeps tenants apart`;
       }
       return `- **Database-per-tenant**: each tenant's tables are in its own PostgreSQL database, \`stratum_tenant_{slug}\`, which \`npm run tenant:provision\` creates
 - The generated helper (${preset.orm === "prisma" ? "`DatabasePrismaAdapter`" : "`DatabaseRawAdapter`"} from \`@stratum-hq/db-adapters\`) sends each query to the database of the tenant in the verified token
-- Maximum isolation at the cost of more resource usage, no row-level security`;
+- The app connects to every tenant database as the same app role, so the helper's choice of database is what keeps tenants apart; no row-level security`;
     case "collection":
       return `- **Collection-per-tenant**: each tenant gets dedicated MongoDB collections
 - Collection names are prefixed or namespaced by tenant ID

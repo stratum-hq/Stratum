@@ -77,9 +77,33 @@ await q(A, "INSERT INTO items (tenant_id, body) VALUES ($1, 'a-note')", [A]);
 const aSees = (await q(A, "SELECT body FROM items")).rows.map((r: any) => r.body).sort();
 const aUpdated = (await q(A, "UPDATE items SET body = 'changed-by-a' WHERE id = $1", [bRow.id])).rowCount;
 const bBody = (await q(B, "SELECT body FROM items WHERE id = $1", [bRow.id])).rows[0]?.body ?? null;
-console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody }));
+// DATABASE_URL carries sslmode and application_name: the tenant's connection keeps them.
+const appName = (await q(A, "SHOW application_name")).rows[0].application_name;
+console.log("RESULT " + JSON.stringify({ aSees, aUpdated, bBody, appName }));
 process.exit(0);
 `;
+
+// What a tenant reads from items, or "refused" when the helper refuses the tenant.
+const PRISMA_SEES = `
+const h: any = await import("./src/stratum-prisma.js");
+const sees = await h
+  .getTenantPrisma(process.argv[2])
+  .then((p: any) => p.item.findMany())
+  .then((rows: any[]) => rows.map((r) => r.body).sort(), () => "refused");
+console.log("SEES " + JSON.stringify(sees));
+process.exit(0);
+`;
+
+const PG_SEES = `
+const h: any = await import("./src/stratum-db.js");
+const sees = await h
+  .tenantQuery(process.argv[2], "SELECT body FROM items")
+  .then((r: any) => r.rows.map((row: any) => row.body).sort(), () => "refused");
+console.log("SEES " + JSON.stringify(sees));
+process.exit(0);
+`;
+
+const APP_NAME = `${ROLE_PREFIX.replace(/[^a-z0-9_]/g, "")}iso_app`;
 
 let tmp: string;
 let admin: pg.Client;
@@ -126,7 +150,12 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
   const project = `${PREFIX}iso-${strategy}-${orm}`.replace(/_/g, "-");
   const dbName = project.replace(/-/g, "_");
   const control = `${PREFIX}iso_${strategy}_${orm}_control`;
-  const slugs = [`${PREFIX}iso${strategy[0]}${orm[0]}a`, `${PREFIX}iso${strategy[0]}${orm[0]}b`];
+  const slugs = [
+    `${PREFIX}iso${strategy[0]}${orm[0]}a`,
+    `${PREFIX}iso${strategy[0]}${orm[0]}b`,
+    `${PREFIX}iso${strategy[0]}${orm[0]}c`,
+    `${PREFIX}iso${strategy[0]}${orm[0]}d`,
+  ];
 
   describe(`generated ${preset} project`, () => {
     let dir: string;
@@ -151,7 +180,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       fs.writeFileSync(
         path.join(dir, ".env"),
         env
-          .replace(/^DATABASE_URL=.*$/m, `DATABASE_URL=${urls.app}`)
+          .replace(/^DATABASE_URL=.*$/m, `DATABASE_URL=${urls.app}?sslmode=disable&application_name=${APP_NAME}`)
           .replace(/^DATABASE_SUPERUSER_URL=.*$/m, `DATABASE_SUPERUSER_URL=${urls.boot}`)
           .replace(/^STRATUM_ADMIN_DATABASE_URL=.*$/m, `STRATUM_ADMIN_DATABASE_URL=${urls.stratum}`),
       );
@@ -209,7 +238,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
           await migrate({ pool: stratumPool, controlRole: control, applyControlRole: true });
           const s = new Stratum({ pool: appPool, adminPool: stratumPool, controlRole: control });
           const ids: string[] = [];
-          for (const slug of slugs) ids.push((await s.createTenant({ name: slug, slug })).id);
+          for (const slug of slugs.slice(0, 2)) ids.push((await s.createTenant({ name: slug, slug })).id);
           return [ids[0], ids[1]];
         } finally {
           await appPool.end();
@@ -258,7 +287,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
     }, 900_000);
 
     async function cleanup(): Promise<void> {
-      for (const db of [dbName, ...slugs.map((s) => `stratum_tenant_${s}`)]) {
+      for (const db of [dbName, ...[...slugs, `${slugs[0]}r`].map((s) => `stratum_tenant_${s}`)]) {
         await admin.query(`DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`);
       }
       if (roles) {
@@ -288,7 +317,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       await c.connect();
       try {
         const r = await c.query<{ slug: string }>("SELECT slug FROM tenants ORDER BY slug");
-        expect(r.rows.map((row) => row.slug)).toEqual([...slugs].sort());
+        expect(r.rows.map((row) => row.slug)).toEqual(slugs.slice(0, 2).sort());
       } finally {
         await c.end();
       }
@@ -309,8 +338,104 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
         aUpdated: number;
         bBody: string | null;
       };
-      expect(result).toEqual({ aSees: ["a-note"], aUpdated: 0, bBody: "b-secret" });
+      expect(result).toEqual({
+        aSees: ["a-note"],
+        aUpdated: 0,
+        bBody: "b-secret",
+        ...(orm === "pg" && { appName: APP_NAME }),
+      });
     }, 120_000);
+
+    it("removes what a failed provisioning run created, so it can run again", async () => {
+      if (strategy === "rls") return;
+      const appPool = new pg.Pool({ connectionString: urls.app, max: 1 });
+      const stratumPool = new pg.Pool({ connectionString: urls.stratum, max: 2 });
+      let tenantD: string;
+      try {
+        const s = new Stratum({ pool: appPool, adminPool: stratumPool, controlRole: control });
+        tenantD = (await s.createTenant({ name: slugs[3], slug: slugs[3] })).id;
+      } finally {
+        await appPool.end();
+        await stratumPool.end();
+      }
+      const source = path.join(dir, orm === "prisma" ? "prisma/schema.prisma" : "sql/tenant.sql");
+      const original = fs.readFileSync(source, "utf8");
+      fs.appendFileSync(source, orm === "prisma" ? "\nmodel Broken {\n" : "\nCREATE TABLE broken (;\n");
+      let failed;
+      try {
+        failed = spawnSync("npm", ["run", "tenant:provision", "--", tenantD], { cwd: dir, encoding: "utf8", env: CHILD_ENV });
+      } finally {
+        fs.writeFileSync(source, original);
+      }
+      expect(failed.status, failed.stdout + failed.stderr).not.toBe(0);
+      const leftovers = async () => {
+        const r = await admin.query<{ databases: string[] }>(
+          `SELECT ARRAY(SELECT datname::text FROM pg_database WHERE datname = $1) AS databases`,
+          [`stratum_tenant_${slugs[3]}`],
+        );
+        const c = new pg.Client({ connectionString: urls.boot });
+        await c.connect();
+        try {
+          const schemas = await c.query<{ nspname: string }>("SELECT nspname FROM pg_namespace WHERE nspname = $1", [
+            `tenant_${slugs[3]}`,
+          ]);
+          const records = await c.query<{ tenant_id: string }>(
+            "SELECT tenant_id FROM provisioned_tenants WHERE slug = $1",
+            [slugs[3]],
+          );
+          return {
+            databases: r.rows[0].databases,
+            schemas: schemas.rows.map((row) => row.nspname),
+            records: records.rows.map((row) => row.tenant_id),
+          };
+        } finally {
+          await c.end();
+        }
+      };
+      expect(await leftovers()).toEqual({ databases: [], schemas: [], records: [] });
+      run("npm", ["run", "tenant:provision", "--", tenantD], dir);
+      expect((await leftovers()).records).toEqual([tenantD]);
+    }, 300_000);
+
+    it("routes a renamed tenant to its own data, and a tenant that took its old slug only to its own", async () => {
+      if (strategy === "rls") return;
+      // Rename A, then create C with A's old slug, as Stratum allows.
+      const appPool = new pg.Pool({ connectionString: urls.app, max: 1 });
+      const stratumPool = new pg.Pool({ connectionString: urls.stratum, max: 2 });
+      let tenantC: string;
+      try {
+        const s = new Stratum({ pool: appPool, adminPool: stratumPool, controlRole: control });
+        await s.updateTenant(tenants[0], { slug: `${slugs[0]}r` });
+        tenantC = (await s.createTenant({ name: slugs[0], slug: slugs[0] })).id;
+      } finally {
+        await appPool.end();
+        await stratumPool.end();
+      }
+      const check = path.join(dir, "rename-check.ts");
+      fs.writeFileSync(check, orm === "prisma" ? PRISMA_SEES : PG_SEES);
+      const sees = (id: string) => {
+        const out = run("npx", ["tsx", "--env-file=.env", check, id], dir);
+        const line = out.split("\n").find((l) => l.startsWith("SEES "));
+        expect(line, out).toBeDefined();
+        return JSON.parse(line!.slice("SEES ".length)) as string[] | string;
+      };
+
+      // Before C is provisioned, it reaches nothing; A still reaches its own rows.
+      expect({ a: sees(tenants[0]), c: sees(tenantC) }).toEqual({ a: ["a-note"], c: "refused" });
+
+      // C's slug names A's ${strategy}, so provisioning C under it is refused.
+      const refused = spawnSync("npm", ["run", "tenant:provision", "--", tenantC], {
+        cwd: dir,
+        encoding: "utf8",
+        env: CHILD_ENV,
+      });
+      expect(refused.status, refused.stdout + refused.stderr).not.toBe(0);
+      expect({ a: sees(tenants[0]), c: sees(tenantC) }).toEqual({ a: ["a-note"], c: "refused" });
+
+      // Provisioned under another name, C reaches only its own, empty ${strategy}.
+      run("npm", ["run", "tenant:provision", "--", tenantC, slugs[2]], dir);
+      expect({ a: sees(tenants[0]), c: sees(tenantC) }).toEqual({ a: ["a-note"], c: [] });
+    }, 300_000);
   });
 }
 
