@@ -11,7 +11,7 @@
  *   stratum scan --exclude users,sessions  # exclude specific tables
  */
 
-import { connectDb, quoteIdent, scanTables, type TableInfo } from "../utils/db.js";
+import { connectDb, controlRoleFlag, quoteIdent, scanTables, type TableInfo } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
 interface ScanResult {
@@ -169,12 +169,14 @@ export async function scan(
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const controlRole = controlRoleFlag(flags);
+
   log.info("Scanning database for tables needing tenant isolation...\n");
 
   const pool = await connectDb(flags);
 
   try {
-    const tables = await scanTables(pool);
+    const tables = await scanTables(pool, controlRole);
     const result = analyzeTables(tables, exclude);
 
     const totalTables = tables.length - result.skipped.length;

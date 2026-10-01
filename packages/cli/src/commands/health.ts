@@ -1,8 +1,20 @@
-import { connectDb, checkExtensions, checkBypassRLS, checkStratumTables, scanTables } from "../utils/db.js";
+import type pg from "pg";
+import { inspectRoleModel } from "@stratum-hq/lib";
+import {
+  connectDb,
+  connectAdminDb,
+  controlRoleFlag,
+  checkExtensions,
+  checkBypassRLS,
+  checkStratumTables,
+  scanTables,
+} from "../utils/db.js";
+import { roleModelChecks } from "../utils/role-model.js";
 import * as log from "../utils/log.js";
 
 export async function health(flags: Record<string, string | boolean>): Promise<void> {
   log.heading("Stratum Health Check");
+  const controlRole = controlRoleFlag(flags);
 
   // 1. Database connection
   let pool;
@@ -14,6 +26,15 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     log.fail(`Database connection failed: ${msg}`);
     log.info('Set DATABASE_URL or use --database-url <url>');
     process.exit(1);
+  }
+
+  let adminPool: pg.Pool | undefined;
+  try {
+    adminPool = await connectAdminDb(flags);
+    if (adminPool) log.success("Admin database connection OK");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.fail(msg);
   }
 
   try {
@@ -55,12 +76,28 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     const hasStratumTables = await checkStratumTables(pool);
     if (hasStratumTables) {
       log.success("Stratum schema tables found (tenants, config_entries, permission_policies, api_keys)");
+
+      // 5b. Role model of migration 032 (opt-in hardening in 1.x)
+      log.heading("Role Model");
+      try {
+        const report = await inspectRoleModel({ appPool: pool, adminPool, controlRole });
+        for (const check of roleModelChecks(report)) {
+          const line = `${check.label}: ${check.summary}`;
+          if (check.status === "pass") log.success(line);
+          else if (check.status === "warn") log.warn(line);
+          else log.fail(line);
+          check.details?.forEach((d) => log.dim(`  ${d}`));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.warn(`Could not check the role model: ${msg}`);
+      }
     } else {
       log.warn("Stratum schema not found. Run the control plane to auto-migrate, or apply 001_init.sql manually");
     }
 
     // 6. User tables RLS scan
-    const tables = await scanTables(pool);
+    const tables = await scanTables(pool, controlRole);
     if (tables.length > 0) {
       log.heading("Table RLS Status");
       const header = ["Table", "tenant_id", "RLS", "FORCE", "Policy"];
@@ -92,5 +129,6 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     console.log();
   } finally {
     await pool.end();
+    await adminPool?.end();
   }
 }

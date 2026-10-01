@@ -8,7 +8,7 @@ import {
   databaseExists,
   dropDatabase,
 } from "@stratum-hq/db-adapters";
-import { getPool } from "../db/connection.js";
+import { getPool, getStratumPool } from "../db/connection.js";
 
 const registeredTables: Set<string> = new Set();
 
@@ -58,11 +58,17 @@ export async function setupAllRLS(): Promise<void> {
   }
 }
 
+// Schemas and databases of isolated tenants are created and dropped on the
+// admin pool when DATABASE_ADMIN_URL is set (it needs CREATE on the database,
+// or CREATEDB), else on the application pool. The table-level RLS helpers
+// above change application tables, so they run as the application login,
+// which owns them.
+
 export async function setupSchemaForTenant(
   tenantSlug: string,
   tables?: string[],
 ): Promise<void> {
-  return withTransaction(getPool(), async (client) => {
+  return withTransaction(getStratumPool(), async (client) => {
     await createSchema(client, tenantSlug);
     if (tables && tables.length > 0) {
       const schemaName = tenantSchemaName(tenantSlug);
@@ -74,7 +80,7 @@ export async function setupSchemaForTenant(
 }
 
 export async function teardownSchemaForTenant(tenantSlug: string): Promise<void> {
-  return withTransaction(getPool(), async (client) => {
+  return withTransaction(getStratumPool(), async (client) => {
     await dropSchema(client, tenantSlug);
   });
 }
@@ -89,7 +95,7 @@ export async function setupDatabaseForTenant(
   tenantSlug: string,
   templateDb?: string,
 ): Promise<void> {
-  const pool = getPool();
+  const pool = getStratumPool();
   const client = await pool.connect();
   try {
     // Never adopt an existing database: it may hold another tenant's data.
@@ -111,7 +117,7 @@ export async function setupDatabaseForTenant(
  * standalone client from the pool.
  */
 export async function teardownDatabaseForTenant(tenantSlug: string): Promise<void> {
-  const client = await getPool().connect();
+  const client = await getStratumPool().connect();
   try {
     await dropDatabase(client, tenantSlug);
   } finally {

@@ -46,7 +46,10 @@ const permissions = await stratum.resolvePermissions(tenant.id);
 
 ```typescript
 const stratum = new Stratum({
-  pool: pgPool,              // Required: pg.Pool instance
+  pool: pgPool,              // Required: pg.Pool instance (the application login)
+  adminPool: adminPgPool,    // Optional in 1.x: the admin login, a member of the control role (see below)
+  controlRole: "stratum_control", // Optional: the control role (default: the database's, else stratum_control)
+  allowLegacyKeyHashes: true, // Optional: accept SHA-256 API key hashes while an HMAC secret is set (default: true in 1.x)
   keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
   logger: myLogger,          // Optional: StratumLogger (default: defaultLogger)
   autoMigrate: false,        // Optional: run migrations on initialize() (default: false)
@@ -55,6 +58,8 @@ const stratum = new Stratum({
 ```
 
 The pool is **borrowed, not owned**: Stratum never creates or closes the pool. You manage the pool lifecycle.
+
+With `adminPool`, every library query and `autoMigrate` run on the admin login, as a member of the control role of migration 032, and the library sets no `app.bypass_rls`. `initialize()` checks both logins against the role model and warns about each problem (with `enforceRls: true`, a problem with the application login throws). Without `adminPool`, the library uses the legacy `app.bypass_rls` path and logs a one-time deprecation warning; `adminPool` becomes required in 2.0. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
 
 ```typescript
 stratum.initialize(): Promise<void>
@@ -380,9 +385,13 @@ Beyond the `Stratum` class, `@stratum-hq/lib` exports helpers you can use direct
 
 ```typescript
 import {
-  migrate,             // migrate({ pool, enforceRls? }): run the Stratum migrations
+  migrate,             // migrate({ pool, enforceRls?, controlRole? }): run the Stratum migrations
   migrateAllSchemas,   // migrateAllSchemas(...): multi-schema migration runner
   STRATUM_TABLES,      // readonly string[]: the tables the Stratum migrations create
+  STRATUM_CONTROL_ROLE, // "stratum_control": the default control role
+  APP_READ_TABLES,     // readonly string[]: the Stratum tables the application login may read
+  bootstrapRolesSql,   // bootstrapRolesSql({ adminRole?, appRole?, controlRole?, schema? }): role setup SQL
+  inspectRoleModel,    // inspectRoleModel({ appPool?, adminPool? }): the role-model checks as data
   runScopedJob,        // runScopedJob(pool, tenantId, fn): tenant-scoped background job
   verifyWebhookSignature,
   signWebhookPayload,
@@ -393,6 +402,7 @@ import {
 ```
 
 - `runScopedJob(pool, tenantId, fn)` runs `fn` bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down afterward, so a job cannot touch another tenant's rows and the context never leaks onto the next job on a pooled connection.
+- `bootstrapRolesSql()` returns the idempotent SQL that `stratum db roles` prints and applies: it checks the Stratum tables for objects the migrations did not create, creates the control role, makes the admin login a member, moves the Stratum objects the application login owns to the admin login, applies the control role, and limits the application login to `SELECT` on `APP_READ_TABLES`.
 - `STRATUM_TABLES` lists the `public` tables that the Stratum migrations create, plus `_migrations`. Use it to tell Stratum's tables from your application tables. The CLI's `scan` and `migrate --all` skip these tables.
 - `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 

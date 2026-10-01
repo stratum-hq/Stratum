@@ -20,6 +20,14 @@ export {
   isRLSEnabled,
 } from "./rls/manager.js";
 export type { CreatePolicyOptions } from "./rls/manager.js";
+export {
+  tablePolicyIssues,
+  tablePolicyWarnings,
+  permissivePolicyIssue,
+  isControlPlanePolicy,
+  DEFAULT_CONTROL_ROLE,
+} from "./rls/policy-check.js";
+export type { PolicyRow } from "./rls/policy-check.js";
 
 export {
   setTenantContext,

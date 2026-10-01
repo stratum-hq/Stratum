@@ -230,7 +230,11 @@ function oneLine(expr: string | null): string {
 }
 
 /** Why one permissive policy lets rows of other tenants through, or null. */
-function permissiveIssue(p: PolicyRow, subtree: RegExp, legacy: RegExp): string | null {
+function permissiveIssue(
+  p: Pick<PolicyRow, "policyname" | "cmd" | "qual" | "with_check">,
+  subtree: RegExp,
+  legacy: RegExp,
+): string | null {
   const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
   // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
   // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
@@ -247,6 +251,37 @@ function permissiveIssue(p: PolicyRow, subtree: RegExp, legacy: RegExp): string 
     }
   }
   return null;
+}
+
+/**
+ * Why one permissive policy lets rows of other tenants through, or null when
+ * it filters by tenant for every command it covers. Shared with the policy
+ * checks of `@stratum-hq/cli`, so both apply the same expression rules.
+ *
+ * @param functionSchema - As for {@link tablePolicyIssues}.
+ */
+export function permissivePolicyIssue(
+  p: Pick<PolicyRow, "policyname" | "cmd" | "qual" | "with_check">,
+  functionSchema?: string,
+): string | null {
+  return permissiveIssue(p, subtreeMatch(functionSchema), legacyMatch(functionSchema));
+}
+
+/**
+ * True for the stratum_control_plane policy of migration 032 when it is
+ * permissive and applies to exactly `controlRole`. Only that role's members
+ * can use it, whatever it admits.
+ */
+export function isControlPlanePolicy(
+  p: Pick<PolicyRow, "policyname" | "permissive"> & { roles?: string[] },
+  controlRole: string = DEFAULT_CONTROL_ROLE,
+): boolean {
+  return (
+    p.policyname === CONTROL_POLICY &&
+    p.permissive === "PERMISSIVE" &&
+    p.roles?.length === 1 &&
+    p.roles[0] === controlRole
+  );
 }
 
 /** Why the tenant_isolation policy is not the shape createPolicy generates, or null. */
@@ -284,12 +319,7 @@ export function tablePolicyIssues(
   const legacy = legacyMatch(functionSchema);
   const issues: string[] = [];
   for (const p of policies) {
-    if (
-      p.policyname === CONTROL_POLICY &&
-      p.permissive === "PERMISSIVE" &&
-      p.roles.length === 1 &&
-      p.roles[0] === controlRole
-    ) {
+    if (isControlPlanePolicy(p, controlRole)) {
       // Only the library's own role can use it, whatever it admits.
       continue;
     }
