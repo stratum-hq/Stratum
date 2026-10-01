@@ -43,18 +43,26 @@ A preset picks the database, isolation strategy, ORM, and framework in one strin
 
 ```bash
 npx @stratum-hq/create my-app --preset postgres-rls-prisma-express
-npx @stratum-hq/create my-app --preset postgres-schema-drizzle-fastify
+npx @stratum-hq/create my-app --preset postgres-schema-prisma-fastify
 npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono
 npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs
 ```
 
 | Database | Strategies | ORMs |
 |---|---|---|
-| `postgres` | `rls`, `schema`, `database` | `prisma`, `drizzle`, `sequelize`, `knex`, `pg` |
+| `postgres` | `rls` | `prisma`, `drizzle`, `sequelize`, `knex`, `pg` |
+| `postgres` | `schema`, `database` | `prisma`, `pg` |
 | `mongodb` | `database`, `collection` | `mongoose` |
 | `mysql` | `database`, `table-prefix` | `sequelize`, `knex`, `pg` |
 
-Every database works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none`. An invalid preset exits with an error before anything is written. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
+Every combination in the table works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none`. An invalid preset exits with an error before anything is written. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
+
+### Tenant isolation on PostgreSQL
+
+- **rls**: all tenants share the tables. Every tenant-scoped table has a `tenant_id` column and a `tenant_isolation` row-level security policy, and the generated helper sets `app.current_tenant_id` for each tenant query. A table without a policy is not filtered by tenant. The preset creates an example table, `notes`, with its policy: in `init.sql` (pg, Knex, Sequelize), in `src/schema.ts` (Drizzle), or in `prisma/rls.sql`, which `npm run db:push` applies after `prisma db push` (Prisma).
+- **schema** and **database**: each tenant's tables are in its own schema, `tenant_{slug}`, or its own database, `stratum_tenant_{slug}`, and the generated helper sends each query there with the `@stratum-hq/db-adapters` adapter for the strategy: `SchemaPrismaAdapter`, `SchemaRawAdapter`, `DatabasePrismaAdapter`, or `DatabaseRawAdapter`. These presets use no row-level security. Create each tenant with Stratum, then run `npm run tenant:provision -- <tenant-id>`, which creates the tenant's schema or database and its tables. The helper takes the tenant ID from the verified token and looks up the tenant's slug in Stratum; it never takes the slug from the hostname or a header. Drizzle, Sequelize, and Knex have no schema or database adapter, so the generator offers them only with `rls`.
+
+Tables are created by the superuser in `DATABASE_SUPERUSER_URL`, never by the app role in `DATABASE_URL`, and Stratum's own tables by Stratum's login in `STRATUM_ADMIN_DATABASE_URL`.
 
 ## After Scaffolding
 
@@ -65,7 +73,7 @@ cp .env.example .env   # npm run dev reads .env
 npm run dev            # run the app
 ```
 
-The generated starter code does not create a `Stratum` instance, so it does not create Stratum's tables. To create them, construct `Stratum` with `autoMigrate: true` and call `initialize()` once at startup.
+The generated starter code does not create Stratum's tables. To create them, construct `Stratum` with `autoMigrate: true` and call `initialize()` once at startup. The generated `README.md` lists the remaining setup steps of the preset, such as `npm run tenant:provision` for the schema and database presets.
 
 ## Tenant resolution
 

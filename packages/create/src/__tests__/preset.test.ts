@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { parseArgs, createProject } from "../index.js";
 import { createPresetProject } from "../preset-project.js";
-import { VALID_COMBINATIONS, type Database, type StackPreset } from "../matrix.js";
+import { VALID_COMBINATIONS, ormsFor, type Database, type StackPreset } from "../matrix.js";
 
 // ─── parseArgs --preset tests ────────────────────────────────────────────────
 
@@ -112,17 +112,19 @@ describe("createPresetProject", () => {
     expect(sql).toContain("Row-Level Security");
   });
 
-  it("generates postgres-schema-drizzle-fastify project", () => {
-    const preset: StackPreset = { database: "postgres", strategy: "schema", orm: "drizzle", framework: "fastify" };
+  it("generates postgres-schema-prisma-fastify project", () => {
+    const preset: StackPreset = { database: "postgres", strategy: "schema", orm: "prisma", framework: "fastify" };
     createPresetProject("test-project", preset, projectDir, true);
 
-    expect(fs.existsSync(path.join(projectDir, "src", "stratum-drizzle.ts"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "drizzle.config.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "stratum-prisma.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "stratum-tenant.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "scripts", "provision-tenant.mjs"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "src", "index.ts"))).toBe(true);
 
     const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
-    expect(pkg.dependencies["drizzle-orm"]).toBeDefined();
+    expect(pkg.dependencies["@prisma/client"]).toBeDefined();
     expect(pkg.dependencies["fastify"]).toBeDefined();
+    expect(pkg.scripts["tenant:provision"]).toBe("node --env-file=.env scripts/provision-tenant.mjs");
 
     const server = fs.readFileSync(path.join(projectDir, "src", "index.ts"), "utf8");
     expect(server).toContain("Fastify");
@@ -272,7 +274,7 @@ describe("Next.js presets", () => {
   // directory, and next build needs a root layout.
   const presets: StackPreset[] = (Object.keys(VALID_COMBINATIONS) as Database[]).flatMap((database) =>
     VALID_COMBINATIONS[database].strategies.flatMap((strategy) =>
-      VALID_COMBINATIONS[database].orms.map((orm) => ({ database, strategy, orm, framework: "nextjs" as const })),
+      ormsFor(database, strategy).map((orm) => ({ database, strategy, orm, framework: "nextjs" as const })),
     ),
   );
 

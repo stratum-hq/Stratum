@@ -4,6 +4,7 @@ import {
   formatPresetString,
   isValidPreset,
   getValidOptions,
+  ormsFor,
   VALID_COMBINATIONS,
   type StackPreset,
 } from "../matrix.js";
@@ -140,8 +141,16 @@ describe("isValidPreset", () => {
     expect(isValidPreset({ database: "postgres", strategy: "rls", orm: "prisma", framework: "express" })).toBe(true);
   });
 
-  it("accepts postgres-schema-drizzle-fastify", () => {
-    expect(isValidPreset({ database: "postgres", strategy: "schema", orm: "drizzle", framework: "fastify" })).toBe(true);
+  it("accepts postgres-schema-prisma-fastify", () => {
+    expect(isValidPreset({ database: "postgres", strategy: "schema", orm: "prisma", framework: "fastify" })).toBe(true);
+  });
+
+  it("accepts postgres-database-prisma-express", () => {
+    expect(isValidPreset({ database: "postgres", strategy: "database", orm: "prisma", framework: "express" })).toBe(true);
+  });
+
+  it("accepts postgres-rls-drizzle-fastify", () => {
+    expect(isValidPreset({ database: "postgres", strategy: "rls", orm: "drizzle", framework: "fastify" })).toBe(true);
   });
 
   it("accepts postgres-database-pg-none", () => {
@@ -199,6 +208,15 @@ describe("isValidPreset", () => {
     expect(isValidPreset({ database: "mysql", strategy: "database", orm: "mongoose", framework: "express" })).toBe(false);
   });
 
+  // db-adapters has no schema or database adapter for these ORMs.
+  for (const strategy of ["schema", "database"] as const) {
+    for (const orm of ["drizzle", "sequelize", "knex"] as const) {
+      it(`rejects postgres-${strategy}-${orm}-express (no ${strategy} adapter for ${orm})`, () => {
+        expect(isValidPreset({ database: "postgres", strategy, orm, framework: "express" })).toBe(false);
+      });
+    }
+  }
+
   it("rejects postgres-rls-mongoose-express (mongoose not valid for postgres)", () => {
     expect(isValidPreset({ database: "postgres", strategy: "rls", orm: "mongoose", framework: "express" })).toBe(false);
   });
@@ -255,6 +273,39 @@ describe("getValidOptions", () => {
     expect(opts.databases).toContain("postgres");
     expect(opts.databases).toContain("mysql");
     expect(opts.databases).not.toContain("mongodb");
+  });
+});
+
+describe("getValidOptions with strategy and ORM pairs", () => {
+  it("offers only prisma and pg for postgres schema", () => {
+    expect(getValidOptions({ database: "postgres", strategy: "schema" }).orms).toEqual(["prisma", "pg"]);
+  });
+
+  it("offers only prisma and pg for postgres database", () => {
+    expect(getValidOptions({ database: "postgres", strategy: "database" }).orms).toEqual(["prisma", "pg"]);
+  });
+
+  it("offers every postgres ORM for rls", () => {
+    expect(getValidOptions({ database: "postgres", strategy: "rls" }).orms).toEqual(VALID_COMBINATIONS.postgres.orms);
+  });
+
+  it("offers only the rls strategy for postgres with drizzle", () => {
+    expect(getValidOptions({ database: "postgres", orm: "drizzle" }).strategies).toEqual(["rls"]);
+  });
+
+  it("returns no database for postgres-only schema with drizzle", () => {
+    expect(getValidOptions({ strategy: "schema", orm: "drizzle" }).databases).toEqual([]);
+  });
+});
+
+describe("ormsFor", () => {
+  it("returns the per-strategy ORMs when the database restricts them", () => {
+    expect(ormsFor("postgres", "schema")).toEqual(["prisma", "pg"]);
+    expect(ormsFor("postgres", "rls")).toEqual(VALID_COMBINATIONS.postgres.orms);
+  });
+
+  it("returns no ORM for a strategy the database does not allow", () => {
+    expect(ormsFor("mongodb", "rls")).toEqual([]);
   });
 });
 

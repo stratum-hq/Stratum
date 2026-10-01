@@ -34,17 +34,21 @@ export function postgresAppRoleSql(dbName: string, strategy?: string): string {
   let strategyGrant = "";
   if (strategy === "schema") {
     strategyGrant = `
--- schema-per-tenant: the app creates one schema per tenant. A schema named
--- like a login comes first on that login's default search path ("$user",
--- public), so a schema the app creates could come before public for the
--- Stratum login or the bootstrap superuser. Both search only public.
+-- schema-per-tenant: each tenant has its own schema. npm run tenant:provision
+-- creates it as the superuser; the grant below also lets the app role create
+-- schemas. A schema named like a login comes first on that login's default
+-- search path ("$user", public), so a schema the app creates could come
+-- before public for the Stratum login or the bootstrap superuser. Both
+-- search only public.
 ALTER ROLE ${stratum} IN DATABASE ${dbName} SET search_path = public;
 ALTER ROLE CURRENT_USER IN DATABASE ${dbName} SET search_path = public;
 GRANT CREATE ON DATABASE ${dbName} TO ${role};
 `;
   } else if (strategy === "database") {
     strategyGrant = `
--- database-per-tenant: the app creates one database per tenant
+-- database-per-tenant: each tenant has its own database. npm run
+-- tenant:provision creates it as the superuser; this also lets the app role
+-- create databases.
 ALTER ROLE ${role} CREATEDB;
 `;
   }
@@ -86,12 +90,30 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ${strategyGrant}`;
 }
 
+const POLICY_USING = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
+
+/**
+ * SQL that turns on row-level security for a table and creates its
+ * tenant_isolation policy. A pooled connection reads the setting as '' after
+ * a tenant transaction ends, or as NULL before the first one; NULLIF makes
+ * both match no rows, where a bare ::uuid cast of '' raises an error.
+ */
+export function tenantIsolationPolicySql(table: string): string {
+  return `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ${table};
+CREATE POLICY tenant_isolation ON ${table}
+  USING (${POLICY_USING})
+  WITH CHECK (${POLICY_USING});
+`;
+}
+
 export function generatePresetInitSql(projectName: string, preset: StackPreset): string | null {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
 
   switch (preset.database) {
     case "postgres":
-      return generatePostgresInit(projectName, dbName, preset.strategy);
+      return generatePostgresInit(projectName, dbName, preset);
     case "mongodb":
       // MongoDB does not use SQL initialization
       return null;
@@ -100,25 +122,23 @@ export function generatePresetInitSql(projectName: string, preset: StackPreset):
   }
 }
 
-function generatePostgresInit(projectName: string, dbName: string, strategy: string): string {
+function generatePostgresInit(projectName: string, dbName: string, preset: StackPreset): string {
+  const strategy = preset.strategy;
   let rlsBlock = "";
   if (strategy === "rls") {
     rlsBlock = `
--- Enable Row-Level Security for tenant isolation
--- Add RLS policies to each tenant-scoped table:
---
---   ALTER TABLE your_table ENABLE ROW LEVEL SECURITY;
---   ALTER TABLE your_table FORCE ROW LEVEL SECURITY;
---   CREATE POLICY tenant_isolation ON your_table
---     USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
+-- Row-Level Security for tenant isolation. Every tenant-scoped table needs a
+-- tenant_id column, ENABLE and FORCE ROW LEVEL SECURITY, and a policy that
+-- compares tenant_id with app.current_tenant_id, the setting that the
+-- generated tenant helper sets for each tenant query. A table without a
+-- policy is not filtered by tenant.
 --
 -- A pooled connection reads the setting as '' after a tenant transaction ends,
 -- or as NULL before the first one. NULLIF makes both return no rows; a bare
 -- ::uuid cast of '' raises an error.
 -- FORCE makes the policy apply to the table owner too; without it, a table
 -- created by the application role is not isolated for that role.
--- The Stratum db-adapters package sets app.current_tenant_id automatically.
-`;
+${rlsTables(preset.orm)}`;
   }
 
   return `-- Initialize ${projectName} database
@@ -130,6 +150,37 @@ CREATE EXTENSION IF NOT EXISTS "ltree";
 -- uuid-ossp provides uuid_generate_v4() for tenant IDs
 COMMENT ON DATABASE ${dbName} IS 'Multi-tenant database for ${projectName}';
 ${postgresAppRoleSql(dbName, strategy)}${rlsBlock}`;
+}
+
+/**
+ * The tenant-scoped tables of an rls preset and their policies. Prisma and
+ * Drizzle create their tables after this file runs, so their policies are in
+ * the files those tools read.
+ */
+function rlsTables(orm: string): string {
+  if (orm === "prisma") {
+    return `--
+-- The tables are created by Prisma (prisma/schema.prisma). npm run db:push
+-- creates them and then applies their policies from prisma/rls.sql.
+`;
+  }
+  if (orm === "drizzle") {
+    return `--
+-- The tables are created by drizzle-kit (src/schema.ts), which also creates
+-- the tenant_isolation policy that src/schema.ts declares for each table.
+`;
+  }
+  return `--
+-- An example tenant-scoped table and its policy. The superuser running this
+-- file owns the table; the app role reads and writes it through the policy.
+CREATE TABLE notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL,
+  body text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX notes_tenant_id_idx ON notes (tenant_id);
+${tenantIsolationPolicySql("notes")}`;
 }
 
 function generateMysqlInit(projectName: string, dbName: string): string {

@@ -184,6 +184,25 @@ function addStratumDeps(deps: Record<string, string>, preset: StackPreset): void
 }
 
 function getScripts(preset: StackPreset): Record<string, string> {
+  return { ...getAppScripts(preset), ...getDatabaseScripts(preset) };
+}
+
+/**
+ * Scripts that set up the database. They run with the superuser in
+ * DATABASE_SUPERUSER_URL, never as the app role.
+ */
+function getDatabaseScripts(preset: StackPreset): Record<string, string> {
+  if (preset.database !== "postgres") return {};
+  if (preset.strategy === "schema" || preset.strategy === "database") {
+    return { "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs" };
+  }
+  if (preset.orm === "prisma") {
+    return { "db:push": "node --env-file=.env scripts/db-push.mjs" };
+  }
+  return {};
+}
+
+function getAppScripts(preset: StackPreset): Record<string, string> {
   if (preset.framework === "nextjs") {
     return { dev: "next dev", build: "next build", start: "next start" };
   }
