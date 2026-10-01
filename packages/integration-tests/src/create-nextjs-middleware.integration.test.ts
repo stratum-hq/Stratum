@@ -5,6 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { unpublishedStratumVersions } from "./helpers/published-versions.js";
 import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
 
 /**
@@ -23,6 +24,15 @@ import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
 const PRESET = "postgres-rls-pg-nextjs";
 const JWT_SECRET = crypto.randomBytes(32).toString("base64url");
 const TENANT = "11111111-1111-1111-1111-111111111111";
+
+
+// A version PR raises the workspace versions before the release publishes
+// them, so a generated project cannot install them from the registry yet.
+// The install-dependent tests are skipped until the versions are on npm.
+const UNPUBLISHED = unpublishedStratumVersions();
+if (UNPUBLISHED.length > 0) {
+  console.warn(`Skipping generated-project installs: not on npm yet: ${UNPUBLISHED.join(", ")}`);
+}
 
 let tmp: string;
 let templateDir: string;
@@ -109,7 +119,7 @@ describe("@stratum-hq/create Next.js file layout", () => {
   });
 });
 
-describe(`@stratum-hq/create ${PRESET} built with next build`, () => {
+describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${PRESET} built with next build`, () => {
   beforeAll(async () => {
     // A probe route that reports the tenant header server code receives.
     const probe = path.join(presetDir, "src/app/api/probe/route.ts");
