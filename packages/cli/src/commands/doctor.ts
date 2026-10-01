@@ -194,7 +194,7 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
 
   const tables = (res.rows as Array<{ table_name: string; policies: PolicyRow[] }>).map((t) => ({
     table_name: t.table_name,
-    verdict: evaluatePolicies(t.policies),
+    verdict: evaluatePolicies(t.policies, "public"),
   }));
 
   if (tables.length === 0) {

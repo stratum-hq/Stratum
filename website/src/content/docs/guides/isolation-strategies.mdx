@@ -121,20 +121,21 @@ In this scope, Northwind MSP reads its own rows and the rows of Client A and Cli
 
 The subtree scope has these rules:
 
-- **Reads only.** Inserts, updates and deletes stay limited to the exact tenant. An insert for a descendant fails with a row-level security error. An update or a delete does not change a descendant's rows.
+- **Reads only.** Inserts, updates and deletes stay limited to the exact tenant. An insert for a descendant fails with a row-level security error. An update or a delete does not change a descendant's rows. `SELECT ... FOR UPDATE` and `FOR SHARE` return the exact tenant's rows only.
 - **All statuses.** The subtree includes suspended, archived and pending descendants. To show active descendants only, filter by the tenant status in your query.
 - **Opt-in per transaction.** The default scope is `"exact"`. The scope ends with the transaction, so it cannot carry over to the next request on a pooled connection.
 - **The bypass does not change.** A session with the RLS bypass reads every row, whatever the scope.
-- **The tree is the ID-based ancestry path.** A move to another parent changes the subtree at once. A slug rename does not change it.
+- **The tree is the ID-based ancestry path.** A move through `moveTenant` changes the subtree at once. A slug rename does not change it. Migration 031 also refuses a change to `parent_id`, `ancestry_path`, `depth` or `ancestry_ltree` unless the session has the RLS bypass, so a tenant context cannot change its own place in the tree. The library's tree operations run with the bypass.
 
-Migration 031 of `@stratum-hq/lib` adds the subtree policy to these Stratum tables:
+Migration 031 of `@stratum-hq/lib` adds the subtree policy to these Stratum tables, and to no others:
 
-- `config_entries`, `permission_policies`, `abac_policies`, `roles` and `principal_roles`
+- `config_entries`, for rows that are not `sensitive` only
+- `permission_policies`, `abac_policies`, `roles` and `principal_roles`
 - `audit_logs`, `usage_events` and `consent_records`
-- `webhooks`, `webhook_events` and `webhook_deliveries`
+- `webhook_events` and `webhook_deliveries`
 - `tenants`, so a parent also reads the registry rows of its descendants
 
-`api_keys` does not get the subtree policy. An API key row holds credential material, even though the key is hashed. Only the exact tenant reads its own `api_keys` rows, in every scope.
+Credential-bearing rows stay exact-tenant in every scope: `api_keys` rows, `webhooks` rows and `config_entries` rows with `sensitive = true`. An API key row holds a key hash, a webhook row holds a signing secret hash and a URL that can carry credentials, and a sensitive config row holds a secret value. Only the exact tenant reads them. `webhook_deliveries` is scoped through `webhook_events`, so a parent reads a descendant's delivery rows but not the webhook they belong to.
 
 For your own tables, ask `createPolicy` for the subtree policy:
 
@@ -155,7 +156,7 @@ CREATE POLICY tenant_subtree_read ON alerts FOR SELECT
   );
 ```
 
-`stratum_subtree_tenant_ids()` returns the current tenant and all its descendants. PostgreSQL runs it once per statement, and the `tenant_id` index serves the match. Migration 031 creates the function, so run the Stratum migrations first. `stratum doctor` and `stratum migrate --scan` count a table with this policy as isolated.
+`stratum_subtree_tenant_ids()` returns the current tenant and all its descendants. PostgreSQL runs it once for each reference to the policy in a statement, so a query that joins several tables with the policy runs it once per table. Its cost grows with the size of the subtree, and each table matches `tenant_id` against the result, so the table needs an index on `tenant_id`. Migration 031 creates the function, so run the Stratum migrations first. `stratum doctor` and `stratum migrate --scan` count a table with this policy as isolated.
 
 To run a background job in the subtree scope, pass the same option to `runScopedJob`:
 

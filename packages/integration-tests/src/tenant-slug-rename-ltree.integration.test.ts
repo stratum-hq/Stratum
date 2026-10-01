@@ -79,11 +79,20 @@ describe("ancestry_ltree after slug rename (integration)", () => {
     const child = await stratum.createTenant({ name: "C", slug: uniqueSlug("lrc"), parent_id: root.id });
     const grand = await stratum.createTenant({ name: "G", slug: uniqueSlug("lrg"), parent_id: child.id });
 
-    // Simulate a row left behind by a pre-024 rename.
-    await getPool().query(
-      `UPDATE tenants SET ancestry_ltree = $1::ltree WHERE id = $2`,
-      [`stale_prefix.${child.slug}.${grand.slug}`, grand.id],
-    );
+    // Simulate a row left behind by a pre-024 rename. Tree columns change
+    // only under the bypass (migration 031).
+    const c = await getPool().connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SET LOCAL app.bypass_rls = 'on'");
+      await c.query(`UPDATE tenants SET ancestry_ltree = $1::ltree WHERE id = $2`, [
+        `stale_prefix.${child.slug}.${grand.slug}`,
+        grand.id,
+      ]);
+      await c.query("COMMIT");
+    } finally {
+      c.release();
+    }
 
     const here = path.dirname(fileURLToPath(import.meta.url));
     const sql = fs.readFileSync(

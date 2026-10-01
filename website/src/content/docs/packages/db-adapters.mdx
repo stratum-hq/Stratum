@@ -254,12 +254,14 @@ await withTenantContext(appPool, acme.id, (client) =>
 | Function | Result |
 |----------|--------|
 | `createPglitePool(source?)` | A `pg.Pool`-compatible object over one PGlite instance. `source` is a PGlite instance or PGlite options. When you pass options, the pool creates the instance, loads the `ltree` and `uuid_ossp` extensions, and closes the instance on `end()`. When you pass an instance, you load the extensions and you close it. `pool.pglite` is the instance. |
-| `createRestrictedPool(pool, { role? })` | A pool that runs every query as the role `stratum_app` (or the name you give). The function creates the role with `NOSUPERUSER NOBYPASSRLS`. It grants read and write access to every table and sequence in the `public` schema. Default privileges extend the grants to tables that the superuser creates later. |
+| `createRestrictedPool(pool, { role? })` | A pool that runs every query as the role `stratum_app` (or the name you give). The function creates the role with `NOSUPERUSER NOBYPASSRLS`. It grants read and write access to every table and sequence in the `public` schema. Default privileges extend the grants to tables that the superuser creates later. The restricted role is a test and demo convenience, not a security boundary: any query can leave it with `RESET ROLE`. |
 
 ### Limits
 
 - **One connection.** A client from `connect()` holds the only connection
-  until `release()`. Other callers wait in order.
+  until `release()`. Other callers wait in order. `release()` rolls back a
+  transaction the client left open and resets the session settings and the
+  role, so the next client starts clean.
 - **No concurrency.** Queries run one at a time. Do not use this adapter to
   test race conditions or lock contention.
 - **Superuser by default.** PGlite connects as the superuser `postgres`, and a

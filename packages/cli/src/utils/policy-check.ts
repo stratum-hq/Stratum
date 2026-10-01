@@ -148,34 +148,52 @@ const SCOPE_MATCH = new RegExp(
 /**
  * tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]) after
  * normalize and flatten. PostgreSQL qualifies the function with its schema
- * when that schema is not on the search path of the reading session.
+ * when that schema is not on the search path of the reading session. Only the
+ * schema that holds Stratum's tenants table, where migration 031 creates the
+ * function, may qualify it: a function of the same name in another schema
+ * could return any ids.
  */
-const SUBTREE_MATCH = new RegExp(
-  `^tenant_id=anyselect(?:[a-z_][a-z0-9_]*\\.)?${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`,
-);
+function subtreeMatch(functionSchema: string | undefined): RegExp {
+  const qualifier =
+    functionSchema === undefined ? "" : `(?:${escapeRegExp(quoteIdent(functionSchema).toLowerCase())}\\.)?`;
+  return new RegExp(`^tenant_id=anyselect${qualifier}${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`);
+}
 
-/** True when the expression only admits rows of the current tenant. */
-function filtersByTenant(expr: string, allowSubtree: boolean): boolean {
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The identifier as PostgreSQL prints it: quoted unless it is a plain lowercase name. */
+function quoteIdent(name: string): string {
+  return /^[a-z_][a-z0-9_$]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+}
+
+/**
+ * True when the expression only admits rows of the current tenant. `subtree`
+ * matches the subtree function call that may appear in the expression, or is
+ * null where the subtree read is not allowed.
+ */
+function filtersByTenant(expr: string, subtree: RegExp | null): boolean {
   const e = stripOuterParens(expr);
 
   const disjuncts = splitTopLevel(e, "or");
   if (disjuncts.length > 1) {
     // Every branch must be safe; Stratum's administrative bypass is one of them.
     return (
-      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d, allowSubtree)) &&
+      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d, subtree)) &&
       disjuncts.some((d) => !BYPASS_MATCH.test(flatten(d)))
     );
   }
 
   const conjuncts = splitTopLevel(e, "and");
   if (conjuncts.length > 1) {
-    if (conjuncts.some((c) => filtersByTenant(c, allowSubtree))) return true;
+    if (conjuncts.some((c) => filtersByTenant(c, subtree))) return true;
     // The subtree read of migration 031: the descendants of the current
     // tenant, only when the session opted in with app.tenant_scope.
     return (
-      allowSubtree &&
+      subtree !== null &&
       conjuncts.some((c) => SCOPE_MATCH.test(flatten(c))) &&
-      conjuncts.some((c) => SUBTREE_MATCH.test(flatten(c)))
+      conjuncts.some((c) => subtree.test(flatten(c)))
     );
   }
 
@@ -188,26 +206,31 @@ function oneLine(expr: string | null): string {
 }
 
 /** Why one permissive policy fails to isolate, or null when it does. */
-function permissiveIssue(p: PolicyRow): string | null {
+function permissiveIssue(p: PolicyRow, subtree: RegExp): string | null {
   const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
   // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
   // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
   if (p.cmd !== "INSERT") {
     // Only a SELECT policy may widen to the subtree: in any other policy the
     // same USING clause would let UPDATE or DELETE reach a descendant's rows.
-    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT")) {
+    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT" ? subtree : null)) {
       return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
     }
   }
   if (p.cmd === "INSERT" || p.with_check !== null) {
-    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), false)) {
+    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), null)) {
       return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
     }
   }
   return null;
 }
 
-export function evaluatePolicies(policies: PolicyRow[]): PolicyVerdict {
+/**
+ * @param functionSchema - The schema of Stratum's tenants table, the only
+ *   schema that may qualify stratum_subtree_tenant_ids(). When it is
+ *   undefined, only the unqualified function counts.
+ */
+export function evaluatePolicies(policies: PolicyRow[], functionSchema?: string): PolicyVerdict {
   if (policies.length === 0) return { isolated: false, issue: null };
 
   const permissive = policies.filter((p) => p.permissive === "PERMISSIVE");
@@ -218,7 +241,8 @@ export function evaluatePolicies(policies: PolicyRow[]): PolicyVerdict {
     };
   }
 
-  const issues = permissive.map(permissiveIssue).filter((i): i is string => i !== null);
+  const subtree = subtreeMatch(functionSchema);
+  const issues = permissive.map((p) => permissiveIssue(p, subtree)).filter((i): i is string => i !== null);
   if (issues.length > 0) {
     return {
       isolated: false,

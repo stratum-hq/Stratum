@@ -58,15 +58,19 @@ export async function createPolicy(
   // Read every policy on the table that the name resolves to, in whichever
   // schema that is. PostgreSQL ORs permissive policies together, so each one
   // must filter by tenant, and a policy's name proves nothing.
-  const existing = await client.query<PolicyRow>(
-    `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check, p.roles::text[] AS roles
+  // Each row also carries the schema of the tenants table, the only schema
+  // that may qualify the subtree function (migration 031 creates it there).
+  const existing = await client.query<PolicyRow & { tenants_schema: string | null }>(
+    `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check, p.roles::text[] AS roles,
+            (SELECT tn.nspname FROM pg_class tc JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+              WHERE tc.oid = to_regclass('tenants')) AS tenants_schema
        FROM pg_policies p
        JOIN pg_class c ON c.relname = p.tablename
        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = p.schemaname
       WHERE c.oid = to_regclass($1)`,
     [safe],
   );
-  const issues = tablePolicyIssues(existing.rows);
+  const issues = tablePolicyIssues(existing.rows, existing.rows[0]?.tenants_schema ?? undefined);
   if (issues.length > 0) {
     throw new Error(
       `[stratum] Table ${safe} has row-level security policies that do not isolate it by tenant: ` +
