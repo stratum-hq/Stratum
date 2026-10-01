@@ -31,7 +31,7 @@ interface ModelInstanceLike {
 interface ScopableSequelize extends SequelizeLike {
   constructor: { Model?: unknown; Op?: { and: symbol } };
   addHook(name: string, fn: (options: Options) => void): unknown;
-  getQueryInterface(): { queryGenerator: { quoteTable(table: unknown): string } };
+  getQueryInterface(): { queryGenerator: { quoteTable(table: unknown): string } } & Record<string, unknown>;
 }
 
 interface Scope {
@@ -63,14 +63,17 @@ const guardedInstances = new WeakSet<object>();
  *   (including those that scopes and hooks add) is filtered in its join
  *   condition, so a non-required include keeps the parent;
  * - update, destroy, restore and increment/decrement change only the tenant's
- *   rows, and update never writes tenant_id. update, destroy and increment
+ *   rows; updates never write tenant_id (by attribute or column name), and
+ *   increment/decrement of tenant_id is refused. update, destroy and increment
  *   without a where clause are still refused by Sequelize;
  * - create, save of a new instance and bulkCreate write the tenant's tenant_id;
  * - save, destroy and restore of an instance whose row belongs to another
  *   tenant, or of a model without a primary key, throw;
  * - upsert, bulkCreate with updateOnDuplicate, truncate, and `or` / `right`
  *   on an include of a tenant model are refused, and a query that carries a
- *   tenant model but bypasses these methods throws, also inside model hooks.
+ *   tenant model but bypasses these methods throws, also inside model hooks;
+ * - right before each query the tenant condition is checked again, so a query
+ *   whose condition a hook removed is refused.
  * Hooks passed `hooks: false` do not skip the filter. Raw `sequelize.query()`
  * and models without a tenant_id attribute are not scoped. Outside fn,
  * Sequelize behaves as usual.
@@ -128,8 +131,149 @@ function installTenantScoping(sequelize: SequelizeLike): void {
         throw new Error(`${REFUSED}: this query on a tenant model is not tenant-scoped and was refused.`);
       }
     });
+    guardQueryInterface(candidate, Op.and);
     guardedInstances.add(sequelize);
   }
+}
+
+/**
+ * Checks the statements that Sequelize's query interface is about to build for
+ * a tenant model inside the callback. Hooks run after the tenant condition is
+ * added and can replace a where clause or add includes, so the condition is
+ * verified here, right before the query, and the query is refused when it is
+ * missing. Values written to tenant_id (by attribute or column name, in any
+ * letter case) are dropped from updates and replaced on inserts.
+ */
+function guardQueryInterface(sequelize: ScopableSequelize, and: symbol): void {
+  const queryInterface = sequelize.getQueryInterface();
+  const active = (model: ModelClassLike | undefined): string | undefined => {
+    const scope = scopeStorage.getStore();
+    if (!model || !scope || scope.sequelize !== sequelize || !tenantAttribute(model)) return undefined;
+    return scope.tenantId;
+  };
+
+  const hasTenantCondition = (where: unknown, names: Set<string>, tenantId: string): boolean => {
+    if (!where || typeof where !== "object") return false;
+    if (Array.isArray(where)) return where.some((part) => hasTenantCondition(part, names, tenantId));
+    const record = where as Options;
+    if (Object.keys(record).some((key) => names.has(key.toLowerCase()) && record[key] === tenantId)) return true;
+    // Only AND positions count; a condition under OR does not scope the query.
+    return record[and] !== undefined && hasTenantCondition(record[and], names, tenantId);
+  };
+  const requireTenantCondition = (model: ModelClassLike, where: unknown, tenantId: string) => {
+    if (!hasTenantCondition(where, tenantNames(model), tenantId)) {
+      throw new Error(
+        `${REFUSED}: this query is not tenant-scoped, because its tenant condition is missing ` +
+          "(a hook may have replaced the where clause or added an include), and was refused.",
+      );
+    }
+  };
+  const checkIncludes = (include: unknown, tenantId: string): void => {
+    for (const item of Array.isArray(include) ? include : include ? [include] : []) {
+      const entry = item as Options;
+      const model = entry.model as ModelClassLike | undefined;
+      if (!entry._pseudo && model && tenantAttribute(model)) {
+        if (entry.or || entry.right) {
+          throw new Error(`${REFUSED}: "or" and "right" are refused on an include of a tenant model.`);
+        }
+        requireTenantCondition(model, entry.where, tenantId);
+      }
+      checkIncludes(entry.include, tenantId);
+    }
+  };
+  const withoutTenantKeys = (model: ModelClassLike, values: unknown): Options => {
+    const names = tenantNames(model);
+    return Object.fromEntries(
+      Object.entries((values as Options | undefined) ?? {}).filter(([key]) => !names.has(key.toLowerCase())),
+    );
+  };
+  const withTenantValue = (model: ModelClassLike, values: unknown, tenantId: string): Options => ({
+    ...withoutTenantKeys(model, values),
+    [tenantField(model)]: tenantId,
+  });
+
+  const wrap = (name: string, check: (args: unknown[]) => void) => {
+    const original = queryInterface[name] as AnyFunction;
+    queryInterface[name] = function (this: unknown, ...args: unknown[]): unknown {
+      try {
+        check(args);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      return original.apply(this, args);
+    };
+  };
+
+  wrap("select", (args) => {
+    const model = args[0] as ModelClassLike;
+    const options = args[2] as Options;
+    const tenantId = active(model);
+    if (tenantId) requireTenantCondition(model, options.where, tenantId);
+    const scope = scopeStorage.getStore();
+    if (scope && scope.sequelize === sequelize) checkIncludes(options.include, scope.tenantId);
+  });
+  wrap("rawSelect", (args) => {
+    const options = args[1] as Options;
+    const model = args[3] as ModelClassLike | undefined;
+    const tenantId = active(model);
+    if (tenantId) requireTenantCondition(model as ModelClassLike, options.where, tenantId);
+    const scope = scopeStorage.getStore();
+    if (scope && scope.sequelize === sequelize) checkIncludes(options.include, scope.tenantId);
+  });
+  wrap("bulkUpdate", (args) => {
+    const model = (args[3] as Options | undefined)?.model as ModelClassLike | undefined;
+    const tenantId = active(model);
+    if (!tenantId) return;
+    requireTenantCondition(model as ModelClassLike, args[2], tenantId);
+    args[1] = withoutTenantKeys(model as ModelClassLike, args[1]);
+  });
+  wrap("bulkDelete", (args) => {
+    const model = args[3] as ModelClassLike | undefined;
+    const tenantId = active(model);
+    if (tenantId) requireTenantCondition(model as ModelClassLike, args[1], tenantId);
+  });
+  for (const name of ["increment", "decrement"]) {
+    wrap(name, (args) => {
+      const model = args[0] as ModelClassLike;
+      const tenantId = active(model);
+      if (!tenantId) return;
+      const names = tenantNames(model);
+      const touched = [...Object.keys((args[3] as Options) ?? {}), ...Object.keys((args[4] as Options) ?? {})];
+      if (touched.some((key) => names.has(key.toLowerCase()))) {
+        throw new Error(`${REFUSED}: increment or decrement of tenant_id is refused.`);
+      }
+      requireTenantCondition(model, args[2], tenantId);
+    });
+  }
+  wrap("update", (args) => {
+    const model = (args[0] as ModelInstanceLike).constructor;
+    if (active(model)) args[2] = withoutTenantKeys(model, args[2]);
+  });
+  wrap("insert", (args) => {
+    const model = (args[0] as ModelInstanceLike | null)?.constructor;
+    const tenantId = active(model);
+    if (tenantId) args[2] = withTenantValue(model as ModelClassLike, args[2], tenantId);
+  });
+  wrap("bulkInsert", (args) => {
+    const model = (args[2] as Options | undefined)?.model as ModelClassLike | undefined;
+    const tenantId = active(model);
+    if (tenantId) {
+      args[1] = (args[1] as unknown[]).map((record) => withTenantValue(model as ModelClassLike, record, tenantId));
+    }
+  });
+}
+
+/** The tenant attribute's name and column name, lower-cased. */
+function tenantNames(model: ModelClassLike): Set<string> {
+  const attribute = tenantAttribute(model);
+  if (!attribute) return new Set();
+  return new Set([attribute.toLowerCase(), tenantField(model).toLowerCase()]);
+}
+
+/** The column name of the tenant attribute. */
+function tenantField(model: ModelClassLike): string {
+  const attribute = tenantAttribute(model) as string;
+  return model.rawAttributes?.[attribute]?.field ?? attribute;
 }
 
 /** Returns the attribute that maps to the tenant_id column, if the model has one. */
@@ -210,10 +354,13 @@ function patchModel(Model: Record<PropertyKey, unknown>, and: symbol): void {
   wrapStatic("aggregate", false, unchanged);
   wrapStatic("increment", true, unchanged);
   wrapStatic("update", true, (model, [values, options]) => {
-    const attribute = tenantAttribute(model);
-    const scopedValues = { ...(values as Options) };
-    if (attribute) delete scopedValues[attribute];
-    return [scopedValues, options];
+    // Drop tenant_id by attribute or column name, in any letter case.
+    const names = tenantNames(model);
+    const isTenantKey = (key: unknown) => typeof key === "string" && names.has(key.toLowerCase());
+    const scopedValues = Object.fromEntries(Object.entries((values as Options) ?? {}).filter(([key]) => !isTenantKey(key)));
+    const scopedOptions: Options = { ...((options as Options | undefined) ?? {}) };
+    if (Array.isArray(scopedOptions.fields)) scopedOptions.fields = scopedOptions.fields.filter((f) => !isTenantKey(f));
+    return [scopedValues, scopedOptions];
   });
   wrapStatic("destroy", true, (model, args) => {
     if (tenantAttribute(model) && (args[0] as Options | undefined)?.truncate) {
@@ -259,12 +406,18 @@ function patchModel(Model: Record<PropertyKey, unknown>, and: symbol): void {
       const attribute = tenantAttribute(model);
       if (!active || !attribute) return original.apply(this, args);
       const options = { ...((args[0] as Options | undefined) ?? {}) };
+      const names = tenantNames(model);
+      const isTenantKey = (key: unknown) => typeof key === "string" && names.has(key.toLowerCase());
       if (name === "save" && this.isNewRecord) {
         if (Array.isArray(options.fields) && !options.fields.includes(attribute)) {
           options.fields = [...(options.fields as string[]), attribute];
         }
       } else {
         await assertRowOfTenant(this, attribute, active.tenantId, options.transaction);
+        // An existing row keeps its tenant: tenant_id is not written.
+        if (name === "save" && Array.isArray(options.fields)) {
+          options.fields = options.fields.filter((f) => !isTenantKey(f));
+        }
       }
       if (name === "save") this.setDataValue(attribute, active.tenantId);
       return scopedCall.run(true, () => original.apply(this, [options, ...args.slice(1)]));

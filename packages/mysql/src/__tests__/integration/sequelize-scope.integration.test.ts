@@ -27,6 +27,9 @@ let ScopedOwner: ModelStatic<Model>;
 let AndNote: ModelStatic<Model>;
 let HookNote: ModelStatic<Model>;
 let Keyless: ModelStatic<Model>;
+let FieldNote: ModelStatic<Model>;
+let UnderNote: ModelStatic<Model>;
+let WhereHookNote: ModelStatic<Model>;
 /** Rows a HookNote beforeFind hook read through queryInterface. */
 let hookRead: unknown;
 
@@ -143,6 +146,41 @@ beforeAll(async () => {
     { ...common, tableName: "notes" },
   );
   Keyless.removeAttribute("id");
+  // The tenant attribute is named tenantId and maps to the tenant_id column.
+  FieldNote = sequelize.define(
+    "FieldNote",
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true },
+      tenantId: { type: DataTypes.STRING, field: "tenant_id" },
+      name: { type: DataTypes.STRING },
+      owner_id: { type: DataTypes.INTEGER },
+    },
+    { ...common, tableName: "notes" },
+  );
+  UnderNote = sequelize.define(
+    "UnderNote",
+    {
+      id: { type: DataTypes.INTEGER, primaryKey: true },
+      tenantId: { type: DataTypes.STRING },
+      name: { type: DataTypes.STRING },
+      ownerId: { type: DataTypes.INTEGER },
+    },
+    { timestamps: false, underscored: true, tableName: "notes" },
+  );
+  WhereHookNote = sequelize.define("WhereHookNote", noteAttributes, { ...common, tableName: "notes" });
+  WhereHookNote.belongsTo(Owner, { as: "owner", foreignKey: "owner_id" });
+  WhereHookNote.addHook("beforeFind", (options: { where?: unknown; replaceWhere?: boolean }) => {
+    if (options.replaceWhere) options.where = { id: 2 };
+  });
+  WhereHookNote.addHook(
+    "beforeFindAfterOptions",
+    (options: { include?: unknown[]; lateInclude?: boolean }) => {
+      if (options.lateInclude) options.include = [{ model: Owner, as: "owner" }];
+    },
+  );
+  WhereHookNote.addHook("beforeBulkUpdate", (options: { where?: unknown; replaceWhere?: boolean }) => {
+    if (options.replaceWhere) options.where = { id: 2 };
+  });
 });
 
 afterAll(async () => {
@@ -371,5 +409,66 @@ describe("withMysqlTenantScope Sequelize scopes and options", () => {
       asA(() => HookNote.findAll({ readThroughQueryInterface: true } as never)),
     ).rejects.toThrow(/not tenant-scoped/);
     expect(hookRead).toBeUndefined();
+  });
+});
+
+describe("withMysqlTenantScope Sequelize tenant attribute and late changes", () => {
+  it("update() cannot write tenant_id through the column name of a tenantId attribute", async () => {
+    await attempt(() =>
+      asA(() => FieldNote.update({ tenant_id: "tenant-b" } as never, { where: { id: 1 }, hooks: false })),
+    );
+    await attempt(() =>
+      asA(() =>
+        FieldNote.update({ tenant_id: "tenant-b", name: "x" } as never, {
+          where: { id: 1 },
+          fields: ["tenant_id"] as never,
+          validate: false,
+        }),
+      ),
+    );
+    await attempt(() =>
+      asA(() => UnderNote.update({ tenant_id: "tenant-b" } as never, { where: { id: 1 }, hooks: false })),
+    );
+    expect((await notes())[0].tenant_id).toBe("tenant-a");
+  });
+
+  it("an instance save() cannot write tenant_id set raw under the column name", async () => {
+    await attempt(() =>
+      asA(async () => {
+        const note = await FieldNote.findByPk(1);
+        note?.set("tenant_id" as never, "tenant-b" as never, { raw: true });
+        await note?.save();
+      }),
+    );
+    await attempt(() =>
+      asA(async () => {
+        const note = await UnderNote.findByPk(1);
+        note?.set("tenant_id" as never, "tenant-b" as never, { raw: true });
+        note?.changed("tenant_id" as never, true);
+        await note?.save({ fields: ["tenant_id", "name"] as never });
+      }),
+    );
+    expect((await notes())[0].tenant_id).toBe("tenant-a");
+  });
+
+  it("refuses a read whose where clause a hook replaced after the tenant condition was added", async () => {
+    await expect(asA(() => WhereHookNote.findAll({ replaceWhere: true } as never))).rejects.toThrow(/Stratum/);
+  });
+
+  it("refuses a read whose includes a beforeFindAfterOptions hook added", async () => {
+    await expect(asA(() => WhereHookNote.findAll({ lateInclude: true } as never))).rejects.toThrow(/Stratum/);
+  });
+
+  it("refuses an update whose where clause a hook replaced", async () => {
+    await expect(
+      asA(() => WhereHookNote.update({ name: "changed" }, { where: { id: 1 }, replaceWhere: true } as never)),
+    ).rejects.toThrow(/Stratum/);
+    expect(await notes()).toEqual(untouched);
+  });
+
+  it("refuses increment and decrement of the tenant attribute", async () => {
+    await expect(asA(() => Note.increment("tenant_id" as never, { where: { id: 1 } }))).rejects.toThrow(/Stratum/);
+    await expect(asA(() => Note.decrement({ tenant_id: 1 } as never, { where: { id: 1 } }))).rejects.toThrow(/Stratum/);
+    expect(await notes()).toEqual(untouched);
   });
 });
