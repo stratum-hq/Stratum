@@ -5,6 +5,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { unpublishedStratumVersions } from "./helpers/published-versions.js";
 import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
 
 /**
@@ -20,6 +21,15 @@ import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
 const DRIZZLE_PRESET = "postgres-rls-drizzle-none";
 const JWT_SECRET = crypto.randomBytes(32).toString("base64url");
 const TENANT = "11111111-1111-1111-1111-111111111111";
+
+
+// A version PR raises the workspace versions before the release publishes
+// them, so a generated project cannot install them from the registry yet.
+// The install-dependent tests are skipped until the versions are on npm.
+const UNPUBLISHED = unpublishedStratumVersions();
+if (UNPUBLISHED.length > 0) {
+  console.warn(`Skipping generated-project installs: not on npm yet: ${UNPUBLISHED.join(", ")}`);
+}
 
 let tmp: string;
 
@@ -73,7 +83,7 @@ afterAll(() => {
   if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("@stratum-hq/create express template, installed, built and started", () => {
+describe.skipIf(UNPUBLISHED.length > 0)("@stratum-hq/create express template, installed, built and started", () => {
   let dir: string;
   let server: ChildProcess | undefined;
   let baseUrl: string;
@@ -127,7 +137,7 @@ describe("@stratum-hq/create express template, installed, built and started", ()
   });
 });
 
-describe(`@stratum-hq/create ${DRIZZLE_PRESET}, installed and built`, () => {
+describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${DRIZZLE_PRESET}, installed and built`, () => {
   let dir: string;
 
   beforeAll(() => {
