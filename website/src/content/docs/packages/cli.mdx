@@ -34,6 +34,10 @@ What it does:
 4. If React is detected, generates provider, tenant guard components, and custom hooks
 5. Prints install instructions for required packages
 
+Every question has a default, shown in brackets: press Enter to accept it. When nothing is detected, the defaults are "Other / None" for the framework, the direct library, and `pg`. You can also pipe the answers in, one per line. If stdin closes before every question is answered, the command exits with code 1 and writes nothing.
+
+The generated `.env.stratum` is the same file as [`scaffold env`](#scaffold-env) writes, plus `JWT_SECRET`.
+
 ### stratum health
 
 Validate your database is ready for Stratum:
@@ -50,8 +54,10 @@ Checks:
 - Required extensions: `uuid-ossp` and `ltree`
 - BYPASSRLS privilege (must be disabled for the application role)
 - Stratum schema tables (tenants, config_entries, etc.)
-- The role model of migration 032: whether the control role is applied, and whether the login of `--database-url` is limited to the application's share (see [Hardening: separate admin and app roles](/guides/hardening-roles/))
+- The role model of migration 032: whether the control role is applied, and whether the login of `--database-url` is limited to the application's share (see [Hardening: separate admin and app roles](/guides/hardening-roles/)). With `--admin-database-url` (or `DATABASE_ADMIN_URL`), it also checks the admin login and the legacy switch.
 - RLS status on all user tables
+
+If a check fails, `health` exits with code 1, as `doctor` does: for example a missing extension, a login with `BYPASSRLS`, or PostgreSQL older than 14. A warning, such as a missing Stratum schema or a table that needs migration, does not change the exit code. See [Exit codes](#exit-codes).
 
 ### stratum doctor
 
@@ -130,6 +136,22 @@ COMMIT;
 
 If there is more than one cycle, break each cycle with its own `UPDATE` before the recompute. Tenants that are still on a cycle have no root, so the recompute does not reach them. Run `stratum doctor` again after the transaction to confirm that the check passes.
 
+### stratum scan
+
+Report which application tables need tenant isolation, and write the SQL that adds it:
+
+```bash
+stratum scan                                   # report only
+stratum scan --generate > migration.sql        # SQL to a file, report on the terminal
+stratum scan --exclude users,sessions --generate > migration.sql
+```
+
+The report groups the tables of the `public` schema by what they lack: a `tenant_id` column, RLS, a policy that filters by tenant, or `FORCE ROW LEVEL SECURITY`. Stratum's own tables are left out.
+
+With `--generate` (or `-g`), the command writes only SQL to stdout and the report to stderr, so redirecting stdout gives a file that `psql -f migration.sql` runs. The SQL runs in one transaction. It adds a nullable `tenant_id` column (with a foreign key to `tenants(id)` when that table exists), enables and forces RLS, creates a `tenant_isolation` policy and an index on `tenant_id`. It does not touch a table whose existing policies do not filter by tenant; it lists those in a comment instead. New `tenant_id` columns start out `NULL`: backfill them, then set them `NOT NULL`, as the comment at the end of the file explains. Review the SQL before you run it.
+
+`--exclude <tables>` takes a comma-separated list of table names to leave out of the report and the SQL. Unlike `migrate`, the generated SQL quotes every name, so it also covers tables whose names `migrate` does not take, such as names with capital letters or spaces.
+
 ### stratum migrate
 
 Add tenant isolation to existing database tables:
@@ -160,7 +182,11 @@ The foreign key needs the `REFERENCES` privilege on `tenants`. The role model of
 
 If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table; the command looks it up as the control role with `--admin-database-url` (or `DATABASE_ADMIN_URL`), else through the legacy `app.bypass_rls` path. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
 
-The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables.
+The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables. It takes table names of lowercase letters, digits and underscores; for other names, use [`stratum scan --generate`](#stratum-scan).
+
+`migrate --scan` suggests `stratum migrate <table>` only for the tables that command accepts. It lists tables with other names separately, and reports tables whose policies need fixing by hand without a suggestion.
+
+`migrate <table>` and `migrate --all` ask for confirmation. If stdin closes before the answer, the command exits with code 1 and changes nothing.
 
 A table counts as isolated only when RLS is enabled and forced and its policies filter rows by tenant: every permissive policy on the table must compare `tenant_id` with the current tenant setting, `app.current_tenant_id`, in `USING` and in any `WITH CHECK`. The policy's name does not matter. PostgreSQL combines permissive policies with OR, so one policy that admits other rows opens the whole table. `scan`, `migrate`, `health` and `doctor` report such a table with the policy that fails the check, and `migrate` does not replace policies you wrote: correct or drop that policy, then run the command again. `migrate --all` exits non-zero while any such table remains.
 
@@ -198,6 +224,17 @@ stratum db unlock --admin-database-url postgres://stratum_admin:pass@host:5432/m
 ```
 
 `db lock` turns the legacy switch of migration 032 off, so a session that sets `app.bypass_rls` no longer passes the tenant policies; `db unlock` turns it back on. Run them as a member of the control role: the command connects to `--admin-database-url` (or `DATABASE_ADMIN_URL`), else to `--database-url`, and fails when the login cannot change the switch. `db lock` refuses while the control role is not applied. The switch applies to every client of the database. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
+
+### stratum playground
+
+Start the control plane and the demo app on your machine:
+
+```bash
+stratum playground
+stratum playground --database-url postgres://user:pass@localhost:5432/stratum --cp-port 4000
+```
+
+Run it from the root of a clone of the Stratum repository: it starts the `control-plane` and `demo` workspaces with `npm run dev`. It checks the database connection, starts the control plane (port 3001, or `--cp-port`), waits up to 10 seconds for `/api/v1/health`, then starts the demo (API on port 3200, web on port 3300). Ctrl+C stops both. If either process exits, the command stops the other and exits with code 1.
 
 ### stratum scaffold
 
@@ -252,13 +289,31 @@ Generates:
 
 Generates:
 
-- `docker-compose.stratum.yml`: PostgreSQL + control plane services
+- `docker-compose.stratum.yml`: PostgreSQL + control plane services. The control plane connects as the application login (`DATABASE_URL`) and the admin login (`DATABASE_ADMIN_URL`), and receives `STRATUM_ENCRYPTION_KEY`, `STRATUM_HKDF_SALT` and `STRATUM_API_KEY_HMAC_SECRET` from your environment when they are set.
+- `stratum-init-db.sql`: runs once, as the bootstrap superuser, when the database volume is created. It runs the same statements as `docker/init-db.sql` in the Stratum repository: it creates the extensions and the roles of [the role model](/guides/hardening-roles/):
+  - `stratum_control`: the NOLOGIN control role.
+  - `stratum_admin`: the admin login, a member of `stratum_control`, neither superuser nor `BYPASSRLS`. It runs the migrations and owns the Stratum tables.
+  - `stratum_app`: the application login, without `BYPASSRLS`, with no privilege on the Stratum tables. It can create its own tables.
+
+Once the control plane has migrated, give the application login read access to the read list:
+
+```bash
+stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \
+  --database-url postgres://stratum:stratum_dev@localhost:5432/stratum
+```
+
+Replace the `stratum_dev` passwords outside development.
 
 #### scaffold env
 
 Generates:
 
-- `.env.stratum`: all Stratum environment variables with defaults and descriptions
+- `.env.stratum`: all Stratum environment variables with defaults and descriptions:
+  - `DATABASE_URL`, the application login, and `DATABASE_ADMIN_URL`, the admin login of the role model
+  - `JWT_SECRET`, `STRATUM_ENCRYPTION_KEY`, `STRATUM_HKDF_SALT` and `STRATUM_API_KEY_HMAC_SECRET`, each with a new random value
+  - the control plane URL and API key for `@stratum-hq/sdk`, and optional tuning
+
+The generated secrets are for development. Outside development and test (any other `NODE_ENV`), Stratum refuses to start without `STRATUM_ENCRYPTION_KEY` (at least 32 bytes) and `STRATUM_HKDF_SALT` (an even-length hex string), and requires `STRATUM_API_KEY_HMAC_SECRET` to be at least 32 bytes when set. Generate new values for each environment, keep them in a secret manager, and keep them stable once data exists: a different key or salt cannot decrypt values encrypted before, and a different HMAC secret no longer matches the API keys hashed with it. The file holds secrets, so keep it out of version control.
 
 ## Global Options
 
@@ -272,11 +327,37 @@ Generates:
 | `--apply` | Run the `db roles` SQL instead of printing it |
 | `--grant-references` | `db roles`: also grant the application login `REFERENCES (id)` on `tenants` (opt-in) |
 | `--name` | Name for generated API key |
-| `--tenant` | Tenant ID for generated API key |
+| `--tenant` | Tenant ID for generated API key, or for the existing rows of a migrated table |
 | `--out` | Output directory for scaffolded files |
 | `--force` | Overwrite existing files |
+| `--generate`, `-g` | Write migration SQL to stdout (`scan`) |
+| `--exclude` | Comma-separated tables to leave out (`scan`) |
+| `--depth-warning` | Tree depth above which `doctor` warns (default: `STRATUM_DOCTOR_DEPTH_WARNING`, else 20) |
+| `--cp-port` | Control plane port for `playground` (default 3001) |
 | `--help`, `-h` | Show help |
 | `--version`, `-v` | Show version |
+
+## Environment
+
+| Variable | Description |
+|------|-------------|
+| `DATABASE_URL` | Default for `--database-url` |
+| `DATABASE_ADMIN_URL` | Default for `--admin-database-url` |
+| `STRATUM_DOCTOR_DEPTH_WARNING` | Default for `--depth-warning` |
+| `STRATUM_API_KEY_HMAC_SECRET` | When set, `generate api-key` stores an HMAC hash |
+| `NO_COLOR` | Set to any non-empty value to turn off colors in the output |
+
+## Exit codes
+
+| Command | Exit code 0 | Exit code 1 |
+|------|-------------|-------------|
+| `health` | Every check passed, or only warnings | A check failed, or the database connection failed |
+| `doctor` | Every check passed, or only warnings | A check failed, or the database connection failed |
+| `scan` | The scan ran, whether or not tables need migration | The database connection or a query failed |
+| `migrate` | The migration ran, or you declined it | An error, stdin closed at a prompt, or (`--all`) a table keeps a policy that does not filter by tenant |
+| `db roles --apply` | The control role is applied | The SQL failed, or the control role is not applied |
+
+Every command exits with code 1 on an error, an unknown command, or invalid options.
 
 ## Examples
 

@@ -10,16 +10,17 @@ import {
 } from "../utils/db.js";
 import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
 import { roleModelChecks } from "../utils/role-model.js";
+import { ansi } from "../utils/log.js";
 
-// ── ANSI Colors ──────────────────────────────────────────────────────
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const GREEN = "\x1b[32m";
-const RED = "\x1b[31m";
-const YELLOW = "\x1b[33m";
-const CYAN = "\x1b[36m";
-const WHITE = "\x1b[37m";
+// ── ANSI Colors (none when NO_COLOR is set) ──────────────────────────
+const RESET = ansi("\x1b[0m");
+const BOLD = ansi("\x1b[1m");
+const DIM = ansi("\x1b[2m");
+const GREEN = ansi("\x1b[32m");
+const RED = ansi("\x1b[31m");
+const YELLOW = ansi("\x1b[33m");
+const CYAN = ansi("\x1b[36m");
+const WHITE = ansi("\x1b[37m");
 
 // ── Result types ─────────────────────────────────────────────────────
 type CheckStatus = "pass" | "fail" | "warn";

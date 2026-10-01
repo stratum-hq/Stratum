@@ -12,9 +12,18 @@ import {
 import { roleModelChecks } from "../utils/role-model.js";
 import * as log from "../utils/log.js";
 
+/**
+ * Checks the database setup. Exits 1 when a check fails, like `doctor`;
+ * warnings keep exit code 0.
+ */
 export async function health(flags: Record<string, string | boolean>): Promise<void> {
   log.heading("Stratum Health Check");
   const controlRole = controlRoleFlag(flags);
+  let failures = 0;
+  const fail = (msg: string): void => {
+    failures += 1;
+    log.fail(msg);
+  };
 
   // 1. Database connection
   let pool;
@@ -34,7 +43,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     if (adminPool) log.success("Admin database connection OK");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log.fail(msg);
+    fail(msg);
   }
 
   try {
@@ -47,7 +56,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     } else if (major >= 14) {
       log.warn(`PostgreSQL ${version} (16+ recommended)`);
     } else {
-      log.fail(`PostgreSQL ${version} (14+ required)`);
+      fail(`PostgreSQL ${version} (14+ required)`);
     }
 
     // 3. Extensions
@@ -55,18 +64,18 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     if (extensions.uuid_ossp) {
       log.success("Extension: uuid-ossp");
     } else {
-      log.fail("Extension: uuid-ossp (missing; run: CREATE EXTENSION \"uuid-ossp\")");
+      fail("Extension: uuid-ossp (missing; run: CREATE EXTENSION \"uuid-ossp\")");
     }
     if (extensions.ltree) {
       log.success("Extension: ltree");
     } else {
-      log.fail("Extension: ltree (missing; run: CREATE EXTENSION ltree)");
+      fail("Extension: ltree (missing; run: CREATE EXTENSION ltree)");
     }
 
     // 4. BYPASSRLS check
     const hasBypass = await checkBypassRLS(pool);
     if (hasBypass) {
-      log.fail("Current role has BYPASSRLS; this bypasses all RLS policies!");
+      fail("Current role has BYPASSRLS; this bypasses all RLS policies!");
       log.info("Fix: ALTER ROLE <your_role> NOBYPASSRLS;");
     } else {
       log.success("Current role does NOT have BYPASSRLS");
@@ -85,7 +94,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
           const line = `${check.label}: ${check.summary}`;
           if (check.status === "pass") log.success(line);
           else if (check.status === "warn") log.warn(line);
-          else log.fail(line);
+          else fail(line);
           check.details?.forEach((d) => log.dim(`  ${d}`));
         }
       } catch (err) {
@@ -130,5 +139,11 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
   } finally {
     await pool.end();
     await adminPool?.end();
+  }
+
+  if (failures > 0) {
+    log.fail(`${failures} check(s) failed`);
+    console.log();
+    process.exit(1);
   }
 }
