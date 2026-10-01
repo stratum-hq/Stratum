@@ -1,18 +1,21 @@
 {
   "name": "@stratum-hq/sdk",
   "version": "1.3.0",
-  "description": "Stratum Node.js SDK for multi-tenant context propagation",
+  "description": "Multi-tenant context for Express and Fastify: tenant resolution middleware and HTTP client for the Stratum control plane",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
+    "tenant-isolation",
+    "express",
+    "express-middleware",
+    "fastify",
     "context-propagation",
     "middleware",
     "node",
     "typescript",
-    "express",
-    "fastify",
     "stratum"
   ],
   "main": "./dist/index.js",
@@ -53,7 +56,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/sdk#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/sdk/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

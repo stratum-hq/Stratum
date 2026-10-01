@@ -1,22 +1,25 @@
 import type { APIRoute } from 'astro';
-import { blogPosts } from '../data/posts';
+import { getPosts, postPath, type BlogPost } from '../lib/blog';
 
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async () => {
   const site = 'https://stratum-hq.org';
-  const updated = blogPosts
-    .map((p) => p.pubDate)
+  const posts = await getPosts();
+  const lastChange = (post: BlogPost) => post.data.updated ?? post.data.pubDate;
+  const updated = posts
+    .map(lastChange)
     .sort((a, b) => b.getTime() - a.getTime())[0]
     .toISOString();
 
-  const entries = blogPosts
+  const entries = posts
     .map(
       (post) => `  <entry>
-    <title>${escapeXml(post.title)}</title>
-    <link href="${site}${post.link}" rel="alternate" />
-    <id>${site}${post.link}</id>
-    <updated>${post.pubDate.toISOString()}</updated>
-    <summary>${escapeXml(post.description)}</summary>
-  </entry>`
+    <title>${escapeXml(post.data.title)}</title>
+    <link href="${site}${postPath(post)}" rel="alternate" />
+    <id>${site}${postPath(post)}</id>
+    <published>${post.data.pubDate.toISOString()}</published>
+    <updated>${lastChange(post).toISOString()}</updated>
+    <summary>${escapeXml(post.data.description)}</summary>
+${post.data.tags.map((tag) => `    <category term="${escapeXml(tag)}" />\n`).join('')}  </entry>`
     )
     .join('\n');
 

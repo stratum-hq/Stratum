@@ -1,0 +1,19 @@
+---
+/**
+ * The site code well, for use inside a blog post. Put one fenced code block
+ * in the slot. global.css maps its Shiki token colors onto the Strata tokens.
+ */
+interface Props {
+  filename: string;
+}
+const { filename } = Astro.props;
+---
+<div class="code-block">
+  <div class="code-block-header">
+    <span class="code-block-dot"></span>
+    <span class="code-block-dot"></span>
+    <span class="code-block-dot"></span>
+    <span class="code-block-filename">{filename}</span>
+  </div>
+  <slot />
+</div>

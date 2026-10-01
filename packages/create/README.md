@@ -2,6 +2,8 @@
 
 Scaffold a complete [Stratum](https://github.com/stratum-hq/Stratum) multi-tenancy project with one command: package.json, Docker Compose, environment files, and framework-specific starter code.
 
+Read the documentation at [docs.stratum-hq.org/packages/create](https://docs.stratum-hq.org/packages/create/).
+
 ## Usage
 
 ```bash

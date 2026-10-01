@@ -2,6 +2,8 @@
 
 PostgreSQL adapters for [Stratum](https://github.com/stratum-hq/Stratum) that automatically scope queries to the current tenant using Row-Level Security. Supports raw `pg`, Prisma, Drizzle, and Sequelize, plus helpers for enabling RLS on your tables.
 
+Read the documentation at [docs.stratum-hq.org/packages/db-adapters](https://docs.stratum-hq.org/packages/db-adapters/).
+
 ## Installation
 
 ```bash

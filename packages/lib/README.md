@@ -1,6 +1,8 @@
 # @stratum-hq/lib
 
-Framework-agnostic library for embedding [Stratum](https://github.com/stratum-hq/Stratum) directly in your Node.js app. Talks straight to PostgreSQL with no HTTP server in between, for maximum performance for tenant operations.
+Multi-tenancy for Node.js and PostgreSQL: tenant hierarchy, config inheritance, row-level security, ABAC, audit log, and GDPR tooling. This is the framework-agnostic core of [Stratum](https://github.com/stratum-hq/Stratum). Embed it directly in your Node.js app. It talks straight to PostgreSQL with no HTTP server in between.
+
+Read the documentation at [docs.stratum-hq.org/packages/lib](https://docs.stratum-hq.org/packages/lib/).
 
 ## Installation
 

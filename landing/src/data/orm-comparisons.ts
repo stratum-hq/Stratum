@@ -9,10 +9,13 @@ export interface ORMComparison {
     code: string;
   };
   gotchas?: string[];
+  /** The docs page that shows the setup step by step. */
+  docsGuide: { label: string; href: string };
 }
 
 export const prisma: ORMComparison = {
   slug: "prisma",
+  docsGuide: { label: "Prisma and PostgreSQL RLS guide", href: "https://docs.stratum-hq.org/guides/prisma-rls/" },
   name: "Prisma",
   tagline: "Type-safe ORM with declarative schema",
   description: `Prisma is the most popular TypeScript ORM, known for its type-safe client and declarative schema language. Stratum works alongside Prisma. It does not replace it. Prisma handles your application's data modeling and queries. Stratum handles tenant hierarchy, config inheritance, isolation strategy, and compliance operations on the same PostgreSQL database.`,
@@ -55,6 +58,7 @@ export const prisma: ORMComparison = {
 
 export const drizzle: ORMComparison = {
   slug: "drizzle",
+  docsGuide: { label: "Drizzle ORM guide", href: "https://docs.stratum-hq.org/guides/drizzle-multitenancy/" },
   name: "Drizzle",
   tagline: "Lightweight TypeScript ORM with SQL-like syntax",
   description: `Drizzle ORM is a lightweight, SQL-first TypeScript ORM. Its thin abstraction over SQL makes it a natural fit for Stratum's PostgreSQL-native features. Drizzle handles your schema and queries. Stratum handles tenant hierarchy, config, isolation, and compliance, both operating on the same database without conflicts.`,
@@ -97,6 +101,7 @@ export const drizzle: ORMComparison = {
 
 export const sequelize: ORMComparison = {
   slug: "sequelize",
+  docsGuide: { label: "PostgreSQL adapters for Sequelize", href: "https://docs.stratum-hq.org/packages/db-adapters/" },
   name: "Sequelize",
   tagline: "Established Node.js ORM with Active Record pattern",
   description: `Sequelize is one of the oldest and most established Node.js ORMs, used in thousands of production applications. Stratum works alongside Sequelize, handling the multi-tenancy infrastructure that Sequelize does not provide. Sequelize manages your models and queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
@@ -141,6 +146,7 @@ export const sequelize: ORMComparison = {
 
 export const knex: ORMComparison = {
   slug: "knex",
+  docsGuide: { label: "PostgreSQL adapters", href: "https://docs.stratum-hq.org/packages/db-adapters/" },
   name: "Knex",
   tagline: "SQL query builder for Node.js",
   description: `Knex is a SQL query builder, not a full ORM, giving you direct control over your queries while handling connection pooling, migrations, and schema building. Stratum pairs naturally with Knex because both operate close to PostgreSQL. Knex builds your queries. Stratum manages tenant hierarchy, config, isolation, and compliance.`,
@@ -185,6 +191,7 @@ export const knex: ORMComparison = {
 
 export const mongodb: ORMComparison = {
   slug: "mongodb",
+  docsGuide: { label: "MongoDB guide", href: "https://docs.stratum-hq.org/guides/mongodb/" },
   name: "MongoDB",
   tagline: "Document database with flexible schema",
   description: `MongoDB is the most widely used document database in Node.js applications. @stratum-hq/mongodb is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB, giving teams running Mongoose or the native driver first-class tenant isolation. The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MongoDB carries your application documents, scoped per tenant through a Mongoose plugin or adapter.`,
@@ -234,6 +241,7 @@ export const mongodb: ORMComparison = {
 
 export const mysql: ORMComparison = {
   slug: "mysql",
+  docsGuide: { label: "MySQL guide", href: "https://docs.stratum-hq.org/guides/mysql/" },
   name: "MySQL",
   tagline: "The world's most popular open-source relational database",
   description: `MySQL is the default database for millions of applications, from WordPress to Laravel to legacy enterprise systems. @stratum-hq/mysql brings Stratum's tenant isolation to MySQL with three strategies: shared table (WHERE tenant_id filtering), table-per-tenant (separate tables per tenant), and database-per-tenant (full database isolation). The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MySQL carries your application data, scoped per tenant through structured query methods or ORM integrations.`,

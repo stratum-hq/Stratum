@@ -28,6 +28,7 @@ const { orm } = Astro.props;
 
   <section class="orm-narrative">
     <p>{orm.description}</p>
+    <p>Step-by-step setup: <a href={orm.docsGuide.href}>{orm.docsGuide.label}</a> in the Stratum docs.</p>
   </section>
 
   <section class="orm-features">
@@ -84,8 +85,8 @@ const { orm } = Astro.props;
       <code>npm install @stratum-hq/lib pg</code>
     </div>
     <div class="orm-cta-links">
-      <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
-      <a href="/compare" class="btn-secondary">All comparisons</a>
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
+      <a href="/compare/" class="btn-secondary">All comparisons</a>
     </div>
   </section>
 </main>
@@ -138,6 +139,16 @@ const { orm } = Astro.props;
     font-size: 1rem;
     line-height: 1.75;
     color: var(--text-secondary);
+  }
+
+  .orm-narrative p + p {
+    margin-top: var(--space-4);
+  }
+
+  .orm-narrative a {
+    color: var(--sandstone);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 
   /* Features */
