@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import { assertRoleName, isSuperuser, migrationSql, setControlRole } from "./migration-sql.js";
+import { assertRoleName, isSuperuser, migrationSql, setApplyControlRole, setControlRole } from "./migration-sql.js";
 
 export interface MigrateOptions {
   pool: pg.Pool;
@@ -15,6 +15,16 @@ export interface MigrateOptions {
    * when several databases on one server need separate control roles.
    */
   controlRole?: string;
+  /**
+   * Lets migration 032 create the control role and grant it to the login of
+   * `pool`, then apply it. Set it only when `pool` is the library's admin
+   * login (the login behind adminPool), never the application's: a member
+   * of the control role passes every Stratum policy. Stratum's autoMigrate
+   * sets it when it runs on adminPool. Without it, 032 applies the control
+   * role only when that grants nothing new (a superuser, or a login that is
+   * already a member), and otherwise warns with the SQL to run.
+   */
+  applyControlRole?: boolean;
 }
 
 /**
@@ -35,7 +45,7 @@ export async function assertRoleSubjectToRls(pool: pg.Pool): Promise<void> {
 }
 
 export async function migrate(options: MigrateOptions): Promise<void> {
-  const { pool, enforceRls, controlRole } = options;
+  const { pool, enforceRls, controlRole, applyControlRole } = options;
   if (controlRole !== undefined) assertRoleName(controlRole, "control role");
 
   if (enforceRls) {
@@ -96,6 +106,7 @@ export async function migrate(options: MigrateOptions): Promise<void> {
         await client.query("SET LOCAL stratum.enforce_rls = 'on'");
       }
       await setControlRole(client, controlRole);
+      await setApplyControlRole(client, applyControlRole);
 
       const sql = migrationSql(file, fs.readFileSync(path.join(migrationsDir, file), "utf-8"), superuser);
       await client.query(sql);

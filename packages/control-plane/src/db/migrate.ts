@@ -11,7 +11,8 @@ async function migrate(): Promise<void> {
     // The admin login owns the Stratum objects and is a member of the control
     // role. It may have BYPASSRLS, so the RLS check below is about the
     // application login, which Stratum.initialize() checks in buildApp().
-    await runMigrations({ pool: adminPool, ...controlRole });
+    // It is the admin login, so migration 032 may grant it the control role.
+    await runMigrations({ pool: adminPool, applyControlRole: true, ...controlRole });
   } else {
     // RLS is enforced everywhere except local development and test runs (an
     // unset NODE_ENV counts as development), matching the JWT_SECRET checks.

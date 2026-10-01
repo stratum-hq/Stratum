@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { bootstrapRolesSql, APP_READ_TABLES, STRATUM_FUNCTION_BODY_MD5 } from "../role-model.js";
-import { migrationSql, STRATUM_CONTROL_ROLE } from "../migration-sql.js";
+import { migrationSql, setApplyControlRole, STRATUM_CONTROL_ROLE } from "../migration-sql.js";
 import * as lib from "../index.js";
 
 describe("bootstrapRolesSql", () => {
@@ -38,6 +38,19 @@ describe("bootstrapRolesSql", () => {
 
   it.each([["controlRole"], ["adminRole"], ["appRole"], ["schema"]])("rejects a %s that is not a plain identifier", (key) => {
     expect(() => bootstrapRolesSql({ [key]: `x"; DROP TABLE tenants; --` })).toThrow(/Invalid/);
+  });
+
+  it("runs with only pg_catalog on the search path and resets it at the end", () => {
+    const sql = bootstrapRolesSql({ adminRole: "acme_admin", appRole: "acme_app" });
+    const firstStatement = sql.split("\n").find((l) => l.trim() !== "" && !l.startsWith("--"));
+    expect(firstStatement).toBe("SET search_path = pg_catalog, pg_temp;");
+    expect(sql.trimEnd().endsWith("RESET search_path;")).toBe(true);
+  });
+
+  it("revokes CREATE on the schema from PUBLIC and from the app role", () => {
+    const sql = bootstrapRolesSql({ appRole: "acme_app", schema: "acme" });
+    expect(sql).toContain('REVOKE CREATE ON SCHEMA "acme" FROM PUBLIC;');
+    expect(sql).toContain('REVOKE CREATE ON SCHEMA "acme" FROM "acme_app";');
   });
 
   it("is exported from the package entry point with the control role constant", () => {
@@ -97,6 +110,18 @@ describe("migrationSql", () => {
 
   it("runs every other migration unchanged", () => {
     expect(migrationSql("024_propagate_ancestry_ltree.sql", sql029, false)).toBe(sql029);
+  });
+});
+
+describe("setApplyControlRole", () => {
+  it("sets stratum.apply_control_role for the transaction only when asked", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query } as unknown as import("pg").PoolClient;
+    await setApplyControlRole(client, undefined);
+    await setApplyControlRole(client, false);
+    expect(query).not.toHaveBeenCalled();
+    await setApplyControlRole(client, true);
+    expect(query).toHaveBeenCalledWith("SELECT set_config('stratum.apply_control_role', 'on', true)");
   });
 });
 

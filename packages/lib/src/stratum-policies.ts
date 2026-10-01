@@ -39,9 +39,9 @@ export interface StratumPolicy {
   check: string | null;
 }
 
-const LEGACY = "(SELECT stratum_legacy_bypass())";
+const LEGACY = "(SELECT %1$I.stratum_legacy_bypass())";
 const CURRENT_TENANT = "NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
-const SUBTREE = "((SELECT stratum_subtree_tenant_ids())::uuid[])";
+const SUBTREE = "((SELECT %1$I.stratum_subtree_tenant_ids())::uuid[])";
 const SCOPE = "current_setting('app.tenant_scope', true) = 'subtree'";
 
 /** Tables whose rows carry tenant_id. */
@@ -63,8 +63,8 @@ const SUBTREE_TENANT_ID_TABLES = TENANT_ID_TABLES.filter((t) => t !== "webhooks"
 
 /** Rows scoped through a parent table: the scope of the parent's tenant_id. */
 const VIA_PARENT: Record<string, string> = {
-  webhook_deliveries: "SELECT 1 FROM webhook_events we WHERE we.id = webhook_deliveries.event_id AND we.tenant_id",
-  principal_roles: "SELECT 1 FROM roles r WHERE r.id = principal_roles.role_id AND r.tenant_id",
+  webhook_deliveries: "SELECT 1 FROM %1$I.webhook_events we WHERE we.id = webhook_deliveries.event_id AND we.tenant_id",
+  principal_roles: "SELECT 1 FROM %1$I.roles r WHERE r.id = principal_roles.role_id AND r.tenant_id",
 };
 
 /** Every canonical policy, in a fixed order. */
@@ -95,11 +95,21 @@ export function stratumPolicies(): StratumPolicy[] {
   return policies;
 }
 
-/** The CREATE POLICY statement of `p`, with %I placeholders for the schema and, for the control role, the role. */
+/**
+ * The CREATE POLICY statement of `p`, with the format() placeholders %1$I for
+ * the schema and, for the control role, %2$I for the role. Every Stratum
+ * object the expressions name is qualified with the schema, because
+ * stratum_apply_control_role() runs with search_path = pg_catalog, pg_temp.
+ */
 function createPolicyTemplate(p: StratumPolicy): string {
-  const to = p.to === "control" ? " AS PERMISSIVE FOR ALL TO %I" : ` FOR ${p.cmd}`;
+  const to = p.to === "control" ? " AS PERMISSIVE FOR ALL TO %2$I" : ` FOR ${p.cmd}`;
   const check = p.check === null ? "" : ` WITH CHECK (${p.check})`;
-  return `CREATE POLICY ${p.name} ON %I.${p.table}${to} USING (${p.using})${check}`;
+  return `CREATE POLICY ${p.name} ON %1$I.${p.table}${to} USING (${p.using})${check}`;
+}
+
+/** `text` with the schema placeholder %1$I replaced by the quoted schema name `nsp`. */
+function withSchema(text: string, nsp: string): string {
+  return text.split("%1$I").join(nsp);
 }
 
 /**
@@ -200,8 +210,8 @@ export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOpti
     for (const p of expected) {
       if (!columns.rows.some((t) => t.relname === p.table)) continue;
       const to = p.to === "control" ? ` AS PERMISSIVE FOR ALL TO "${control}"` : ` FOR ${p.cmd}`;
-      const check = p.check === null ? "" : ` WITH CHECK (${p.check})`;
-      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${p.using})${check}`);
+      const check = p.check === null ? "" : ` WITH CHECK (${withSchema(p.check, nsp)})`;
+      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${withSchema(p.using, nsp)})${check}`);
     }
     const temp = await client.query<{ nsp: string }>("SELECT pg_my_temp_schema()::regnamespace::text AS nsp");
     const canonical = (await policyQuery(temp.rows[0].nsp)).rows;

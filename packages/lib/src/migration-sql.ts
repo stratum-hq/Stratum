@@ -49,3 +49,15 @@ export async function setControlRole(client: pg.PoolClient, controlRole: string 
   if (controlRole === undefined) return;
   await client.query("SELECT set_config('stratum.control_role', $1, true)", [controlRole]);
 }
+
+/**
+ * Sets stratum.apply_control_role = 'on' for the current transaction when
+ * `apply` is true. Migration 032 grants the control role to the migrating
+ * login only with this opt-in (or when the login is a superuser or already a
+ * member), because that login must be the library's admin login and never
+ * the application's.
+ */
+export async function setApplyControlRole(client: pg.PoolClient, apply: boolean | undefined): Promise<void> {
+  if (!apply) return;
+  await client.query("SELECT set_config('stratum.apply_control_role', 'on', true)");
+}

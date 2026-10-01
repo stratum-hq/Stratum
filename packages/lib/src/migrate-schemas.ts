@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import { withClient } from "./pool-helpers.js";
-import { assertRoleName, isSuperuser, migrationSql, setControlRole } from "./migration-sql.js";
+import { assertRoleName, isSuperuser, migrationSql, setApplyControlRole, setControlRole } from "./migration-sql.js";
 import { assertRoleSubjectToRls } from "./migrate.js";
 
 export interface MigrateSchemasOptions {
@@ -12,6 +12,8 @@ export interface MigrateSchemasOptions {
   enforceRls?: boolean;
   /** The control role for migration 032; see MigrateOptions.controlRole. */
   controlRole?: string;
+  /** Lets migration 032 grant the control role to the login of `pool`; see MigrateOptions.applyControlRole. */
+  applyControlRole?: boolean;
 }
 
 export interface MigrateSchemasResult {
@@ -28,7 +30,7 @@ export interface MigrateSchemasResult {
 export async function migrateAllSchemas(
   options: MigrateSchemasOptions,
 ): Promise<MigrateSchemasResult> {
-  const { pool, concurrency = 5, onProgress, enforceRls, controlRole } = options;
+  const { pool, concurrency = 5, onProgress, enforceRls, controlRole, applyControlRole } = options;
   if (controlRole !== undefined) assertRoleName(controlRole, "control role");
 
   if (enforceRls) {
@@ -74,7 +76,7 @@ export async function migrateAllSchemas(
   for (let i = 0; i < schemas.length; i += concurrency) {
     const chunk = schemas.slice(i, i + concurrency);
     const results = await Promise.allSettled(
-      chunk.map((schema) => migrateSchema(pool, schema, migrations, enforceRls, controlRole)),
+      chunk.map((schema) => migrateSchema(pool, schema, migrations, enforceRls, controlRole, applyControlRole)),
     );
 
     for (let j = 0; j < results.length; j++) {
@@ -103,6 +105,7 @@ async function migrateSchema(
   migrations: { name: string; sql: string }[],
   enforceRls?: boolean,
   controlRole?: string,
+  applyControlRole?: boolean,
 ): Promise<void> {
   // Use a hash of the schema name for a unique advisory lock key per schema
   const lockKey = hashSchemaLock(schema);
@@ -146,6 +149,7 @@ async function migrateSchema(
         await client.query("SET LOCAL stratum.enforce_rls = 'on'");
       }
       await setControlRole(client, controlRole);
+      await setApplyControlRole(client, applyControlRole);
 
       await client.query(migration.sql);
       await client.query(`INSERT INTO ${quoted}._migrations (name) VALUES ($1)`, [

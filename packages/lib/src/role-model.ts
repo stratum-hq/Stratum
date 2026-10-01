@@ -55,8 +55,7 @@ export const STRATUM_FUNCTION_BODY_MD5: Readonly<Record<string, string>> = Objec
   update_updated_at_column: "301a884953d37769916294bb60562e05",
   maintain_ancestry_ltree: "ddce857b77ffe5dad27239825949c886",
   propagate_ancestry_ltree: "a79bc2cb286893cb622c336876491759",
-  stratum_legacy_bypass: "6fab3a709d5a9c11869f46397042f802",
-  stratum_apply_control_role: "374e828b1d7fc9c36412a7ac5fc604cb",
+  stratum_apply_control_role: "6e671399c3cbc7ba2b477e2d9778e820",
 });
 
 export interface BootstrapRolesOptions {
@@ -97,6 +96,9 @@ function sqlArray(names: readonly string[]): string {
  *   what activates the hardening when the migration could not (its migrating
  *   role could neither create nor join the control role). It needs a
  *   superuser or the owner of the Stratum tables.
+ * - Revokes CREATE on the schema from PUBLIC, and with `appRole` from the
+ *   application login, so that only roles granted CREATE by name can add
+ *   objects to the schema of the Stratum tables.
  * - With `appRole`: removes the application login from the control role,
  *   revokes its privileges on every Stratum table, and grants it SELECT on
  *   the read-list tables only. This part acts on the tables that exist, so
@@ -116,6 +118,8 @@ export function bootstrapRolesSql(options: BootstrapRolesOptions = {}): string {
 
   const parts: string[] = [
     `-- Stratum role model (migration 032). Run as a superuser, or a role with CREATEROLE that owns the Stratum tables.`,
+    `-- Only pg_catalog is on the search path while it runs; every Stratum object is named with its schema.`,
+    `SET search_path = pg_catalog, pg_temp;`,
     integrityCheckSql(schema),
     `DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(control)}) THEN
@@ -123,6 +127,8 @@ export function bootstrapRolesSql(options: BootstrapRolesOptions = {}): string {
   END IF;
 END $$;`,
     `GRANT USAGE, CREATE ON SCHEMA ${quote(schema)} TO ${quote(control)};`,
+    `-- Only roles granted CREATE by name may create objects in the schema of the Stratum tables.
+REVOKE CREATE ON SCHEMA ${quote(schema)} FROM PUBLIC;`,
   ];
 
   if (options.adminRole !== undefined) {
@@ -194,9 +200,11 @@ DO $$ DECLARE t text; BEGIN
   END LOOP;
 END $$;`,
       `GRANT USAGE ON SCHEMA ${quote(schema)} TO ${quote(app)};`,
+      `REVOKE CREATE ON SCHEMA ${quote(schema)} FROM ${quote(app)};`,
     );
   }
 
+  parts.push("RESET search_path;");
   return `${parts.join("\n")}\n`;
 }
 
@@ -214,6 +222,10 @@ END $$;`,
  *   Stratum tables call only functions and operators of pg_catalog, of an
  *   extension, or of Stratum;
  * - every column has a type of pg_catalog or of an extension;
+ * - the schema holds no operator, and no function or aggregate named like a
+ *   function of pg_catalog or of an extension, other than those of
+ *   extensions and of Stratum. Such an object can be chosen in place of the
+ *   built-in one by a query that has the schema on its search path;
  * - the Stratum functions that stratum_apply_control_role() does not
  *   re-create have the bodies the migrations give them, and
  *   stratum_apply_control_role() itself, which this SQL runs, is SECURITY
@@ -229,7 +241,7 @@ DECLARE
   v_ns oid := to_regnamespace(${literal(quote(schema))});
   v_tables text[] := ${sqlArray(STRATUM_TABLES)};
   v_functions text[] := ${sqlArray(STRATUM_FUNCTIONS)};
-  v_pin text := format('search_path=pg_catalog, %I, pg_temp', ${literal(schema)});
+  v_pin text := 'search_path=pg_catalog, pg_temp';
   v_problems text[] := '{}';
   r record;
 BEGIN
@@ -298,6 +310,27 @@ BEGIN
                           AND e.objid IN (ty.oid, ty.typelem))
   LOOP
     v_problems := v_problems || format('column %I.%I has type %s', r.relname, r.attname, r.typ);
+  END LOOP;
+  FOR r IN
+    SELECT p.oid::regprocedure::text AS fn FROM pg_proc p
+     WHERE p.pronamespace = v_ns AND NOT (p.proname = ANY (v_functions))
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = 'pg_proc'::regclass AND e.objid = p.oid AND e.deptype = 'e')
+       AND EXISTS (SELECT 1 FROM pg_proc q
+                    WHERE q.proname = p.proname AND q.oid <> p.oid
+                      AND (q.pronamespace = 'pg_catalog'::regnamespace
+                           OR EXISTS (SELECT 1 FROM pg_depend e
+                                       WHERE e.classid = 'pg_proc'::regclass AND e.objid = q.oid AND e.deptype = 'e')))
+  LOOP
+    v_problems := v_problems || format('function %s in the schema has the name of a built-in or extension function', r.fn);
+  END LOOP;
+  FOR r IN
+    SELECT o.oid::regoperator::text AS op FROM pg_operator o
+     WHERE o.oprnamespace = v_ns
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = 'pg_operator'::regclass AND e.objid = o.oid AND e.deptype = 'e')
+  LOOP
+    v_problems := v_problems || format('operator %s in the schema', r.op);
   END LOOP;
   FOR r IN
     SELECT f.name, p.oid IS NOT NULL AS present, md5(p.prosrc) = f.md5 AS same_body, p.proconfig, p.prosecdef
@@ -369,6 +402,7 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
     credential_reads: string[] | null;
     owned_functions: string[] | null;
     owned_schema: string | null;
+    create_schema: string | null;
   }>(
     `WITH t AS (
        SELECT c.oid, c.relname, c.relowner FROM pg_class c
@@ -392,7 +426,12 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
             -- so the owner of the database owns it.
             (SELECT n.nspname::text FROM pg_namespace n
               WHERE n.oid = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))
-                AND pg_has_role(r.oid, n.nspowner, 'MEMBER')) AS owned_schema
+                AND pg_has_role(r.oid, n.nspowner, 'MEMBER')) AS owned_schema,
+            -- A role that can create objects in the schema can add functions
+            -- and operators that queries with the schema on their path use.
+            (SELECT n.nspname::text FROM pg_namespace n
+              WHERE n.oid = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))
+                AND has_schema_privilege(r.oid, n.oid, 'CREATE')) AS create_schema
        FROM pg_roles r WHERE r.rolname = COALESCE($5::text, current_user)`,
     [control, [...STRATUM_TABLES], CREDENTIAL_TABLES, STRATUM_FUNCTIONS, subject.role ?? null],
   );
@@ -410,11 +449,44 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
   if (!row.rolsuper && row.owned_schema) {
     issues.push(`${who} owns the schema "${row.owned_schema}" of the Stratum tables (directly or as the database owner)`);
   }
+  if (!row.rolsuper && !row.owned_schema && row.create_schema) {
+    issues.push(`${who} can create objects in the schema "${row.create_schema}" of the Stratum tables`);
+  }
   if (!row.rolsuper && row.writable?.length) issues.push(`${who} can write Stratum tables: ${row.writable.join(", ")}`);
   if (!row.rolsuper && row.credential_reads?.length) {
     issues.push(`${who} can read credential tables: ${row.credential_reads.join(", ")}`);
   }
   return issues;
+}
+
+/** The login of `pool`. */
+async function currentLogin(pool: pg.Pool): Promise<string> {
+  const res = await pool.query<{ me: string }>("SELECT current_user::text AS me");
+  return res.rows[0].me;
+}
+
+/** Whether the login of `pool` is a member of `control` and not a superuser. */
+async function isNonSuperuserMember(pool: pg.Pool, control: string): Promise<boolean> {
+  const res = await pool.query<{ member: boolean | null }>(
+    `SELECT NOT r.rolsuper AND (SELECT pg_has_role(r.oid, c.oid, 'MEMBER') FROM pg_roles c WHERE c.rolname = $1) AS member
+       FROM pg_roles r WHERE r.rolname = current_user`,
+    [control],
+  );
+  return res.rows[0]?.member === true;
+}
+
+/**
+ * The roles, other than superusers, that are members of `control`, directly
+ * or through another role, with whether each can log in.
+ */
+async function controlRoleMembers(pool: pg.Pool, control: string): Promise<{ role: string; login: boolean }[]> {
+  const res = await pool.query<{ role: string; login: boolean }>(
+    `SELECT r.rolname::text AS role, r.rolcanlogin AS login FROM pg_roles r, pg_roles c
+      WHERE c.rolname = $1 AND r.oid <> c.oid AND NOT r.rolsuper AND pg_has_role(r.oid, c.oid, 'MEMBER')
+      ORDER BY r.rolname`,
+    [control],
+  );
+  return res.rows;
 }
 
 /** Whether the legacy app.bypass_rls switch of migration 032 is on, or null without 032. */
@@ -467,7 +539,21 @@ export async function checkRoleModel(options: RoleModelCheckOptions): Promise<vo
     );
     return;
   }
-  if (!adminPool) return;
+  if (!adminPool) {
+    // Single-pool mode: the pool's login is the application's. A member of
+    // the control role passes every Stratum policy, whatever tenant context
+    // it sets, so the pool must not be one.
+    const control = options.controlRole ?? (await databaseControlRole(appPool));
+    if (control !== null && (await isNonSuperuserMember(appPool, control))) {
+      const message =
+        `[stratum] pool: the login of pool is a member of the control role "${control}", so row-level security ` +
+        `does not limit it to a tenant. Give the library an adminPool (a separate login that is a member), and ` +
+        `remove the application login from the control role (REVOKE ${quote(control)} FROM <app login>).`;
+      if (options.strict) throw new Error(message);
+      logger.warn(message, { control_role: control });
+    }
+    return;
+  }
 
   const control = options.controlRole ?? (await databaseControlRole(adminPool)) ?? STRATUM_CONTROL_ROLE;
 
@@ -512,6 +598,14 @@ export interface RoleModelReport {
    * see the stratum_security row.
    */
   legacyBypass: boolean | null;
+  /**
+   * The roles, other than superusers, that are members of the control role,
+   * directly or through another role. Only the library's admin login (and
+   * roles you chose to give the control plane's rights) should be listed.
+   */
+  controlMembers: { role: string; login: boolean }[];
+  /** The admin login that was checked, or null when none was given. */
+  adminLogin: string | null;
 }
 
 export interface InspectRoleModelOptions {
@@ -563,6 +657,8 @@ export async function inspectRoleModel(options: InspectRoleModelOptions): Promis
     adminIssues: adminSubject ? await adminRoleIssues(adminSubject, control) : null,
     appIssues: appSubject ? await appRoleIssues(appSubject, control) : null,
     legacyBypass: switchReader && migrated ? await legacyBypassOn(switchReader) : null,
+    controlMembers: await controlRoleMembers(pool, control),
+    adminLogin: options.adminRole ?? (adminPool ? await currentLogin(adminPool) : null),
   };
 }
 

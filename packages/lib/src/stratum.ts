@@ -174,6 +174,8 @@ export class Stratum {
         pool: this.pool,
         enforceRls: this.enforceRls && !this.hasAdminPool,
         controlRole: this.controlRole,
+        // Only the admin login may be granted the control role.
+        applyControlRole: this.hasAdminPool,
       });
       this.logger.info("auto-migration complete");
     } else if (this.enforceRls) {

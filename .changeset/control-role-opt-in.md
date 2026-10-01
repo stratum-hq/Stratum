@@ -1,0 +1,7 @@
+---
+"@stratum-hq/lib": minor
+---
+
+Control role (GHSA-mg93-96h7-h9fq): migration 032 grants the control role to the migrating login only with an explicit opt-in. `migrate()` and `migrateAllSchemas()` take `applyControlRole: true`, which `autoMigrate` sets when it runs on `adminPool`. Without it, 032 applies the control role only when the migrating login is a superuser or already a member, and otherwise warns with the SQL to run. A single login that runs both the migrations and the application keeps the 1.7 behavior. In single-pool mode, `initialize()` warns when the pool's login is a member of the control role, and throws with `enforceRls`.
+
+The functions of migration 032 run with `search_path = pg_catalog, pg_temp` and name every Stratum object with its schema. Applying the control role revokes `CREATE` on the schema from `PUBLIC`, refuses a control role that can log in or has SUPERUSER or BYPASSRLS, and applies only to the schema the function lives in. `bootstrapRolesSql()` runs with only `pg_catalog` on the search path, revokes `CREATE` on the schema from `PUBLIC` and the application login, and refuses operators, and functions named like built-in or extension functions, in the schema that are neither Stratum's nor an extension's. The application-role check reports `CREATE` on the schema. `inspectRoleModel()` reports the members of the control role (`controlMembers`, `adminLogin`).
