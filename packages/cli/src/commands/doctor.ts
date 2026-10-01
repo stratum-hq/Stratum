@@ -1,5 +1,5 @@
 import pg from "pg";
-import { inspectRoleModel, stratumPolicyDrift } from "@stratum-hq/lib";
+import { inspectRoleModel, pinnedQuery, schemaOfTable, stratumPolicyDrift } from "@stratum-hq/lib";
 import { tablePolicyWarnings } from "@stratum-hq/db-adapters";
 import {
   connectDb,
@@ -86,7 +86,7 @@ async function checkConnectivity(
 }
 
 async function checkSchema(pool: pg.Pool): Promise<CheckResult> {
-  const res = await pool.query(`
+  const res = await pinnedQuery<{ tablename: string }>(pool, `
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public'
       AND tablename = ANY($1);
@@ -121,7 +121,7 @@ async function checkSchema(pool: pg.Pool): Promise<CheckResult> {
 
 async function checkRLSEnabled(pool: pg.Pool): Promise<CheckResult> {
   // Check tenant-scoped tables (those with a tenant_id column) for RLS
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name,
       COALESCE(pc.relrowsecurity, false) AS rls_enabled,
@@ -183,7 +183,7 @@ async function checkRLSPolicies(pool: pg.Pool, controlRole: string | undefined):
   // The control role of migration 032 comes from --control-role, else the
   // stratum.control_role setting of the connection (ALTER DATABASE ... SET),
   // else stratum_control.
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name,
       COALESCE($1::text, NULLIF(current_setting('stratum.control_role', true), '')) AS control_role,
@@ -269,8 +269,7 @@ async function checkRoleModel(
 async function checkStratumPolicies(pool: pg.Pool, controlRole: string | undefined): Promise<CheckResult> {
   const label = "Stratum policies";
   try {
-    const migrated = await pool.query("SELECT to_regclass('stratum_security') IS NOT NULL AS ok");
-    if (migrated.rows[0]?.ok !== true) {
+    if ((await schemaOfTable(pool, "stratum_security")) === null) {
       return { status: "warn", label, summary: "Migration 032 not applied; run the Stratum migrations" };
     }
     const drift = await stratumPolicyDrift(pool, { controlRole });
@@ -298,7 +297,7 @@ async function checkStratumPolicies(pool: pg.Pool, controlRole: string | undefin
  * policies of migration 032 go through the legacy switch instead.
  */
 async function checkDirectBypassPolicies(pool: pg.Pool): Promise<CheckResult> {
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT tablename AS table_name,
            json_agg(json_build_object(
              'policyname', policyname, 'permissive', permissive, 'cmd', cmd,
@@ -328,7 +327,7 @@ async function dataCheck(
   run: CrossTenantRunner | Error,
   label: string,
   what: string,
-  check: (client: pg.PoolClient) => Promise<CheckResult>,
+  check: (client: pg.PoolClient, schema: string) => Promise<CheckResult>,
 ): Promise<CheckResult> {
   try {
     if (run instanceof Error) throw run;
@@ -340,7 +339,7 @@ async function dataCheck(
 }
 
 async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name
     FROM information_schema.columns c
@@ -375,13 +374,13 @@ async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkOrphanedTenants(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT t.id, t.name, t.parent_id
-    FROM tenants t
+    FROM ${schema}.tenants t
     WHERE t.parent_id IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM tenants p
+        SELECT 1 FROM ${schema}.tenants p
         WHERE p.id = t.parent_id
           AND p.status = 'active'
       );
@@ -407,25 +406,25 @@ async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkParentCycles(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   // Walk up from each tenant and keep the ids already seen, so the walk ends
   // on a loop. A tenant is on a cycle when its walk comes back to it. Each
   // cycle is reported once: from the member with the lowest id.
   const res = await pool.query(`
     WITH RECURSIVE up(start_id, id, parent_id, seen) AS (
       SELECT t.id, t.id, t.parent_id, ARRAY[t.id]
-      FROM tenants t
+      FROM ${schema}.tenants t
       WHERE t.parent_id IS NOT NULL
       UNION ALL
       SELECT up.start_id, p.id, p.parent_id, up.seen || p.id
       FROM up
-      JOIN tenants p ON p.id = up.parent_id
+      JOIN ${schema}.tenants p ON p.id = up.parent_id
       WHERE p.id <> ALL (up.seen)
     )
     SELECT (
       SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY m.ord)
       FROM unnest(up.seen) WITH ORDINALITY AS m(id, ord)
-      JOIN tenants t ON t.id = m.id
+      JOIN ${schema}.tenants t ON t.id = m.id
     ) AS members
     FROM up
     WHERE up.parent_id = up.start_id
@@ -462,10 +461,10 @@ async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkStaleApiKeys(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, last_used_at
-    FROM api_keys
+    FROM ${schema}.api_keys
     WHERE revoked_at IS NULL
       AND last_used_at IS NOT NULL
       AND last_used_at < NOW() - INTERVAL '90 days';
@@ -500,10 +499,10 @@ async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkExpiredApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkExpiredApiKeys(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, expires_at
-    FROM api_keys
+    FROM ${schema}.api_keys
     WHERE revoked_at IS NULL
       AND expires_at IS NOT NULL
       AND expires_at < NOW();
@@ -611,11 +610,12 @@ function resolveDepthWarning(flags: Record<string, string | boolean>): DepthWarn
 
 async function checkTreeDepth(
   pool: pg.PoolClient,
+  schema: string,
   { threshold, issue }: DepthWarning,
 ): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT COALESCE(MAX(depth), 0) AS max_depth
-    FROM tenants
+    FROM ${schema}.tenants
     WHERE status = 'active';
   `);
 
@@ -625,7 +625,7 @@ async function checkTreeDepth(
 
   if (maxDepth > threshold) {
     const overRes = await pool.query(
-      `SELECT id, name, depth FROM tenants WHERE depth > $1 AND status = 'active' ORDER BY depth DESC LIMIT 5;`,
+      `SELECT id, name, depth FROM ${schema}.tenants WHERE depth > $1 AND status = 'active' ORDER BY depth DESC LIMIT 5;`,
       [threshold],
     );
     const over = overRes.rows as Array<{ id: string; name: string; depth: number }>;
@@ -740,7 +740,7 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
     if (hasCoreSchema) {
       const depthWarning = resolveDepthWarning(flags);
       results.push(
-        await dataCheck(run, "Tree depth", "tenant tree depth", (client) => checkTreeDepth(client, depthWarning)),
+        await dataCheck(run, "Tree depth", "tenant tree depth", (client, schema) => checkTreeDepth(client, schema, depthWarning)),
       );
     }
   } finally {

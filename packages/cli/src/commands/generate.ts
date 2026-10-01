@@ -62,9 +62,9 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     // api_keys has FORCE RLS, so the insert runs as the control role on the
     // admin login, or under the legacy administrative bypass.
     const run = await crossTenantRunner(pool, adminPool, controlRole);
-    const result = await run((client) =>
+    const result = await run((client, schema) =>
       client.query(
-        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, hash_version)
+        `INSERT INTO ${schema}.api_keys (tenant_id, key_hash, key_prefix, name, hash_version)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING id, created_at`,
         [tenantId, keyHash, keyPrefix, name, hashVersion],

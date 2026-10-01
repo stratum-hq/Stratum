@@ -1,9 +1,10 @@
-import { STRATUM_TABLES } from "@stratum-hq/lib";
+import { PINNED_SEARCH_PATH, STRATUM_TABLES } from "@stratum-hq/lib";
 import {
   connectDb,
   connectAdminDb,
   controlRoleFlag,
   crossTenantRunner,
+  quoteIdent,
   scanTables,
   type TableInfo,
 } from "../utils/db.js";
@@ -80,15 +81,22 @@ async function migrateTable(
 
     // Find the table through the search path: public, or a schema of the
     // login's own (the hardening guide keeps the application's tables there).
+    // This query names every function and operator with pg_catalog; the rest
+    // of the transaction runs with only pg_catalog on the search path, and
+    // names the table with its schema.
     const exists = await client.query<{ nsp: string }>(
-      `SELECT n.nspname AS nsp FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.oid = to_regclass($1) AND c.relkind IN ('r', 'p')`,
+      `SELECT n.nspname::pg_catalog.text AS nsp
+         FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid OPERATOR(pg_catalog.=) c.relnamespace
+        WHERE c.oid OPERATOR(pg_catalog.=) pg_catalog.to_regclass($1::pg_catalog.text)::pg_catalog.oid
+          AND c.relkind OPERATOR(pg_catalog.=) ANY ('{r,p}'::pg_catalog."char"[])`,
       [safe],
     );
     if (exists.rows.length === 0) {
       throw new Error(`Table "${safe}" does not exist in a schema on the search path`);
     }
     const tableSchema = exists.rows[0].nsp;
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
+    const table = `${quoteIdent(tableSchema)}.${safe}`;
 
     // Add tenant_id if missing
     if (!info || !info.has_tenant_id) {
@@ -98,7 +106,7 @@ async function migrateTable(
         [safe, tableSchema],
       );
       if (hasCol.rows.length === 0) {
-        const countRes = await client.query(`SELECT count(*)::int AS n FROM ${safe}`);
+        const countRes = await client.query(`SELECT count(*)::int AS n FROM ${table}`);
         const rowCount: number = countRes.rows[0].n;
         if (rowCount > 0 && !tenantId) {
           throw new Error(
@@ -110,15 +118,15 @@ async function migrateTable(
 
         log.info(`Adding tenant_id column to ${safe}...`);
         // The column starts nullable so that existing rows get a real tenant, not a placeholder.
-        await client.query(`ALTER TABLE ${safe} ADD COLUMN tenant_id UUID`);
+        await client.query(`ALTER TABLE ${table} ADD COLUMN tenant_id UUID`);
         if (rowCount > 0) {
           await assertTenantExists(client, tenantId as string, tenantExists);
-          await client.query(`UPDATE ${safe} SET tenant_id = $1 WHERE tenant_id IS NULL`, [
+          await client.query(`UPDATE ${table} SET tenant_id = $1 WHERE tenant_id IS NULL`, [
             tenantId,
           ]);
           log.success(`Assigned ${rowCount} existing row(s) to tenant ${tenantId}`);
         }
-        await client.query(`ALTER TABLE ${safe} ALTER COLUMN tenant_id SET NOT NULL`);
+        await client.query(`ALTER TABLE ${table} ALTER COLUMN tenant_id SET NOT NULL`);
         log.success(`Added tenant_id column to ${safe}`);
       } else {
         log.info(`${safe} already has tenant_id column`);
@@ -128,11 +136,11 @@ async function migrateTable(
     // Enable RLS
     if (!info || !info.rls_enabled) {
       log.info(`Enabling RLS on ${safe}...`);
-      await client.query(`ALTER TABLE ${safe} ENABLE ROW LEVEL SECURITY`);
-      await client.query(`ALTER TABLE ${safe} FORCE ROW LEVEL SECURITY`);
+      await client.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+      await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
       log.success(`RLS enabled on ${safe}`);
     } else if (!info.rls_forced) {
-      await client.query(`ALTER TABLE ${safe} FORCE ROW LEVEL SECURITY`);
+      await client.query(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
       log.success(`FORCE RLS enabled on ${safe}`);
     }
 
@@ -140,7 +148,7 @@ async function migrateTable(
     if (!info || !info.has_policy) {
       log.info(`Creating tenant_isolation policy on ${safe}...`);
       await client.query(
-        `CREATE POLICY tenant_isolation ON ${safe}
+        `CREATE POLICY tenant_isolation ON ${table}
          USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
       );
       log.success(`tenant_isolation policy created on ${safe}`);
@@ -153,7 +161,7 @@ async function migrateTable(
       [idxName, tableSchema],
     );
     if (hasIdx.rows.length === 0) {
-      await client.query(`CREATE INDEX ${idxName} ON ${safe}(tenant_id)`);
+      await client.query(`CREATE INDEX ${idxName} ON ${table}(tenant_id)`);
       log.success(`Index ${idxName} created`);
     }
 
@@ -182,10 +190,10 @@ async function migrateTable(
           );
         }
         await client.query(
-          `ALTER TABLE ${safe} ADD CONSTRAINT ${fkName}
-           FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE NOT VALID`,
+          `ALTER TABLE ${table} ADD CONSTRAINT ${fkName}
+           FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE NOT VALID`,
         );
-        await client.query(`ALTER TABLE ${safe} VALIDATE CONSTRAINT ${fkName}`);
+        await client.query(`ALTER TABLE ${table} VALIDATE CONSTRAINT ${fkName}`);
         log.success(`Foreign key ${fkName} created`);
       }
     }
@@ -231,7 +239,7 @@ export async function migrate(
   // connection of its own: nothing of it reaches the migration's transaction.
   const tenantExists: TenantLookup = async (id) => {
     const run = await crossTenantRunner(pool, adminPool, controlRole);
-    const found = await run((client) => client.query("SELECT 1 FROM tenants WHERE id = $1", [id]));
+    const found = await run((client, schema) => client.query(`SELECT 1 FROM ${schema}.tenants WHERE id = $1`, [id]));
     return found.rows.length > 0;
   };
 

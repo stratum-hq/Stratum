@@ -9,7 +9,7 @@ vi.mock("../../utils/db.js", () => ({
   connectAdminDb: vi.fn(() => Promise.resolve(undefined)),
   controlRoleFlag: vi.fn(() => undefined),
   crossTenantRunner: vi.fn((pool: unknown) =>
-    Promise.resolve((fn: (client: unknown) => unknown) => fn(pool)),
+    Promise.resolve((fn: (client: unknown, schema: string) => unknown) => fn(pool, '"public"')),
   ),
 }));
 
@@ -55,6 +55,8 @@ function makeFakePool(schemaTables: string[], maxDepth = 3) {
       return Promise.resolve({ rows: [] });
     }),
     end: vi.fn(() => Promise.resolve()),
+    // The catalog checks run on a client with the search path pinned.
+    connect: vi.fn(() => Promise.resolve({ query: pool.query, release: vi.fn() })),
   };
   return pool;
 }

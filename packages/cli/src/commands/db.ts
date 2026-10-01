@@ -1,5 +1,5 @@
 import pg from "pg";
-import { bootstrapRolesSql, inspectRoleModel, STRATUM_CONTROL_ROLE } from "@stratum-hq/lib";
+import { bootstrapRolesSql, inspectRoleModel, pinnedQuery, STRATUM_CONTROL_ROLE } from "@stratum-hq/lib";
 import { connectDb, getAdminConnectionString, getConnectionString, quoteIdent, roleFlag } from "../utils/db.js";
 import { roleModelChecks } from "../utils/role-model.js";
 import * as log from "../utils/log.js";
@@ -50,13 +50,35 @@ function schemaFlag(flags: Record<string, string | boolean>): string {
  */
 async function resolveControlRole(pool: pg.Pool, flag: string | undefined): Promise<string> {
   if (flag !== undefined) return flag;
-  const res = await pool.query<{ role: string | null }>(
+  const res = await pinnedQuery<{ role: string | null }>(
+    pool,
     `SELECT COALESCE(
               NULLIF(current_setting('stratum.control_role', true), ''),
               (SELECT min(r::text) FROM pg_policies p, unnest(p.roles) r WHERE p.policyname = 'stratum_control_plane')
             ) AS role`,
   );
   return res.rows[0]?.role ?? STRATUM_CONTROL_ROLE;
+}
+
+/**
+ * Refuses --apply on a login that is neither a superuser nor the admin login
+ * named by --admin-role. stratum_apply_control_role() grants the control role
+ * to the login that runs it, and only the library's admin login may be a
+ * member: on a single-login install that would be the application's login.
+ */
+async function refuseUnnamedMigratingLogin(pool: pg.Pool, adminRole: string | undefined): Promise<void> {
+  const res = await pinnedQuery<{ me: string; su: boolean }>(
+    pool,
+    "SELECT current_user::text AS me, rolsuper AS su FROM pg_roles WHERE rolname = current_user",
+  );
+  const { me, su } = res.rows[0] ?? { me: "(unknown)", su: false };
+  if (su || me === adminRole) return;
+  throw new Error(
+    `--apply runs as "${me}", which is not a superuser${adminRole === undefined ? "" : ` and not --admin-role ${adminRole}`}. ` +
+      "Applying the role model makes the login that runs it a member of the control role, which passes every " +
+      "Stratum policy, so it must be the library's admin login. Run it as a superuser, or pass that login as " +
+      `--admin-role (--admin-role ${me} if this login is the admin login and not the application's).`,
+  );
 }
 
 /**
@@ -105,10 +127,11 @@ async function roles(flags: Record<string, string | boolean>): Promise<void> {
   log.heading("Stratum role model: apply");
   const pool = await connectDb(flags);
   try {
+    await refuseUnnamedMigratingLogin(pool, adminRole);
     const controlRole = await resolveControlRole(pool, controlFlag);
     for (const [flag, role] of [["--admin-role", adminRole], ["--app-role", appRole]] as const) {
       if (role === undefined) continue;
-      const exists = await pool.query("SELECT 1 FROM pg_roles WHERE rolname = $1", [role]);
+      const exists = await pinnedQuery(pool, "SELECT 1 FROM pg_roles WHERE rolname = $1", [role]);
       if (exists.rows.length === 0) {
         throw new Error(
           `${flag} ${role}: no such role. Create the login first, for example: ` +
@@ -213,7 +236,8 @@ async function refuseAppLoginInControlRole(
 ): Promise<void> {
   const app = appLogin(flags);
   if (app === undefined) return;
-  const res = await pool.query<{ control: string; member: boolean }>(
+  const res = await pinnedQuery<{ control: string; member: boolean }>(
+    pool,
     `SELECT c.rolname::text AS control, NOT r.rolsuper AND pg_has_role(r.oid, c.oid, 'MEMBER') AS member
        FROM pg_roles r, pg_roles c
       WHERE r.rolname = $1
@@ -244,7 +268,8 @@ async function setLegacySwitch(flags: Record<string, string | boolean>, on: bool
   const connectionString = getAdminConnectionString(flags) ?? getConnectionString(flags);
   const pool = new pg.Pool({ connectionString, max: 1 });
   try {
-    const state = await pool.query<{ migrated: boolean; applied: boolean }>(
+    const state = await pinnedQuery<{ migrated: boolean; applied: boolean }>(
+      pool,
       `SELECT to_regclass($1) IS NOT NULL AS migrated,
               EXISTS (SELECT 1 FROM pg_policies
                        WHERE schemaname = $2 AND tablename = 'tenants' AND policyname = 'stratum_control_plane') AS applied`,
@@ -264,7 +289,8 @@ async function setLegacySwitch(flags: Record<string, string | boolean>, on: bool
 
     let updated;
     try {
-      updated = await pool.query<{ legacy_guc_bypass: boolean }>(
+      updated = await pinnedQuery<{ legacy_guc_bypass: boolean }>(
+        pool,
         `UPDATE ${quoteIdent(schema)}.stratum_security
             SET legacy_guc_bypass = $1, updated_at = now()
           RETURNING legacy_guc_bypass`,

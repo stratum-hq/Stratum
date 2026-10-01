@@ -13,6 +13,10 @@ vi.mock("../../utils/db.js", async (importOriginal) => ({
 function fakePool(hasTenants = true) {
   return {
     query: vi.fn(() => Promise.resolve({ rows: [{ ok: hasTenants }] })),
+    // The check runs on a client with the search path pinned.
+    connect: vi.fn(() =>
+      Promise.resolve({ query: vi.fn(() => Promise.resolve({ rows: [{ ok: hasTenants }] })), release: vi.fn() }),
+    ),
     end: vi.fn(() => Promise.resolve()),
   };
 }

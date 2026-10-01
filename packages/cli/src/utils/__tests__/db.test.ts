@@ -53,12 +53,15 @@ describe("getConnectionString", () => {
 describe("scanTables SQL", () => {
   async function capturedSql(): Promise<string> {
     let sql = "";
-    const fakePool = {
+    // scanTables runs its query on a client with the search path pinned.
+    const client = {
       query: (text: string) => {
-        sql = text;
+        if (text.includes("pg_tables")) sql = text;
         return Promise.resolve({ rows: [] });
       },
-    } as unknown as pg.Pool;
+      release: () => undefined,
+    };
+    const fakePool = { connect: () => Promise.resolve(client) } as unknown as pg.Pool;
     await scanTables(fakePool);
     return sql;
   }
@@ -85,13 +88,17 @@ describe("scanTables exclusions", () => {
   it("passes the table list from @stratum-hq/lib as the exclusion parameter", async () => {
     let sql = "";
     let params: unknown[] | undefined;
-    const fakePool = {
+    const client = {
       query: (text: string, values?: unknown[]) => {
-        sql = text;
-        params = values;
+        if (text.includes("pg_tables")) {
+          sql = text;
+          params = values;
+        }
         return Promise.resolve({ rows: [] });
       },
-    } as unknown as pg.Pool;
+      release: () => undefined,
+    };
+    const fakePool = { connect: () => Promise.resolve(client) } as unknown as pg.Pool;
     await scanTables(fakePool);
     expect(sql).toContain("NOT (t.tablename = ANY($1::text[]))");
     expect(params).toEqual([STRATUM_TABLES, null]);
@@ -100,12 +107,14 @@ describe("scanTables exclusions", () => {
 
   it("passes --control-role as the control role the policy check accepts", async () => {
     let params: unknown[] | undefined;
-    const fakePool = {
-      query: (_text: string, values?: unknown[]) => {
-        params = values;
+    const client = {
+      query: (text: string, values?: unknown[]) => {
+        if (text.includes("pg_tables")) params = values;
         return Promise.resolve({ rows: [] });
       },
-    } as unknown as pg.Pool;
+      release: () => undefined,
+    };
+    const fakePool = { connect: () => Promise.resolve(client) } as unknown as pg.Pool;
     await scanTables(fakePool, "acme_control");
     expect(params).toEqual([STRATUM_TABLES, "acme_control"]);
   });

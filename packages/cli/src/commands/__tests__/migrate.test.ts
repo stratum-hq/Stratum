@@ -8,6 +8,7 @@ vi.mock("../../utils/db.js", () => ({
   connectAdminDb: vi.fn(() => Promise.resolve(undefined)),
   controlRoleFlag: vi.fn(() => undefined),
   crossTenantRunner: vi.fn(),
+  quoteIdent: (name: string) => `"${name}"`,
   scanTables: vi.fn(),
 }));
 vi.mock("../../utils/prompt.js", () => ({
@@ -96,13 +97,13 @@ describe("migrate", () => {
     const joined = queries.join("\n");
     expect(queries[0]).toBe("BEGIN");
     expect(joined).toMatch(/ADD COLUMN tenant_id UUID/);
-    expect(joined).toMatch(/ALTER TABLE orders ENABLE ROW LEVEL SECURITY/);
-    expect(joined).toMatch(/ALTER TABLE orders FORCE ROW LEVEL SECURITY/);
-    expect(joined).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(joined).toMatch(/ALTER TABLE "public".orders ENABLE ROW LEVEL SECURITY/);
+    expect(joined).toMatch(/ALTER TABLE "public".orders FORCE ROW LEVEL SECURITY/);
+    expect(joined).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
     expect(joined).toContain(
       "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid",
     );
-    expect(joined).toMatch(/CREATE INDEX idx_orders_tenant_id ON orders/);
+    expect(joined).toMatch(/CREATE INDEX idx_orders_tenant_id ON "public".orders/);
     expect(queries[queries.length - 1]).toBe("COMMIT");
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
@@ -139,13 +140,13 @@ describe("migrate", () => {
 
     const joined = queries.join("\n");
     expect(joined).not.toContain("00000000-0000-0000-0000-000000000000");
-    expect(queries).toContain("ALTER TABLE orders ADD COLUMN tenant_id UUID");
-    expect(joined).toMatch(/REFERENCES tenants\(id\) ON DELETE CASCADE NOT VALID/);
-    const addColumn = queries.indexOf("ALTER TABLE orders ADD COLUMN tenant_id UUID");
+    expect(queries).toContain('ALTER TABLE "public".orders ADD COLUMN tenant_id UUID');
+    expect(joined).toMatch(/REFERENCES public.tenants\(id\) ON DELETE CASCADE NOT VALID/);
+    const addColumn = queries.indexOf('ALTER TABLE "public".orders ADD COLUMN tenant_id UUID');
     const addConstraint = queries.findIndex((q) =>
-      q.startsWith("ALTER TABLE orders ADD CONSTRAINT fk_orders_tenant_id"),
+      q.startsWith('ALTER TABLE "public".orders ADD CONSTRAINT fk_orders_tenant_id'),
     );
-    const validate = queries.indexOf("ALTER TABLE orders VALIDATE CONSTRAINT fk_orders_tenant_id");
+    const validate = queries.indexOf('ALTER TABLE "public".orders VALIDATE CONSTRAINT fk_orders_tenant_id');
     expect(addColumn).toBeGreaterThan(-1);
     expect(addConstraint).toBeGreaterThan(addColumn);
     expect(validate).toBeGreaterThan(addConstraint);
@@ -171,12 +172,12 @@ describe("migrate", () => {
 
     await migrate(["orders"], { tenant });
 
-    const update = queries.indexOf("UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL");
-    const setNotNull = queries.indexOf("ALTER TABLE orders ALTER COLUMN tenant_id SET NOT NULL");
+    const update = queries.indexOf('UPDATE "public".orders SET tenant_id = $1 WHERE tenant_id IS NULL');
+    const setNotNull = queries.indexOf('ALTER TABLE "public".orders ALTER COLUMN tenant_id SET NOT NULL');
     expect(update).toBeGreaterThan(-1);
     expect(setNotNull).toBeGreaterThan(update);
     expect(client.query).toHaveBeenCalledWith(
-      "UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL",
+      'UPDATE "public".orders SET tenant_id = $1 WHERE tenant_id IS NULL',
       [tenant],
     );
     expect(queries[queries.length - 1]).toBe("COMMIT");
@@ -336,7 +337,7 @@ describe("migrate", () => {
     ] satisfies TableInfo[]);
 
     await expect(migrate([], { all: true })).rejects.toThrow(/1 table\(s\) still have policies/);
-    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
     expect(queries.join("\n")).not.toMatch(/ON invoices/);
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
@@ -352,7 +353,7 @@ describe("migrate", () => {
 
     await migrate([], { all: true });
 
-    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
     expect(queries.join("\n")).not.toMatch(/Order Lines/);
     expect(logSpy.mock.calls.flat().join("\n")).toMatch(/Order Lines/);
   });

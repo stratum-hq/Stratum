@@ -11,6 +11,7 @@
  *   stratum scan --exclude users,sessions  # exclude specific tables
  */
 
+import { pinnedQuery } from "@stratum-hq/lib";
 import { connectDb, controlRoleFlag, quoteIdent, scanTables, type TableInfo } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
@@ -261,7 +262,8 @@ export async function scan(
     log.info(`  Summary: ${actionNeeded} table(s) need migration, ${isolated} already done.\n`);
 
     if (generate) {
-      const tenants = await pool.query<{ ok: boolean }>(
+      const tenants = await pinnedQuery<{ ok: boolean }>(
+        pool,
         "SELECT to_regclass('public.tenants') IS NOT NULL AS ok",
       );
       console.log(generateMigrationSQL(result, tenants.rows[0]?.ok === true));

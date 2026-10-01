@@ -1,5 +1,5 @@
 import pg from "pg";
-import { STRATUM_TABLES } from "@stratum-hq/lib";
+import { PINNED_SEARCH_PATH, STRATUM_TABLES, pinnedQuery, schemaOfTable } from "@stratum-hq/lib";
 import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "./policy-check.js";
 import * as log from "./log.js";
 
@@ -81,12 +81,20 @@ export function controlRoleFlag(flags: Record<string, string | boolean>): string
   return roleFlag(flags, "control-role");
 }
 
-/** Runs `fn` in a transaction on `pool`. */
-async function inTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+/**
+ * Runs `fn` in a transaction on `pool`, with the search path pinned to
+ * pg_catalog (see PINNED_SEARCH_PATH in @stratum-hq/lib): the CLI often runs
+ * as a superuser or the admin login, and its queries must not resolve
+ * functions or operators that other roles created in a schema on the search
+ * path. `fn` names Stratum's tables with `schema`.
+ */
+async function inTransaction<T>(pool: pg.Pool, fn: CrossTenantFn<T>): Promise<T> {
+  const schema = quoteIdent((await schemaOfTable(pool)) ?? "public");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const result = await fn(client);
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
+    const result = await fn(client, schema);
     await client.query("COMMIT");
     return result;
   } catch (err) {
@@ -97,8 +105,15 @@ async function inTransaction<T>(pool: pg.Pool, fn: (client: pg.PoolClient) => Pr
   }
 }
 
+/**
+ * A function that reads or writes Stratum's tables across tenants. It runs
+ * with the search path pinned to pg_catalog, and names those tables with
+ * `schema`, the quoted schema of the tenants table.
+ */
+export type CrossTenantFn<T> = (client: pg.PoolClient, schema: string) => Promise<T>;
+
 /** Runs a function across tenants on Stratum's tables. */
-export type CrossTenantRunner = <T>(fn: (client: pg.PoolClient) => Promise<T>) => Promise<T>;
+export type CrossTenantRunner = <T>(fn: CrossTenantFn<T>) => Promise<T>;
 
 /**
  * Whether `pool`'s login reaches every row of the Stratum tables without the
@@ -108,7 +123,8 @@ export type CrossTenantRunner = <T>(fn: (client: pg.PoolClient) => Promise<T>) =
  * `controlRole`, only that role counts.
  */
 async function actsAsControlPlane(pool: pg.Pool, controlRole: string | undefined): Promise<boolean> {
-  const res = await pool.query<{ ok: boolean }>(
+  const res = await pinnedQuery<{ ok: boolean }>(
+    pool,
     `WITH ctl AS (
        SELECT r2::text AS role FROM pg_policies p, unnest(p.roles) r2
         WHERE p.schemaname = 'public' AND p.tablename = 'tenants' AND p.policyname = 'stratum_control_plane'
@@ -167,16 +183,15 @@ export function quoteIdent(name: string): string {
  * policies admit rows only under a tenant context or this bypass, so an
  * administrative command that reads or writes them across tenants needs it.
  */
-export async function withRlsBypass<T>(
-  pool: pg.Pool,
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withRlsBypass<T>(pool: pg.Pool, fn: CrossTenantFn<T>): Promise<T> {
+  const schema = quoteIdent((await schemaOfTable(pool)) ?? "public");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
     await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
     await assertLegacyBypassOpen(client);
-    const result = await fn(client);
+    const result = await fn(client, schema);
     await client.query("COMMIT");
     return result;
   } catch (err) {
@@ -227,7 +242,9 @@ export interface TableInfo {
  * `@stratum-hq/lib`, so it follows the migrations that lib ships.
  */
 export async function scanTables(pool: pg.Pool, controlRole?: string): Promise<TableInfo[]> {
-  const result = await pool.query(`
+  // A policy counts only for what its expression does, not for its name.
+  type Row = Omit<TableInfo, "has_policy" | "policy_issue"> & { control_role: string | null; policies: PolicyRow[] };
+  const result = await pinnedQuery<Row>(pool, `
     SELECT
       t.tablename AS table_name,
       -- The control role of migration 032 (see doctor checkRLSPolicies).
@@ -266,9 +283,7 @@ export async function scanTables(pool: pg.Pool, controlRole?: string): Promise<T
     ORDER BY t.tablename;
   `, [STRATUM_TABLES, controlRole ?? null]);
 
-  // A policy counts only for what its expression does, not for its name.
-  type Row = Omit<TableInfo, "has_policy" | "policy_issue"> & { control_role: string | null; policies: PolicyRow[] };
-  return result.rows.map((row: Row) => {
+  return result.rows.map((row) => {
     const { policies, control_role, ...rest } = row;
     const verdict = evaluatePolicies(policies, "public", control_role ?? DEFAULT_CONTROL_ROLE);
     return { ...rest, has_policy: verdict.isolated, policy_issue: verdict.issue };
@@ -276,7 +291,7 @@ export async function scanTables(pool: pg.Pool, controlRole?: string): Promise<T
 }
 
 export async function checkExtensions(pool: pg.Pool): Promise<{ uuid_ossp: boolean; ltree: boolean }> {
-  const result = await pool.query(`
+  const result = await pinnedQuery<{ extname: string }>(pool, `
     SELECT extname FROM pg_extension
     WHERE extname IN ('uuid-ossp', 'ltree');
   `);
@@ -288,14 +303,14 @@ export async function checkExtensions(pool: pg.Pool): Promise<{ uuid_ossp: boole
 }
 
 export async function checkBypassRLS(pool: pg.Pool): Promise<boolean> {
-  const result = await pool.query(`
+  const result = await pinnedQuery(pool, `
     SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user;
   `);
   return result.rows[0]?.rolbypassrls === true;
 }
 
 export async function checkStratumTables(pool: pg.Pool): Promise<boolean> {
-  const result = await pool.query(`
+  const result = await pinnedQuery(pool, `
     SELECT COUNT(*) AS cnt FROM pg_tables
     WHERE schemaname = 'public'
       AND tablename IN ('tenants', 'config_entries', 'permission_policies', 'api_keys');
