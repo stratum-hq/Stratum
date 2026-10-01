@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/create",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Scaffold a multi-tenant SaaS starter for Node.js: PostgreSQL, MySQL, or MongoDB with Express, Fastify, Next.js, Hono, or NestJS",
   "keywords": [
     "multi-tenancy",

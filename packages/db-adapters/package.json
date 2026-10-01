@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/db-adapters",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Multi-tenant PostgreSQL row-level security for pg, Prisma, Drizzle, and Sequelize, plus schema-per-tenant and database-per-tenant isolation",
   "keywords": [
     "multi-tenancy",
@@ -54,7 +54,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@stratum-hq/core": "^1.4.0",
+    "@stratum-hq/core": "^1.5.1",
     "pg": "^8.11.0"
   },
   "peerDependencies": {

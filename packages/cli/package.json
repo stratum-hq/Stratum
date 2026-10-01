@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/cli",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Multi-tenancy CLI for Node.js: add tenant isolation to an existing app, migrate tables to RLS, and check readiness",
   "keywords": [
     "multi-tenancy",
@@ -47,8 +47,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@stratum-hq/core": "^1.5.0",
-    "@stratum-hq/lib": "^1.6.0",
+    "@stratum-hq/core": "^1.5.1",
+    "@stratum-hq/lib": "^1.7.0",
     "pg": "^8.11.0"
   },
   "devDependencies": {
