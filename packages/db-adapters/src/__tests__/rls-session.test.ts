@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   setTenantContext,
   resetTenantContext,
+  withTenantContext,
   getCurrentTenantId,
+  type TenantScope,
 } from "../rls/session.js";
 
 // ---------------------------------------------------------------------------
@@ -36,9 +38,9 @@ describe("RLS Session", () => {
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
       expect(call[0]).toBe(
-        "SELECT set_config('app.current_tenant_id', $1, true)",
+        "SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_scope', $2, true)",
       );
-      expect(call[1]).toEqual(["tenant-abc-123"]);
+      expect(call[1]).toEqual(["tenant-abc-123", ""]);
     });
 
     it("passes the tenant ID as a parameterized value", async () => {
@@ -46,7 +48,7 @@ describe("RLS Session", () => {
 
       const params = (client.query as ReturnType<typeof vi.fn>).mock
         .calls[0][1];
-      expect(params).toEqual(["f47ac10b-58cc-4372-a567-0e02b2c3d479"]);
+      expect(params[0]).toBe("f47ac10b-58cc-4372-a567-0e02b2c3d479");
     });
 
     it("uses transaction-scoped scope (third arg true)", async () => {
@@ -56,6 +58,37 @@ describe("RLS Session", () => {
       // The third argument to set_config is `true`, meaning transaction-scoped
       // so context is automatically cleared when the transaction ends
       expect(sql).toContain("true");
+    });
+
+    it("sets app.tenant_scope to 'subtree' for the subtree scope", async () => {
+      await setTenantContext(client, "tenant-1", { scope: "subtree" });
+
+      const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call[1]).toEqual(["tenant-1", "subtree"]);
+    });
+
+    it("clears app.tenant_scope for the exact scope", async () => {
+      await setTenantContext(client, "tenant-1", { scope: "exact" });
+
+      const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(call[1]).toEqual(["tenant-1", ""]);
+    });
+
+    it("rejects an unknown scope without a query", async () => {
+      await expect(
+        setTenantContext(client, "tenant-1", { scope: "SUBTREE" as TenantScope }),
+      ).rejects.toThrow(/Unknown tenant scope/);
+      expect((client.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    });
+  });
+
+  describe("withTenantContext", () => {
+    it("rejects an unknown scope before it takes a connection", async () => {
+      const pool = { connect: vi.fn() } as unknown as import("pg").Pool;
+      await expect(
+        withTenantContext(pool, "tenant-1", async () => 1, { scope: "all" as TenantScope }),
+      ).rejects.toThrow(/Unknown tenant scope/);
+      expect((pool.connect as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
     });
   });
 
@@ -68,7 +101,9 @@ describe("RLS Session", () => {
       await resetTenantContext(client);
 
       const call = (client.query as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(call[0]).toBe("SELECT set_config('app.current_tenant_id', '', true)");
+      expect(call[0]).toBe(
+        "SELECT set_config('app.current_tenant_id', '', true), set_config('app.tenant_scope', '', true)",
+      );
     });
   });
 

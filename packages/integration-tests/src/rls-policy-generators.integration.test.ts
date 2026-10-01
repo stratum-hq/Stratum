@@ -319,6 +319,30 @@ describe("db-adapters createPolicy with other policies on the table", () => {
   });
 });
 
+describe("db-adapters subtree read policy without migration 031", () => {
+  it("createPolicy refuses the subtree read and creates no policy", async () => {
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await expect(createPolicy(c, TABLE, { subtreeRead: true })).rejects.toThrow(
+        /stratum_subtree_tenant_ids/,
+      );
+    });
+    const res = await scratch.query(`SELECT policyname FROM pg_policies WHERE tablename = $1`, [TABLE]);
+    expect(res.rows).toEqual([]);
+  });
+
+  it("createIsolationPolicy refuses the subtree read and creates no policy", async () => {
+    await withScratchClient(async (c) => {
+      await enableRLSForMigration(c, TABLE);
+      await expect(createIsolationPolicy(c, TABLE, { subtreeRead: true })).rejects.toThrow(
+        /stratum_subtree_tenant_ids/,
+      );
+    });
+    const res = await scratch.query(`SELECT policyname FROM pg_policies WHERE tablename = $1`, [TABLE]);
+    expect(res.rows).toEqual([]);
+  });
+});
+
 describe("db-adapters isRLSEnabled", () => {
   it("reports the table the name resolves to, not a same-named table in another schema", async () => {
     // public.gen_orders (from beforeEach) has RLS; app.gen_orders, which the

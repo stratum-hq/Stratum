@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { setTenantContext, withTenantContext } from "@stratum-hq/db-adapters";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  createIsolationPolicy,
+  createPolicy,
+  enableRLS,
+  setTenantContext,
+  withTenantContext,
+} from "@stratum-hq/db-adapters";
+import { runScopedJob } from "@stratum-hq/lib";
 import { getPool, closePool, runMigrations } from "./helpers/db.js";
 
 /**
@@ -28,6 +37,10 @@ import { getPool, closePool, runMigrations } from "./helpers/db.js";
  */
 
 const APP_ROLE = "stratum_subtree_test";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CLI_POLICY_CHECK = pathToFileURL(
+  path.resolve(__dirname, "../../cli/dist/utils/policy-check.js"),
+).href;
 const run = Date.now();
 
 type Label = "mssp" | "mspA" | "a1" | "a1x" | "a2" | "a3" | "a4" | "mspB" | "b1";
@@ -45,7 +58,7 @@ const tree: Array<{ label: Label; parent: Label | null; status: string }> = [
 ];
 
 const id = {} as Record<Label, string>;
-const path = {} as Record<Label, string>;
+const ancestry = {} as Record<Label, string>;
 let rolePool: pg.Pool;
 
 function keyOf(label: Label): string {
@@ -89,8 +102,8 @@ beforeAll(async () => {
     // Seeded as the superuser, so RLS does not apply to the setup.
     for (const t of tree) {
       id[t.label] = randomUUID();
-      path[t.label] =
-        t.parent === null ? "/" : `${path[t.parent] === "/" ? "" : path[t.parent]}/${id[t.parent]}`;
+      ancestry[t.label] =
+        t.parent === null ? "/" : `${ancestry[t.parent] === "/" ? "" : ancestry[t.parent]}/${id[t.parent]}`;
       await c.query(
         `INSERT INTO tenants (id, parent_id, name, slug, ancestry_path, depth, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -99,8 +112,8 @@ beforeAll(async () => {
           t.parent === null ? null : id[t.parent],
           `Subtree ${t.label} ${run}`,
           `sub_${t.label.toLowerCase()}_${run}`,
-          path[t.label],
-          path[t.label] === "/" ? 0 : path[t.label].split("/").length - 1,
+          ancestry[t.label],
+          ancestry[t.label] === "/" ? 0 : ancestry[t.label].split("/").length - 1,
           t.status,
         ],
       );
@@ -236,6 +249,16 @@ describe("subtree read scope (migration 031)", () => {
     expect(exact).toEqual(["mspA"]);
   });
 
+  it("reads the subtree in a job that runScopedJob runs with the subtree scope", async () => {
+    const seen = await runScopedJob(
+      rolePool,
+      id.mspA,
+      async (c) => labelsOf((await c.query<{ key: string }>(OWN_ROWS)).rows),
+      { scope: "subtree" },
+    );
+    expect(seen).toEqual(["a1", "a1x", "a2", "a3", "a4", "mspA"]);
+  });
+
   it("follows the tree when a tenant moves to another parent", async () => {
     const c = await getPool().connect();
     try {
@@ -243,7 +266,7 @@ describe("subtree read scope (migration 031)", () => {
       // Move b1 under mspA, as the superuser, inside a transaction that rolls back.
       await c.query(`UPDATE tenants SET parent_id = $1, ancestry_path = $2 WHERE id = $3`, [
         id.mspA,
-        `${path.mspA === "/" ? "" : path.mspA}/${id.mspA}`,
+        `${ancestry.mspA === "/" ? "" : ancestry.mspA}/${id.mspA}`,
         id.b1,
       ]);
       await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
@@ -389,6 +412,7 @@ describe("subtree read scope (migration 031)", () => {
     const res = await getPool().query<{ tablename: string; cmd: string; permissive: string }>(
       `SELECT tablename, cmd, permissive FROM pg_policies
         WHERE schemaname = current_schema() AND policyname = 'tenant_subtree_read'
+          AND tablename NOT LIKE 'sub\\_gen\\_%'
         ORDER BY tablename`,
     );
     expect(res.rows.map((r) => r.tablename)).toEqual([
@@ -410,5 +434,92 @@ describe("subtree read scope (migration 031)", () => {
       expect(r.cmd).toBe("SELECT");
       expect(r.permissive).toBe("PERMISSIVE");
     }
+  });
+
+  describe("db-adapters generators with the subtree read", () => {
+    const tables = ["sub_gen_orders", "sub_gen_invoices"] as const;
+
+    beforeAll(async () => {
+      const c = await getPool().connect();
+      try {
+        for (const table of tables) {
+          await c.query(`DROP TABLE IF EXISTS ${table}`);
+          await c.query(`CREATE TABLE ${table} (id SERIAL PRIMARY KEY, tenant_id UUID NOT NULL, label TEXT NOT NULL)`);
+        }
+        await enableRLS(c, tables[0]);
+        await createPolicy(c, tables[0], { subtreeRead: true });
+        await enableRLS(c, tables[1]);
+        await createIsolationPolicy(c, tables[1], { subtreeRead: true });
+        for (const table of tables) {
+          await c.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON ${table} TO ${APP_ROLE}`);
+          await c.query(`GRANT USAGE ON SEQUENCE ${table}_id_seq TO ${APP_ROLE}`);
+          for (const label of ["mssp", "mspA", "a1", "mspB"] as const) {
+            await c.query(`INSERT INTO ${table} (tenant_id, label) VALUES ($1, $2)`, [id[label], label]);
+          }
+        }
+      } finally {
+        c.release();
+      }
+    });
+
+    afterAll(async () => {
+      for (const table of tables) await getPool().query(`DROP TABLE IF EXISTS ${table}`);
+    });
+
+    for (const table of tables) {
+      it(`${table}: reads the subtree in subtree scope and the exact tenant by default`, async () => {
+        const read = (scope?: "subtree") =>
+          asApp(async (c) => {
+            await setTenantContext(c, id.mspA, scope ? { scope } : {});
+            const res = await c.query<{ label: string }>(`SELECT label FROM ${table} ORDER BY label`);
+            return res.rows.map((r) => r.label);
+          });
+        expect(await read("subtree")).toEqual(["a1", "mspA"]);
+        expect(await read()).toEqual(["mspA"]);
+      });
+
+      it(`${table}: keeps writes to the exact tenant in subtree scope`, async () => {
+        await asApp(async (c) => {
+          await setTenantContext(c, id.mspA, { scope: "subtree" });
+          await expect(
+            c.query(`INSERT INTO ${table} (tenant_id, label) VALUES ($1, 'x')`, [id.a1]),
+          ).rejects.toThrow(/row-level security/i);
+        });
+        const changed = await asApp(async (c) => {
+          await setTenantContext(c, id.mspA, { scope: "subtree" });
+          const u = await c.query(`UPDATE ${table} SET label = 'changed' WHERE tenant_id = $1`, [id.a1]);
+          const d = await c.query(`DELETE FROM ${table} WHERE tenant_id = $1`, [id.a1]);
+          return (u.rowCount ?? 0) + (d.rowCount ?? 0);
+        });
+        expect(changed).toBe(0);
+      });
+    }
+
+    it("accepts the generated policies when createPolicy runs again", async () => {
+      const c = await getPool().connect();
+      try {
+        for (const table of tables) {
+          await createPolicy(c, table, { subtreeRead: true });
+          await createPolicy(c, table);
+        }
+      } finally {
+        c.release();
+      }
+    });
+
+    it("counts the tables with the subtree read as isolated in the CLI policy check", async () => {
+      const { evaluatePolicies } = (await import(CLI_POLICY_CHECK)) as {
+        evaluatePolicies: (rows: unknown[]) => { isolated: boolean; issue: string | null };
+      };
+      for (const table of [...tables, "config_entries"]) {
+        const res = await getPool().query(
+          `SELECT policyname, permissive, cmd, qual, with_check FROM pg_policies
+            WHERE schemaname = current_schema() AND tablename = $1`,
+          [table],
+        );
+        expect(res.rows.map((r) => r.policyname)).toContain("tenant_subtree_read");
+        expect(evaluatePolicies(res.rows)).toEqual({ isolated: true, issue: null });
+      }
+    });
   });
 });

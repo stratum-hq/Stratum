@@ -8,6 +8,12 @@ const WITH_BYPASS =
   "((current_setting('app.bypass_rls'::text, true) = 'on'::text) OR " +
   "(tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid))";
 
+// The read-only subtree policy of migration 031, as pg_policies stores it.
+const SUBTREE_IDS =
+  "(tenant_id = ANY (( SELECT stratum_subtree_tenant_ids() AS stratum_subtree_tenant_ids)::uuid[]))";
+const SCOPE_SUBTREE = "(current_setting('app.tenant_scope'::text, true) = 'subtree'::text)";
+const SUBTREE_READ = `(${SCOPE_SUBTREE} AND ${SUBTREE_IDS})`;
+
 function policy(overrides: Partial<PolicyRow>): PolicyRow {
   return {
     policyname: "tenant_isolation",
@@ -40,6 +46,25 @@ describe("tablePolicyIssues", () => {
           policy({ policyname: "r", cmd: "SELECT", roles: ["app_user"] }),
           policy({ policyname: "w", cmd: "INSERT", qual: null, with_check: GENERATED }),
         ],
+      ],
+      [
+        "the read-only subtree policy of migration 031 next to tenant_isolation",
+        [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: SUBTREE_READ })],
+      ],
+      [
+        "the subtree policy with a schema-qualified function",
+        [
+          policy({}),
+          policy({
+            policyname: "tenant_subtree_read",
+            cmd: "SELECT",
+            qual: SUBTREE_READ.replace("SELECT stratum_", "SELECT public.stratum_"),
+          }),
+        ],
+      ],
+      [
+        "the subtree policy with the conditions reversed",
+        [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: `(${SUBTREE_IDS} AND ${SCOPE_SUBTREE})` })],
       ],
       [
         "a restrictive policy on another condition",
@@ -80,6 +105,31 @@ describe("tablePolicyIssues", () => {
         "another permissive policy for a specific role that does not filter",
         [policy({}), policy({ policyname: "admin_all", roles: ["admin"], qual: "true" })],
         /"admin_all" \(ALL\) USING \(true\)/,
+      ],
+      [
+        "a subtree read without the scope check, which widens every session",
+        [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: SUBTREE_IDS })],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
+        "a subtree read whose scope check names another value",
+        [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: SUBTREE_READ.replace("'subtree'", "'all'") })],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
+        "a subtree read ORed with the scope check",
+        [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: `(${SCOPE_SUBTREE} OR ${SUBTREE_IDS})` })],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
+        "a subtree predicate in a policy for ALL commands, which lets DELETE reach descendants",
+        [policy({}), policy({ policyname: "s", cmd: "ALL", qual: SUBTREE_READ })],
+        /"s" \(ALL\) USING/,
+      ],
+      [
+        "a subtree predicate in an INSERT WITH CHECK",
+        [policy({}), policy({ policyname: "s", cmd: "INSERT", qual: null, with_check: SUBTREE_READ })],
+        /"s" \(INSERT\) WITH CHECK/,
       ],
       [
         "a permissive INSERT policy with WITH CHECK (true)",
