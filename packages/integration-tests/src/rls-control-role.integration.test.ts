@@ -17,9 +17,9 @@ import {
 } from "./helpers/role-model.js";
 
 /**
- * The control-role model of migration 032, checked as an attacker would use
- * it: SQL that runs as the application role, for example through SQL
- * injection in the consuming application.
+ * The control-role model of migration 032, checked from the application
+ * role's side: what SQL that runs as the application role can and cannot
+ * reach once the model is applied.
  *
  * The application roles here are LOGIN roles that connect directly, not
  * roles a superuser switches to, so nothing in the session can leave them.
@@ -388,7 +388,7 @@ describe(mode.title, () => {
   });
 
   describe("the legacy bypass switch", () => {
-    it("keeps the 1.8 behavior while on: app.bypass_rls opens every tenant's rows to the application role", async () => {
+    it("keeps the pre-1.8 behavior while the switch is on", async () => {
       await setLegacySwitch(true);
       try {
         const res = await withBypassAndTenant(appPool, null, (c) => c.query("SELECT id FROM tenants"));

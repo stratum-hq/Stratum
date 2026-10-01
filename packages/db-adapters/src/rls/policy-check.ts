@@ -354,8 +354,8 @@ export function tablePolicyWarnings(policies: PolicyRow[]): string[] {
     const exprs = [p.qual, p.with_check].filter((e): e is string => e !== null);
     if (exprs.some((e) => direct.test(flatten(normalize(e))))) {
       warnings.push(
-        `policy "${oneLine(p.policyname)}" admits app.bypass_rls directly; any session can set it. ` +
-          `Use the control role of migration 032 instead.`,
+        `policy "${oneLine(p.policyname)}" admits app.bypass_rls directly. ` +
+          `Use the control role of migration 032, which PostgreSQL role membership decides, instead.`,
       );
     }
   }

@@ -68,7 +68,7 @@ try {
 
 The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass, directly or through `stratum_legacy_bypass()` (migration 032). A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
 
-A permissive policy named `stratum_control_plane` is accepted only when it applies to exactly the control role of migration 032 (`stratum_control` by default; pass `{ controlRole }` to `createPolicy` for another name). A policy that checks `app.bypass_rls` directly still passes in 1.x, but `createPolicy` emits a `STRATUM_GUC_BYPASS_POLICY` process warning for it: any session can set that setting. 2.0 refuses such policies.
+A permissive policy named `stratum_control_plane` is accepted only when it applies to exactly the control role of migration 032 (`stratum_control` by default; pass `{ controlRole }` to `createPolicy` for another name). A policy that checks `app.bypass_rls` directly still passes in 1.x, but `createPolicy` emits a `STRATUM_GUC_BYPASS_POLICY` process warning for it: the control role, which PostgreSQL role membership decides, replaces it. 2.0 refuses such policies.
 
 `isRLSEnabled` reports on the table that the name resolves to through the `search_path`, not on a table with the same name in another schema.
 

@@ -184,11 +184,10 @@ export async function validateApiKey(
   const hmacSecret = getHmacSecret();
 
   // Candidate hashes. With an HMAC secret, HMAC hashes (version 2) come
-  // first. The legacy SHA-256 hashes (version 1) are tried too unless the
-  // caller turned allowLegacyHashes off: a SHA-256 hash needs no secret to
-  // compute, so accepting it lets anyone who can write a key row choose the
-  // key. 1.x accepts them by default and re-hashes each on use; 2.0 will not.
-  // Without a secret, SHA-256 is the only hash there is.
+  // first, because they depend on a secret only the server holds. The legacy
+  // SHA-256 hashes (version 1) are tried too unless the caller turned
+  // allowLegacyHashes off. 1.x accepts them by default and re-hashes each
+  // on use; 2.0 will not. Without a secret, SHA-256 is the only hash there is.
   const candidates: Array<{ hash: string; version: number }> = [];
   if (hmacSecret) {
     candidates.push({ hash: hmacHash(key, hmacSecret), version: HASH_V2_HMAC });

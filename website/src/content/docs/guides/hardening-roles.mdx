@@ -13,7 +13,7 @@ This guide explains the model, sets it up step by step, and lists what changes f
 
 Row-level security on Stratum's tables isolates tenants by the session setting `app.current_tenant_id`. Stratum also needs to work across tenants: listing tenants, moving a subtree, validating an API key. Up to 1.7 it did that with a second session setting, `app.bypass_rls`, which Stratum's policies admit. The application usually connects with the same login, and that login often ran the migrations, so it also owns the tables.
 
-A session setting can be set by any SQL the session runs, and a table owner can change the table's policies. So in that setup, isolation on Stratum's tables holds only as long as the application connection runs only the queries you wrote. The role model removes both dependencies: PostgreSQL decides who reaches rows across tenants by role membership, which a session cannot change, and the application login owns nothing of Stratum's.
+The role model moves both decisions into PostgreSQL's role system. Whether a session reaches rows across tenants depends on membership in a role, which a session cannot change, and the application login owns nothing of Stratum's, so the tables, their policies and Stratum's functions stay as the migrations define them. Isolation on Stratum's tables then no longer depends on which queries the application connection runs.
 
 ## The role model
 
@@ -36,15 +36,15 @@ With the role model applied and the legacy switch off, SQL that runs as the appl
 - inserts, updates and deletes no row of a Stratum table;
 - cannot change the Stratum tables, their policies or Stratum's functions, and cannot join `stratum_control`.
 
-<Aside type="caution" title="Known limit: the tenant context is a session setting">
-The current tenant is still the session setting `app.current_tenant_id`. SQL that runs as the application login can set it to any tenant id it knows, and then reads that tenant's rows in the read-list tables, exactly as your application does for the current tenant. The same holds for your own tables that use a `tenant_id` policy. The role model keeps credentials and other tenants' data out of reach of the bypass setting, not out of reach of a chosen tenant context. Keep tenant ids out of places where untrusted input can reach them, and treat the application login as able to read any one tenant's non-credential rows at a time. A signed tenant context is under consideration after 2.0.
+<Aside type="caution" title="Scope: the tenant context">
+The current tenant is the session setting `app.current_tenant_id`, which your application sets for each request. The role model decides access across tenants and to credentials. It does not authenticate the tenant context itself: the application login sees the read-list rows, and the rows of your own tables with a `tenant_id` policy, of the tenant its session names. Set the tenant context only from authenticated request data. A signed tenant context is under consideration after 2.0.
 </Aside>
 
 ## Upgrade order
 
 <Steps>
 
-1. **Upgrade and migrate.** Upgrade the Stratum packages to 1.8 and run the migrations as you do today. Migration 032 adds the legacy switch and the control-role policies. If the migrating login can create or join the control role (a superuser, or `CREATEROLE`), it applies the control role itself; otherwise it completes with a warning and your database keeps the 1.7 behavior. Either way nothing changes for running clients yet.
+1. **Upgrade and migrate.** Upgrade the Stratum packages to 1.8 and run the migrations as you do today. Migration 032 adds the legacy switch. It applies the control role in the same run only when that is safe without knowing your logins: the migrating login is a superuser or already a member of the control role, or the migration runs with the control-role opt-in, which `autoMigrate` with `adminPool`, `migrate({ applyControlRole: true })` and the control plane with `DATABASE_ADMIN_URL` set. Otherwise it completes with a warning that prints the SQL to run, and your database keeps the 1.7 behavior. In particular, a single login that runs both the migrations and the application is never made a member of the control role. Either way nothing changes for running clients yet.
 
 2. **Create the admin login and run `stratum db roles`.** See [Set up the roles](#set-up-the-roles). This moves Stratum's objects to the admin login, applies the control role, and limits the application login to the read list.
 
@@ -87,6 +87,7 @@ The SQL is the output of `bootstrapRolesSql()` from `@stratum-hq/lib`, so you ca
 - checks that the Stratum tables carry only what the Stratum migrations created, and stops otherwise (see below);
 - creates `stratum_control` (NOLOGIN) when it does not exist, and makes the admin login a member;
 - moves the Stratum tables and functions that the application login owns to the admin login. It never touches your application's tables;
+- revokes `CREATE` on the schema of the Stratum tables from `PUBLIC` and from the application login, so that only logins you grant it to by name can add objects there;
 - applies the control role through `stratum_apply_control_role()`, which migration 032 installs. This also resets row-level security on every Stratum table: it drops every policy on them, enables and forces RLS, and creates the canonical Stratum policies again, so a policy that a former owner changed, dropped or added is restored;
 - removes the application login from the control role, revokes its privileges on the Stratum tables, and grants `SELECT` on the read list.
 
@@ -99,7 +100,8 @@ The objects attached to a table run with the rights of whoever writes to it, so 
 - a rule, or a trigger that calls a function other than Stratum's;
 - a policy, default, constraint, trigger or index that uses a function or operator outside `pg_catalog`, an extension and Stratum;
 - a column of a type outside `pg_catalog` and the extensions;
-- a Stratum function whose body or settings differ from what the migrations create.
+- a Stratum function whose body or settings differ from what the migrations create;
+- in the schema itself, an operator, or a function or aggregate with the name of a built-in or extension function, that is neither Stratum's nor part of an extension. A query that has the schema on its search path can resolve to such an object instead of the built-in one.
 
 The check never repairs anything itself: you decide what each object is. The error lists every finding, one per line. To resolve a refusal:
 
@@ -109,13 +111,27 @@ The check never repairs anything itself: you decide what each object is. The err
 
 2. **Remove what does not belong on Stratum's tables.** For example `DROP TRIGGER <name> ON <table>;`, `DROP RULE <name> ON <table>;`, or `ALTER TABLE <table> ALTER COLUMN <column> DROP DEFAULT;`. If you still need the behavior, move it to your own tables. A column whose type is not from `pg_catalog` or an extension has to be changed back to the type the migrations create.
 
-3. **Restore a changed Stratum function.** Run its `CREATE OR REPLACE FUNCTION` statement again as the owner of the Stratum tables (or a superuser). The statement is in the migration file that creates the function last, in `node_modules/@stratum-hq/lib/dist/migrations/`: `update_updated_at_column` and `maintain_ancestry_ltree` in `001_init.sql`, `propagate_ancestry_ltree` in `024_propagate_ancestry_ltree.sql`, `stratum_legacy_bypass` and `stratum_apply_control_role` in `032_control_role.sql`. For the two functions of 032, also run the `ALTER FUNCTION ... SET search_path` statement that follows them there. If you defined a function of the same name for your own tables, give yours another name.
+3. **Move functions and operators out of the Stratum schema.** For each function or operator the check names in the schema, drop it (`DROP FUNCTION <schema>.<name>(<argument types>);`, `DROP OPERATOR <schema>.<name> (<left type>, <right type>);`), or, if your application needs it, re-create it in a schema of your own (for example the application login's schema, below) and use it from there. Then make sure no login other than the admin login has `CREATE` on the Stratum schema: `REVOKE CREATE ON SCHEMA <schema> FROM <login>;`.
 
-4. **Run `stratum db roles --apply` again.** It applies once nothing is left to report.
+4. **Restore a changed Stratum function.** Run its `CREATE OR REPLACE FUNCTION` statement again as the owner of the Stratum tables (or a superuser). The statement is in the migration file that creates the function last, in `node_modules/@stratum-hq/lib/dist/migrations/`: `update_updated_at_column` and `maintain_ancestry_ltree` in `001_init.sql`, `propagate_ancestry_ltree` in `024_propagate_ancestry_ltree.sql`, and `stratum_apply_control_role` in `032_control_role.sql`. The control role re-creates the other Stratum functions itself when it is applied. If you defined a function of the same name for your own tables, give yours another name.
+
+5. **Run `stratum db roles --apply` again.** It applies once nothing is left to report.
 
 </Steps>
 
 Policies are not part of the refusal, because the bootstrap re-creates all of them. `stratum doctor` reports how the policies and RLS flags of the Stratum tables differ from the canonical set ("Stratum policies"), before and after.
+
+### Your application's own tables
+
+The application login must not be able to create objects in the schema of the Stratum tables, because Stratum's functions and queries resolve names there. `stratum doctor` and `initialize()` report an application login that can. Give your application's tables another schema instead. The least disruptive setup, which `docker/init-db.sql` and `stratum scaffold docker` use, is a schema named after the application login and owned by it:
+
+```sql
+GRANT USAGE ON SCHEMA public TO stratum_app;
+CREATE SCHEMA stratum_app AUTHORIZATION stratum_app;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+```
+
+The default search path is `"$user", public`, so the application login creates its unqualified tables in its own schema and still finds the Stratum tables in `public` by their plain names. If another login creates your application's tables (as in projects from `@stratum-hq/create`, where the bootstrap superuser runs your migrations and Stratum's own login, in `STRATUM_ADMIN_DATABASE_URL`, runs Stratum's), give the application login default privileges only on what that login creates (`ALTER DEFAULT PRIVILEGES FOR ROLE <creator> ...`), and run the Stratum migrations as Stratum's login, never as that creator. If they did run as the creator, `stratum db roles --apply --app-role <app login>` removes the privileges the application login received on the Stratum tables.
 
 ### Managed PostgreSQL
 
@@ -127,7 +143,7 @@ Managed services usually give you an administrative login that is not a full sup
 
 ### Fresh installs with a CREATEROLE migrator
 
-A new database does not need a superuser for the migrations. Create the extensions, then let the admin login migrate: with `CREATEROLE` (or with the control role created for it in advance, as `docker/init-db.sql` does) migration 032 creates or joins the control role and applies it in the same run. Migrations 029 and 031 contain function settings that PostgreSQL accepts only from a superuser; for any other migrating login the runner leaves those lines out, and 032 re-creates both functions without them.
+A new database does not need a superuser for the migrations. Create the extensions, then let the admin login migrate through `autoMigrate` with `adminPool` (or `migrate({ pool: adminPool, applyControlRole: true })`): with `CREATEROLE` (or with the control role created for it in advance, as `docker/init-db.sql` does) migration 032 creates or joins the control role and applies it in the same run. Set `applyControlRole` only for the admin login: it makes the migrating login a member of the control role. Migrations 029 and 031 contain function settings that PostgreSQL accepts only from a superuser; for any other migrating login the runner leaves those lines out, and 032 re-creates both functions without them.
 
 ```typescript
 const stratum = new Stratum({ adminPool, pool, autoMigrate: true, enforceRls: true });
@@ -210,6 +226,7 @@ stratum db unlock --admin-database-url postgres://stratum_admin:...@host/mydb   
 
 - Only a member of the control role (or a superuser) can change the switch. Use the admin login: a command that changes nothing fails instead of reporting success.
 - `db lock` refuses while the control role is not applied, because the library would then have no path to its own tables.
+- `db lock` also refuses while the application login is a member of the control role, because the switch would not limit it. It checks the login of `--database-url` (or `DATABASE_URL`) when an admin connection is given, or the login named with `--app-role`. In single-pool mode, `initialize()` warns about such a pool login, and throws with `enforceRls`.
 - The switch applies to every client of the database (one switch per schema of Stratum tables), not to one deployment.
 
 The plan for 2.0 is to remove the switch and the legacy path and to require `adminPool`. Its migration is planned to run only as a member of the control role, so the upgrade order above stays the order for 2.0: roles first, then the admin login, then the migration.
