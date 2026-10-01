@@ -86,10 +86,13 @@ This section walks through a complete setup: PostgreSQL with RLS, Prisma schema,
       -e POSTGRES_USER=stratum \
       -e POSTGRES_PASSWORD=stratum_dev \
       -e POSTGRES_DB=stratum \
+      -v "$PWD/init.sql:/docker-entrypoint-initdb.d/init.sql" \
       -p 5432:5432 postgres:16-alpine
     ```
   </TabItem>
 </Tabs>
+
+Write `init.sql` (the next step) before the first start. The image runs it only when it creates the data volume.
 
 ### 2. Create Tables with RLS Policies
 
@@ -121,11 +124,29 @@ CREATE POLICY tenant_isolation ON orders
 
 -- Index for performance (tenant_id as leading column)
 CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
+
+-- The application's login. POSTGRES_USER (stratum) is a superuser, and a
+-- superuser or a BYPASSRLS role skips every row-level security policy,
+-- FORCE included. The app connects as stratum_app, which has neither.
+CREATE ROLE stratum_app LOGIN PASSWORD 'stratum_app_dev' NOSUPERUSER NOBYPASSRLS;
+GRANT CONNECT ON DATABASE stratum TO stratum_app;
+GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO stratum_app;
 ```
 
 <Aside type="caution">
   `FORCE ROW LEVEL SECURITY` is important. Without it, the table owner can bypass
   RLS policies. Stratum's `enableRLS()` helper always sets this flag.
+</Aside>
+
+<Aside type="caution" title="Connect as a role that RLS applies to">
+  The Docker `POSTGRES_USER` is a superuser. A superuser, or any role with
+  `BYPASSRLS`, skips every row-level security policy, so an app that connects as
+  `stratum` sees every tenant's rows. Keep that login for bootstrap and
+  migrations, and connect the app as `stratum_app`. For production, give
+  Stratum its own admin login that is not a superuser either, and limit the
+  application login as described in
+  [Hardening: separate admin and app roles](/guides/hardening-roles/).
 </Aside>
 
 The key line is the `CREATE POLICY`. It tells PostgreSQL: "For every SELECT, INSERT, UPDATE, and DELETE on this table, only allow rows where `tenant_id` matches the value stored in the `app.current_tenant_id` session variable." Stratum's adapter sets that variable before every query.
@@ -153,6 +174,12 @@ model Order {
 
   @@map("orders")
 }
+```
+
+Point `DATABASE_URL` at the application login, so Prisma connects as `stratum_app`:
+
+```bash
+export DATABASE_URL=postgres://stratum_app:stratum_app_dev@localhost:5432/stratum
 ```
 
 Generate the Prisma client:
@@ -188,13 +215,21 @@ import { prismaWithTenant } from "@stratum-hq/db-adapters";
 const app = express();
 app.use(express.json());
 
+// The application login: row-level security applies to it.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
+    || "postgres://stratum_app:stratum_app_dev@localhost:5432/stratum",
+});
+
+// Stratum's own login, which runs its migrations. The local superuser is fine
+// for development; see the hardening guide for production.
+const adminPool = new Pool({
+  connectionString: process.env.DATABASE_ADMIN_URL
     || "postgres://stratum:stratum_dev@localhost:5432/stratum",
 });
 
 const prisma = new PrismaClient();
-const stratum = new Stratum({ pool, autoMigrate: true });
+const stratum = new Stratum({ adminPool, pool, autoMigrate: true });
 
 // The tenant binding comes from a signed token, so the server does not start
 // without the key that verifies it.
