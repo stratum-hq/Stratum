@@ -203,6 +203,7 @@ export async function createPglitePool(source?: PGliteInterface | PGliteOptions)
  *
  * The returned pool shares the connection and the lock of `pool`. Each client
  * runs `SET ROLE` when it gets the connection and `RESET ROLE` at release.
+ * Its `end()` closes nothing; end the source pool instead.
  *
  * @param pool - A pool from {@link createPglitePool} that runs as the superuser.
  * @param options - The role name.
