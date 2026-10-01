@@ -127,7 +127,16 @@ The subtree scope has these rules:
 - **The bypass does not change.** A session with the RLS bypass reads every row, whatever the scope.
 - **The tree is the ID-based ancestry path.** A move to another parent changes the subtree at once. A slug rename does not change it.
 
-Stratum's own tables get the subtree policy from migration 031 of `@stratum-hq/lib`. For your own tables, ask `createPolicy` for the subtree policy:
+Migration 031 of `@stratum-hq/lib` adds the subtree policy to these Stratum tables:
+
+- `config_entries`, `permission_policies`, `abac_policies`, `roles` and `principal_roles`
+- `audit_logs`, `usage_events` and `consent_records`
+- `webhooks`, `webhook_events` and `webhook_deliveries`
+- `tenants`, so a parent also reads the registry rows of its descendants
+
+`api_keys` does not get the subtree policy. An API key row holds credential material, even though the key is hashed. Only the exact tenant reads its own `api_keys` rows, in every scope.
+
+For your own tables, ask `createPolicy` for the subtree policy:
 
 ```typescript
 import { createPolicy, enableRLS } from "@stratum-hq/db-adapters";

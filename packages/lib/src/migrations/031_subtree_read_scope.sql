@@ -9,7 +9,7 @@
 --     only through its context helpers (db-adapters setTenantContext and
 --     withTenantContext with { scope: 'subtree' }).
 --
--- Reads only. Each table gets a second permissive policy, tenant_subtree_read,
+-- Reads only. Each table below gets a second permissive policy, tenant_subtree_read,
 -- FOR SELECT. PostgreSQL ORs it with tenant_isolation for reads. INSERT,
 -- UPDATE and DELETE must also pass the policies for their own command, and
 -- tenant_isolation is the only one. Writes therefore stay limited to the exact
@@ -21,6 +21,10 @@
 -- Applications filter by status when they need to.
 --
 -- The bypass (app.bypass_rls = 'on') does not change: it sees every row.
+--
+-- api_keys gets no subtree policy. A key row holds credential material, even
+-- though it is hashed, so only the exact tenant reads it. Its 019 policy
+-- stays the only one.
 
 -- ---------------------------------------------------------------------------
 -- stratum_subtree_tenant_ids(): the current tenant and all its descendants.
@@ -136,13 +140,6 @@ CREATE POLICY tenant_subtree_read ON consent_records FOR SELECT
 
 DROP POLICY IF EXISTS tenant_subtree_read ON abac_policies;
 CREATE POLICY tenant_subtree_read ON abac_policies FOR SELECT
-  USING (
-    current_setting('app.tenant_scope', true) = 'subtree'
-    AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[])
-  );
-
-DROP POLICY IF EXISTS tenant_subtree_read ON api_keys;
-CREATE POLICY tenant_subtree_read ON api_keys FOR SELECT
   USING (
     current_setting('app.tenant_scope', true) = 'subtree'
     AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[])
