@@ -260,9 +260,10 @@ work on both themes. Variants live in `assets/brand/`:
 - `stratum-mark-tile.svg`: the mark on a `#120D0B` square tile (favicons, app
   icons).
 - `stratum-lockup.svg` / `stratum-lockup-stacked.svg` / `stratum-lockup-light.svg`:
-  mark plus the wordmark in Big Shoulders Display 900, horizontal, stacked, and
-  for light backgrounds. The wordmark is converted to outlines, so the files do
-  not depend on the font being installed.
+  mark plus the wordmark "Stratum" in mixed case, Big Shoulders Display 900,
+  horizontal, stacked, and for light backgrounds. The wordmark is never set
+  uppercase. It is converted to outlines, so the files do not depend on the
+  font being installed.
 
 Raster exports were regenerated from these SVGs for the Bedrock identity, in
 both `landing/public` and `website/public`: `favicon.ico` (16, 32, 48),
