@@ -17,7 +17,8 @@
     "test:integration": {
       "dependsOn": ["build"],
       "outputs": [],
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["MONGODB_URL", "MONGODB_TEST_DB", "MONGODB_RS_URL"]
     },
     "lint": {
       "outputs": []
