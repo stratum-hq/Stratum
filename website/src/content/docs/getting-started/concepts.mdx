@@ -68,7 +68,7 @@ When you call `resolveConfig(tenantId)`, Stratum walks up the ancestry path and 
 
 ### Locking
 
-A parent can **lock** a config key to prevent any descendant from overriding it. Attempting to set a locked key on a child tenant returns a `409 CONFIG_LOCKED` error.
+A parent can **lock** a config key to prevent any descendant from overriding it. Attempting to set a locked key on a child tenant returns a `403 CONFIG_LOCKED` error.
 
 <Aside type="tip">
   Use locking for security-critical settings that should be uniform across an

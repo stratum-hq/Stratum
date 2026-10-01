@@ -72,7 +72,7 @@ curl -X PUT http://localhost:3001/api/v1/tenants/TENANT_ID/config/batch \
   }'
 ```
 
-If any key is locked by an ancestor, the entire batch rolls back.
+If any key is locked by an ancestor, the entire batch rolls back and nothing is written. The API then answers `403 CONFIG_LOCKED`, with the per-key result in `error.details`.
 
 ## Resolving Config
 
@@ -124,7 +124,7 @@ await stratum.setConfig(rootId, "max_users", {
   locked: true,
 });
 
-// Child tries to override: fails with 409 CONFIG_LOCKED
+// Child tries to override: fails with ConfigLockedError (CONFIG_LOCKED, HTTP 403 from the API)
 try {
   await stratum.setConfig(childId, "max_users", { value: 500 });
 } catch (err) {
