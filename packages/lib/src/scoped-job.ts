@@ -1,6 +1,6 @@
 import type pg from "pg";
 import { runWithTenantContext } from "@stratum-hq/sdk";
-import { withTenantContext } from "@stratum-hq/db-adapters";
+import { withTenantContext, type TenantScope } from "@stratum-hq/db-adapters";
 import { IsolationStrategy } from "@stratum-hq/core";
 import type { ResolvedTenantContext } from "@stratum-hq/core";
 
@@ -26,6 +26,13 @@ export interface RunScopedJobOptions {
   resolve?: (
     tenantId: string,
   ) => ResolvedTenantContext | Promise<ResolvedTenantContext>;
+
+  /**
+   * The read scope of the job's client. "subtree" also lets the job read the
+   * rows of every descendant of the tenant (migration 031). Writes stay
+   * limited to the tenant. Default "exact".
+   */
+  scope?: TenantScope;
 }
 
 function placeholderContext(tenantId: string): ResolvedTenantContext {
@@ -70,7 +77,8 @@ function placeholderContext(tenantId: string): ResolvedTenantContext {
  * @param tenantId The tenant the job is confined to.
  * @param fn       The job body; receives the tenant-scoped client.
  * @param options  Optionally resolve the full ALS context (see
- *                 {@link RunScopedJobOptions.resolve}).
+ *                 {@link RunScopedJobOptions.resolve}) and set the read scope
+ *                 (see {@link RunScopedJobOptions.scope}).
  */
 export async function runScopedJob<T>(
   pool: pg.Pool,
@@ -82,6 +90,6 @@ export async function runScopedJob<T>(
     ? await options.resolve(tenantId)
     : placeholderContext(tenantId);
   return runWithTenantContext(context, () =>
-    withTenantContext(pool, tenantId, fn),
+    withTenantContext(pool, tenantId, fn, { scope: options.scope }),
   );
 }
