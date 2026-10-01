@@ -5,7 +5,13 @@ import { execSync } from "child_process";
 import { parsePresetString, isValidPreset, type StackPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
 import { STRATUM_RANGES } from "./stratum-versions.js";
-import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
+import {
+  postgresAppRole,
+  postgresAppRoleSql,
+  postgresStratumRole,
+  POSTGRES_APP_PASSWORD,
+  POSTGRES_STRATUM_PASSWORD,
+} from "./generators/init-sql.js";
 import { generateTsconfig } from "./generators/tsconfig.js";
 import {
   expressServer,
@@ -219,6 +225,9 @@ DATABASE_URL=postgres://${postgresAppRole(dbName)}:${POSTGRES_APP_PASSWORD}@loca
 
 # Superuser: bootstrap and migrations only. It bypasses row-level security.
 DATABASE_ADMIN_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}
+
+# Stratum's own login: the library's adminPool, which runs the Stratum migrations (see init.sql).
+STRATUM_ADMIN_DATABASE_URL=postgres://${postgresStratumRole(dbName)}:${POSTGRES_STRATUM_PASSWORD}@localhost:5432/${dbName}
 
 # Authentication
 JWT_SECRET=${jwtSecret}

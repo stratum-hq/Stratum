@@ -419,9 +419,12 @@ GRANT CONNECT, CREATE ON DATABASE stratum TO stratum_admin;
 GRANT USAGE, CREATE ON SCHEMA public TO stratum_admin;
 
 -- stratum_app: the application login (DATABASE_URL), without BYPASSRLS. It
--- creates and owns the application's own tables, and gets no privilege on the
--- tables stratum_admin creates: it is not a member of stratum_control, owns
--- nothing of Stratum's, and cannot write the Stratum tables. To let it read
+-- is not a member of stratum_control, owns nothing of Stratum's, and cannot
+-- write the Stratum tables. It cannot create objects in public, where the
+-- Stratum tables live: it creates and owns the application's own tables in
+-- its own schema, stratum_app, which is first on its default search path
+-- ("$user", public), so unqualified CREATE TABLE statements land there and
+-- unqualified names still find the Stratum tables in public. To let it read
 -- the recommended read list (tenants, config_entries, ...; never api_keys,
 -- webhooks or regions), run once the control plane has migrated:
 --   stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \\
@@ -429,7 +432,12 @@ GRANT USAGE, CREATE ON SCHEMA public TO stratum_admin;
 -- Default privileges cannot name tables, so they cannot grant that list.
 CREATE ROLE stratum_app WITH LOGIN PASSWORD 'stratum_dev' NOSUPERUSER NOBYPASSRLS;
 GRANT CONNECT ON DATABASE stratum TO stratum_app;
-GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
+GRANT USAGE ON SCHEMA public TO stratum_app;
+CREATE SCHEMA stratum_app AUTHORIZATION stratum_app;
+
+-- Only roles granted CREATE by name create objects in public. PostgreSQL 15
+-- and later already start this way; older versions grant it to PUBLIC.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 `, force);
 
   log.info("Set JWT_SECRET and STRATUM_REF (a Stratum release tag), then:");

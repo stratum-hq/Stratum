@@ -9,13 +9,28 @@ export function postgresAppRole(dbName: string): string {
 export const POSTGRES_APP_PASSWORD = "dev_app_password";
 
 /**
- * SQL that creates the role the application connects as. POSTGRES_USER is a
- * superuser, and a superuser (or any BYPASSRLS role) ignores every row-level
- * security policy, FORCE included. So the app gets its own role, and the
- * superuser is kept for bootstrap and migrations.
+ * Name of the login Stratum itself connects as: the library's adminPool,
+ * which runs the Stratum migrations. It is a member of the control role of
+ * @stratum-hq/lib migration 032, not a superuser.
+ */
+export function postgresStratumRole(dbName: string): string {
+  return `${dbName}_stratum`;
+}
+
+/** Local development password for the generated Stratum login. */
+export const POSTGRES_STRATUM_PASSWORD = "dev_stratum_password";
+
+/**
+ * SQL that creates the roles of the hardened role model of @stratum-hq/lib
+ * (the "Hardening: separate admin and app roles" guide), as docker/init-db.sql
+ * does. POSTGRES_USER is a superuser, and a superuser (or any BYPASSRLS
+ * role) ignores every row-level security policy, FORCE included. So the app
+ * gets its own role, Stratum gets its own login for its tables, and the
+ * superuser is kept for bootstrap and the application's own migrations.
  */
 export function postgresAppRoleSql(dbName: string, strategy?: string): string {
   const role = postgresAppRole(dbName);
+  const stratum = postgresStratumRole(dbName);
   let strategyGrant = "";
   if (strategy === "schema") {
     strategyGrant = `
@@ -29,15 +44,40 @@ ALTER ROLE ${role} CREATEDB;
 `;
   }
   return `
+-- Stratum's control role (migration 032 of @stratum-hq/lib). Every Stratum
+-- table gets a policy for it, and only its members reach rows across
+-- tenants.
+CREATE ROLE stratum_control NOLOGIN NOSUPERUSER NOBYPASSRLS;
+GRANT USAGE, CREATE ON SCHEMA public TO stratum_control;
+
+-- Stratum's own login: pass it to the library as adminPool, which runs the
+-- Stratum migrations, so it owns the Stratum tables. Not a superuser and no
+-- BYPASSRLS: it reaches them as a member of stratum_control. Do not run the
+-- Stratum migrations as the bootstrap superuser: the default privileges
+-- below would give the app role write access to the Stratum tables. If that
+-- happened, "stratum db roles --apply --app-role ${role}" removes it.
+CREATE ROLE ${stratum} WITH LOGIN PASSWORD '${POSTGRES_STRATUM_PASSWORD}' NOSUPERUSER NOBYPASSRLS;
+GRANT stratum_control TO ${stratum} WITH INHERIT TRUE, SET TRUE;
+GRANT CONNECT ON DATABASE ${dbName} TO ${stratum};
+GRANT USAGE, CREATE ON SCHEMA public TO ${stratum};
+
 -- Application role. The app connects as ${role} (DATABASE_URL), never as the
 -- bootstrap superuser (DATABASE_ADMIN_URL): a superuser or BYPASSRLS role
--- ignores every row-level security policy, FORCE included. Use the superuser
--- only for bootstrap and migrations.
+-- ignores every row-level security policy, FORCE included. It creates no
+-- objects in public: the superuser creates the application's tables (its
+-- migrations), and the app role reads and writes the ones the superuser
+-- creates. It gets nothing on the tables ${stratum} creates; to let it read
+-- Stratum's read list once Stratum has migrated, run:
+--   stratum db roles --apply --admin-role ${stratum} --app-role ${role}
 CREATE ROLE ${role} WITH LOGIN PASSWORD '${POSTGRES_APP_PASSWORD}' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
 GRANT CONNECT ON DATABASE ${dbName} TO ${role};
-GRANT USAGE, CREATE ON SCHEMA public TO ${role};
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role};
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${role};
+GRANT USAGE ON SCHEMA public TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${role};
+
+-- Only roles granted CREATE by name create objects in public. PostgreSQL 15
+-- and later already start this way; older versions grant it to PUBLIC.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ${strategyGrant}`;
 }
 

@@ -120,6 +120,27 @@ describe("generated postgres projects connect the app as a role that RLS applies
     );
   });
 
+  for (const preset of postgresPresets) {
+    it(`postgres-${preset.strategy} preset gives Stratum its own login and the app no CREATE on public`, () => {
+      const files = genPreset(preset);
+      const superuser = composeValue(files["docker-compose.yml"], "POSTGRES_USER");
+      const appUser = pgUser(envValue(files[".env.example"], "DATABASE_URL"));
+      const stratumUser = pgUser(envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL"));
+      const sql = files["init.sql"];
+      expect(stratumUser).not.toBe(superuser);
+      expect(stratumUser).not.toBe(appUser);
+      expect(sql).toMatch(new RegExp(`CREATE ROLE ${stratumUser} WITH LOGIN PASSWORD '[^']+' NOSUPERUSER NOBYPASSRLS;`));
+      expect(sql).toContain(`GRANT stratum_control TO ${stratumUser} WITH INHERIT TRUE, SET TRUE;`);
+      expect(sql).toContain(`GRANT USAGE ON SCHEMA public TO ${appUser};`);
+      expect(sql).not.toMatch(new RegExp(`GRANT [A-Z, ]*CREATE ON SCHEMA public TO ${appUser}`));
+      // Default privileges only for what the bootstrap superuser creates, never for every creator.
+      for (const line of sql.split("\n").filter((l) => l.startsWith("ALTER DEFAULT PRIVILEGES"))) {
+        expect(line).toContain(`ALTER DEFAULT PRIVILEGES FOR ROLE ${superuser} IN SCHEMA public`);
+      }
+      expect(sql).toContain("REVOKE CREATE ON SCHEMA public FROM PUBLIC;");
+    });
+  }
+
   it("rls preset init.sql tells the reader to FORCE row-level security", () => {
     const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "express" });
     expect(files["init.sql"]).toContain("FORCE ROW LEVEL SECURITY");
