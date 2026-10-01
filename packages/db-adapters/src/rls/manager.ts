@@ -62,18 +62,20 @@ export async function createPolicy(
     await assertSubtreeFunction(client);
   }
   // Read every policy on the table that the name resolves to, in whichever
-  // schema that is. PostgreSQL ORs permissive policies together, so each one
+  // schema that is. The caller's search path stays as it is (this may run in
+  // the caller's transaction), so every comparison here has an exact
+  // pg_catalog operator: the regclass lookups are cast to oid. PostgreSQL ORs permissive policies together, so each one
   // must filter by tenant, and a policy's name proves nothing.
   // Each row also carries the schema of the tenants table, the only schema
   // that may qualify the subtree function (migration 031 creates it there).
   const existing = await client.query<PolicyRow & { tenants_schema: string | null }>(
     `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check, p.roles::text[] AS roles,
             (SELECT tn.nspname FROM pg_class tc JOIN pg_namespace tn ON tn.oid = tc.relnamespace
-              WHERE tc.oid = to_regclass('tenants')) AS tenants_schema
+              WHERE tc.oid = pg_catalog.to_regclass('tenants')::pg_catalog.oid) AS tenants_schema
        FROM pg_policies p
        JOIN pg_class c ON c.relname = p.tablename
        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = p.schemaname
-      WHERE c.oid = to_regclass($1)`,
+      WHERE c.oid = pg_catalog.to_regclass($1::pg_catalog.text)::pg_catalog.oid`,
     [safe],
   );
   const issues = tablePolicyIssues(
@@ -137,7 +139,7 @@ export async function isRLSEnabled(
   const safe = validateTableName(tableName);
   // The table the name resolves to, in whichever schema that is.
   const res = await client.query<{ relrowsecurity: boolean }>(
-    `SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass($1)`,
+    `SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = pg_catalog.to_regclass($1::pg_catalog.text)::pg_catalog.oid`,
     [safe],
   );
   if (res.rows.length === 0) {
