@@ -11,7 +11,7 @@ import {
   dropDatabase,
   getDatabaseName,
 } from "@stratum-hq/db-adapters";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
@@ -31,7 +31,7 @@ const databaseSlugs: string[] = [];
 
 beforeAll(async () => {
   await runMigrations();
-  stratum = new Stratum({ pool: getPool() });
+  stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
 });
 
 afterEach(async () => {
@@ -58,12 +58,25 @@ async function withConn<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Provisioning runs on the library's pool, so the role that later purges the
+ * storage owns it. In admin mode (helpers/db.ts) that is the admin login.
+ */
+async function withProvisioningConn<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  const c = await (getAdminPool() ?? getPool()).connect();
+  try {
+    return await fn(c);
+  } finally {
+    c.release();
+  }
+}
+
 /** A provisioned, active SCHEMA_PER_TENANT tenant with one row of its own data. */
 async function schemaTenant() {
   const slug = uniqueSlug("a9s");
   schemaSlugs.push(slug);
   const t = await stratum.createTenant({ name: slug, slug, isolation_strategy: "SCHEMA_PER_TENANT" });
-  await withConn(async (c) => {
+  await withProvisioningConn(async (c) => {
     await createSchema(c, slug);
     await c.query(`CREATE TABLE ${tenantSchemaName(slug)}.note (body text)`);
     await c.query(`INSERT INTO ${tenantSchemaName(slug)}.note VALUES ('private')`);
@@ -76,7 +89,7 @@ async function databaseTenant() {
   const slug = uniqueSlug("a9d");
   databaseSlugs.push(slug);
   const t = await stratum.createTenant({ name: slug, slug, isolation_strategy: "DB_PER_TENANT" });
-  await withConn((c) => createDatabase(c, slug));
+  await withProvisioningConn((c) => createDatabase(c, slug));
   return stratum.activateTenant(t.id);
 }
 

@@ -112,6 +112,13 @@ beforeAll(async () => {
     await stratum.recordUsage(id, { metric: "calls", quantity: 1 });
     await stratum.grantConsent(id, { subject_id: `subj_${label}`, purpose: "analytics" });
     await stratum.createApiKey(id, `key_${label}`);
+    await stratum.createAbacPolicy(id, {
+      name: `abac_${label}`,
+      resource_type: "doc",
+      action: "read",
+      effect: "allow",
+      conditions: [],
+    });
   }
   await stratum.createRegion({ display_name: "Attack region", slug: "atk_region" });
 
@@ -154,7 +161,7 @@ describe("the application role with the recommended grants, legacy bypass off", 
       expect({ table, n: seen.rows[0].n }).toEqual({ table, n: own });
       if (table !== "webhook_events" && table !== "webhook_deliveries") {
         // The seed gives every other table rows of B too, so this check can fail.
-        expect(total.rows[0].n).toBeGreaterThan(own);
+        expect({ table, othersExist: total.rows[0].n > own }).toEqual({ table, othersExist: true });
       }
     }
     const tenants = await withBypassAndTenant(appPool, ids.a, (c) => c.query("SELECT id FROM tenants"));

@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import crypto from "node:crypto";
-import { Stratum } from "@stratum-hq/lib";
+import { Stratum, noopLogger } from "@stratum-hq/lib";
 import {
   getPool,
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 
 // Exercises the API key + role services against a REAL Postgres. These cover the
@@ -49,7 +50,7 @@ describe("API key service (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {
@@ -260,17 +261,39 @@ describe("API key service (integration)", () => {
     });
   });
 
-  describe("HMAC transparent upgrade", () => {
-    it("still validates a legacy SHA-256 key after a secret is set, and upgrades its stored hash to HMAC", async () => {
+  describe("legacy SHA-256 hashes once an HMAC secret is set", () => {
+    it("refuses a key stored with a SHA-256 hash and leaves its row unchanged", async () => {
       // Create while no secret is configured -> stored as SHA-256 (v1).
+      const tenant = await makeTenant("apikey_legacy_refused");
+      const created = await stratum.createApiKey(tenant.id, "legacy");
+      expect((await rawKeyRow(created.id)).hash_version).toBe(1);
+
+      process.env[HMAC_SECRET_ENV] = "refuse-secret";
+      expect(await stratum.validateApiKey(created.plaintext_key)).toBeNull();
+      const row = await rawKeyRow(created.id);
+      expect(row.hash_version).toBe(1);
+      expect(row.key_hash).toBe(sha256(created.plaintext_key));
+    });
+
+    it("refuses a SHA-256 key row written straight into api_keys", async () => {
+      const tenant = await makeTenant("apikey_legacy_written");
+      process.env[HMAC_SECRET_ENV] = "refuse-secret";
+      const plaintext = "sk_test_written_by_hand";
+      await getPool().query(
+        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name) VALUES ($1, $2, 'sk_test_', 'hand')`,
+        [tenant.id, sha256(plaintext)],
+      );
+      expect(await stratum.validateApiKey(plaintext)).toBeNull();
+    });
+
+    it("with allowLegacyKeyHashes, validates a SHA-256 key and upgrades its stored hash to HMAC", async () => {
       const tenant = await makeTenant("apikey_upgrade");
       const created = await stratum.createApiKey(tenant.id, "legacy");
       expect((await rawKeyRow(created.id)).hash_version).toBe(1);
 
-      // Now configure an HMAC secret and validate: the SHA-256 fallback must
-      // still match, and the row should be transparently re-hashed to HMAC (v2).
       process.env[HMAC_SECRET_ENV] = "upgrade-secret";
-      const result = await stratum.validateApiKey(created.plaintext_key);
+      const legacy = new Stratum({ pool: getPool(), adminPool: getAdminPool(), allowLegacyKeyHashes: true, logger: noopLogger });
+      const result = await legacy.validateApiKey(created.plaintext_key);
       expect(result).not.toBeNull();
       expect(result!.key_id).toBe(created.id);
 
@@ -280,6 +303,8 @@ describe("API key service (integration)", () => {
       expect(upgraded.key_hash).toBe(
         hmacSha256(created.plaintext_key, "upgrade-secret"),
       );
+      // Once upgraded, the key authenticates without the option too.
+      expect((await stratum.validateApiKey(created.plaintext_key))!.key_id).toBe(created.id);
     });
   });
 

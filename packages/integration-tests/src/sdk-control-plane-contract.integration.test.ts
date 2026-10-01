@@ -17,6 +17,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -41,7 +42,7 @@ let adminKey: string;
 describe("SDK against the real control plane (integration)", () => {
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     const cpApp: ControlPlaneApp = await import("../../control-plane/dist/app.js");
     cpDb = await import("../../control-plane/dist/db/connection.js");
     app = await cpApp.buildApp();

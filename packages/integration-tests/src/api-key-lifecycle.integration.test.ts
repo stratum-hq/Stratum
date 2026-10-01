@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import pg from "pg";
-import { Stratum } from "@stratum-hq/lib";
+import { Stratum, noopLogger } from "@stratum-hq/lib";
 import {
   getPool,
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -46,7 +47,7 @@ describe("API key lifecycle (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {
@@ -186,7 +187,8 @@ describe("API key lifecycle (integration)", () => {
       expect((await keyRow(key.id)).hash_version).toBe(1);
 
       process.env[HMAC_ENV_NAME] = "a8-upgrade-secret";
-      expect(await appStratum.validateApiKey(key.plaintext_key)).not.toBeNull();
+      const legacyStratum = new Stratum({ pool: appPool, allowLegacyKeyHashes: true, logger: noopLogger });
+      expect(await legacyStratum.validateApiKey(key.plaintext_key)).not.toBeNull();
       expect((await keyRow(key.id)).hash_version).toBe(2);
     });
   });
