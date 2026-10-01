@@ -596,8 +596,12 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
-    return traced("api_key.create", { tenant_id: tenantId }, async () => {
+  /**
+   * Creates an API key and returns its plaintext once.
+   * Pass `null` as tenantId to create a global key, which is not limited to one tenant.
+   */
+  createApiKey(tenantId: string | null, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
+    return traced("api_key.create", { tenant_id: tenantId ?? undefined }, async () => {
       const created = await apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
       if (audit) {
         await auditService.createAuditEntry(

@@ -66,7 +66,7 @@ export class StratumModule {
     return {
       module: StratumModule,
       providers: [clientProvider, optionsProvider, StratumGuard, { provide: APP_INTERCEPTOR, useClass: StratumContextInterceptor }],
-      exports: [STRATUM_CLIENT, StratumGuard],
+      exports: [STRATUM_CLIENT, STRATUM_OPTIONS, StratumGuard],
     };
   }
 
@@ -97,7 +97,7 @@ export class StratumModule {
       module: StratumModule,
       imports: asyncOptions.imports ?? [],
       providers: [optionsProvider, clientProvider, StratumGuard, { provide: APP_INTERCEPTOR, useClass: StratumContextInterceptor }],
-      exports: [STRATUM_CLIENT, StratumGuard],
+      exports: [STRATUM_CLIENT, STRATUM_OPTIONS, StratumGuard],
     };
   }
 }

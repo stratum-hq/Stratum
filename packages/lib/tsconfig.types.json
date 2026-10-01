@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "paths": {
+      "@stratum-hq/lib": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/__tests__/types/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

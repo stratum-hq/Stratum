@@ -63,7 +63,7 @@ const stratum = new Stratum({ pool, autoMigrate: true });
 await stratum.initialize();
 
 // MySQL adapter for application data
-const mysqlPool = mysql.createPool(process.env.MYSQL_URL);
+const mysqlPool = mysql.createPool(process.env.MYSQL_URL!);
 const adapter = new MysqlSharedAdapter({
   pool: mysqlPool,
   databaseName: "myapp",
@@ -283,7 +283,7 @@ Each tenant database gets its own connection pool. Tune `maxPools` and `idleTime
 ```typescript
 const adapter = new MysqlDatabaseAdapter({
   createPool: (uri) => mysql.createPool(uri),
-  baseUri: process.env.MYSQL_URL,
+  baseUri: process.env.MYSQL_URL!,
   maxPools: 50,          // max concurrent tenant pools (default: 20)
   idleTimeoutMs: 60000,  // close idle pools after 60s (default: 60000)
 });
