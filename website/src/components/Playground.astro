@@ -85,6 +85,11 @@
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
   }
 
+  /* The hidden attribute must win over the display rules below. */
+  .playground :global([hidden]) {
+    display: none !important;
+  }
+
   .pg-start {
     padding: 32px 24px;
     display: flex;
@@ -170,11 +175,11 @@
     background: var(--surface-0);
   }
 
-  .tour-steps li {
+  .tour-steps :global(li) {
     margin: 0;
   }
 
-  .step-btn {
+  .tour-steps :global(.step-btn) {
     all: unset;
     box-sizing: border-box;
     display: block;
@@ -187,28 +192,28 @@
     border-left: 2px solid transparent;
   }
 
-  .step-btn:hover {
+  .tour-steps :global(.step-btn:hover) {
     color: var(--text-primary);
   }
 
-  .step-btn.current {
+  .tour-steps :global(.step-btn.current) {
     color: var(--accent);
     border-left-color: var(--accent);
     font-weight: 600;
   }
 
-  .step-btn.done::after {
+  .tour-steps :global(.step-btn.done::after) {
     content: " (done)";
     color: var(--success);
     font-weight: 400;
   }
 
-  .step-btn:disabled {
+  .tour-steps :global(.step-btn:disabled) {
     cursor: not-allowed;
     opacity: 0.6;
   }
 
-  .step-btn:focus-visible {
+  .tour-steps :global(.step-btn:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
@@ -270,7 +275,7 @@
   }
 
   .tree,
-  .tree ul {
+  .tree :global(ul) {
     list-style: none;
     margin: 0;
     padding-left: 14px;
@@ -281,23 +286,23 @@
     padding-left: 0;
   }
 
-  .tree li {
+  .tree :global(li) {
     margin: 2px 0;
   }
 
-  .tree-node {
+  .tree :global(.tree-node) {
     all: unset;
     cursor: pointer;
     padding: 1px 4px;
     border-radius: 3px;
   }
 
-  .tree-node.selected {
+  .tree :global(.tree-node.selected) {
     background: var(--surface-2);
     color: var(--accent);
   }
 
-  .tree-node:focus-visible {
+  .tree :global(.tree-node:focus-visible) {
     outline: 2px solid var(--accent);
   }
 
@@ -308,20 +313,20 @@
     font-size: 0.75rem;
   }
 
-  .inspector caption {
+  .inspector :global(caption) {
     text-align: left;
     font-weight: 600;
     padding-bottom: 4px;
   }
 
-  .inspector th,
-  .inspector td {
+  .inspector :global(th),
+  .inspector :global(td) {
     text-align: left;
     padding: 3px 6px;
     border-bottom: 1px solid var(--border);
   }
 
-  .badge {
+  .inspector :global(.badge) {
     display: inline-block;
     padding: 0 6px;
     border-radius: 3px;
@@ -330,12 +335,12 @@
     border: 1px solid var(--border-hover);
   }
 
-  .badge-locked {
+  .inspector :global(.badge-locked) {
     color: var(--error);
     border-color: var(--error);
   }
 
-  .badge-delegated {
+  .inspector :global(.badge-delegated) {
     color: var(--success);
     border-color: var(--success);
   }
@@ -473,7 +478,7 @@
     color: var(--error);
   }
 
-  .output-dim {
+  .playground :global(.output-dim) {
     color: var(--text-tertiary);
   }
 
@@ -554,7 +559,9 @@ const startBtn = $<HTMLButtonElement>("start-btn");
 
 function setStatus(message: string, type = "") {
   statusEl.textContent = message;
-  statusEl.className = "playground-status" + (type ? " status-" + type : "");
+  // classList keeps the class that Astro adds to scope the component styles.
+  statusEl.classList.remove("status-ready", "status-error", "status-running");
+  if (type) statusEl.classList.add("status-" + type);
 }
 
 function formatArg(arg: unknown): string {
@@ -766,7 +773,7 @@ stepRunBtn.addEventListener("click", async () => {
     if (!(await runTourStep(index))) break;
   }
   if (tour.current < TOUR_STEPS.length - 1 && tour.done > tour.current) tour.current += 1;
-  if (statusEl.className.indexOf("status-error") === -1) setStatus("Step done. Select a tenant in the tree to inspect it.", "ready");
+  if (!statusEl.classList.contains("status-error")) setStatus("Step done. Select a tenant in the tree to inspect it.", "ready");
   renderSteps();
 });
 
