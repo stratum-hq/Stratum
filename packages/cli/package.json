@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@stratum-hq/core": "^1.5.1",
+    "@stratum-hq/db-adapters": "^1.4.0",
     "@stratum-hq/lib": "^1.7.0",
     "pg": "^8.11.0"
   },
