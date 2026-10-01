@@ -16,6 +16,8 @@ interface SchemaLike {
 
 interface MongooseDocumentLike {
   tenant_id?: string;
+  isNew?: boolean;
+  $where?: Record<string, unknown>;
 }
 
 interface MongooseQueryLike {
@@ -200,8 +202,15 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
   // Set tenant_id before validation, because the field is required and
   // Mongoose validates before the pre-save hooks of the schema run. The
   // pre-save hook also sets it, for a save() with validateBeforeSave: false.
+  // save() of an existing document updates it by _id through the driver, so
+  // the query hooks do not run. The tenant is added to that update filter
+  // with $where, so a document of another tenant is not matched and save()
+  // fails with a DocumentNotFoundError.
   schema.pre(["validate", "save"], function (this: unknown) {
-    (this as MongooseDocumentLike).tenant_id = getTenantContext().tenant_id;
+    const doc = this as MongooseDocumentLike;
+    const tenantId = getTenantContext().tenant_id;
+    doc.tenant_id = tenantId;
+    if (!doc.isNew) doc.$where = { ...doc.$where, tenant_id: tenantId };
   });
 
   // Pre-find/query hooks: merge tenant_id into the query filter

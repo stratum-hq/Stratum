@@ -464,20 +464,51 @@ async function checkExpiredApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
+/**
+ * Checks STRATUM_ENCRYPTION_KEY and STRATUM_HKDF_SALT against the rules that
+ * @stratum-hq/lib applies when it loads. Outside development and test (an
+ * unset NODE_ENV counts as development), lib refuses to start when a rule is
+ * broken, so the check fails. In development and test it warns.
+ */
 function checkEncryptionKey(): CheckResult {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const strict = nodeEnv !== "development" && nodeEnv !== "test";
   const key = process.env.STRATUM_ENCRYPTION_KEY;
-  if (key && key.length > 0) {
+  const salt = process.env.STRATUM_HKDF_SALT;
+  const issues: string[] = [];
+  if (!key) {
+    issues.push("STRATUM_ENCRYPTION_KEY must be set");
+  } else if (key === "stratum-dev-key") {
+    issues.push("STRATUM_ENCRYPTION_KEY is the built-in development key");
+  } else if (Buffer.byteLength(key, "utf8") < 32) {
+    issues.push("STRATUM_ENCRYPTION_KEY must be at least 32 bytes");
+  }
+  if (!salt) {
+    issues.push("STRATUM_HKDF_SALT must be set");
+  } else if (!/^(?:[0-9a-fA-F]{2})+$/.test(salt)) {
+    issues.push("STRATUM_HKDF_SALT must be a non-empty, even-length hex string");
+  } else if (Buffer.from(salt, "hex").equals(Buffer.from("stratum-non-production-hkdf-salt-v1", "utf8"))) {
+    issues.push("STRATUM_HKDF_SALT is the built-in development salt");
+  }
+  if (issues.length === 0) {
+    return { status: "pass", label: "Encryption key", summary: "Configured" };
+  }
+  if (strict) {
     return {
-      status: "pass",
+      status: "fail",
       label: "Encryption key",
-      summary: "Configured",
+      summary: `Stratum refuses to start in ${nodeEnv}`,
+      details: issues,
     };
   }
   return {
     status: "warn",
     label: "Encryption key",
-    summary: "STRATUM_ENCRYPTION_KEY env var not set",
-    details: ["Sensitive config values will not be encrypted at rest"],
+    summary: "Not valid outside development and test",
+    details: [
+      ...issues,
+      ...(key ? [] : ["Sensitive config values are encrypted with the built-in development key"]),
+    ],
   };
 }
 

@@ -32,6 +32,19 @@ export interface CreatedApiKey {
 const HASH_V1_SHA256 = 1;
 const HASH_V2_HMAC = 2;
 
+// The shortest STRATUM_API_KEY_HMAC_SECRET accepted outside development and
+// test (an unset NODE_ENV counts as development), checked when the module
+// loads, like STRATUM_ENCRYPTION_KEY in crypto.ts.
+const MIN_HMAC_SECRET_BYTES = 32;
+(() => {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  if (nodeEnv === "development" || nodeEnv === "test") return;
+  const secret = process.env.STRATUM_API_KEY_HMAC_SECRET;
+  if (secret && Buffer.byteLength(secret, "utf8") < MIN_HMAC_SECRET_BYTES) {
+    throw new Error(`STRATUM_API_KEY_HMAC_SECRET must be at least ${MIN_HMAC_SECRET_BYTES} bytes in ${nodeEnv}`);
+  }
+})();
+
 function getHmacSecret(): string | undefined {
   return process.env.STRATUM_API_KEY_HMAC_SECRET;
 }
