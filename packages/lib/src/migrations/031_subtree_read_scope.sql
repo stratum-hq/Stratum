@@ -10,11 +10,11 @@
 --     withTenantContext with { scope: 'subtree' }).
 --
 -- Reads only. Each table gets a second permissive policy, tenant_subtree_read,
--- FOR SELECT. PostgreSQL ORs it with tenant_isolation for SELECT only. INSERT,
--- UPDATE and DELETE still use tenant_isolation alone, so writes stay limited to
--- the exact tenant: an insert for a descendant fails WITH CHECK, and UPDATE and
--- DELETE do not reach a descendant's rows. The 019 and 020 policies do not
--- change.
+-- FOR SELECT. PostgreSQL ORs it with tenant_isolation for reads. INSERT,
+-- UPDATE and DELETE must also pass the policies for their own command, and
+-- tenant_isolation is the only one. Writes therefore stay limited to the exact
+-- tenant: an insert for a descendant fails WITH CHECK, and UPDATE and DELETE
+-- do not reach a descendant's rows. The 019 and 020 policies do not change.
 --
 -- Tenant status does not affect the scope. Suspended, archived and pending
 -- descendants are in the subtree, as exact-tenant RLS ignores status too.
