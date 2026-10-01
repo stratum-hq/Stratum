@@ -19,6 +19,7 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/.astro/**",
       "scripts/generated/**",
+      "packages/db-adapters/test-fixtures/**",
       "assets/brand/Stratum Design System * Strata/**",
     ],
   },
