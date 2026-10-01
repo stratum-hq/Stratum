@@ -95,7 +95,7 @@ CREATE INDEX idx_orders_tenant ON orders (tenant_id, created_at DESC);
 -- FORCE included. The app connects as stratum_app, which has neither.
 CREATE ROLE stratum_app LOGIN PASSWORD 'stratum_app_dev' NOSUPERUSER NOBYPASSRLS;
 GRANT CONNECT ON DATABASE stratum TO stratum_app;
-GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
+GRANT USAGE ON SCHEMA public TO stratum_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO stratum_app;
 ```
 
