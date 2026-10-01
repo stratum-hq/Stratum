@@ -56,8 +56,7 @@ function pack(dir: string, dest: string): string {
  * A direct dependency gets the tarball as its spec. Every Stratum package also
  * gets an override, so that a Stratum package resolves its own Stratum
  * dependencies to the tarballs too. The project keeps its set of direct
- * dependencies, so a type check still finds an import that the project does
- * not declare. Call it before the install. The tarballs go to `packDir`.
+ * dependencies. Call it before the install. The tarballs go to `packDir`.
  */
 export function useWorkspaceStratumPackages(projectDir: string, packDir: string): void {
   const dirs = workspaceDirs();
