@@ -64,9 +64,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     allowLegacyKeyHashes: config.allowLegacyKeyHashes,
     keyPrefix: config.nodeEnv === "production" ? "sk_live_" : "sk_test_",
   });
+  // Checks the logins against the role model and logs each problem: both
+  // logins with DATABASE_ADMIN_URL, else whether the DATABASE_URL login is a
+  // member of the control role. Migrations run separately (db/migrate.ts).
   if (adminPool) {
-    // Checks both logins against the role model and logs each problem.
     await stratum.initialize();
+  } else {
+    // As before 1.8, the server starts without the admin login even when
+    // the check cannot read the database yet.
+    await stratum.initialize().catch((err: unknown) => {
+      app.log.warn(`Could not check the database role model: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   await app.register(helmet, {

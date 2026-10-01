@@ -33,6 +33,8 @@ vi.mock("@stratum-hq/lib", () => {
       return new Proxy(this, {
         get(_target, prop) {
           if (prop === "then") return undefined;
+          // buildApp() checks the role model once at startup.
+          if (prop === "initialize") return async () => undefined;
           if (prop === "validateApiKey") {
             return async () => ({
               key_id: "operator-key",
