@@ -13,8 +13,8 @@ import {
  *
  * The control-plane deny matrix proves the HTTP authorization boundary. These
  * cells prove the boundaries the middleware cannot: that the library's own
- * subtree resolution — getDescendants, resolveConfig, resolvePermissions and
- * CASCADE revocation — does not leak across an MSP-to-MSP boundary, and stays
+ * subtree resolution (getDescendants, resolveConfig, resolvePermissions and
+ * CASCADE revocation) does not leak across an MSP-to-MSP boundary, and stays
  * correct after a slug rename. The existing cascade/descendants suites assert
  * the POSITIVE direction (an effect reaches the intended subtree); these assert
  * the NEGATIVE direction (the same effect never reaches an unrelated tenant).

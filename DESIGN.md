@@ -17,7 +17,7 @@ where something is reacting), and one sealed color (ochre) that means exactly
 one thing. It keeps Core Sample's grammar (the depth rail, the inheritance-flow
 signature, the one-accent discipline) and recolors it warm, dark first, and
 quiet. This is a *third* direction, not a reversion to the retired "geological
-warmth" palette that used a lifestyle-cream and terracotta combination — this
+warmth" palette that used a lifestyle-cream and terracotta combination; this
 repo's own earlier identity work called that combination "the most common
 AI-default aesthetic in circulation." Strata uses deep, quarried grounds
 instead of cream, and a single restrained accent rather than a second brand
@@ -87,7 +87,7 @@ font.
 
 | Role | Token | Family | Used for |
 |---|---|---|---|
-| Display | `--font-display` | Libre Franklin, weight 700 to 900 | Short, loud statements only: the hero headline and section headings. A neutral American grotesque, not expanded — engineering-neutral rather than industrial signage. |
+| Display | `--font-display` | Libre Franklin, weight 700 to 900 | Short, loud statements only: the hero headline and section headings. A neutral American grotesque, not expanded: engineering-neutral rather than industrial signage. |
 | Body | `--font-body` | IBM Plex Sans | All prose. A humanist sans with real engineering heritage, strong on screen legibility, and tabular figures that keep data dense tables aligned. |
 | Structural | `--font-mono` | IBM Plex Mono | Labels, eyebrows, depth markers, data readouts, the wordmark, the stratigraphic rail, and code. Coheres with Plex Sans as one superfamily. This is where the "tool for engineers" signal lives. |
 
@@ -206,11 +206,11 @@ The mark is three horizontal strokes of decreasing length and increasing
 "depth" (marl/loam text tone → silt → ember), evoking sediment layers and the
 tenant hierarchy simultaneously. Variants live in `assets/brand/`:
 
-- `stratum-mark.svg` / `stratum-mark-light.svg` — the three-stroke mark alone,
+- `stratum-mark.svg` / `stratum-mark-light.svg`: the three-stroke mark alone,
   for dark and light backgrounds respectively.
-- `stratum-mark-tile.svg` — square tile variant (favicons, app icons).
-- `stratum-lockup.svg` / `stratum-lockup-stacked.svg` / `stratum-lockup-light.svg`
-  — mark plus wordmark, horizontal, stacked, and light-background variants.
+- `stratum-mark-tile.svg`: square tile variant (favicons, app icons).
+- `stratum-lockup.svg` / `stratum-lockup-stacked.svg` / `stratum-lockup-light.svg`:
+  mark plus wordmark, horizontal, stacked, and light-background variants.
 
 No raster (PNG/ICO) exports were regenerated as part of the Strata retheme;
 `favicon.svg` was updated on both sites, but `favicon.ico`, the PNG favicons,

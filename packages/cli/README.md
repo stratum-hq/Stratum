@@ -1,6 +1,6 @@
 # @stratum-hq/cli
 
-Command-line tool for integrating [Stratum](https://github.com/stratum-hq/Stratum) into existing projects — detects your framework, generates boilerplate, checks database readiness, and migrates tables to tenant isolation.
+Command-line tool for integrating [Stratum](https://github.com/stratum-hq/Stratum) into existing projects. It detects your framework, generates boilerplate, checks database readiness, and migrates tables to tenant isolation.
 
 ## Installation
 

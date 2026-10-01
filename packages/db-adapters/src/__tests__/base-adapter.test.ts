@@ -232,7 +232,7 @@ describe("BaseAdapter", () => {
         return { rows: [] };
       });
 
-      // The queryFn throws — we want the original error, but ROLLBACK also throws.
+      // The queryFn throws. We want the original error, but ROLLBACK also throws.
       // In the current implementation, ROLLBACK failure replaces the original error
       // because there's no catch around ROLLBACK. Let's verify behavior:
       await expect(

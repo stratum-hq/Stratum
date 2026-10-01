@@ -80,7 +80,7 @@ export class StratumGuard implements CanActivate {
     req["tenant"] = callerContext;
     req["impersonating"] = false;
 
-    // 3. Impersonation support — mirrors express.ts
+    // 3. Impersonation support (mirrors express.ts)
     if (this.options.impersonation?.enabled) {
       const impersonateHeader = this.options.impersonation.headerName ?? "X-Impersonate-Tenant";
       const headers = req.headers as Record<string, string | string[] | undefined> | undefined;

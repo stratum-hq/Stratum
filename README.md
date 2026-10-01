@@ -8,7 +8,7 @@
 <h1 align="center">Stratum</h1>
 
 <p align="center">
-  <strong>Drop-in multi-tenancy for Node.js</strong> — tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.
+  <strong>Drop-in multi-tenancy for Node.js</strong>: tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ Stratum gives you hierarchical multi-tenancy with config inheritance, permission
 
 ## Why not just `tenant_id`?
 
-Every SaaS team starts with `tenant_id` on every table. It works — until it doesn't:
+Every SaaS team starts with `tenant_id` on every table. It works, until it doesn't:
 
 - **Month 6**: Enterprise customer needs custom config → hand-rolled config tables with no inheritance
 - **Month 12**: Compliance audit → scramble to add audit logging, data export, purge capabilities
@@ -61,7 +61,7 @@ const config = await stratum.resolveConfig(org.id);
 console.log(config.seat_limit.value); // 25
 ```
 
-That's it. `autoMigrate: true` creates all tables on first run — no CLI, no migrations, no Docker required (just a PostgreSQL connection string).
+That's it. `autoMigrate: true` creates all tables on first run. No CLI, no migrations, no Docker required (just a PostgreSQL connection string).
 
 ### Growing into hierarchy
 
@@ -71,7 +71,7 @@ When you're ready for parent/child tenants, config inheritance, and permission d
 const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar" });
 const customer = await stratum.createTenant({ name: "Acme Corp", slug: "acme", parent_id: msp.id });
 
-// Config flows root → leaf — children inherit automatically
+// Config flows root → leaf; children inherit automatically
 await stratum.setConfig(msp.id, "max_seats", { value: 500, locked: true });
 const config = await stratum.resolveConfig(customer.id);
 // → { max_seats: { value: 500, inherited: true, locked: true } }
@@ -113,40 +113,40 @@ npm install -g @stratum-hq/cli
 | Package | What it does |
 |---------|-------------|
 | `@stratum-hq/core` | Shared types, Zod schemas, error classes |
-| `@stratum-hq/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
+| `@stratum-hq/lib` | Direct library: tenants, config, permissions, ABAC, audit, GDPR |
 | `@stratum-hq/control-plane` | Fastify v5 REST API with auth, scopes, OTel, Redis rate limiting |
 | `@stratum-hq/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `@stratum-hq/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
-| `@stratum-hq/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
-| `@stratum-hq/mysql` | MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize integrations |
-| `@stratum-hq/react` | React components — tenant tree, config editor, permission editor |
-| `@stratum-hq/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
-| `@stratum-hq/nestjs` | NestJS integration — guard, `@Tenant()` decorator, module with DI |
-| `@stratum-hq/hono` | Hono middleware — tenant extraction, ALS context |
+| `@stratum-hq/db-adapters` | PostgreSQL adapters: raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
+| `@stratum-hq/mongodb` | MongoDB tenant isolation: shared collection, collection-per-tenant, database-per-tenant |
+| `@stratum-hq/mysql` | MySQL tenant isolation: shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize integrations |
+| `@stratum-hq/react` | React components: tenant tree, config editor, permission editor |
+| `@stratum-hq/cli` | CLI: `init`, `migrate`, `scaffold`, `doctor` |
+| `@stratum-hq/nestjs` | NestJS integration: guard, `@Tenant()` decorator, module with DI |
+| `@stratum-hq/hono` | Hono middleware: tenant extraction, ALS context |
 | `@stratum-hq/test-utils` | Cross-tenant isolation test helpers |
-| `@stratum-hq/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
+| `@stratum-hq/create` | Project scaffolding: `npx @stratum-hq/create my-app` |
 
 ## Key Features
 
-- **Tenant hierarchy** — tree structure with ltree, advisory locks, max depth 20
-- **Config inheritance** — values flow root→leaf, parents can lock keys
-- **Permission delegation** — LOCKED / INHERITED / DELEGATED modes with cascade revocation
-- **ABAC** — attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
-- **Three PostgreSQL isolation strategies** — shared RLS, schema-per-tenant, database-per-tenant
-- **MongoDB isolation** — shared collection, collection-per-tenant, database-per-tenant with Mongoose plugin
-- **MySQL isolation** — shared table, table-per-tenant, database-per-tenant with TypeORM, Knex, and Sequelize integrations
-- **Field-level encryption** — AES-256-GCM with key rotation
-- **Audit logging** — every mutation with actor identity and before/after state
-- **GDPR compliance** — data export (Article 20) and hard purge (Article 17)
-- **Webhooks** — lifecycle events with HMAC signatures, retry, DLQ
-- **RBAC** — scoped API keys (read/write/admin) with role assignments
-- **Multi-region** — region CRUD with tenant migration
-- **OpenTelemetry** — optional distributed tracing (zero overhead when disabled)
-- **Redis rate limiting** — per-key sliding window, fail-open when Redis unavailable
-- **Config diff** — compare resolved config between any two tenants
-- **Tenant impersonation** — resolve full context for admin tooling
-- **Design system** — CSS custom properties, dark mode, i18n, Storybook
-- **700+ unit tests + 20 integration tests** — validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
+- **Tenant hierarchy**: tree structure with ltree, advisory locks
+- **Config inheritance**: values flow root→leaf, parents can lock keys
+- **Permission delegation**: LOCKED / INHERITED / DELEGATED modes with cascade revocation
+- **ABAC**: attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
+- **Three PostgreSQL isolation strategies**: shared RLS, schema-per-tenant, database-per-tenant
+- **MongoDB isolation**: shared collection, collection-per-tenant, database-per-tenant with Mongoose plugin
+- **MySQL isolation**: shared table, table-per-tenant, database-per-tenant with TypeORM, Knex, and Sequelize integrations
+- **Field-level encryption**: AES-256-GCM with key rotation
+- **Audit logging**: every mutation with actor identity and before/after state
+- **GDPR compliance**: data export (Article 20) and hard purge (Article 17)
+- **Webhooks**: lifecycle events with HMAC signatures, retry, DLQ
+- **RBAC**: scoped API keys (read/write/admin) with role assignments
+- **Multi-region**: region CRUD with tenant migration
+- **OpenTelemetry**: optional distributed tracing (zero overhead when disabled)
+- **Redis rate limiting**: per-key sliding window, fail-open when Redis unavailable
+- **Config diff**: compare resolved config between any two tenants
+- **Tenant impersonation**: resolve full context for admin tooling
+- **Design system**: CSS custom properties, dark mode, i18n, Storybook
+- **700+ unit tests + 20 integration tests**, validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
 
 ## Running the Demo
 
@@ -197,7 +197,7 @@ DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test 
 | `DATABASE_URL` | PostgreSQL connection string |
 | `JWT_SECRET` | JWT signing secret (**required** whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder) |
 | `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field encryption (**required**, with `STRATUM_HKDF_SALT`, whenever `NODE_ENV` is not `development` or `test`) |
-| `REDIS_URL` | Optional — enables distributed rate limiting |
+| `REDIS_URL` | Optional; enables distributed rate limiting |
 | `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
 
 See the [docs site](website/src/content/docs/getting-started/installation.mdx) for the full list.
@@ -233,15 +233,15 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
 
 Stratum is in active development toward a stable 1.0. Near-term focus:
 
-- **v0.3.0 on npm** — ship the current changelog (security hardening, ABAC, Stack Wizard, MongoDB/MySQL isolation) to the registry
-- **5-minute demo** — recorded walkthrough: scaffold → tenant hierarchy → locked config inheritance → GDPR purge
-- **Live showcase** — a hosted white-label MSP portal built entirely on Stratum
-- **Comparisons** — honest "Stratum vs X" docs: hand-rolled `tenant_id`, auth-level organizations, tenant databases, authz engines
-- **Starter template** — Next.js SaaS starter with Stratum pre-wired
-- **`@stratum-hq/control-plane` docs** — dedicated package page and deployment guide
+- **v0.3.0 on npm**: ship the current changelog (security hardening, ABAC, Stack Wizard, MongoDB/MySQL isolation) to the registry
+- **5-minute demo**: recorded walkthrough: scaffold → tenant hierarchy → locked config inheritance → GDPR purge
+- **Live showcase**: a hosted white-label MSP portal built entirely on Stratum
+- **Comparisons**: honest "Stratum vs X" docs: hand-rolled `tenant_id`, auth-level organizations, tenant databases, authz engines
+- **Starter template**: Next.js SaaS starter with Stratum pre-wired
+- **`@stratum-hq/control-plane` docs**: dedicated package page and deployment guide
 
 Have a use case we should prioritize? [Open an issue](https://github.com/stratum-hq/Stratum/issues).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

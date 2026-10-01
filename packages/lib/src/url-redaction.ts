@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-// scheme://[userinfo@]host[:port]path — the same expression migration 030 uses,
+// scheme://[userinfo@]host[:port]path, the same expression migration 030 uses,
 // applied to the raw string so the write path and the migration agree exactly.
 const SCHEME_AUTHORITY_PATH = /^([A-Za-z][A-Za-z0-9+.-]*:\/\/)(?:[^/?#]*@)?([^/?#]*)([^?#]*)/;
 // A value already in redacted form is kept, so redaction is idempotent.

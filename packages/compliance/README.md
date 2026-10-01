@@ -4,9 +4,9 @@ A content-free compliance **kernel** for [Stratum](https://github.com/stratum-hq
 
 It gives you three things:
 
-1. **Coverage scoring** — diff a declared baseline against a resolved state and get a per-control breakdown plus a 0 to 100 score.
-2. **A finding state machine** — a pure decision for whether a new evaluation outcome should open, resolve, or leave a finding alone.
-3. **A control type vocabulary** — structural interfaces for describing a catalog of controls.
+1. **Coverage scoring:** diff a declared baseline against a resolved state and get a per-control breakdown plus a 0 to 100 score.
+2. **A finding state machine:** a pure decision for whether a new evaluation outcome should open, resolve, or leave a finding alone.
+3. **A control type vocabulary:** structural interfaces for describing a catalog of controls.
 
 > [!NOTE]
 > This is **not** a batteries-included compliance solution. It ships no frameworks, no controls, no provider mappings, and no thresholds. **Bring your own catalog:** you supply the content and the persistence; this package supplies the arithmetic and the shapes.
@@ -42,7 +42,7 @@ const result = scoreCoverage(baseline, resolved);
 ```
 
 - `status` is `"compliant"` (matches), `"drift"` (present but wrong), or `"missing"` (no own resolved entry for that key).
-- `score` is `round(compliant / total * 100)`. An **empty baseline scores 100** — nothing is required, so nothing is out of compliance.
+- `score` is `round(compliant / total * 100)`. An **empty baseline scores 100**. Nothing is required, so nothing is out of compliance.
 
 ### Equality
 
@@ -57,16 +57,16 @@ looseEqual(true, "true"); // => true
 
 ## Finding state machine
 
-`reconcileFinding` decides what should happen to a control's finding when a new evaluation outcome arrives. It is a pure decision — you persist the result.
+`reconcileFinding` decides what should happen to a control's finding when a new evaluation outcome arrives. It is a pure decision; you persist the result.
 
 ```typescript
 import { reconcileFinding } from "@stratum-hq/compliance";
 
-reconcileFinding("fail", "none"); // { type: "open" }    — new gap
-reconcileFinding("fail", "open"); // { type: "noop" }    — already tracked
-reconcileFinding("pass", "open"); // { type: "resolve" } — gap closed
-reconcileFinding("pass", "accepted"); // { type: "noop" } — accepted risk untouched
-reconcileFinding("na", "open"); // { type: "noop" }      — na/error never change a finding
+reconcileFinding("fail", "none"); // { type: "open" }    (new gap)
+reconcileFinding("fail", "open"); // { type: "noop" }    (already tracked)
+reconcileFinding("pass", "open"); // { type: "resolve" } (gap closed)
+reconcileFinding("pass", "accepted"); // { type: "noop" } (accepted risk untouched)
+reconcileFinding("na", "open"); // { type: "noop" }      (na/error never change a finding)
 ```
 
 The rules:
@@ -75,7 +75,7 @@ The rules:
 - `pass` **resolves** an active finding (`open` / `remediating`), and leaves an `accepted` finding untouched; otherwise there is nothing to resolve.
 - `na` and `error` are always no-ops.
 
-Map `{ type: "open" }` and `{ type: "resolve" }` onto your own inserts and updates — the state machine has no opinion about storage.
+Map `{ type: "open" }` and `{ type: "resolve" }` onto your own inserts and updates. The state machine has no opinion about storage.
 
 ## Type vocabulary
 

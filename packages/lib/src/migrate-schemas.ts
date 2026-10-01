@@ -167,7 +167,7 @@ function hashSchemaLock(schema: string): number {
 }
 
 function quoteIdent(name: string): string {
-  // Simple identifier quoting — disallow anything that could break out
+  // Simple identifier quoting: disallow anything that could break out
   if (!/^[a-z_][a-z0-9_]*$/i.test(name)) {
     throw new Error(`Invalid schema name: ${name}`);
   }

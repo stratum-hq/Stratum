@@ -1,7 +1,7 @@
 {
   "name": "@stratum-hq/cli",
   "version": "0.8.0",
-  "description": "Stratum CLI — project scaffolding, database migration, and developer tools",
+  "description": "Stratum CLI: project scaffolding, database migration, and developer tools",
   "keywords": [
     "multi-tenancy",
     "multi-tenant",

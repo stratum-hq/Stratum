@@ -86,23 +86,23 @@ npx drizzle-kit push
 function getStrategyDescription(strategy: string): string {
   switch (strategy) {
     case "rls":
-      return `- **Row-Level Security** -- PostgreSQL RLS policies filter rows by tenant automatically
+      return `- **Row-Level Security**: PostgreSQL RLS policies filter rows by tenant automatically
 - Each query sets \`app.current_tenant_id\` and RLS enforces isolation
 - All tenants share one database and schema`;
     case "schema":
-      return `- **Schema-per-tenant** -- each tenant gets a dedicated PostgreSQL schema
+      return `- **Schema-per-tenant**: each tenant gets a dedicated PostgreSQL schema
 - Queries are routed to the correct schema via search_path
 - Shared database, isolated schemas`;
     case "database":
-      return `- **Database-per-tenant** -- each tenant gets a fully isolated database
+      return `- **Database-per-tenant**: each tenant gets a fully isolated database
 - Connection routing directs queries to the correct database
 - Maximum isolation at the cost of more resource usage`;
     case "collection":
-      return `- **Collection-per-tenant** -- each tenant gets dedicated MongoDB collections
+      return `- **Collection-per-tenant**: each tenant gets dedicated MongoDB collections
 - Collection names are prefixed or namespaced by tenant ID
 - Shared database, isolated collections`;
     case "table-prefix":
-      return `- **Table-prefix** -- tenant-specific tables with a naming prefix
+      return `- **Table-prefix**: tenant-specific tables with a naming prefix
 - Tables are prefixed with the tenant identifier
 - Shared database, prefixed table names`;
     default:

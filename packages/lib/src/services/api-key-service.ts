@@ -23,7 +23,7 @@ export interface CreatedApiKey {
   key_prefix: string | null;
   name: string | null;
   created_at: Date;
-  /** Plaintext key — only returned on creation, never stored */
+  /** Plaintext key: only returned on creation, never stored */
   plaintext_key: string;
 }
 

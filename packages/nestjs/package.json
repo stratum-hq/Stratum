@@ -1,7 +1,7 @@
 {
   "name": "@stratum-hq/nestjs",
   "version": "1.3.0",
-  "description": "Stratum NestJS integration — StratumGuard, @Tenant() decorator, and StratumModule",
+  "description": "Stratum NestJS integration: StratumGuard, @Tenant() decorator, and StratumModule",
   "keywords": [
     "multi-tenancy",
     "multi-tenant",

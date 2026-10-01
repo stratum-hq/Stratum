@@ -12,10 +12,10 @@ import { uniqueSlug } from "./helpers/fixtures.js";
 /**
  * The whole region surface of the Stratum facade is unexercised by any real-DB
  * test: create/get/list/update/delete plus migrateRegion, which moves a tenant
- * across data-residency boundaries. These behaviors are entirely SQL — the
+ * across data-residency boundaries. These behaviors are entirely SQL (the
  * regions table's UNIQUE(slug) and status CHECK constraints, the FK from
  * tenants.region_id, the RESTRICT that blocks deleting a region with active
- * tenants, and the "target region must be active" guard on migration — so a
+ * tenants, and the "target region must be active" guard on migration), so a
  * mocked pool proves none of them.
  */
 describe("region service against real Postgres (integration)", () => {

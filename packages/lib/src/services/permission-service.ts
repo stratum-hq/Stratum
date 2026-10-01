@@ -68,7 +68,7 @@ export async function resolvePermissions(
         const existing = resolved.get(policy.key);
 
         if (existing?.locked) {
-          // Key is LOCKED by an ancestor — descendants cannot override it
+          // Key is LOCKED by an ancestor; descendants cannot override it
           continue;
         }
 

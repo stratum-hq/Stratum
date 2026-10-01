@@ -1,5 +1,5 @@
 /**
- * stratum playground — Start the control plane + demo app locally.
+ * stratum playground: start the control plane + demo app locally.
  *
  * Spawns the control plane (port 3001) and demo app (API 3200, web 3300)
  * sequentially. Waits for the control plane to be healthy before starting
@@ -193,7 +193,7 @@ async function pollHealth(
       const response = await fetch(url);
       if (response.ok) return true;
     } catch {
-      // Connection refused — server not ready yet
+      // Connection refused: server not ready yet
     }
     await sleep(intervalMs);
   }

@@ -381,7 +381,7 @@ import Footer from '../components/Footer.astro';
 
 <script>
   const featureMap: Record<string, { name: string; desc: string }> = {
-    "hierarchy": { name: "Tenant Hierarchy", desc: "Tree-structured tenants via PostgreSQL ltree, up to 20 levels deep." },
+    "hierarchy": { name: "Tenant Hierarchy", desc: "Tree-structured tenants via PostgreSQL ltree, arbitrarily deep." },
     "flat-orgs": { name: "Flat Organizations", desc: "Single-level tenant model. Create tenants without parent references." },
     "reseller": { name: "Reseller / MSP Support", desc: "Nested partner hierarchies with delegated permissions and config inheritance." },
     "rls": { name: "Row-Level Security", desc: "Shared tables with automatic RLS policy generation per tenant." },

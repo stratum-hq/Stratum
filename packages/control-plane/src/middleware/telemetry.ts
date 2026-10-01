@@ -7,7 +7,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
-// Lazy-loaded OTel API — stays `null` when the package is absent.
+// Lazy-loaded OTel API; stays `null` when the package is absent.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let otel: any = null;
 
@@ -15,7 +15,7 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   otel = require("@opentelemetry/api");
 } catch {
-  // @opentelemetry/api is not installed — telemetry is a no-op.
+  // @opentelemetry/api is not installed, so telemetry is a no-op.
 }
 
 const TRACER_NAME = "@stratum-hq/control-plane";
@@ -102,6 +102,6 @@ export function registerTelemetryHooks(app: FastifyInstance): void {
       message: error.message,
     });
     span.recordException(error);
-    // Don't end here — onResponse will still fire and end the span.
+    // Don't end here; onResponse will still fire and end the span.
   });
 }

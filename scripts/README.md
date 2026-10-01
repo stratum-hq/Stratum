@@ -19,7 +19,7 @@ npm install -g @openapitools/openapi-generator-cli
 # Homebrew (macOS)
 brew install openapi-generator
 
-# Docker (no install required — the script auto-detects Docker)
+# Docker (no install required; the script auto-detects Docker)
 docker pull openapitools/openapi-generator-cli
 ```
 
@@ -69,12 +69,12 @@ This starts the control plane temporarily (if not already running), fetches the 
 
 The full workflow for updating SDKs after API changes:
 
-1. **Update the API** — modify route handlers in `packages/control-plane/src/routes/`
-2. **Update the spec** — either:
+1. **Update the API**: modify route handlers in `packages/control-plane/src/routes/`
+2. **Update the spec**: either:
    - Edit `scripts/openapi-spec.json` manually, or
    - Run `./scripts/generate-sdks.sh --live` to extract from the running server
-3. **Generate SDKs** — `./scripts/generate-sdks.sh`
-4. **Copy to SDK repos** — copy the generated output to each SDK repo:
+3. **Generate SDKs**: `./scripts/generate-sdks.sh`
+4. **Copy to SDK repos**: copy the generated output to each SDK repo:
    ```bash
    # Python
    cp -r scripts/generated/python/* ../stratum-python/
@@ -130,15 +130,15 @@ import "github.com/stratum-hq/stratum-go"
 The generator config files control how the SDK is shaped. Common options:
 
 ### Python (`openapi-generator-config-python.json`)
-- `packageName` — Python package name (import name)
-- `projectName` — Project/distribution name
-- `packageVersion` — Version string
-- `library` — HTTP library (`urllib3` or `asyncio`)
+- `packageName`: Python package name (import name)
+- `projectName`: Project/distribution name
+- `packageVersion`: Version string
+- `library`: HTTP library (`urllib3` or `asyncio`)
 
 ### Go (`openapi-generator-config-go.json`)
-- `packageName` — Go package name
-- `moduleName` — Go module path
-- `generateInterfaces` — Generate interface types for API clients
-- `withGoMod` — Generate go.mod file
+- `packageName`: Go package name
+- `moduleName`: Go module path
+- `generateInterfaces`: Generate interface types for API clients
+- `withGoMod`: Generate go.mod file
 
 See the [openapi-generator docs](https://openapi-generator.tech/docs/generators/) for the full list of options per language.

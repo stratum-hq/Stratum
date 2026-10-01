@@ -46,7 +46,7 @@ describe("looseEqual", () => {
 });
 
 // ---------------------------------------------------------------------------
-// scoreCoverage — status classification
+// scoreCoverage: status classification
 // ---------------------------------------------------------------------------
 
 const wrap = (values: Record<string, unknown>): Record<string, { value: unknown }> =>
@@ -126,7 +126,7 @@ describe("scoreCoverage classification", () => {
 });
 
 // ---------------------------------------------------------------------------
-// scoreCoverage — score math (0 to 100)
+// scoreCoverage: score math (0 to 100)
 // ---------------------------------------------------------------------------
 
 describe("scoreCoverage score math", () => {
@@ -175,7 +175,7 @@ describe("scoreCoverage score math", () => {
 });
 
 // ---------------------------------------------------------------------------
-// scoreCoverage — equality
+// scoreCoverage: equality
 // ---------------------------------------------------------------------------
 
 describe("scoreCoverage equality", () => {

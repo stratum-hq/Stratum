@@ -63,7 +63,7 @@ describe("stratumPlugin", () => {
     expect(schema.paths.has("tenant_id")).toBe(true);
   });
 
-  it("is idempotent — does not add tenant_id if already present", () => {
+  it("is idempotent: does not add tenant_id if already present", () => {
     schema.paths.set("tenant_id", { type: String });
     stratumPlugin(schema);
     expect(schema.added.length).toBe(0);

@@ -5,7 +5,7 @@ import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamp
  * Input to record a single usage event for a tenant.
  *
  * `quantity` defaults to 1 (one countable unit) and must be a non-negative
- * integer — metering counts up; credits / adjustments are out of scope.
+ * integer: metering counts up; credits / adjustments are out of scope.
  * `occurred_at` is when the usage happened (ISO 8601); it defaults to insert
  * time and is the timestamp aggregation windows filter on, so a back-dated
  * import still lands in the right billing window. `idempotency_key`, when
@@ -24,7 +24,7 @@ export const RecordUsageInputSchema = z.object({
 });
 // The INPUT type (pre-defaults): `quantity` and `metadata` carry Zod defaults,
 // so on the caller side they are optional. `z.infer` (the output type) would
-// make them required — see the same caveat in the integration fixtures.
+// make them required (see the same caveat in the integration fixtures.
 export type RecordUsageInput = z.input<typeof RecordUsageInputSchema>;
 
 export const UsageEventSchema = z.object({

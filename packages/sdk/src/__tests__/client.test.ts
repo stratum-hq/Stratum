@@ -573,12 +573,12 @@ describe("StratumClient", () => {
         mockFetchResponse(ctx),
       );
 
-      // First call — populates cache
+      // First call: populates cache
       const first = await client.resolveTenant("cached-tenant");
       expect(first).toEqual(ctx);
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
-      // Second call — should be served from cache
+      // Second call: should be served from cache
       const second = await client.resolveTenant("cached-tenant");
       expect(second).toEqual(ctx);
       expect(globalThis.fetch).toHaveBeenCalledTimes(1); // No additional fetch
@@ -648,10 +648,10 @@ describe("StratumClient", () => {
       await client.resolveTenant("t-update");
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
-      // Mutate — should invalidate cache
+      // Mutate: should invalidate cache
       await client.updateTenant("t-update", { name: "Updated" });
 
-      // Resolve again — should make a new API call
+      // Resolve again: should make a new API call
       await client.resolveTenant("t-update");
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
     });

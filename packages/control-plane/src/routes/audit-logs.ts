@@ -20,7 +20,7 @@ export function createAuditLogRoutes(stratum: Stratum) {
     declareTenantScope(app, "global");
     declareRequiredScope(app, "admin");
 
-    // GET /api/v1/audit-logs — List audit logs with filters
+    // GET /api/v1/audit-logs: List audit logs with filters
     app.get("/", async (request, reply) => {
       const query = AuditLogQuerySchema.parse(request.query);
       // Scoped keys can only see logs for their own tenant
@@ -31,7 +31,7 @@ export function createAuditLogRoutes(stratum: Stratum) {
       reply.status(200).send(entries);
     });
 
-    // GET /api/v1/audit-logs/:id — Get single audit entry
+    // GET /api/v1/audit-logs/:id: Get single audit entry
     app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const entry = await stratum.getAuditEntry(request.params.id);
       if (!entry) {

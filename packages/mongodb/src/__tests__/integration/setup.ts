@@ -1,4 +1,4 @@
-// Integration test setup — connects to real MongoDB
+// Integration test setup: connects to real MongoDB
 // Requires MONGODB_URL environment variable (set by CI or local docker)
 import { MongoClient } from "mongodb";
 

@@ -105,7 +105,7 @@ export function stratumMiddleware(
       ctx = options.resolve
         ? await options.resolve(tenantId)
         : /**
-           * @warning Placeholder context — ancestry_path, resolved_config, and
+           * @warning Placeholder context: ancestry_path, resolved_config, and
            * resolved_permissions are stub values. Provide a `resolve` callback
            * to populate real tenant data.
            */

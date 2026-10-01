@@ -1,7 +1,7 @@
 {
   "name": "@stratum-hq/stratum",
   "version": "0.0.2",
-  "description": "Drop-in hierarchical multi-tenancy for Node.js — tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.",
+  "description": "Drop-in hierarchical multi-tenancy for Node.js: tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.",
   "keywords": [
     "multi-tenancy",
     "multi-tenant",

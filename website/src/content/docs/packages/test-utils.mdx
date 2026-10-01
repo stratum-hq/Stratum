@@ -31,7 +31,7 @@ describe("tenant isolation", () => {
 
 ## Features
 
-- **`assertIsolation(pool, tenantA, tenantB, table, options?)`** -- inserts a row as tenantB, checks tenantB can read it back, and asserts tenantA cannot, then rolls back
-- **`assertConfigInheritance(stratum, parentId, childId, key)`** -- verifies inheritance, child override and parent locks through Stratum's config API
-- **Descriptive error messages** -- clear failure output showing exactly which isolation boundary was breached
-- **Database-agnostic** -- works with PostgreSQL, MongoDB, and MySQL
+- **`assertIsolation(pool, tenantA, tenantB, table, options?)`**: inserts a row as tenantB, checks tenantB can read it back, and asserts tenantA cannot, then rolls back
+- **`assertConfigInheritance(stratum, parentId, childId, key)`**: verifies inheritance, child override and parent locks through Stratum's config API
+- **Descriptive error messages**: clear failure output showing exactly which isolation boundary was breached
+- **Database-agnostic**: works with PostgreSQL, MongoDB, and MySQL

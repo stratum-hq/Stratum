@@ -24,7 +24,7 @@ export default meta;
 type Story = StoryObj<typeof Toast>;
 
 /**
- * Success toast — used after saving config, creating a tenant, etc.
+ * Success toast, used after saving config, creating a tenant, etc.
  * Auto-dismisses after 4 seconds.
  */
 export const Success: Story = {
@@ -44,7 +44,7 @@ export const Success: Story = {
 };
 
 /**
- * Error toast — used for API failures, permission errors, etc.
+ * Error toast, used for API failures, permission errors, etc.
  * Does not auto-dismiss; requires manual close.
  */
 export const Error: Story = {
@@ -63,7 +63,7 @@ export const Error: Story = {
 };
 
 /**
- * Warning toast — used for non-critical issues like approaching
+ * Warning toast, used for non-critical issues like approaching
  * rate limits or deprecated config keys.
  */
 export const Warning: Story = {
@@ -83,7 +83,7 @@ export const Warning: Story = {
 };
 
 /**
- * Info toast — used for general notifications like tenant context
+ * Info toast, used for general notifications like tenant context
  * switches or background operations completing.
  */
 export const Info: Story = {

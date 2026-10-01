@@ -50,7 +50,7 @@ POST /api/v1/api-keys
 |-------|------|----------|-------------|
 | `tenant_id` | UUID | Yes | Tenant to scope the key to |
 | `name` | string | No | Descriptive name |
-| `rate_limit_max` | integer | No | Max requests per window (1--100,000) |
+| `rate_limit_max` | integer | No | Max requests per window (1-100,000) |
 | `rate_limit_window` | string | No | Time window (e.g., `"30 seconds"`, `"1 minute"`, `"1 hour"`) |
 
 **Response:** `201 Created`
@@ -82,7 +82,7 @@ GET /api/v1/api-keys?tenant_id=<uuid>
 |-------|------|-------------|
 | `tenant_id` | UUID | Filter by tenant (optional; scoped keys auto-filter) |
 
-**Response:** `200 OK` -- array of API key records (without plaintext keys).
+**Response:** `200 OK` with an array of API key records (without plaintext keys).
 
 ---
 
@@ -114,7 +114,7 @@ Revokes the existing key and creates a new one. Optionally update the name.
 }
 ```
 
-**Response:** `201 Created` -- returns the new key with `plaintext_key`.
+**Response:** `201 Created`. Returns the new key with `plaintext_key`.
 
 ---
 
@@ -128,9 +128,9 @@ Returns keys that have not been used in the specified number of days.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `days` | integer | 90 | Minimum days since last use (1--365) |
+| `days` | integer | 90 | Minimum days since last use (1-365) |
 
-**Response:** `200 OK` -- array of API key records.
+**Response:** `200 OK` with an array of API key records.
 
 ---
 
@@ -153,12 +153,12 @@ POST /api/v1/roles
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Role name (1--100 chars) |
+| `name` | string | Yes | Role name (1-100 chars) |
 | `description` | string | No | Description (max 500 chars) |
 | `scopes` | string[] | Yes | Array of `"read"`, `"write"`, `"admin"` |
 | `tenant_id` | UUID | No | Scope role to a tenant (null for global) |
 
-**Response:** `201 Created` -- returns the role object.
+**Response:** `201 Created`. Returns the role object.
 
 ---
 
@@ -168,7 +168,7 @@ POST /api/v1/roles
 GET /api/v1/roles?tenant_id=<uuid>
 ```
 
-**Response:** `200 OK` -- array of role objects.
+**Response:** `200 OK` with an array of role objects.
 
 ---
 
@@ -187,7 +187,7 @@ PATCH /api/v1/roles/:id
 }
 ```
 
-**Response:** `200 OK` -- returns the updated role.
+**Response:** `200 OK`. Returns the updated role.
 
 ---
 
@@ -207,7 +207,7 @@ POST /api/v1/roles/assign/:keyId
 
 When a role is assigned, the role's scopes override the key's default scopes.
 
-**Response:** `200 OK` -- `{"success": true}`
+**Response:** `200 OK` with `{"success": true}`
 
 ---
 
@@ -219,7 +219,7 @@ DELETE /api/v1/roles/assign/:keyId
 
 Removes the role, reverting the key to its own default scopes.
 
-**Response:** `200 OK` -- `{"success": true}`
+**Response:** `200 OK` with `{"success": true}`
 
 ---
 

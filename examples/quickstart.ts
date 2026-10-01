@@ -1,5 +1,5 @@
 /**
- * Stratum Quickstart — tenant hierarchy + config in ~15 lines.
+ * Stratum Quickstart: tenant hierarchy + config in ~15 lines.
  * Install: npm install @stratum-hq/lib pg
  */
 import pg from "pg";
@@ -17,7 +17,7 @@ async function main() {
   const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar_msp", parent_id: null });
   const customer = await stratum.createTenant({ name: "Acme Corp", slug: "acme_corp", parent_id: msp.id });
 
-  // 4. Set a config value on the MSP — child tenants inherit it automatically.
+  // 4. Set a config value on the MSP; child tenants inherit it automatically.
   await stratum.setConfig(msp.id, "max_seats", { value: 500 });
 
   // 5. Resolve config for the child: inherited values are merged from ancestors.

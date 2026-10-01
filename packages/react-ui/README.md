@@ -1,6 +1,6 @@
 # @stratum-hq/react
 
-React components and hooks for building multi-tenant administration UIs on top of [Stratum](https://github.com/stratum-hq/Stratum) — tenant switching, hierarchy visualization, and config/permission editing.
+React components and hooks for building multi-tenant administration UIs on top of [Stratum](https://github.com/stratum-hq/Stratum): tenant switching, hierarchy visualization, and config/permission editing.
 
 ## Installation
 
@@ -69,13 +69,13 @@ braces, at-rules, backslashes, quotes or `url()` are ignored.
 
 ## Components & Hooks
 
-- **`StratumProvider`** — context provider; also exposes `TenantThemeProvider` for per-tenant theming.
-- **`useStratum()`** — `{ currentTenant, tenantContext, loading, error, switchTenant, apiCall }`.
-- **Data hooks** — `useTenant`, `useTenantTree`, `useConfig`, `usePermissions`, `useConfigCascade`, `useWebhooks`, `useAuditLogs`, `useToast`.
-- **`TenantSwitcher`** — dropdown to select the active tenant.
-- **`TenantTree` / `DraggableTenantTree`** — hierarchical tree view (drag-to-reparent in the draggable variant).
-- **`ConfigEditor`** — edit resolved config with lock and inheritance indicators.
-- **`PermissionEditor`** — edit permission policies with mode/revocation selection.
+- **`StratumProvider`**: context provider; also exposes `TenantThemeProvider` for per-tenant theming.
+- **`useStratum()`**: `{ currentTenant, tenantContext, loading, error, switchTenant, apiCall }`.
+- **Data hooks:** `useTenant`, `useTenantTree`, `useConfig`, `usePermissions`, `useConfigCascade`, `useWebhooks`, `useAuditLogs`, `useToast`.
+- **`TenantSwitcher`**: dropdown to select the active tenant.
+- **`TenantTree` / `DraggableTenantTree`**: hierarchical tree view (drag-to-reparent in the draggable variant).
+- **`ConfigEditor`**: edit resolved config with lock and inheritance indicators.
+- **`PermissionEditor`**: edit permission policies with mode/revocation selection.
 - **`ConfigInheritanceVisualizer`**, **`WebhookEditor`**, **`AuditLogViewer`**, **`TenantHealthCard`**, plus headless (`HeadlessTenantSwitcher`, …) variants for full styling control.
 
 ## Scaffolding

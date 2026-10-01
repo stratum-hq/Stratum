@@ -93,7 +93,7 @@ const cssVars = `
 @import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* Colors — Strata (earth-toned, one live accent: ember) */
+  /* Colors: Strata (earth-toned, one live accent, ember) */
   --color-primary: #8B4A26;
   --color-primary-hover: #6E3A1D;
   --color-accent: #8B4A26;
@@ -109,7 +109,7 @@ const cssVars = `
   --color-info: #6B5A3C;
   --color-info-bg: #E8E1D2;
 
-  /* Neutrals — peat to limestone paper */
+  /* Neutrals: peat to limestone paper */
   --color-950: #12100C;
   --color-900: #1C1813;
   --color-800: #241F19;
@@ -144,7 +144,7 @@ const cssVars = `
   --radius-xl: 12px;
   --radius-full: 9999px;
 
-  /* Shadows — warm-toned, fall from peat */
+  /* Shadows: warm-toned, fall from peat */
   --shadow-sm: 0 1px 2px rgba(26,22,17,0.07);
   --shadow-md: 0 2px 8px rgba(26,22,17,0.10), 0 1px 2px rgba(26,22,17,0.05);
   --shadow-lg: 0 4px 16px rgba(26,22,17,0.13), 0 2px 4px rgba(26,22,17,0.06);
@@ -888,9 +888,9 @@ input[type="checkbox"]:focus-visible {
 // ── Breadcrumb helper ────────────────────────────────────────────────────────
 
 const depthDotColors: Record<number, string> = {
-  0: "#C9793F", // ember — root/MSSP
-  1: "#D9A03F", // ochre — MSP
-  2: "#C9B08A", // sand — client
+  0: "#C9793F", // ember (root/MSSP)
+  1: "#D9A03F", // ochre (MSP)
+  2: "#C9B08A", // sand (client)
   3: "#C9B08A",
   4: "#C9B08A",
 };
@@ -2018,7 +2018,7 @@ export function Dashboard() {
             </div>
             <ConfigInheritanceSection onStats={setConfigStats} />
 
-            {/* Config Inheritance Visualizer — split-screen cascade preview */}
+            {/* Config Inheritance Visualizer: split-screen cascade preview */}
             <div style={{ marginTop: "var(--space-xl, 24px)" }}>
               <div className="stratum-section-header">
                 <span className="stratum-section-title">Inheritance Cascade</span>
@@ -2173,7 +2173,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Tenant Context Modal — rendered via portal to body */}
+      {/* Tenant Context Modal, rendered via portal to body */}
       {contextModal.open && ReactDOM.createPortal(
         <div
           style={{

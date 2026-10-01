@@ -75,7 +75,7 @@ export function parsePresetString(s: string): StackPreset | null {
 
   const parts = s.toLowerCase().split("-");
 
-  // Handle "table-prefix" which contains a hyphen -- it will split into
+  // Handle "table-prefix" which contains a hyphen; it will split into
   // 5 parts: [db, strategy1, "table", "prefix", orm, framework] or similar.
   // We need to reconstruct multi-word tokens.
   // Format: {database}-{strategy}-{orm}-{framework}

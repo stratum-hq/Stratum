@@ -38,7 +38,7 @@ const result = await adapter.query("tenant-id", "SELECT * FROM orders");
 The adapter wraps every query in a transaction that:
 
 1. Calls `BEGIN`
-2. Sets `app.current_tenant_id` via parameterized `set_config()` -- fully SQL-injection-safe
+2. Sets `app.current_tenant_id` via parameterized `set_config()`, fully SQL-injection-safe
 3. Executes your query (automatically filtered by RLS policies)
 4. Calls `COMMIT`
 5. Resets the tenant context and releases the connection
@@ -224,7 +224,7 @@ This ensures the `set_config` and your query always execute on the same database
 | Property | Implementation |
 |----------|---------------|
 | Table name validation | All DDL operations validate against `/^[a-zA-Z_][a-zA-Z0-9_]*$/` |
-| Parameterized context | Tenant ID set via `set_config($1, true)` -- fully parameterized |
+| Parameterized context | Tenant ID set via `set_config($1, true)`, fully parameterized |
 | FORCE RLS | `enableRLS()` always enables FORCE, preventing bypass by table owners |
 | Connection cleanup | Always reset tenant context when releasing connections |
 

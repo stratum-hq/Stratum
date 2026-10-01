@@ -10,26 +10,26 @@ export function createConfigRoutes(stratum: Stratum) {
     // Tenant-scoped keys can only access config for their own tenant subtree
     declareTenantScope(app, fromParamId);
     declareRequiredScope(app, { read: "read", write: "write" });
-    // GET /api/v1/tenants/:id/config — Get resolved config
+    // GET /api/v1/tenants/:id/config: Get resolved config
     app.get<{ Params: { id: string } }>("/", async (request, reply) => {
       const resolved = await stratum.resolveConfig(request.params.id);
       reply.status(200).send(resolved);
     });
 
-    // PUT /api/v1/tenants/:id/config/:key — Set config value
+    // PUT /api/v1/tenants/:id/config/:key: Set config value
     app.put<{ Params: { id: string; key: string } }>("/:key", async (request, reply) => {
       const input = SetConfigInputSchema.parse(request.body);
       const entry = await stratum.setConfig(request.params.id, request.params.key, input, buildAuditContext(request));
       reply.status(200).send(entry);
     });
 
-    // DELETE /api/v1/tenants/:id/config/:key — Delete config override
+    // DELETE /api/v1/tenants/:id/config/:key: Delete config override
     app.delete<{ Params: { id: string; key: string } }>("/:key", async (request, reply) => {
       await stratum.deleteConfig(request.params.id, request.params.key, buildAuditContext(request));
       reply.status(204).send();
     });
 
-    // PUT /api/v1/tenants/:id/config/batch — Set multiple config keys atomically
+    // PUT /api/v1/tenants/:id/config/batch: Set multiple config keys atomically
     app.put<{ Params: { id: string } }>("/batch", async (request, reply) => {
       const body = request.body as { entries?: unknown[] };
       if (!Array.isArray(body?.entries) || body.entries.length === 0) {
@@ -49,7 +49,7 @@ export function createConfigRoutes(stratum: Stratum) {
       reply.status(200).send(batchResult);
     });
 
-    // GET /api/v1/tenants/:id/config/inheritance — Get full inheritance view
+    // GET /api/v1/tenants/:id/config/inheritance: Get full inheritance view
     app.get<{ Params: { id: string } }>("/inheritance", async (request, reply) => {
       const inheritance = await stratum.getConfigWithInheritance(request.params.id);
       reply.status(200).send(inheritance);

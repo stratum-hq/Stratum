@@ -66,7 +66,7 @@ POST /api/v1/webhooks
 
 `tenant.purged` is deprecated. The API accepts a subscription to it, but a tenant purge never emits it. The next major version removes it.
 
-**Response:** `201 Created` -- returns the webhook object.
+**Response:** `201 Created`. Returns the webhook object.
 
 ---
 
@@ -78,7 +78,7 @@ GET /api/v1/webhooks?tenant_id=<uuid>
 
 Scoped keys automatically filter to their own tenant's webhooks.
 
-**Response:** `200 OK` -- array of webhook objects.
+**Response:** `200 OK` with an array of webhook objects.
 
 ---
 
@@ -98,7 +98,7 @@ PATCH /api/v1/webhooks/:id
 }
 ```
 
-**Response:** `200 OK` -- returns the updated webhook.
+**Response:** `200 OK`. Returns the updated webhook.
 
 ---
 
@@ -150,9 +150,9 @@ Returns failed deliveries (dead-letter queue) with joined webhook and event data
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `limit` | integer | 100 | Max results (1--500) |
+| `limit` | integer | 100 | Max results (1-500) |
 
-**Response:** `200 OK` -- array of failed delivery objects.
+**Response:** `200 OK` with an array of failed delivery objects.
 
 ---
 
@@ -180,7 +180,7 @@ Resets all failed deliveries for retry (clears attempt counter, sets status to p
 POST /api/v1/webhooks/deliveries/:deliveryId/retry
 ```
 
-**Response:** `200 OK` -- `{"success": true}`
+**Response:** `200 OK` with `{"success": true}`
 
 ---
 
@@ -200,10 +200,10 @@ GET /api/v1/audit-logs
 | `actor_id` | string | Filter by actor |
 | `from` | ISO 8601 | Start of date range |
 | `to` | ISO 8601 | End of date range |
-| `limit` | number | Max results, 1--100 (default: 50) |
+| `limit` | number | Max results, 1-100 (default: 50) |
 | `cursor` | UUID | Cursor for keyset pagination |
 
-**Response:** `200 OK` -- array of audit entries.
+**Response:** `200 OK` with an array of audit entries.
 
 Known secrets are redacted in audit entries: sensitive config values and webhook secrets are recorded as `[REDACTED]`, and webhook URLs and region `control_plane_url` values are recorded as `scheme://host/#fp=<fingerprint>`. The fingerprint is the first 12 hex characters of the SHA-256 of the URL path, so entries for different endpoints can be told apart without recording the path; credentials, path, query string and fragment are dropped. A URL with an empty path is recorded as `scheme://host/`, and a URL without a host as `[REDACTED]`.
 

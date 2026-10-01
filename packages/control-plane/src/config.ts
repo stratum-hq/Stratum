@@ -10,7 +10,7 @@ if (!jwtSecretEnv) {
   if (enforceSecretHygiene) {
     throw new Error(`FATAL: JWT_SECRET must be set (NODE_ENV=${nodeEnv}). Refusing to start.`);
   } else {
-    console.warn("[stratum] JWT_SECRET not set — using dev fallback. Set JWT_SECRET before deploying to production.");
+    console.warn("[stratum] JWT_SECRET not set; using dev fallback. Set JWT_SECRET before deploying to production.");
   }
 }
 
@@ -39,7 +39,7 @@ const jwtAudienceEnv = process.env.JWT_AUDIENCE || undefined;
 const jwtIssuerEnv = process.env.JWT_ISSUER || undefined;
 
 if (!jwtAudienceEnv && enforceSecretHygiene) {
-  console.warn("[stratum] JWT_AUDIENCE not set — Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
+  console.warn("[stratum] JWT_AUDIENCE not set. Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
 }
 
 export const config = {

@@ -1,6 +1,6 @@
 # @stratum-hq/create
 
-Scaffold a complete [Stratum](https://github.com/stratum-hq/Stratum) multi-tenancy project with one command — package.json, Docker Compose, environment files, and framework-specific starter code.
+Scaffold a complete [Stratum](https://github.com/stratum-hq/Stratum) multi-tenancy project with one command: package.json, Docker Compose, environment files, and framework-specific starter code.
 
 ## Usage
 
@@ -28,9 +28,9 @@ npx @stratum-hq/create my-app [options]
 
 ## Templates
 
-- **express** (default) — Express server with Stratum middleware, tenant-aware routes, and TypeScript config.
-- **fastify** — Fastify server with the Stratum plugin registered.
-- **nextjs** — Next.js project with edge middleware that resolves the tenant from a verified JWT.
+- **express** (default): Express server with Stratum middleware, tenant-aware routes, and TypeScript config.
+- **fastify**: Fastify server with the Stratum plugin registered.
+- **nextjs**: Next.js project with edge middleware that resolves the tenant from a verified JWT.
 
 ## After Scaffolding
 

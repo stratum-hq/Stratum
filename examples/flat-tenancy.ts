@@ -1,5 +1,5 @@
 /**
- * Flat-tenancy example — SaaS with no hierarchy.
+ * Flat-tenancy example: SaaS with no hierarchy.
  *
  * Use createOrganization / listOrganizations / getOrganization
  * when your product has a single tier of tenants (organizations)
@@ -62,7 +62,7 @@ async function main() {
   console.log(`\nAll organizations (${page.data.length} returned):`);
   for (const org of page.data) {
     const plan = (org.metadata as Record<string, string>)["plan"] ?? "unknown";
-    console.log(`  ${org.name} [${plan}] — ${org.id}`);
+    console.log(`  ${org.name} [${plan}]: ${org.id}`);
   }
 
   // --- Look up a single org by ID ---

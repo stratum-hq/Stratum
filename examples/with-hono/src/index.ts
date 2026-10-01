@@ -82,7 +82,7 @@ app.onError((err, c) => {
   return c.json({ error: { code: "INTERNAL_ERROR", message: "Internal server error" } }, 500);
 });
 
-// Health check — no token required
+// Health check (no token required)
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 // All /api/* routes require a bearer token that verifies with JWT_SECRET.

@@ -2,7 +2,7 @@ import pg from "pg";
 import { getDatabaseName } from "./manager.js";
 
 export interface DatabasePoolManagerOptions {
-  /** Template connection config (host, port, user, password, ssl, etc.) — database name is overridden per tenant. */
+  /** Template connection config (host, port, user, password, ssl, etc.). The database name is overridden per tenant. */
   baseConnectionConfig: pg.PoolConfig;
   /** Maximum number of tenant pools to keep open simultaneously. Default: 50. */
   maxPools?: number;

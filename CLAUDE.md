@@ -21,8 +21,9 @@ What it provides:
   create and move so concurrent writes cannot corrupt the tree. See
   `packages/lib/src/migrations/001_init.sql` and
   `packages/lib/src/services/tenant-service.ts`.
-  Note: `README.md` claims "max depth 20". No such limit is enforced anywhere in
-  `packages/lib` or `packages/core`. Do not rely on it.
+  Note: no depth limit is enforced in `packages/lib` or `packages/core`, and
+  `stratum doctor` only reports tree depth as a check (it flags depths above its own
+  threshold of 20 but blocks nothing).
 - **Config inheritance.** Config values resolve up the ancestry chain, root to leaf. A
   parent can lock a key so descendants cannot override it.
   `packages/lib/src/services/config-service.ts`.

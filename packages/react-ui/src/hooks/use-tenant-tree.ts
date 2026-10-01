@@ -13,7 +13,7 @@ export function useTenantTree(rootId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Use a ref to track expanded IDs — avoids stale closures and
+  // Use a ref to track expanded IDs; avoids stale closures and
   // doesn't trigger re-renders or effect re-runs
   const expandedRef = useRef<Set<string>>(new Set());
 

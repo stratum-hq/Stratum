@@ -13,9 +13,9 @@ import {
 
 // Depth-based color dots matching DESIGN.md hierarchy badge colors
 const depthDotColors: Record<number, string> = {
-  0: "#C9793F", // ember — root/MSSP
-  1: "#D9A03F", // ochre — MSP
-  2: "#C9B08A", // sand — client
+  0: "#C9793F", // ember (root/MSSP)
+  1: "#D9A03F", // ochre (MSP)
+  2: "#C9B08A", // sand (client)
   3: "#C9B08A",
   4: "#C9B08A",
 };
@@ -86,7 +86,7 @@ function TreeNode({
           if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
         }}
       >
-        {/* Drag handle — only this initiates drag */}
+        {/* Drag handle: only this initiates drag */}
         <span
           ref={setDragRef}
           {...attributes}

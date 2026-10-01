@@ -22,7 +22,7 @@ Email us at **security@stratum-hq.org** with:
 
 - **Acknowledgment** within 48 hours confirming receipt
 - **Status update** within 7 days with an initial assessment
-- **Fix timeline** communicated once the issue is confirmed — critical issues are prioritized for rapid patching
+- **Fix timeline** communicated once the issue is confirmed; critical issues are prioritized for rapid patching
 - **Credit** in the release notes if you wish to be acknowledged
 
 We ask that you give us reasonable time to address the issue before any public disclosure.

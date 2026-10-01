@@ -8,7 +8,7 @@ import {
 } from "./helpers/db.js";
 
 /**
- * getDescendants scoping across the three tenant states — active, archived
+ * getDescendants scoping across the three tenant states: active, archived
  * (status='archived', deleted_at NULL) and soft-deleted (status='archived',
  * deleted_at set). Unlike the unit tests, these run against a real database, so
  * they prove the WHERE predicate actually filters rows rather than merely
@@ -34,7 +34,7 @@ describe("getDescendants states (integration)", () => {
    * Build a root with four descendants spanning every state:
    *   root
    *   ├─ active        (status='active')
-   *   │  └─ grandchild (status='active') — proves multi-level depth
+   *   │  └─ grandchild (status='active'), proving multi-level depth
    *   ├─ archived      (status='archived', deleted_at NULL)
    *   └─ soft_deleted  (status='archived', deleted_at set, via deleteTenant)
    */

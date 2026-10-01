@@ -216,9 +216,9 @@ interface MiddlewareOptions {
 
 The middleware resolves the tenant ID in this order:
 
-1. **JWT** -- extracts tenant ID from a Bearer token claim at `jwtClaimPath`
-2. **Header** -- reads `X-Tenant-ID` header (or custom `headerName`). When JWT verification is configured, this step runs only with `trustTenantHeader: true`.
-3. **Custom resolvers** -- your async functions, tried in order
+1. **JWT**: extracts tenant ID from a Bearer token claim at `jwtClaimPath`
+2. **Header**: reads `X-Tenant-ID` header (or custom `headerName`). When JWT verification is configured, this step runs only with `trustTenantHeader: true`.
+3. **Custom resolvers**: your async functions, tried in order
 
 If no tenant ID is found, returns `400 MISSING_TENANT`.
 

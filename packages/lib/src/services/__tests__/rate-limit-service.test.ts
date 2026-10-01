@@ -20,7 +20,7 @@ afterEach(() => {
 
 const LIMIT: RateLimit = { limit: 3, windowMs: 1000 };
 
-describe("RateLimiter.checkLimit — enforcement", () => {
+describe("RateLimiter.checkLimit: enforcement", () => {
   it("allows hits up to the limit, then blocks", async () => {
     const limiter = new RateLimiter({ defaultLimit: LIMIT });
 
@@ -51,7 +51,7 @@ describe("RateLimiter.checkLimit — enforcement", () => {
   });
 });
 
-describe("RateLimiter.checkLimit — window reset", () => {
+describe("RateLimiter.checkLimit: window reset", () => {
   it("starts a fresh window after the previous one elapses", async () => {
     const limiter = new RateLimiter({ defaultLimit: LIMIT });
 
@@ -71,7 +71,7 @@ describe("RateLimiter.checkLimit — window reset", () => {
   });
 });
 
-describe("RateLimiter.checkLimit — isolation", () => {
+describe("RateLimiter.checkLimit: isolation", () => {
   it("isolates counters per tenant", async () => {
     const limiter = new RateLimiter({ defaultLimit: LIMIT });
 
@@ -97,7 +97,7 @@ describe("RateLimiter.checkLimit — isolation", () => {
   });
 });
 
-describe("RateLimiter — effective limit resolution", () => {
+describe("RateLimiter: effective limit resolution", () => {
   it("applies static per-tenant overrides over the default", async () => {
     const limiter = new RateLimiter({
       defaultLimit: { limit: 1, windowMs: 1000 },
@@ -147,7 +147,7 @@ describe("RateLimiter.reset", () => {
   });
 });
 
-describe("RateLimiter — option validation", () => {
+describe("RateLimiter: option validation", () => {
   it("rejects a non-positive or non-integer limit", () => {
     expect(() => new RateLimiter({ defaultLimit: { limit: 0, windowMs: 1000 } })).toThrow(
       RangeError,
@@ -172,7 +172,7 @@ describe("RateLimiter — option validation", () => {
   });
 });
 
-describe("RateLimiter — custom store", () => {
+describe("RateLimiter: custom store", () => {
   it("uses the injected store instead of the in-memory default", async () => {
     const increment = vi.fn(
       async (): Promise<RateLimitState> => ({ count: 1, resetAt: 5000 }),
@@ -189,7 +189,7 @@ describe("RateLimiter — custom store", () => {
 // ---------------------------------------------------------------------------
 // Storage-backend contract, exercised against the reference in-memory store.
 // ---------------------------------------------------------------------------
-describe("MemoryRateLimitStore — contract", () => {
+describe("MemoryRateLimitStore: contract", () => {
   let store: MemoryRateLimitStore;
 
   beforeEach(() => {

@@ -86,7 +86,7 @@ describe("MysqlPoolManager", () => {
 
       vi.setSystemTime(1000);
       await manager.getPool("aaa");
-      // do NOT release aaa — refCount remains > 0
+      // do NOT release aaa; refCount remains > 0
 
       vi.setSystemTime(2000);
       await manager.getPool("bbb");
@@ -168,7 +168,7 @@ describe("MysqlPoolManager", () => {
     it("decrements refCount for the pool", async () => {
       await manager.getPool("acme"); // refCount = 1
       manager.releasePool("acme");   // refCount = 0
-      // Should be evictable now — create 3 more to trigger eviction
+      // Should be evictable now; create 3 more to trigger eviction
       manager.releasePool("acme"); // no-op when already 0
       expect(manager.getStats().poolCount).toBe(1);
     });

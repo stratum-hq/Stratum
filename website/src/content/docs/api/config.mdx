@@ -81,7 +81,7 @@ PUT /api/v1/tenants/:id/config/:key
 
 Returns `409 CONFIG_LOCKED` if the key is locked by an ancestor.
 
-**Response:** `200 OK` -- returns the config entry.
+**Response:** `200 OK`. Returns the config entry.
 
 ---
 
@@ -124,7 +124,7 @@ Each entry in the `entries` array supports the same fields as the single `PUT` e
 - Maximum 200 entries per batch
 - Empty arrays return `400 VALIDATION_ERROR`
 
-**Response:** `200 OK` -- returns array of config entries.
+**Response:** `200 OK`. Returns an array of config entries.
 
 ---
 
@@ -134,7 +134,7 @@ Each entry in the `entries` array supports the same fields as the single `PUT` e
 GET /api/v1/tenants/:id/config/inheritance
 ```
 
-Returns the full config with inheritance metadata -- showing which level set each value, whether it is inherited or overridden, and the full ancestry chain.
+Returns the full config with inheritance metadata, showing which level set each value, whether it is inherited or overridden, and the full ancestry chain.
 
 **Response:** `200 OK`
 

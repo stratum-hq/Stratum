@@ -94,7 +94,7 @@ async function checkSchema(pool: pg.Pool): Promise<CheckResult> {
     return {
       status: "fail",
       label: "Schema tables",
-      summary: "No Stratum tables found — run migrations first",
+      summary: "No Stratum tables found; run migrations first",
     };
   }
 
@@ -462,7 +462,7 @@ async function checkTreeDepth(pool: pg.PoolClient): Promise<CheckResult> {
     return {
       status: "warn",
       label: "Tree depth",
-      summary: `Max depth: ${maxDepth} (limit: ${MAX_TREE_DEPTH}) — approaching limit`,
+      summary: `Max depth: ${maxDepth} (limit: ${MAX_TREE_DEPTH}), approaching limit`,
     };
   }
 

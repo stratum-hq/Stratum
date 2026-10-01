@@ -100,9 +100,9 @@ export class Stratum {
   }
 
   /**
-   * Initialize Stratum — runs migrations if autoMigrate is enabled.
+   * Initialize Stratum: runs migrations if autoMigrate is enabled.
    * Call this once before using any other methods. Safe to call multiple
-   * times concurrently — subsequent calls return the same promise.
+   * times concurrently; subsequent calls return the same promise.
    */
   async initialize(): Promise<void> {
     if (!this.initPromise) {
@@ -158,7 +158,7 @@ export class Stratum {
     return this.getTenant(id);
   }
 
-  // Internal event emission — fire-and-forget, errors are non-fatal
+  // Internal event emission: fire-and-forget, errors are non-fatal
   private emitEvent(
     type: TenantEvent,
     tenantId: string,
@@ -175,7 +175,7 @@ export class Stratum {
             "stratum.error": err instanceof Error ? err.message : String(err),
           });
         } catch {
-          // Swallow — telemetry must never affect the primary operation
+          // Swallow: telemetry must never affect the primary operation
         }
       }
     });
@@ -203,7 +203,7 @@ export class Stratum {
     });
   }
   /**
-   * Resolve a tenant by its globally-unique slug in one indexed lookup — the
+   * Resolve a tenant by its globally-unique slug in one indexed lookup, the
    * slug-keyed counterpart to {@link getTenant}, mirroring its archived /
    * suspended handling. See {@link tenantService.getTenantBySlug}.
    */
@@ -479,7 +479,7 @@ export class Stratum {
         let status: DriftStatus;
 
         if (parentEntry === null && childEntry !== null) {
-          // Key exists only on child — treat as override
+          // Key exists only on child: treat as override
           status = "override";
           overrides++;
         } else if (parentEntry !== null && childEntry === null) {
@@ -1024,7 +1024,7 @@ export class Stratum {
   // Usage metering operations (FR-58)
   /**
    * Record a countable usage event for a tenant. Pass `idempotency_key` to make
-   * the write safe to retry — a duplicate key is a no-op that returns the
+   * the write safe to retry; a duplicate key is a no-op that returns the
    * original event. See {@link usageService.recordUsage}.
    */
   recordUsage(tenantId: string, input: RecordUsageInput): Promise<UsageEvent> {

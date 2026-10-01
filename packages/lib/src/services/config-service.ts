@@ -74,7 +74,7 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
         const existing = resolved.get(entry.key);
 
         if (existing?.locked) {
-          // Key is locked by an ancestor — skip child overrides
+          // Key is locked by an ancestor; skip child overrides
           continue;
         }
 
@@ -111,7 +111,7 @@ export async function setConfig(
 
     const ancestorIds = parseAncestryPath(tenant.ancestry_path);
     // Check ancestor locks (ancestry_path excludes self).
-    // Only enforce locks from non-archived ancestors — consistent with resolveConfig.
+    // Only enforce locks from non-archived ancestors, consistent with resolveConfig.
     if (ancestorIds.length > 0) {
       const lockedRes = await client.query<ConfigEntry>(
         `SELECT ce.* FROM config_entries ce
@@ -167,7 +167,7 @@ export async function batchSetConfig(
     const keys = entries.map((e) => e.key);
 
     // Batch-load all ancestor locks in a single query.
-    // Only enforce locks from non-archived ancestors — consistent with setConfig.
+    // Only enforce locks from non-archived ancestors, consistent with setConfig.
     const lockedKeys = new Map<string, string>();
     if (ancestorIds.length > 0 && keys.length > 0) {
       const lockedRes = await client.query<ConfigEntry>(
@@ -269,7 +269,7 @@ export async function getConfigWithInheritance(
     const ancestorIds = parseAncestryPath(ancestryPath);
     const allIds = [...ancestorIds, tenantId];
 
-    // Archived ancestors do not participate in inheritance or locking —
+    // Archived ancestors do not participate in inheritance or locking,
     // consistent with resolveConfig and setConfig.
     const entriesRes = await client.query<ConfigEntry>(
       `SELECT ce.* FROM config_entries ce
@@ -335,7 +335,7 @@ export async function getConfigWithInheritance(
       const ancestorEntry = rec.ancestorEntry;
 
       if (lockedEntry) {
-        // Key is locked — show ancestor's locked value regardless of tenant override
+        // Key is locked: show ancestor's locked value regardless of tenant override
         result[key] = {
           key,
           value: decryptEntryValue(lockedEntry),

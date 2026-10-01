@@ -144,7 +144,7 @@ export async function validateWebhookUrlWithDns(url: string): Promise<void> {
       throw new Error("No DNS records found");
     }
   } catch {
-    // DNS resolution failed — fail closed to prevent SSRF via DNS rebinding
+    // DNS resolution failed: fail closed to prevent SSRF via DNS rebinding
     throw new WebhookUrlValidationError(`DNS resolution failed for webhook host: ${hostname}`);
   }
 
@@ -313,7 +313,7 @@ export async function emitEvent(
     }
   });
 
-  // Fire-and-forget delivery — do not await
+  // Fire-and-forget delivery; do not await
   processDeliveries(pool).catch(() => {
     // Non-critical: delivery failures are tracked in webhook_deliveries
   });

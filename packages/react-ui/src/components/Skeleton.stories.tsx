@@ -22,7 +22,7 @@ export default meta;
 type Story = StoryObj<typeof Skeleton>;
 
 /**
- * Text variant — default skeleton for loading text lines.
+ * Text variant: default skeleton for loading text lines.
  * Full width, 13px height matching the base font size.
  */
 export const Text: Story = {
@@ -56,7 +56,7 @@ export const TextMultipleLines: Story = {
 };
 
 /**
- * Rectangle variant — for cards, images, or block-level placeholders.
+ * Rectangle variant, for cards, images, or block-level placeholders.
  */
 export const Rect: Story = {
   args: {
@@ -74,7 +74,7 @@ export const Rect: Story = {
 };
 
 /**
- * Circle variant — for avatar or icon placeholders.
+ * Circle variant, for avatar or icon placeholders.
  */
 export const Circle: Story = {
   args: {
@@ -163,7 +163,7 @@ export const TableConfigLayout: StoryObj<typeof TableSkeleton> = {
 };
 
 /**
- * Minimal skeleton — 2 rows, 2 columns.
+ * Minimal skeleton: 2 rows, 2 columns.
  */
 export const TableMinimal: StoryObj<typeof TableSkeleton> = {
   render: () => (

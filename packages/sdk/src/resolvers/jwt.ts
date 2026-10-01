@@ -101,7 +101,7 @@ export function resolveJwtTenant(
     // Try jsonwebtoken signature verification
     claims = verifyWithJsonwebtoken(token, options.secret);
   } else {
-    // No secret or verify function provided — refuse to trust unsigned tokens
+    // No secret or verify function provided: refuse to trust unsigned tokens
     console.warn(
       "[stratum] JWT ignored: no jwtSecret or jwtVerify provided. " +
       "Configure middleware options to enable JWT tenant resolution.",

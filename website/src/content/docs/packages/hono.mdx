@@ -74,10 +74,10 @@ app.use("*", stratumMiddleware({ header: "x-tenant-id", trustTenantHeader: true 
 
 ## Features
 
-- **Tenant extraction** -- from a verified JWT claim, a URL path parameter, or a header that a trusted gateway sets
-- **ALS context** -- sets tenant context via `runWithTenantContext` for downstream handlers
-- **Optional resolve callback** -- fetch full tenant context from the control plane
-- **Lightweight** -- no heavy dependencies, structural types only
+- **Tenant extraction**: from a verified JWT claim, a URL path parameter, or a header that a trusted gateway sets
+- **ALS context**: sets tenant context via `runWithTenantContext` for downstream handlers
+- **Optional resolve callback**: fetch full tenant context from the control plane
+- **Lightweight**: no heavy dependencies, structural types only
 
 If `resolve` rejects with a tenant error from `@stratum-hq/core`, the middleware answers the request itself: `TenantNotFoundError` gets 404 `TENANT_NOT_FOUND`, `TenantSuspendedError` gets 403 `TENANT_SUSPENDED`, `TenantArchivedError` gets 410 `TENANT_ARCHIVED`, and `ForbiddenError` gets 403 `FORBIDDEN`. `StratumClient.resolveTenant` throws these errors.
 

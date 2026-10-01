@@ -1,5 +1,5 @@
 /**
- * ConfigInheritanceVisualizer — shows how config values cascade from
+ * ConfigInheritanceVisualizer: shows how config values cascade from
  * parent to children with real-time visual feedback.
  *
  * ┌─────────────────────────┐     ┌─────────────────────────┐

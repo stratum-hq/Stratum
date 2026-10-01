@@ -17,6 +17,6 @@ export function runWithTenantContext<T>(context: ResolvedTenantContext, fn: () =
 }
 
 export function setTenantContext(context: ResolvedTenantContext): void {
-  // Bind the current store value — for middleware entry points
+  // Bind the current store value, for middleware entry points
   tenantStorage.enterWith(context);
 }

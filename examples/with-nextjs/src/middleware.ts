@@ -1,9 +1,9 @@
 /**
- * Next.js Middleware — tenant resolution
+ * Next.js Middleware: tenant resolution
  *
  * Runs before any page or API route. Resolves the tenant from:
- *   1. Bearer token — the verified `tenant_id` claim of an HS256 JWT
- *   2. Subdomain    — e.g. acme.app.example.com → tenant slug "acme"
+ *   1. Bearer token: the verified `tenant_id` claim of an HS256 JWT
+ *   2. Subdomain: e.g. acme.app.example.com → tenant slug "acme"
  *
  * The middleware forwards the result to Server Components as a request
  * header (see src/lib/tenant-headers.ts). It deletes any client-sent copy of
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // 2. Subdomain — e.g. "acme" from "acme.app.example.com".
+  // 2. Subdomain, e.g. "acme" from "acme.app.example.com".
   //    Strip port for local dev (localhost:3000 has no meaningful subdomain).
   const host = request.headers.get("host") ?? "";
   const hostname = host.split(":")[0];

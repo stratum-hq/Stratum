@@ -85,7 +85,7 @@ export function StratumProvider({
         const body = await res.json().catch(() => ({ error: { message: res.statusText } })) as { error?: { message?: string } };
         throw new Error(body.error?.message || `API error: ${res.status}`);
       }
-      // 204 No Content — return empty object instead of trying to parse JSON
+      // 204 No Content: return empty object instead of trying to parse JSON
       if (res.status === 204) {
         return {} as T;
       }

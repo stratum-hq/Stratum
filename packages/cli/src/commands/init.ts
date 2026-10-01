@@ -83,8 +83,8 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
 
   // 2. Integration path
   const pathIdx = await select("Integration path:", [
-    "Direct library (@stratum-hq/lib) — in-process, max performance",
-    "HTTP API + SDK (@stratum-hq/sdk) — service separation, polyglot",
+    "Direct library (@stratum-hq/lib): in-process, max performance",
+    "HTTP API + SDK (@stratum-hq/sdk): service separation, polyglot",
   ]);
   const integrationPath: "lib" | "sdk" = pathIdx === 0 ? "lib" : "sdk";
 
@@ -96,7 +96,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
     orm = detectedOrm;
   } else {
     const ormIdx = await select("Database access:", [
-      "pg (node-postgres) — raw SQL",
+      "pg (node-postgres): raw SQL",
       "Prisma",
       "Drizzle",
       "Other",
@@ -107,7 +107,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   // 4. React detection
   const hasReact = detectReact(cwd);
   if (hasReact) {
-    log.success("Detected React — will include frontend scaffolding");
+    log.success("Detected React; will include frontend scaffolding");
   }
 
   const info: ProjectInfo = {
@@ -633,7 +633,7 @@ export function createScopedPool(getTenantId: () => string) {
 
 // Usage:
 // const result = await tenantPool.query("SELECT * FROM orders");
-// RLS automatically filters to the current tenant — no WHERE clause needed
+// RLS automatically filters to the current tenant; no WHERE clause needed
 
 export { pool };
 `;

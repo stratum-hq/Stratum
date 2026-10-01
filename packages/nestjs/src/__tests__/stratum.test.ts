@@ -176,7 +176,7 @@ describe("StratumGuard", () => {
     client = makeMockClient(MOCK_CONTEXT);
   });
 
-  describe("canActivate — x-tenant-id header", () => {
+  describe("canActivate: x-tenant-id header", () => {
     it("returns true and sets req.tenant when x-tenant-id header is present", async () => {
       const req: Record<string, unknown> = {
         headers: { "x-tenant-id": "tenant-123" },
@@ -191,7 +191,7 @@ describe("StratumGuard", () => {
     });
   });
 
-  describe("canActivate — JWT (unverified tokens rejected)", () => {
+  describe("canActivate: JWT (unverified tokens rejected)", () => {
     function makeJwt(payload: Record<string, unknown>): string {
       const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
       const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -206,7 +206,7 @@ describe("StratumGuard", () => {
       };
       const ctx = makeExecutionContext(req);
 
-      // No options — should reject because JWT is unverified
+      // No options; should reject because JWT is unverified
       await expect(canActivate(client, ctx, {})).rejects.toThrow(UnauthorizedException);
       await expect(canActivate(client, ctx, {})).rejects.toThrow(
         "Tenant ID could not be resolved from request",
@@ -246,7 +246,7 @@ describe("StratumGuard", () => {
     });
   });
 
-  describe("canActivate — missing tenant", () => {
+  describe("canActivate: missing tenant", () => {
     it("throws UnauthorizedException when no tenant identifier in request", async () => {
       const req: Record<string, unknown> = { headers: {} };
       const ctx = makeExecutionContext(req);
@@ -269,7 +269,7 @@ describe("StratumGuard", () => {
     });
   });
 
-  describe("canActivate — custom resolvers", () => {
+  describe("canActivate: custom resolvers", () => {
     it("uses custom resolver when header and JWT resolve nothing", async () => {
       const req: Record<string, unknown> = { headers: {} };
       const ctx = makeExecutionContext(req);
@@ -298,7 +298,7 @@ describe("StratumGuard", () => {
     });
   });
 
-  describe("canActivate — impersonation", () => {
+  describe("canActivate: impersonation", () => {
     it("impersonates target tenant when authorized", async () => {
       // client returns MOCK_CONTEXT for "tenant-123", MOCK_CONTEXT_B for "tenant-456"
       const impClient = {

@@ -404,7 +404,7 @@ export const mockPermissions = [
 ];
 
 // ---------------------------------------------------------------------------
-// Mock Provider — injects controlled data into the real StratumContext
+// Mock Provider: injects controlled data into the real StratumContext
 // ---------------------------------------------------------------------------
 
 interface MockStratumProviderProps {

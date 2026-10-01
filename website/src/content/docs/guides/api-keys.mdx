@@ -106,7 +106,7 @@ curl -X POST http://localhost:3001/api/v1/api-keys \
 
 | Field | Range | Default |
 |-------|-------|---------|
-| `rate_limit_max` | 1 -- 100,000 | Global `RATE_LIMIT_MAX` (100) |
+| `rate_limit_max` | 1 to 100,000 | Global `RATE_LIMIT_MAX` (100) |
 | `rate_limit_window` | e.g., `"30 seconds"`, `"1 hour"` | Global `RATE_LIMIT_WINDOW` (1 minute) |
 
 Rate-limited responses include standard headers:

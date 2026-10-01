@@ -3,9 +3,9 @@
 Next.js 15 App Router application with Stratum multi-tenancy.
 
 Tenants are resolved in `src/middleware.ts` from either:
-- **Bearer token** — the `tenant_id` claim of an HS256 JWT that verifies with
+- **Bearer token**: the `tenant_id` claim of an HS256 JWT that verifies with
   `JWT_SECRET` (for API clients and signed-in sessions)
-- **Subdomain** — `acme.app.example.com` → tenant slug `acme`
+- **Subdomain**: `acme.app.example.com` → tenant slug `acme`
 
 The middleware forwards the result as a request header, so Server Components
 can read it via `next/headers` without repeating the resolution logic. It
@@ -96,6 +96,6 @@ Request
 
 ## Extending
 
-- Add more pages under `src/app/` — all Server Components can call `stratum.*` methods directly.
+- Add more pages under `src/app/`. All Server Components can call `stratum.*` methods directly.
 - For API routes, create `src/app/api/*/route.ts` files and import `{ stratum }` from `../lib/stratum`.
 - To add caching, wrap `stratum.resolveConfig()` with `React.cache()` or Next.js's `unstable_cache`.

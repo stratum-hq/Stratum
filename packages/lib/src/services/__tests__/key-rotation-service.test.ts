@@ -145,7 +145,7 @@ describe("rotateEncryptionKey batching", () => {
     expect(result.config_entries_rotated).toBe(total);
 
     // Every row must now decrypt under the NEW key back to its original
-    // plaintext — i.e. rotated exactly once, none skipped or double-encrypted.
+    // plaintext, i.e. rotated exactly once, none skipped or double-encrypted.
     process.env.STRATUM_ENCRYPTION_KEY = NEW_KEY;
     for (let i = 0; i < total; i++) {
       const blob = store.config[i].value;

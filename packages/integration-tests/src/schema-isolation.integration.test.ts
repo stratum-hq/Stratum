@@ -18,7 +18,7 @@ import { uniqueSlug } from "./helpers/fixtures.js";
  * RLS isolation has a real-Postgres proof (rls-enforcement); schema-per-tenant
  * did not. This drives the public db-adapters schema surface against a real
  * database and asserts that a write scoped to one tenant's schema is invisible
- * to another — the actual isolation guarantee.
+ * to another: the actual isolation guarantee.
  */
 describe("schema-per-tenant isolation against real Postgres (integration)", () => {
   let pool: pg.Pool;

@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 `@stratum-hq/mongodb` adds multi-tenant document isolation for applications using MongoDB or Mongoose. Stratum is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB in the same project.
 
-**How it fits together:** The control plane -- tenant hierarchy, config inheritance, audit log, and GDPR operations -- always lives in PostgreSQL via `@stratum-hq/lib`. MongoDB carries your application documents. The two databases are complementary, not competing.
+**How it fits together:** The control plane (tenant hierarchy, config inheritance, audit log, and GDPR operations) always lives in PostgreSQL via `@stratum-hq/lib`. MongoDB carries your application documents. The two databases are complementary, not competing.
 
 ## Choosing a Strategy
 
@@ -27,7 +27,7 @@ All tenants share the same MongoDB collections. A `tenant_id` field on every doc
 
 ### Collection-per-Tenant
 
-Each tenant gets its own set of collections, named `{collection}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' collections still live in the same database and are accessible to the same connection.
+Each tenant gets its own set of collections, named `{collection}_{tenantSlug}`. This provides namespace separation but not security isolation: both tenants' collections still live in the same database and are accessible to the same connection.
 
 List every base collection name in the `baseCollections` option of `MongoCollectionAdapter`. `scopedCollection()` and `purgeTenantData()` require it. `purgeTenantData()` purges exactly `{base}_{tenantSlug}` for each entry, `scopedCollection()` only accepts those names, and the adapter rejects a list where one name is another name followed by `_`, because the resulting tenant collection names could collide.
 
@@ -141,7 +141,7 @@ const orderSchema = new mongoose.Schema({
   total: Number,
 });
 
-// Apply once per schema -- injects tenant_id and auto-filters queries
+// Apply once per schema; injects tenant_id and auto-filters queries
 orderSchema.plugin(stratumPlugin);
 
 export const Order = mongoose.model("Order", orderSchema);
@@ -211,7 +211,7 @@ app.use(async (req, res, next) => {
 Once the middleware is in place, all Mongoose queries inside the request are automatically scoped:
 
 ```typescript
-// No manual where clause needed -- the plugin adds tenant_id automatically
+// No manual where clause needed; the plugin adds tenant_id automatically
 const orders = await Order.find({ status: "pending" });
 ```
 
@@ -274,7 +274,7 @@ const result = await mongo.purgeTenantData(tenant.id);
 
 ```typescript
 if (!result.success) {
-  // Log and retry or alert -- partial purge means some data remains
+  // Log and retry or alert; partial purge means some data remains
   console.error("Purge incomplete:", result.errors);
   // result.collectionsProcessed counts the collections that succeeded
   // result.errors lists { collection, error } for each collection that failed
@@ -293,14 +293,14 @@ MongoDB does not have a Row-Level Security equivalent. Unlike PostgreSQL, there 
 
 - For `SHARED_COLLECTION` and `COLLECTION_PER_TENANT`: if a query is executed without the Mongoose plugin active (e.g., using the raw `MongoClient` directly), it will see all tenants' data.
 - `Model.collection`, `Model.db`, `connection.db` and `connection.watch()` are the raw driver objects, so the plugin does not scope them. `Model.watch()` is scoped: the plugin filters the change stream to documents whose `fullDocument.tenant_id` is the current tenant.
-- For `DATABASE_PER_TENANT`: isolation is at the connection level -- a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MongoDB offers.
+- For `DATABASE_PER_TENANT`: isolation is at the connection level: a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MongoDB offers.
 
 **Recommendations:**
 
 1. **Use `DATABASE_PER_TENANT` for sensitive data.** This provides connection-level isolation that does not depend on application-layer filtering.
 2. **Never bypass the Mongoose plugin.** If you need raw `MongoClient` access, wrap it in the same ALS context and apply the tenant filter manually.
 3. **Add `assertMongoIsolation()` to your test suite** (from `@stratum-hq/test-utils`) to catch regressions before they reach production.
-4. **Audit all query paths** that touch tenant data -- especially background jobs and admin scripts that run outside the normal request middleware.
+4. **Audit all query paths** that touch tenant data, especially background jobs and admin scripts that run outside the normal request middleware.
 
 <Aside type="note">
   This is an honest limitation of the MongoDB data model. If your compliance requirements mandate database-level enforcement, use `DATABASE_PER_TENANT` or consider whether PostgreSQL with `SHARED_RLS` is a better fit for your data.
@@ -347,4 +347,4 @@ A rough formula: `maxConnections = maxClients * maxPoolSize`. For `maxClients: 1
 
 ### Collection-per-Tenant
 
-Collection-per-tenant has minimal additional overhead over shared collection. Each collection gets its own indexes, which is the primary reason to choose this strategy -- it allows tenant-specific index configurations without cross-tenant interference.
+Collection-per-tenant has minimal additional overhead over shared collection. Each collection gets its own indexes, which is the primary reason to choose this strategy: it allows tenant-specific index configurations without cross-tenant interference.

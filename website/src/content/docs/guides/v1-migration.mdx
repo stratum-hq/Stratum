@@ -5,8 +5,8 @@ description: What changed between the Stratum 0.x line and the first stable 1.0 
 
 import { Aside } from "@astrojs/starlight/components";
 
-Stratum 1.0 is the first release with a stability promise. The core import graph --
-`@stratum-hq/core`, `@stratum-hq/lib`, `@stratum-hq/sdk`, `@stratum-hq/db-adapters` --
+Stratum 1.0 is the first release with a stability promise. The core import graph
+(`@stratum-hq/core`, `@stratum-hq/lib`, `@stratum-hq/sdk`, `@stratum-hq/db-adapters`)
 plus `@stratum-hq/control-plane`, `@stratum-hq/hono`, and `@stratum-hq/nestjs` are
 versioned to `1.0.0` together, so their public surfaces are now frozen: no breaking
 change without a major bump. This guide lists every change a real consumer can hit
@@ -58,7 +58,7 @@ can *narrow* a key's effective access. Keys without a role are unaffected.
 ### 4. `batchCreateTenants` is all-or-nothing
 
 `batchCreateTenants` creates every tenant in one transaction: on any failure nothing
-persists. The failure return is now `{ created: [], errors: [<first failure>] }` -- the
+persists. The failure return is now `{ created: [], errors: [<first failure>] }`; the
 `created` array no longer lists rolled-back tenants. If you relied on partial creation,
 wrap per-tenant `createTenant` calls yourself.
 
@@ -93,7 +93,7 @@ The raw `AsyncLocalStorage` instance is no longer exported. Use `getTenantContex
 ### 8. `@stratum-hq/core` export cleanup (#219)
 
 - `SUPPORTED_ISOLATION_STRATEGIES` is the canonical name. `SUPPORTED_ISOLATION_STRATEGIES_V1`
-  is kept one more minor as a deprecated alias, then removed -- import the non-deprecated name.
+  is kept one more minor as a deprecated alias, then removed. Import the non-deprecated name.
 - `MAX_TREE_DEPTH` was removed. No depth limit is enforced anywhere in `lib` or `core`, so
   the constant advertised a guarantee that did not exist. Drop any import of it.
 
@@ -146,21 +146,21 @@ the old `getAncestors` behavior, remove it.
 ## New in 1.0, no action required
 
 `@stratum-hq/lib` re-exports the typed error classes as **runtime values** (FR-52), so you
-can `instanceof TenantNotFoundError` importing only from `@stratum-hq/lib` -- you no longer
+can `instanceof TenantNotFoundError` importing only from `@stratum-hq/lib`; you no longer
 need a direct `@stratum-hq/core` dependency just to branch on error type. The classes are
 the same objects re-exported from core, so `instanceof` matches across import paths.
 
-The 1.1.x and 1.2.x line is purely additive -- adopt any of it at your own pace:
+The 1.1.x and 1.2.x line is purely additive. Adopt any of it at your own pace:
 
-- **Tenant lifecycle** -- `suspendTenant`, `resumeTenant`, `archiveTenant` (with `deleteTenant`
+- **Tenant lifecycle**: `suspendTenant`, `resumeTenant`, `archiveTenant` (with `deleteTenant`
   now a deprecated alias of `archiveTenant`). See the [lifecycle guide](/guides/tenant-lifecycle/).
-- **`recordAuditEvent`** -- append custom events to `audit_logs`, with an optional
+- **`recordAuditEvent`**: append custom events to `audit_logs`, with an optional
   `occurredAt` to backdate.
-- **`getTenantBySlug`** -- indexed slug lookup, the counterpart to `getTenant`.
-- **`runScopedJob`** -- run a background job bound to one tenant, with ALS and RLS context.
-- **Usage metering** -- `recordUsage` / `aggregateUsage` (FR-58, migration 020).
-- **Webhook event-stream listing** -- `listWebhookEvents` / `listDeliveriesByEvent`.
-- **`RateLimiter`** -- a standalone per-tenant fixed-window limiter for library consumers.
+- **`getTenantBySlug`**: indexed slug lookup, the counterpart to `getTenant`.
+- **`runScopedJob`**: run a background job bound to one tenant, with ALS and RLS context.
+- **Usage metering**: `recordUsage` / `aggregateUsage` (FR-58, migration 020).
+- **Webhook event-stream listing**: `listWebhookEvents` / `listDeliveriesByEvent`.
+- **`RateLimiter`**: a standalone per-tenant fixed-window limiter for library consumers.
 
 See the [`@stratum-hq/lib` API reference](/packages/lib/) for signatures, and
 `docs/v1.0-api-surface.md` in the repository for the frozen surface classification and the

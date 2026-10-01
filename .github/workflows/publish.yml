@@ -1,6 +1,6 @@
 # Publish packages to npm on version tag push
 #
-# Auth: npm Trusted Publishing (OIDC) — each @stratum-hq package must have a
+# Auth: npm Trusted Publishing (OIDC). Each @stratum-hq package must have a
 # GitHub Actions trusted publisher configured on npmjs.com pointing at
 # stratum-hq/Stratum + publish.yml. No token secret required.
 

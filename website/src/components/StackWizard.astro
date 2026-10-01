@@ -503,7 +503,7 @@
       return;
     }
 
-    // All selected -- show output
+    // All selected: show output
     const preset = db + '-' + strategy + '-' + orm + '-' + framework;
     cmdEl.textContent = 'npx @stratum-hq/create my-app --preset ' + preset;
     filesEl.textContent = getFileTree(db, strategy, orm, framework);

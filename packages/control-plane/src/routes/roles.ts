@@ -39,7 +39,7 @@ export function createRoleRoutes(stratum: Stratum) {
     declareTenantScope(app, "global");
     declareRequiredScope(app, { read: "read", write: "admin" });
 
-    // POST /api/v1/roles — Create a role. A scoped key may create only within
+    // POST /api/v1/roles: Create a role. A scoped key may create only within
     // its own subtree; the body tenant_id is authorized by the enforcer.
     app.post("/", { config: { tenantScope: fromBodyTenantId } }, async (request, reply) => {
       const parsed = createRoleSchema.safeParse(request.body);
@@ -57,7 +57,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(201).send(role);
     });
 
-    // GET /api/v1/roles — List roles (optional ?tenant_id=). A provided tenant_id
+    // GET /api/v1/roles: List roles (optional ?tenant_id=). A provided tenant_id
     // is authorized by the enforcer; a scoped key that names none is confined to
     // its own tenant so it cannot enumerate every tenant's roles.
     app.get<{ Querystring: { tenant_id?: string } }>("/", { config: { tenantScope: fromQueryTenantId } }, async (request, reply) => {
@@ -67,7 +67,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(200).send(roles);
     });
 
-    // GET /api/v1/roles/:id — Get role
+    // GET /api/v1/roles/:id: Get role
     app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const role = await stratum.getRole(request.params.id);
       if (!role) {
@@ -78,7 +78,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(200).send(role);
     });
 
-    // PATCH /api/v1/roles/:id — Update role
+    // PATCH /api/v1/roles/:id: Update role
     app.patch<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const parsed = updateRoleSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -101,7 +101,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(200).send(role);
     });
 
-    // DELETE /api/v1/roles/:id — Delete role
+    // DELETE /api/v1/roles/:id: Delete role
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const existing = await stratum.getRole(request.params.id);
       if (!existing) {
@@ -119,7 +119,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(204).send();
     });
 
-    // POST /api/v1/roles/assign/:keyId — Assign role to API key. Both the target
+    // POST /api/v1/roles/assign/:keyId: Assign role to API key. Both the target
     // key and the role must belong to the caller's subtree.
     app.post<{ Params: { keyId: string } }>("/assign/:keyId", async (request, reply) => {
       const parsed = assignRoleSchema.safeParse(request.body);
@@ -147,7 +147,7 @@ export function createRoleRoutes(stratum: Stratum) {
       reply.status(200).send({ success: true });
     });
 
-    // DELETE /api/v1/roles/assign/:keyId — Remove role from API key
+    // DELETE /api/v1/roles/assign/:keyId: Remove role from API key
     app.delete<{ Params: { keyId: string } }>("/assign/:keyId", async (request, reply) => {
       const key = await stratum.getApiKey(request.params.keyId);
       if (!key) {

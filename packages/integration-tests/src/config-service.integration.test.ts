@@ -201,7 +201,7 @@ describe("config-service against real Postgres (integration)", () => {
       const result = await stratum.rotateEncryptionKey(originalKey, newKey);
       expect(result.config_entries_rotated).toBe(1);
 
-      // Re-encrypted at rest under the new key — still ciphertext, never plaintext.
+      // Re-encrypted at rest under the new key: still ciphertext, never plaintext.
       const raw = await getPool().query<{ value: string }>(
         `SELECT value::text AS value FROM config_entries WHERE tenant_id = $1 AND key = 'api_token'`,
         [t.id],

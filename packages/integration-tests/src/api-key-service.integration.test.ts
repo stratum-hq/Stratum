@@ -65,7 +65,7 @@ describe("API key service (integration)", () => {
     return stratum.createTenant({ name: slug, slug });
   }
 
-  describe("createApiKey — hashing & storage", () => {
+  describe("createApiKey: hashing & storage", () => {
     it("returns a plaintext key with the prefix but stores only its hash", async () => {
       const tenant = await makeTenant("apikey_store");
       const created = await stratum.createApiKey(tenant.id, "primary");

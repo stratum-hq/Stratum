@@ -39,7 +39,7 @@ GET /api/v1/tenants?cursor=<uuid>&limit=50
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
 | `cursor` | UUID | -- | Cursor for pagination (tenant ID) |
-| `limit` | number | 50 | Max results (1--100) |
+| `limit` | number | 50 | Max results (1-100) |
 
 **Response:** `200 OK`
 
@@ -90,14 +90,14 @@ POST /api/v1/tenants
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Display name (1--255 chars) |
+| `name` | string | Yes | Display name (1-255 chars) |
 | `slug` | string | Yes | URL-safe identifier (`^[a-z][a-z0-9_]{0,62}$`) |
 | `parent_id` | UUID | No | Parent tenant ID (null for root) |
 | `isolation_strategy` | enum | No | `SHARED_RLS`, `SCHEMA_PER_TENANT`, `DB_PER_TENANT` |
 | `config` | object | No | Initial config key-value pairs |
 | `metadata` | object | No | Arbitrary metadata |
 
-**Response:** `201 Created` -- returns the tenant object.
+**Response:** `201 Created`. Returns the tenant object.
 
 ---
 
@@ -107,7 +107,7 @@ POST /api/v1/tenants
 GET /api/v1/tenants/:id
 ```
 
-**Response:** `200 OK` -- returns the tenant object.
+**Response:** `200 OK`. Returns the tenant object.
 
 ---
 
@@ -128,7 +128,7 @@ PATCH /api/v1/tenants/:id
 }
 ```
 
-**Response:** `200 OK` -- returns the updated tenant.
+**Response:** `200 OK`. Returns the updated tenant.
 
 ---
 
@@ -160,7 +160,7 @@ POST /api/v1/tenants/:id/move
 
 Moves the tenant (and all descendants) under a new parent. Performs cycle detection and acquires advisory locks.
 
-**Response:** `200 OK` -- returns the updated tenant.
+**Response:** `200 OK`. Returns the updated tenant.
 
 ---
 
@@ -200,7 +200,7 @@ Creates up to 100 tenants in a single atomic transaction. If any tenant fails va
 GET /api/v1/tenants/:id/ancestors
 ```
 
-**Response:** `200 OK` -- array of tenant objects from root to parent.
+**Response:** `200 OK` with an array of tenant objects from root to parent.
 
 ---
 
@@ -210,7 +210,7 @@ GET /api/v1/tenants/:id/ancestors
 GET /api/v1/tenants/:id/descendants
 ```
 
-**Response:** `200 OK` -- all descendants (uses `ltree` for efficient subtree query).
+**Response:** `200 OK` with all descendants (uses `ltree` for efficient subtree query).
 
 ---
 
@@ -220,7 +220,7 @@ GET /api/v1/tenants/:id/descendants
 GET /api/v1/tenants/:id/children
 ```
 
-**Response:** `200 OK` -- direct children only.
+**Response:** `200 OK` with direct children only.
 
 ---
 

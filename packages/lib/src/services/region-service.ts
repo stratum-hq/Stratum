@@ -73,7 +73,7 @@ export async function updateRegion(pool: pg.Pool, id: string, input: UpdateRegio
     }
 
     if (sets.length === 0) {
-      // No changes — return existing
+      // No changes: return existing
       const current = await client.query(
         `SELECT id, display_name, slug, control_plane_url, NULL as database_url, is_primary, status, metadata, created_at::text, updated_at::text
          FROM regions WHERE id = $1`,

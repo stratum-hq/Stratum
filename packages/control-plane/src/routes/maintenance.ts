@@ -13,7 +13,7 @@ export function createMaintenanceRoutes(stratum: Stratum) {
     declareTenantScope(app, "operator");
     declareRequiredScope(app, "operator");
 
-    // POST /api/v1/maintenance/purge-expired — Purge expired data
+    // POST /api/v1/maintenance/purge-expired: Purge expired data
     app.post<{ Querystring: { retention_days?: string } }>("/purge-expired", async (request, reply) => {
       const rawDays = request.query.retention_days
         ? parseInt(request.query.retention_days, 10)
@@ -25,7 +25,7 @@ export function createMaintenanceRoutes(stratum: Stratum) {
       reply.status(200).send(result);
     });
 
-    // POST /api/v1/maintenance/rotate-encryption-key — Re-encrypt all sensitive data
+    // POST /api/v1/maintenance/rotate-encryption-key: Re-encrypt all sensitive data
     app.post("/rotate-encryption-key", async (request, reply) => {
       const body = request.body as
         | { old_key?: string; new_key?: string; old_salt?: unknown; new_salt?: unknown }

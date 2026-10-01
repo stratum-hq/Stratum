@@ -107,7 +107,7 @@ export async function createTenant(pool: pg.Pool, input: CreateTenantInput): Pro
 
       return res.rows[0];
     } else {
-      // Root tenant — no parent lock needed
+      // Root tenant: no parent lock needed
       const rootRegionId = (input as Record<string, unknown>).region_id ?? null;
 
       const res = await client.query<TenantNode>(
@@ -177,7 +177,7 @@ export async function getTenant(
  * pages. Slug is globally unique, so this returns exactly the one matching row.
  *
  * Mirrors getTenant's not-found and state contract: throws TenantNotFoundError
- * when no row matches, and — unless `includeArchived` is set — TenantArchivedError
+ * when no row matches, and (unless `includeArchived` is set) TenantArchivedError
  * / TenantSuspendedError / TenantPendingError for a non-active row. `includeArchived` is the "give me
  * the row whatever its state" escape hatch and bypasses both non-active states.
  */
@@ -659,7 +659,7 @@ export async function batchCreateTenants(
     // The batch runs in one transaction, so a mid-batch failure rolls the whole
     // thing back (see withTransaction). `created` was pushed to in-memory before
     // the throw, so it still lists rolled-back tenants. Clear it so the return
-    // reflects what actually persisted -- nothing -- and callers do not emit
+    // reflects what actually persisted (nothing) and callers do not emit
     // TENANT_CREATED events or audit entries for rows that never committed (#213).
     created.length = 0;
   }
@@ -695,7 +695,7 @@ export async function getAncestors(pool: pg.Pool, id: string): Promise<TenantNod
  * Get the root tenant for any tenant in the tree: the top-most ancestor, or the
  * tenant itself when it is already a root. Resolves in one row lookup for the
  * tenant plus one for its root (never fetches the whole ancestor chain), so it
- * is the efficient primitive for "which top-level org owns this tenant" — a
+ * is the efficient primitive for "which top-level org owns this tenant", a
  * common need in hierarchical multi-tenancy (billing scope, ownership checks,
  * root-level policy).
  */

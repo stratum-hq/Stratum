@@ -85,7 +85,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   app.addHook("preHandler", createTenantScopeEnforcer(stratum));
   app.setErrorHandler(errorHandler);
 
-  // Register routes (pass a stub Redis health checker — Redis is not used in tests)
+  // Register routes (pass a stub Redis health checker; Redis is not used in tests)
   const noopRedisHealth = async () => "not_configured" as const;
   await app.register(healthRoutes(noopRedisHealth));
   await app.register(createTenantRoutes(stratum), { prefix: "/api/v1/tenants" });

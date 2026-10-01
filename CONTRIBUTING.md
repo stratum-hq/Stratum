@@ -72,7 +72,7 @@ rather than skipping it.
 3. Push your branch and open a **Pull Request** against `main`.
 4. Fill out the PR description and link any related issues.
 
-PRs should be focused — one feature or fix per PR. Keep commits clean and descriptive.
+PRs should be focused: one feature or fix per PR. Keep commits clean and descriptive.
 
 ## Forbidden Actions
 
@@ -149,17 +149,17 @@ This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
 | Package | Description |
 |---|---|
 | `packages/core` | Shared types, Zod schemas, error classes |
-| `packages/lib` | Direct library — tenants, config, permissions, ABAC, audit, GDPR |
+| `packages/lib` | Direct library: tenants, config, permissions, ABAC, audit, GDPR |
 | `packages/control-plane` | Fastify v5 REST API with auth, scopes, rate limiting |
 | `packages/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `packages/db-adapters` | PostgreSQL adapters — raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
-| `packages/mongodb` | MongoDB tenant isolation — shared collection, collection-per-tenant, database-per-tenant |
-| `packages/mysql` | MySQL tenant isolation — shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize |
-| `packages/nestjs` | NestJS integration — guard, `@Tenant()` decorator, DI module |
-| `packages/hono` | Hono middleware — tenant extraction, ALS context |
-| `packages/react-ui` | React components (published as `@stratum-hq/react`) — tenant tree, config editor, permission editor |
-| `packages/cli` | CLI — `init`, `migrate`, `scaffold`, `doctor` |
-| `packages/create` | Project scaffolding — `npx @stratum-hq/create my-app` |
+| `packages/db-adapters` | PostgreSQL adapters: raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
+| `packages/mongodb` | MongoDB tenant isolation: shared collection, collection-per-tenant, database-per-tenant |
+| `packages/mysql` | MySQL tenant isolation: shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize |
+| `packages/nestjs` | NestJS integration: guard, `@Tenant()` decorator, DI module |
+| `packages/hono` | Hono middleware: tenant extraction, ALS context |
+| `packages/react-ui` | React components (published as `@stratum-hq/react`): tenant tree, config editor, permission editor |
+| `packages/cli` | CLI: `init`, `migrate`, `scaffold`, `doctor` |
+| `packages/create` | Project scaffolding: `npx @stratum-hq/create my-app` |
 | `packages/test-utils` | Cross-tenant isolation test helpers |
 | `packages/stratum` | npm name reservation (placeholder) |
 | `packages/demo` | Demo application (MSSP hierarchy) |
@@ -167,4 +167,4 @@ This is an [npm workspaces](https://docs.npmjs.com/cli/v10/using-npm/workspaces)
 
 ## Questions?
 
-Open a [GitHub Issue](https://github.com/stratum-hq/stratum/issues) — we're happy to help.
+Open a [GitHub Issue](https://github.com/stratum-hq/stratum/issues). We're happy to help.

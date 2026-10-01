@@ -49,7 +49,7 @@ export async function createDatabase(
   templateDb?: string,
 ): Promise<void> {
   const dbName = getDatabaseName(tenantSlug);
-  // Identifiers validated by regex — no user-supplied interpolation outside of validated values.
+  // Identifiers validated by regex: no user-supplied interpolation outside of validated values.
   // pg does not support parameterized DDL identifiers, so we construct the SQL string directly.
   let sql = `CREATE DATABASE "${dbName}"`;
   if (templateDb) {
@@ -66,7 +66,7 @@ export async function createDatabase(
  * Drops the per-tenant database if it exists.
  *
  * IMPORTANT: DROP DATABASE cannot run inside a transaction block.
- * Same constraint as createDatabase — use a standalone client.
+ * Same constraint as createDatabase: use a standalone client.
  */
 export async function dropDatabase(
   client: pg.PoolClient | pg.Client,

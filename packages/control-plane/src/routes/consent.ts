@@ -10,7 +10,7 @@ export function createConsentRoutes(stratum: Stratum) {
     // Tenant-scoped keys can only access consent for their own tenant subtree
     declareTenantScope(app, fromParamTenantId);
     declareRequiredScope(app, { read: "read", write: "write" });
-    // POST /api/v1/tenants/:tenantId/consent — Grant consent
+    // POST /api/v1/tenants/:tenantId/consent: Grant consent
     app.post<{ Params: { tenantId: string } }>("/", async (request, reply) => {
       const { tenantId } = request.params;
       const input = GrantConsentInputSchema.parse(request.body);
@@ -19,7 +19,7 @@ export function createConsentRoutes(stratum: Stratum) {
       reply.status(201).send(record);
     });
 
-    // GET /api/v1/tenants/:tenantId/consent — List consent records
+    // GET /api/v1/tenants/:tenantId/consent: List consent records
     app.get<{ Params: { tenantId: string }; Querystring: { subject_id?: string } }>(
       "/",
       async (request, reply) => {
@@ -30,7 +30,7 @@ export function createConsentRoutes(stratum: Stratum) {
       },
     );
 
-    // DELETE /api/v1/tenants/:tenantId/consent/:purpose — Revoke consent
+    // DELETE /api/v1/tenants/:tenantId/consent/:purpose: Revoke consent
     app.delete<{ Params: { tenantId: string; purpose: string }; Querystring: { subject_id: string } }>(
       "/:purpose",
       async (request, reply) => {

@@ -455,7 +455,7 @@ describe("expressMiddleware", () => {
 
       await middleware(req, res, next);
 
-      // Should NOT call authorize — same tenant, no impersonation needed
+      // Should NOT call authorize: same tenant, no impersonation needed
       expect(authorize).not.toHaveBeenCalled();
       expect(req.tenant).toEqual(ctx);
       expect(req.impersonating).toBe(false);
@@ -476,7 +476,7 @@ describe("expressMiddleware", () => {
 
       await middleware(req, res, next);
 
-      // No impersonation config — header ignored
+      // No impersonation config, so the header is ignored
       expect(req.tenant).toEqual(ctx);
       expect(req.impersonating).toBe(false);
       expect(next).toHaveBeenCalled();

@@ -51,7 +51,7 @@ describe("Webhook Delivery (integration)", () => {
       events: ["tenant.created"],
     });
 
-    // This was the critical bug — secret_encrypted vs secret_hash
+    // This was the critical bug: secret_encrypted vs secret_hash
     // The query must succeed without a column-not-found error
     const pool = getPool();
     const result = await pool.query(

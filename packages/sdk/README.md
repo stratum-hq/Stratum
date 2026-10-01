@@ -64,10 +64,10 @@ app.get("/data", (req, res) => {
 
 ## Features
 
-- **`StratumClient`** — HTTP client for the control plane API (`resolveTenant`, `getTenantTree`, `createTenant`, `createWebhook`, `listRegions`, …) with a built-in LRU cache. Mutations made through the client invalidate affected entries (a move clears the whole cache); changes made elsewhere, such as a suspension or a config or permission change, are picked up when the entry expires, so the cache TTL (`cache.ttlMs`, default 60s) bounds how stale a context can be.
-- **`expressMiddleware` / `fastifyPlugin`** — resolve the tenant from a JWT claim, `X-Tenant-ID` header, or custom resolvers (tried in that order), then populate `req.tenant`.
-- **AsyncLocalStorage context** — `getTenantContext()` and `runWithTenantContext()` make the resolved context available to services that never see the request object.
-- **Custom resolvers** — supply async functions (e.g. subdomain- or query-based) via the `resolvers` option.
+- **`StratumClient`**: HTTP client for the control plane API (`resolveTenant`, `getTenantTree`, `createTenant`, `createWebhook`, `listRegions`, …) with a built-in LRU cache. Mutations made through the client invalidate affected entries (a move clears the whole cache); changes made elsewhere, such as a suspension or a config or permission change, are picked up when the entry expires, so the cache TTL (`cache.ttlMs`, default 60s) bounds how stale a context can be.
+- **`expressMiddleware` / `fastifyPlugin`**: resolve the tenant from a JWT claim, `X-Tenant-ID` header, or custom resolvers (tried in that order), then populate `req.tenant`.
+- **AsyncLocalStorage context**: `getTenantContext()` and `runWithTenantContext()` make the resolved context available to services that never see the request object.
+- **Custom resolvers**: supply async functions (e.g. subdomain- or query-based) via the `resolvers` option.
 
 JWT resolution activates only when `jwtSecret` or `jwtVerify` is provided; otherwise Bearer tokens are ignored. When it is active, the verified JWT is the tenant binding: a Bearer token that fails verification is rejected with `401 INVALID_TOKEN`, and the tenant header is not read unless you set `trustTenantHeader: true`. If no tenant is found, the middleware returns `400 MISSING_TENANT`.
 

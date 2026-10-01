@@ -1,7 +1,7 @@
 import { DatabasePoolManager } from "../database/pool-manager.js";
 import { getDatabaseName } from "../database/manager.js";
 
-// Minimal structural interface — avoids a hard runtime dependency on @prisma/client.
+// Minimal structural interface; avoids a hard runtime dependency on @prisma/client.
 interface PrismaClientLike {
   $extends: (extension: unknown) => PrismaClientLike;
   $executeRaw: (
