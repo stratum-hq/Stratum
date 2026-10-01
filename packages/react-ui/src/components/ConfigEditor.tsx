@@ -71,78 +71,80 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
 
   return (
     <div className={`stratum-config-editor ${className || ""}`}>
-      <table className="stratum-config-editor__table">
-        <thead>
-          <tr>
-            <th>{t("configEditor.columnKey")}</th>
-            <th>{t("configEditor.columnValue")}</th>
-            <th>{t("configEditor.columnSource")}</th>
-            <th>{t("configEditor.columnStatus")}</th>
-            <th>{t("configEditor.columnActions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {config.map((entry) => (
-            <tr key={entry.key} className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
-              <td>{entry.key}</td>
-              <td>
-                {editingKey === entry.key ? (
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSave(entry.key)}
-                    aria-label={t("configEditor.editLabel", { key: entry.key })}
-                  />
-                ) : (
-                  <code>{JSON.stringify(entry.value)}</code>
-                )}
-              </td>
-              <td className="stratum-config-editor__source">
-                {entry.source_tenant_id.slice(0, 8)}...
-              </td>
-              <td>
-                {entry.locked && <span className="stratum-badge stratum-badge--locked">{t("configEditor.locked")}</span>}
-                {entry.inherited && !entry.locked && (
-                  <span className="stratum-badge stratum-badge--inherited">{t("configEditor.inherited")}</span>
-                )}
-                {!entry.inherited && !entry.locked && (
-                  <span className="stratum-badge stratum-badge--own">{t("configEditor.own")}</span>
-                )}
-              </td>
-              <td>
-                {!entry.locked && (
-                  <>
-                    {editingKey === entry.key ? (
-                      <>
-                        <button type="button" onClick={() => handleSave(entry.key)}>{t("configEditor.saveButton")}</button>
-                        <button type="button" onClick={() => setEditingKey(null)}>{t("configEditor.cancelButton")}</button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingKey(entry.key);
-                            setEditValue(JSON.stringify(entry.value));
-                          }}
-                        >
-                          {t("configEditor.editButton")}
-                        </button>
-                        {!entry.inherited && (
-                          <button type="button" onClick={() => handleDelete(entry.key)}>
-                            {t("configEditor.removeButton")}
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-              </td>
+      <div className="stratum-table-scroll">
+        <table className="stratum-config-editor__table">
+          <thead>
+            <tr>
+              <th>{t("configEditor.columnKey")}</th>
+              <th>{t("configEditor.columnValue")}</th>
+              <th>{t("configEditor.columnSource")}</th>
+              <th>{t("configEditor.columnStatus")}</th>
+              <th>{t("configEditor.columnActions")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {config.map((entry) => (
+              <tr key={entry.key} className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
+                <td>{entry.key}</td>
+                <td>
+                  {editingKey === entry.key ? (
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSave(entry.key)}
+                      aria-label={t("configEditor.editLabel", { key: entry.key })}
+                    />
+                  ) : (
+                    <code>{JSON.stringify(entry.value)}</code>
+                  )}
+                </td>
+                <td className="stratum-config-editor__source">
+                  {entry.source_tenant_id.slice(0, 8)}...
+                </td>
+                <td>
+                  {entry.locked && <span className="stratum-badge stratum-badge--locked">{t("configEditor.locked")}</span>}
+                  {entry.inherited && !entry.locked && (
+                    <span className="stratum-badge stratum-badge--inherited">{t("configEditor.inherited")}</span>
+                  )}
+                  {!entry.inherited && !entry.locked && (
+                    <span className="stratum-badge stratum-badge--own">{t("configEditor.own")}</span>
+                  )}
+                </td>
+                <td>
+                  {!entry.locked && (
+                    <>
+                      {editingKey === entry.key ? (
+                        <>
+                          <button type="button" onClick={() => handleSave(entry.key)}>{t("configEditor.saveButton")}</button>
+                          <button type="button" onClick={() => setEditingKey(null)}>{t("configEditor.cancelButton")}</button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingKey(entry.key);
+                              setEditValue(JSON.stringify(entry.value));
+                            }}
+                          >
+                            {t("configEditor.editButton")}
+                          </button>
+                          {!entry.inherited && (
+                            <button type="button" onClick={() => handleDelete(entry.key)}>
+                              {t("configEditor.removeButton")}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="stratum-config-editor__add">
         <input

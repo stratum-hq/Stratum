@@ -7,7 +7,7 @@
  * │ ─────────────────────── │ ──▶ │ ─────────────────────── │
  * │  max_users     1000     │     │  max_users     500  own │
  * │  api_rate      10000 🔒 │     │  api_rate      10000 ↑  │
- * │  brand_color   #2563EB  │     │  brand_color   #1E40AF  │
+ * │  brand_color   teal     │     │  brand_color   navy     │
  * └─────────────────────────┘     └─────────────────────────┘
  */
 
@@ -22,14 +22,14 @@ export interface ConfigInheritanceVisualizerProps {
 
 function Badge({ type }: { type: "inherited" | "locked" | "own" }) {
   const styles: Record<string, { label: string; icon: string; className: string }> = {
-    inherited: { label: "Inherited", icon: "\u2191", className: "stratum-cascade-badge--inherited" },
-    locked: { label: "Locked", icon: "\u2193", className: "stratum-cascade-badge--locked" },
-    own: { label: "Own", icon: "\u2022", className: "stratum-cascade-badge--own" },
+    inherited: { label: "Inherited", icon: "\u2193", className: "stratum-cascade-badge--inherited" },
+    locked: { label: "Locked", icon: "\u25A0", className: "stratum-cascade-badge--locked" },
+    own: { label: "Own", icon: "\u25B3", className: "stratum-cascade-badge--own" },
   };
   const s = styles[type];
   return (
     <span className={`stratum-cascade-badge ${s.className}`}>
-      {s.icon} {s.label}
+      <span aria-hidden="true">{s.icon}</span> {s.label}
     </span>
   );
 }
@@ -69,7 +69,10 @@ function ConfigTable({
           {entries.map((entry) => (
             <tr
               key={entry.key}
-              className={highlightKey === entry.key ? "stratum-cascade-row--highlight" : ""}
+              className={[
+                highlightKey === entry.key ? "stratum-cascade-row--highlight" : "",
+                entry.locked ? "stratum-cascade-row--locked" : "",
+              ].filter(Boolean).join(" ")}
             >
               <td className="stratum-cascade-key">{entry.key}</td>
               <td className="stratum-cascade-value">
@@ -224,81 +227,74 @@ export function ConfigInheritanceVisualizer({ className }: ConfigInheritanceVisu
 
 const cascadeStyles = `
 .stratum-cascade {
-  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
+  font-family: var(--font-body);
 }
 
 .stratum-cascade--error {
-  padding: var(--space-xl, 24px);
-  color: var(--color-error, #C4573A);
+  padding: var(--space-xl);
+  color: var(--accent-text);
   font-size: 0.875rem;
 }
 
 .stratum-cascade-retry {
-  margin-top: var(--space-sm, 8px);
-  padding: var(--space-xs, 4px) var(--space-md, 12px);
-  border: 1px solid var(--border, #EFE7D9);
-  border-radius: var(--radius-sm, 4px);
-  background: var(--bg-card, white);
-  color: var(--text-secondary, #4E4636);
-  cursor: pointer;
-  font-size: 0.75rem;
+  margin-top: var(--space-sm);
 }
 
 /* Child selector tabs */
 .stratum-cascade-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border, #EFE7D9);
-  margin-bottom: var(--space-lg, 16px);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-lg);
   overflow-x: auto;
 }
 
 .stratum-cascade-tab {
-  padding: var(--space-sm, 8px) var(--space-lg, 16px);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-tertiary, #6F6553);
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   cursor: pointer;
-  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
   white-space: nowrap;
 }
 
 .stratum-cascade-tab:hover {
-  color: var(--text-primary, #12100C);
+  color: var(--text-primary);
 }
 
 .stratum-cascade-tab.active {
-  color: var(--color-accent, #C9793F);
-  border-bottom-color: var(--color-accent, #C9793F);
+  color: var(--text-primary);
+  border-bottom-color: var(--flow);
 }
 
 /* Split-screen layout */
 .stratum-cascade-split {
   display: flex;
-  gap: var(--space-md, 12px);
+  gap: var(--space-md);
   align-items: flex-start;
 }
 
-/* Cascade arrow */
+/* Cascade arrow: the flow line, in vein */
 .stratum-cascade-arrow {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--space-3xl, 48px) 0;
+  padding: var(--space-3xl) 0;
   flex-shrink: 0;
-  color: var(--color-accent, #C9793F);
-  opacity: 0.6;
+  color: var(--flow);
 }
 
 .stratum-cascade-arrow__line {
-  width: 2px;
+  width: 3px;
   height: 24px;
-  background: var(--color-accent, #C9793F);
-  opacity: 0.4;
+  background: var(--flow);
 }
 
 .stratum-cascade-arrow__head {
@@ -306,13 +302,11 @@ const cascadeStyles = `
   transform: rotate(0deg);
 }
 
-/* Panel (each side of the split) */
+/* Panel (each side of the split) is a Layer; see default.css. */
 .stratum-cascade-panel {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border, #EFE7D9);
-  border-radius: var(--radius-md, 6px);
-  overflow: hidden;
+  padding-top: 7px;
 }
 
 .stratum-cascade-panel--empty {
@@ -324,32 +318,36 @@ const cascadeStyles = `
 }
 
 .stratum-cascade-panel__header {
-  padding: var(--space-sm, 8px) var(--space-md, 12px);
-  border-bottom: 1px solid var(--border, #EFE7D9);
-  background: var(--bg-card, white);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 2px solid var(--rule);
   display: flex;
   align-items: baseline;
-  gap: var(--space-sm, 8px);
+  gap: var(--space-sm);
 }
 
 .stratum-cascade-panel__title {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--text-primary, #12100C);
-  font-family: var(--font-display, 'Libre Franklin', sans-serif);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-primary);
 }
 
 .stratum-cascade-panel__subtitle {
-  font-size: 0.6875rem;
-  color: var(--text-tertiary, #6F6553);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.14em;
 }
 
 .stratum-cascade-empty-message {
-  padding: var(--space-xl, 24px);
+  padding: var(--space-xl);
   text-align: center;
-  color: var(--text-tertiary, #6F6553);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
 }
 
@@ -361,156 +359,116 @@ const cascadeStyles = `
 }
 
 .stratum-cascade-table th {
-  padding: var(--space-xs, 4px) var(--space-md, 12px);
+  padding: var(--space-xs) var(--space-md);
   text-align: left;
   font-weight: 600;
   font-size: 0.625rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-tertiary, #6F6553);
-  border-bottom: 1px solid var(--border, #EFE7D9);
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
 }
 
 .stratum-cascade-table td {
-  padding: var(--space-xs, 4px) var(--space-md, 12px);
-  border-bottom: 1px solid var(--border, #EFE7D9);
-  color: var(--text-primary, #12100C);
+  padding: var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
 }
 
 .stratum-cascade-key {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+  font-family: var(--font-mono);
   font-weight: 500;
 }
 
 .stratum-cascade-value code {
-  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+  font-family: var(--font-mono);
   font-size: 0.6875rem;
-  color: var(--text-secondary, #4E4636);
+  color: var(--text-secondary);
 }
 
 .stratum-cascade-empty {
   text-align: center;
-  color: var(--text-tertiary, #6F6553);
-  padding: var(--space-lg, 16px) !important;
+  color: var(--text-secondary);
+  padding: var(--space-lg) !important;
   font-style: italic;
 }
 
-/* Highlight row on hover from diff summary */
+/* LOCKED rows: magma family, with the word LOCKED in the badge. */
+.stratum-cascade-row--locked {
+  background: var(--lock-muted);
+  box-shadow: inset 4px 0 0 var(--lock);
+}
+
+/* Highlight row on hover from diff summary: the resolved flow, in vein. */
 .stratum-cascade-row--highlight {
-  background: rgba(13, 148, 136, 0.08);
+  background: var(--flow-muted);
+  box-shadow: inset 4px 0 0 var(--flow);
 }
 
-/* Badges */
-.stratum-cascade-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  white-space: nowrap;
+/* Badges: Tag shape and type come from default.css. */
+.stratum-cascade-badge--inherited,
+.stratum-cascade-diff__stat--inherited {
+  color: var(--on-flow);
+  background: var(--flow);
 }
 
-.stratum-cascade-badge--inherited {
-  color: var(--color-accent, #C9793F);
-  background: var(--color-accent-light, #F0E0D2);
+.stratum-cascade-badge--locked,
+.stratum-cascade-diff__stat--locked {
+  color: var(--on-accent);
+  background: var(--lock);
 }
 
-.stratum-cascade-badge--locked {
-  color: var(--color-warning, #D9A03F);
-  background: var(--color-warning-bg, #F3E4C0);
-}
-
-.stratum-cascade-badge--own {
-  color: var(--text-secondary, #4E4636);
-  background: var(--bg-input, var(--color-100, #E9E2D4));
-  border: 1px solid var(--border, #EFE7D9);
-}
-
-/* Dark mode overrides */
-[data-theme="dark"] .stratum-cascade-badge--inherited {
-  background: rgba(13, 148, 136, 0.15);
-}
-
-[data-theme="dark"] .stratum-cascade-badge--locked {
-  background: rgba(217, 119, 6, 0.15);
+.stratum-cascade-badge--own,
+.stratum-cascade-diff__stat--own {
+  color: var(--surface-0);
+  background: var(--text-primary);
 }
 
 /* Diff summary bar */
 .stratum-cascade-diff {
-  margin-top: var(--space-md, 12px);
-  padding: var(--space-sm, 8px) var(--space-md, 12px);
-  border: 1px solid var(--border, #EFE7D9);
-  border-radius: var(--radius-sm, 4px);
+  margin-top: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 2px solid var(--rule);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-md, 12px);
+  gap: var(--space-md);
   font-size: 0.75rem;
-  background: var(--bg-card, white);
 }
 
 .stratum-cascade-diff__label {
-  color: var(--text-tertiary, #6F6553);
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .stratum-cascade-diff__stat {
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-weight: 600;
-  font-size: 0.6875rem;
   cursor: default;
-}
-
-.stratum-cascade-diff__stat--inherited {
-  color: var(--color-accent, #C9793F);
-  background: var(--color-accent-light, #F0E0D2);
-}
-
-.stratum-cascade-diff__stat--locked {
-  color: var(--color-warning, #D9A03F);
-  background: var(--color-warning-bg, #F3E4C0);
-}
-
-.stratum-cascade-diff__stat--own {
-  color: var(--text-secondary, #4E4636);
-  background: var(--bg-input, var(--color-100, #E9E2D4));
-}
-
-[data-theme="dark"] .stratum-cascade-diff__stat--inherited {
-  background: rgba(13, 148, 136, 0.15);
-}
-
-[data-theme="dark"] .stratum-cascade-diff__stat--locked {
-  background: rgba(217, 119, 6, 0.15);
 }
 
 /* Responsive: stack on narrow screens */
 @media (max-width: 768px) {
   .stratum-cascade-split {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .stratum-cascade-arrow {
     flex-direction: row;
-    padding: 0 var(--space-xl, 24px);
+    padding: 0 var(--space-xl);
   }
 
   .stratum-cascade-arrow__line {
     width: 24px;
-    height: 2px;
+    height: 3px;
   }
 
   .stratum-cascade-arrow__head {
     transform: rotate(90deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stratum-cascade-row--highlight {
-    transition: none;
   }
 }
 `;
