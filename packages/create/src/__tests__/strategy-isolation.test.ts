@@ -292,3 +292,68 @@ describe("README of every preset", () => {
     expect(generatedFiles(preset).get("README.md")).not.toMatch(/Maximum isolation/i);
   });
 });
+
+const mongoPresets = allPresets().filter((p) => p.database === "mongodb");
+
+describe("MongoDB presets", () => {
+  it.each(mongoPresets.map(formatPresetString))(
+    "%s routes each tenant by the slug provisioning recorded for a verified tenant ID",
+    (name) => {
+      const preset = mongoPresets.find((p) => formatPresetString(p) === name)!;
+      const helper = generatedFiles(preset).get("src/stratum-mongoose.ts")!;
+      expect(helper).toContain(".findOne({ _id: tenantId })");
+      expect(helper).toContain("await tenantSlug(tenantId)");
+      if (preset.strategy === "collection") {
+        expect(helper).toMatch(/export async function getTenantModel<T>\([^)]*tenantId: string,?\s*\)/);
+      } else {
+        expect(helper).toContain("export async function getTenantConnection(tenantId: string)");
+      }
+      expect(helper).not.toMatch(/export (async )?function getTenant\w*(<T>)?\([^)]*tenantSlug/);
+    },
+  );
+
+  it.each(mongoPresets.map(formatPresetString))(
+    "%s connects as an app user that is not the root user, and provisions as the admin user",
+    (name) => {
+      const preset = mongoPresets.find((p) => formatPresetString(p) === name)!;
+      const files = generatedFiles(preset);
+      const env = files.get(".env.example")!;
+      expect(env).toMatch(/^MONGODB_URI=mongodb:\/\/app_app:[^@]+@localhost:27017\/app\?authSource=app$/m);
+      expect(env).toMatch(/^MONGODB_ADMIN_URI=mongodb:\/\/app:[^@]+@localhost:27017\/app\?authSource=admin$/m);
+      const pkg = JSON.parse(files.get("package.json")!) as { scripts: Record<string, string> };
+      expect(pkg.scripts["db:init"]).toBe("node --env-file=.env scripts/db-init.mjs");
+      expect(pkg.scripts["tenant:provision"]).toBe("node --env-file=.env scripts/provision-tenant.mjs");
+      const init = files.get("scripts/db-init.mjs")!;
+      expect(init).toContain('{ resource: { db: routingDb, collection: "tenants" }, actions: ["find"] }');
+      expect(init).toContain("process.env.MONGODB_ADMIN_URI");
+      expect(init).not.toMatch(/readWrite|dbOwner|"root"|"drop/);
+      const provision = files.get("scripts/provision-tenant.mjs")!;
+      expect(provision).toContain("process.env.MONGODB_ADMIN_URI");
+      expect(provision).toContain("is already provisioned");
+    },
+  );
+
+  it.each(mongoPresets.map(formatPresetString))("%s README describes the names and setup it generates", (name) => {
+    const preset = mongoPresets.find((p) => formatPresetString(p) === name)!;
+    const readme = generatedFiles(preset).get("README.md")!;
+    expect(readme).not.toMatch(/namespaced by tenant ID|PostgreSQL|DatabaseRawAdapter/);
+    expect(readme).toContain("npm run db:init");
+    expect(readme).toContain("npm run tenant:provision -- <tenant-id> <slug>");
+  });
+});
+
+describe("x-tenant-slug", () => {
+  it.each(allPresets().map(formatPresetString))("%s never reads x-tenant-slug for routing", (name) => {
+    const preset = allPresets().find((p) => formatPresetString(p) === name)!;
+    for (const [file, content] of generatedFiles(preset)) {
+      if (!/\.(ts|tsx|mjs)$/.test(file)) continue;
+      if (file === "src/proxy.ts") {
+        // The proxy only removes the client's copy and sets the subdomain, and says it is untrusted.
+        expect(content).not.toMatch(/\.get\(TENANT_SLUG_HEADER\)|\.get\("x-tenant-slug"\)/);
+        expect(content).toMatch(/does not prove the caller\s*(\/\/)?\s*belongs to that tenant/);
+        continue;
+      }
+      expect(content, file).not.toMatch(/["'`]x-tenant-slug["'`]/);
+    }
+  });
+});

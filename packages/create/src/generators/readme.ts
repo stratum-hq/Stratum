@@ -67,6 +67,9 @@ function getDbSetupNote(preset: StackPreset): string {
   if (preset.database === "mysql") {
     return getMysqlProvisioningNote(preset);
   }
+  if (preset.database === "mongodb") {
+    return getMongoProvisioningNote(preset);
+  }
   if (preset.orm === "prisma") {
     if (preset.database === "postgres") {
       return `
@@ -189,6 +192,29 @@ ${slugReuseNote(where)}
 `;
 }
 
+/** Setup steps of the MongoDB presets. */
+function getMongoProvisioningNote(preset: StackPreset): string {
+  const collection = preset.strategy === "collection";
+  const where = collection ? "collections" : "database";
+  const helper = collection
+    ? "`getTenantModel(baseCollection, schema, tenantId)` in `src/stratum-mongoose.ts` returns the tenant's model for a collection"
+    : "`getTenantConnection(tenantId)` in `src/stratum-mongoose.ts` returns a connection to the tenant's own database";
+  return `
+### 3b. Create the app user and provision each tenant
+
+\`\`\`bash
+npm run db:init
+npm run tenant:provision -- <tenant-id> <slug>
+\`\`\`
+
+Both scripts run as the root user of \`docker-compose.yml\` in \`MONGODB_ADMIN_URI\`. \`npm run db:init\` runs once and creates the app user in \`MONGODB_URI\`, which the app connects as. The app user reads and writes ${collection ? "the tenants' collections" : "the tenant databases that provisioning grants it"}, only reads the routing records, and cannot drop or rename anything or manage users.
+
+\`npm run tenant:provision\` runs once per tenant. \`<tenant-id>\` is the \`tenant_id\` claim of the tenant's tokens, and \`<slug>\` names the tenant's ${where}: a lowercase letter, then lowercase letters, digits or underscores. It records the slug in the \`tenants\` collection of the \`{database}_routing\` database${collection ? "" : " and gives the app user read and write access to the tenant's database"}. It refuses a tenant ID or slug that is already provisioned, and a slug whose ${where} already exist${collection ? "" : "s"}.
+
+In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in the routing records and refuses a tenant that is not provisioned. Never take the slug from the hostname or a request header such as \`x-tenant-slug\`, which any caller can choose.
+`;
+}
+
 function getStrategyDescription(preset: StackPreset): string {
   switch (preset.strategy) {
     case "rls":
@@ -200,6 +226,11 @@ function getStrategyDescription(preset: StackPreset): string {
 - The generated helper (${preset.orm === "prisma" ? "`SchemaPrismaAdapter`" : "`SchemaRawAdapter`"} from \`@stratum-hq/db-adapters\`) sends each query to the schema of the tenant in the verified token
 - Shared database, isolated schemas, no row-level security`;
     case "database":
+      if (preset.database === "mongodb") {
+        return `- **Database-per-tenant**: each tenant's data is in its own MongoDB database, \`stratum_tenant_{slug}\`, the name \`MongoDatabaseAdapter\` from \`@stratum-hq/mongodb\` uses
+- The generated helper picks the database by the slug recorded for the tenant ID in the verified token
+- The app connects to every tenant database as the same app user, so the helper's choice of database is what keeps tenants apart`;
+      }
       if (preset.database === "mysql") {
         return `- **Database-per-tenant**: each tenant's tables are in its own MySQL database, \`stratum_tenant_{slug}\`, which \`npm run tenant:provision\` creates
 - The generated helper (\`MysqlDatabaseAdapter\` from \`@stratum-hq/mysql\`) sends each query to the database of the tenant in the verified token
@@ -209,9 +240,9 @@ function getStrategyDescription(preset: StackPreset): string {
 - The generated helper (${preset.orm === "prisma" ? "`DatabasePrismaAdapter`" : "`DatabaseRawAdapter`"} from \`@stratum-hq/db-adapters\`) sends each query to the database of the tenant in the verified token
 - The app connects to every tenant database as the same app role, so the helper's choice of database is what keeps tenants apart; no row-level security`;
     case "collection":
-      return `- **Collection-per-tenant**: each tenant gets dedicated MongoDB collections
-- Collection names are prefixed or namespaced by tenant ID
-- Shared database, isolated collections`;
+      return `- **Collection-per-tenant**: each tenant has its own copy of each collection, \`{collection}_{slug}\`, the name \`MongoCollectionAdapter\` from \`@stratum-hq/mongodb\` uses
+- The generated helper names the collections by the slug recorded for the tenant ID in the verified token
+- Shared database, one set of collections per tenant`;
     case "table-prefix":
       return `- **Table-per-tenant**: each tenant has its own copy of each table, \`{table}_{slug}\`, which \`npm run tenant:provision\` creates
 - The generated helper (\`MysqlTableAdapter\` from \`@stratum-hq/mysql\`) names the tables of the tenant in the verified token

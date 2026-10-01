@@ -98,6 +98,13 @@ Tables are created by the superuser in `DATABASE_SUPERUSER_URL`, never by the ap
 
 Run `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. It runs as the admin user in `DATABASE_SUPERUSER_URL`, creates the tenant's database or tables from `sql/tenant.sql`, gives the app user read and write access to them, and records the slug in `_stratum_tenants`. A failed run removes what it created. The app user in `DATABASE_URL` creates, alters and drops nothing, and only reads `_stratum_tenants`. The helper takes the tenant ID from the verified token and looks up the slug there; it never takes the slug from the hostname or a header. The names are fixed at provisioning, so do not change a slug or give a tenant a slug that another tenant had. The Knex and Sequelize helpers of `@stratum-hq/mysql` scope a shared table by `tenant_id`, which neither strategy uses, so the generator offers MySQL only with the `mysql2` driver.
 
+### Tenant isolation on MongoDB
+
+- **database**: each tenant's data is in its own database, `stratum_tenant_{slug}`, and `getTenantConnection(tenantId)` returns a connection to it.
+- **collection**: each tenant has its own copy of each collection, `{collection}_{slug}`, and `getTenantModel(baseCollection, schema, tenantId)` returns the tenant's model.
+
+Run `npm run db:init` once, then `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. Both run as the root user in `MONGODB_ADMIN_URI`. `db:init` creates the app user in `MONGODB_URI`, which the app connects as: it reads and writes tenant data, only reads the routing records, and cannot drop anything or manage users. Provisioning records the slug in the `tenants` collection of the `{database}_routing` database, and refuses a tenant ID or slug that is already provisioned. The helpers take the tenant ID from the verified token and look up the slug there; they never take the slug from the hostname or a header.
+
 ## After Scaffolding
 
 ```bash

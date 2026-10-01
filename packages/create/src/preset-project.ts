@@ -26,6 +26,9 @@ function writeFile(filePath: string, content: string): void {
   console.log(`  created  ${path.relative(process.cwd(), filePath)}`);
 }
 
+/** Local development password for the generated MongoDB app user. */
+const MONGODB_APP_PASSWORD = "dev_app_password";
+
 export function generatePresetEnv(projectName: string, preset: StackPreset): string {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
@@ -43,7 +46,10 @@ export function generatePresetEnv(projectName: string, preset: StackPreset): str
         `STRATUM_ADMIN_DATABASE_URL=postgres://${postgresStratumRole(dbName)}:${POSTGRES_STRATUM_PASSWORD}@localhost:5432/${dbName}\n`;
       break;
     case "mongodb":
-      dbUrl = `mongodb://${dbName}:dev_password@localhost:27017/${dbName}?authSource=admin`;
+      // The app connects as its own user, which npm run db:init creates. The
+      // root user of docker-compose.yml is for db:init and provisioning only.
+      dbUrl = `mongodb://${dbName}_app:${MONGODB_APP_PASSWORD}@localhost:27017/${dbName}?authSource=${dbName}`;
+      adminUrlLine = `\n# Admin user (the root user of docker-compose.yml): npm run db:init and npm run tenant:provision only.\nMONGODB_ADMIN_URI=mongodb://${dbName}:dev_password@localhost:27017/${dbName}?authSource=admin\n`;
       break;
     case "mysql":
       dbUrl = `mysql://${dbName}:dev_password@localhost:3306/${dbName}`;

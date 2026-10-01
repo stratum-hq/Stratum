@@ -783,32 +783,34 @@ export { knex };
 // adapters, so MongoDatabaseAdapter and MongoCollectionAdapter find the same
 // data, for example for purgeTenantData.
 function generateMongooseSetup(preset: StackPreset): DbSetupFile[] {
-  const tenantAccess =
-    preset.strategy === "collection"
-      ? `// Return the tenant's model for a base collection. The tenant's documents are
-// in the collection {baseCollection}_{tenantSlug}, the name that
-// MongoCollectionAdapter from @stratum-hq/mongodb uses.
-export function getTenantModel<T>(
+  const collection = preset.strategy === "collection";
+  const tenantAccess = collection
+    ? `// Return the tenant's model for a base collection. The tenant's documents are
+// in the collection {baseCollection}_{slug}, the name that
+// MongoCollectionAdapter from @stratum-hq/mongodb uses. Pass the tenant ID of
+// a verified token.
+export async function getTenantModel<T>(
   baseCollection: string,
   schema: mongoose.Schema<T>,
-  tenantSlug: string,
+  tenantId: string,
 ) {
-  const name = \`\${baseCollection}_\${assertSlug(tenantSlug)}\`;
+  const name = \`\${baseCollection}_\${await tenantSlug(tenantId)}\`;
   return mainConnection.models[name] ?? mainConnection.model(name, schema, name);
 }
 
 // Usage:
-// const Order = getTenantModel("orders", OrderSchema, "tenant_abc");
+// const Order = await getTenantModel("orders", OrderSchema, tenantId);
 // const orders = await Order.find();`
-      : `// Return a connection to the tenant's own database. The database name is
-// stratum_tenant_{tenantSlug}, the name that MongoDatabaseAdapter from
+    : `// Return a connection to the tenant's own database. The database name is
+// stratum_tenant_{slug}, the name that MongoDatabaseAdapter from
 // @stratum-hq/mongodb uses. useCache returns the same connection on each call.
-export function getTenantConnection(tenantSlug: string) {
-  return mainConnection.useDb(\`stratum_tenant_\${assertSlug(tenantSlug)}\`, { useCache: true });
+// Pass the tenant ID of a verified token.
+export async function getTenantConnection(tenantId: string) {
+  return mainConnection.useDb(\`stratum_tenant_\${await tenantSlug(tenantId)}\`, { useCache: true });
 }
 
 // Usage:
-// const conn = getTenantConnection("tenant_abc");
+// const conn = await getTenantConnection(tenantId);
 // const Order = conn.model("Order", OrderSchema);
 // const orders = await Order.find();`;
 
@@ -818,7 +820,8 @@ export function getTenantConnection(tenantSlug: string) {
       content: `// Mongoose with Stratum multi-tenant support
 import mongoose from "mongoose";
 
-// Main connection (used for tenant metadata)
+// The app user in MONGODB_URI, which npm run db:init creates. It reads and
+// writes the tenants' data and only reads the routing records.
 const mainConnection = mongoose.createConnection(
   process.env.MONGODB_URI || "mongodb://localhost:27017/main",
 );
@@ -834,6 +837,26 @@ function assertSlug(tenantSlug: string): string {
   return tenantSlug;
 }
 
+/**
+ * The slug of the tenant with this ID, which names its ${collection ? "collections" : "database"}. npm run
+ * tenant:provision records it in the tenants collection of the {database}_routing
+ * database, which the app user can only read. Pass only the tenant_id claim
+ * of a verified token, as the generated server resolves it. Never take the
+ * slug from the request, such as its host name or the x-tenant-slug header:
+ * any caller can choose those. Throws when no tenant with this ID is
+ * provisioned.
+ */
+export async function tenantSlug(tenantId: string): Promise<string> {
+  if (typeof tenantId !== "string") throw new Error("The tenant ID must be a string");
+  await mainConnection.asPromise();
+  const record = await mainConnection
+    .useDb(\`\${mainConnection.name}_routing\`, { useCache: true })
+    .collection<{ _id: string; slug: string }>("tenants")
+    .findOne({ _id: tenantId });
+  if (!record) throw new Error(\`No provisioned tenant has the ID \${tenantId}\`);
+  return assertSlug(record.slug);
+}
+
 ${tenantAccess}
 
 // Define schemas that work across tenant connections
@@ -845,7 +868,137 @@ export const TenantSchema = new mongoose.Schema({
 export { mainConnection };
 `,
     },
+    { filename: "scripts/db-init.mjs", content: mongoDbInitScript(collection) },
+    { filename: "scripts/provision-tenant.mjs", content: mongoProvisionScript(collection) },
   ];
+}
+
+/** The actions the app user gets on tenant data: no drop, rename or user administration. */
+const MONGO_DATA_ACTIONS = `["find", "insert", "update", "remove", "createCollection", "createIndex"]`;
+
+/** Reads the app user and its databases from MONGODB_URI, in the MongoDB scripts. */
+const MONGO_SCRIPT_SETTINGS = `for (const key of ["MONGODB_URI", "MONGODB_ADMIN_URI"]) {
+  if (!process.env[key]) throw new Error(\`\${key} must be set (see .env.example)\`);
+}
+// MONGODB_URI names the app user, its password, the app's database and the
+// database the user is defined in (authSource).
+const appUri = new URL(process.env.MONGODB_URI);
+const appUser = decodeURIComponent(appUri.username);
+const appDb = decodeURIComponent(appUri.pathname.slice(1));
+const authDb = appUri.searchParams.get("authSource") ?? appDb;
+if (!appUser || !appDb) throw new Error("MONGODB_URI must name the app user and the app's database");
+// The tenants collection of this database records each provisioned tenant.
+const routingDb = \`\${appDb}_routing\`;
+const DATA_ACTIONS = ${MONGO_DATA_ACTIONS};`;
+
+/** scripts/db-init.mjs of the MongoDB presets: creates the app user as the admin user. */
+function mongoDbInitScript(collection: boolean): string {
+  return `// Creates the app user in MONGODB_URI, as the admin user in MONGODB_ADMIN_URI.
+// Run it once, after the database starts: npm run db:init
+//
+// The app user gets a role of its own. It reads the routing records, which
+// npm run tenant:provision keeps, and ${collection ? "it reads and writes the tenants' collections\n// in the app's database" : "it reads and writes each tenant's database,\n// which npm run tenant:provision grants it"}. It cannot drop or rename anything or
+// manage users.
+import mongoose from "mongoose";
+
+${MONGO_SCRIPT_SETTINGS}
+
+const admin = await mongoose.createConnection(process.env.MONGODB_ADMIN_URI).asPromise();
+try {
+  // A role that names other databases must be defined in admin.
+  await admin.useDb("admin").db.command({
+    createRole: appUser,
+    privileges: [
+      { resource: { db: routingDb, collection: "tenants" }, actions: ["find"] },${
+        collection
+          ? `
+      { resource: { db: appDb, collection: "" }, actions: DATA_ACTIONS },`
+          : ""
+      }
+    ],
+    roles: [],
+  });
+  await admin.useDb(authDb).db.command({
+    createUser: appUser,
+    pwd: decodeURIComponent(appUri.password),
+    roles: [{ role: appUser, db: "admin" }],
+  });
+  // Each tenant ID and each slug is recorded once.
+  await admin.useDb(routingDb).db.collection("tenants").createIndex({ slug: 1 }, { unique: true });
+} finally {
+  await admin.close();
+}
+console.log(\`Created the app user \${appUser}\`);
+`;
+}
+
+/** scripts/provision-tenant.mjs of the MongoDB presets: records one tenant, as the admin user. */
+function mongoProvisionScript(collection: boolean): string {
+  return `// Provisions one tenant: ${collection ? "" : "gives the app user read and write access to the\n// tenant's own database (stratum_tenant_{slug}), and "}records the tenant's slug in the
+// tenants collection of the {database}_routing database, where the app looks it up.
+//
+//   npm run tenant:provision -- <tenant-id> <slug>
+//
+// <tenant-id> is the tenant_id claim of the tenant's tokens. <slug> names the
+// tenant's ${collection ? "collections ({collection}_{slug})" : "database"}: a lowercase letter, then lowercase letters, digits
+// or underscores. It runs as the admin user in MONGODB_ADMIN_URI, never as the
+// app user in MONGODB_URI. If it fails, it removes what it created, so you can
+// run it again.
+import mongoose from "mongoose";
+
+const [tenantId, slug] = process.argv.slice(2);
+if (!tenantId || !slug) {
+  console.error("Usage: npm run tenant:provision -- <tenant-id> <slug>");
+  process.exit(1);
+}
+if (!/^[\\x21-\\x7e]{1,64}$/.test(tenantId)) throw new Error(\`Invalid tenant ID: \${tenantId}\`);
+// The Stratum slug rule, which @stratum-hq/mongodb checks too.
+if (!/^[a-z][a-z0-9_]{0,62}$/.test(slug)) throw new Error(\`Invalid tenant slug: \${slug}\`);${
+    collection
+      ? ""
+      : `
+const database = \`stratum_tenant_\${slug}\`;
+// MongoDB database names have fewer than 64 characters.
+if (database.length > 63) throw new Error(\`Slug \${slug} is too long: \${database} has more than 63 characters\`);`
+  }
+
+${MONGO_SCRIPT_SETTINGS}
+
+const admin = await mongoose.createConnection(process.env.MONGODB_ADMIN_URI).asPromise();
+try {
+  // Each tenant ID and each slug is provisioned once: a tenant that got a
+  // slug another tenant had would reach that tenant's ${collection ? "collections" : "database"}.
+  const tenants = admin.useDb(routingDb).db.collection("tenants");
+  if (await tenants.findOne({ $or: [{ _id: tenantId }, { slug }] })) {
+    throw new Error(\`Tenant \${tenantId} or slug \${slug} is already provisioned\`);
+  }
+  // Data under the slug's name may be another tenant's.${
+    collection
+      ? `
+  const taken = await admin.db.listCollections({ name: { $regex: \`_\${slug}$\` } }).toArray();
+  if (taken.length > 0) throw new Error(\`Collections named for slug \${slug} exist: \${taken.map((c) => c.name).join(", ")}\`);
+
+  await tenants.insertOne({ _id: tenantId, slug, provisionedAt: new Date() });`
+      : `
+  const { databases } = await admin.db.admin().listDatabases({ nameOnly: true });
+  if (databases.some((d) => d.name === database)) throw new Error(\`Database \${database} exists\`);
+
+  // The app user's role, which npm run db:init defined in admin.
+  const role = admin.useDb("admin").db;
+  const privileges = [{ resource: { db: database, collection: "" }, actions: DATA_ACTIONS }];
+  await role.command({ grantPrivilegesToRole: appUser, privileges });
+  try {
+    await tenants.insertOne({ _id: tenantId, slug, provisionedAt: new Date() });
+  } catch (err) {
+    await role.command({ revokePrivilegesFromRole: appUser, privileges });
+    throw err;
+  }`
+  }
+} finally {
+  await admin.close();
+}
+console.log(\`Provisioned tenant \${tenantId} as \${slug}\`);
+`;
 }
 
 function generatePgSetup(preset: StackPreset): DbSetupFile[] {

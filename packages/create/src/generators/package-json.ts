@@ -191,11 +191,18 @@ function getScripts(preset: StackPreset): Record<string, string> {
 
 /**
  * Scripts that set up the database. They run with the superuser (the MySQL
- * admin user) in DATABASE_SUPERUSER_URL, never as the app role.
+ * admin user) in DATABASE_SUPERUSER_URL, or the MongoDB admin user in
+ * MONGODB_ADMIN_URI, never as the app role.
  */
 function getDatabaseScripts(preset: StackPreset): Record<string, string> {
   if (preset.database === "mysql") {
     return { "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs" };
+  }
+  if (preset.database === "mongodb") {
+    return {
+      "db:init": "node --env-file=.env scripts/db-init.mjs",
+      "tenant:provision": "node --env-file=.env scripts/provision-tenant.mjs",
+    };
   }
   if (preset.database !== "postgres") return {};
   if (preset.strategy === "schema" || preset.strategy === "database") {
