@@ -212,9 +212,10 @@ these steps:
 2. **Gate on the merged commit.** On the merged `main` commit, run `npm run verify`,
    `npm run lint:secrets`, `npm run lint:deps`, and the integration suites, and read the
    output. Do not tag a commit you have not verified.
-3. **Tag it deliberately.** Create an **annotated** tag on that exact `main` commit, named
-   after the `@stratum-hq/lib` version (`vMAJOR.MINOR.PATCH`), with a message that names the
-   packages and the headline changes:
+3. **Tag it deliberately.** Create an **annotated** tag on that exact `main` commit. The tag
+   is the repository's release number (`vMAJOR.MINOR.PATCH`). It follows the `@stratum-hq/lib`
+   version when lib changes. When lib does not change, it bumps the patch of the last release
+   tag. The message names the packages and their versions, and the headline changes:
    `git tag -a vX.Y.Z <sha> -m "Release vX.Y.Z (<packages>): <summary>"`.
 4. **Push that one tag.** `STRATUM_RELEASE_TAG=vX.Y.Z git push origin refs/tags/vX.Y.Z`.
    The pre-push guard blocks every other tag push.
@@ -223,11 +224,17 @@ these steps:
    reviewer on the `publish` environment. Watch the run to completion and confirm on npm
    that every intended package version is live.
 6. **Security releases.** Publish the related GitHub security advisories, with their patched
-   versions filled in, only after npm serves the patched versions.
+   versions filled in, only after npm serves the patched versions. Fill in the advisory text
+   and versions first, check them, and publish in a separate step.
+7. **GitHub Release.** After npm serves every package, create a GitHub Release for the tag
+   that already exists: `gh release create vX.Y.Z --verify-tag --latest --title ...
+   --notes-file ...`. The notes list each package version and the headline changes from the
+   changelogs. `--verify-tag` refuses to run when the tag does not exist, so this step never
+   creates a tag.
 
 Still never: `git push --tags`, `git push --follow-tags`, lightweight tags, tags on commits
 that are not on `main`, moving or deleting a tag that has been pushed, or
-`gh release create` / the GitHub UI to create a tag.
+`gh release create` without `--verify-tag`, or the GitHub UI, to create a tag.
 
 ### Never publish manually
 
