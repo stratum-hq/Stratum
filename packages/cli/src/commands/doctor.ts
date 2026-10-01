@@ -1,5 +1,5 @@
 import pg from "pg";
-import { inspectRoleModel } from "@stratum-hq/lib";
+import { inspectRoleModel, stratumPolicyDrift } from "@stratum-hq/lib";
 import { tablePolicyWarnings } from "@stratum-hq/db-adapters";
 import {
   connectDb,
@@ -257,6 +257,37 @@ async function checkRoleModel(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return [{ status: "warn", label: "Control role", summary: "Could not check the role model", details: [msg] }];
+  }
+}
+
+/**
+ * Compares the row-level security of the Stratum tables with the canonical
+ * set of migration 032: RLS enabled and forced, and exactly the Stratum
+ * policies with their expressions. `stratum db roles --apply` restores it.
+ */
+async function checkStratumPolicies(pool: pg.Pool, controlRole: string | undefined): Promise<CheckResult> {
+  const label = "Stratum policies";
+  try {
+    const migrated = await pool.query("SELECT to_regclass('stratum_security') IS NOT NULL AS ok");
+    if (migrated.rows[0]?.ok !== true) {
+      return { status: "warn", label, summary: "Migration 032 not applied; run the Stratum migrations" };
+    }
+    const drift = await stratumPolicyDrift(pool, { controlRole });
+    if (drift.length === 0) {
+      return { status: "pass", label, summary: "RLS and policies match migration 032" };
+    }
+    return {
+      status: "warn",
+      label,
+      summary: `${drift.length} difference(s) from migration 032`,
+      details: [
+        ...drift,
+        "Fix: stratum db roles --apply (as a superuser) re-creates every Stratum policy and forces RLS",
+      ],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { status: "warn", label, summary: "Could not compare the Stratum policies", details: [msg] };
   }
 }
 
@@ -674,6 +705,7 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
       // d. RLS policies
       results.push(await checkRLSPolicies(pool, controlRole));
       results.push(await checkDirectBypassPolicies(pool));
+      results.push(await checkStratumPolicies(pool, controlRole));
 
       // d2. Control-role hardening and the role model (migration 032)
       results.push(...(await checkRoleModel(pool, adminPool, controlRole)));

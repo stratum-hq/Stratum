@@ -29,6 +29,21 @@ let su: pg.Client;
 let suPool: pg.Pool;
 let appPool: pg.Pool;
 
+function runCli(args: string[]): { code: number | null; out: string } {
+  const res = spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, NODE_ENV: "test", DATABASE_ADMIN_URL: "" },
+    timeout: 60000,
+  });
+  // eslint-disable-next-line no-control-regex
+  return { code: res.status, out: `${res.stdout}${res.stderr}`.replace(/\x1b\[[0-9;]*m/g, "") };
+}
+
+/** The output line of a doctor check. */
+function line(out: string, label: string): string {
+  return out.split("\n").find((l) => l.includes(label)) ?? `(no line for ${label})\n${out}`;
+}
+
 function applyRoles(): { code: number | null; out: string } {
   const res = spawnSync(
     process.execPath,
@@ -142,6 +157,13 @@ describe("stratum db roles --apply on tables the application login owned", () =>
     }
   });
 
+  it("doctor reports a tenant_isolation policy that the former owner changed", async () => {
+    await appPool.query("ALTER POLICY tenant_isolation ON tenants USING (true) WITH CHECK (true)");
+    const { out } = runCli(["doctor", "--database-url", suUrl]);
+    expect(line(out, "Stratum policies")).toMatch(/differ/);
+    expect(out).toContain("tenants: policy tenant_isolation");
+  });
+
   it("applies the role model once the tables carry only what the migrations created", async () => {
     const { code, out } = applyRoles();
     expect(code, out).toBe(0);
@@ -152,5 +174,18 @@ describe("stratum db roles --apply on tables the application login owned", () =>
       "SELECT pg_get_userbyid(proowner) AS owner FROM pg_proc WHERE oid = 'public.stratum_apply_control_role(text, text)'::regprocedure",
     );
     expect(fn.rows[0].owner).toBe(ADMIN);
+  });
+
+  it("restores the tenant_isolation policy that the former owner changed to USING (true)", async () => {
+    const res = await suPool.query(
+      "SELECT qual FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tenants' AND policyname = 'tenant_isolation'",
+    );
+    expect(res.rows[0].qual).toContain("stratum_legacy_bypass()");
+    expect(res.rows[0].qual).toContain("app.current_tenant_id");
+  });
+
+  it("doctor reports every Stratum policy as canonical after the bootstrap", () => {
+    const { out } = runCli(["doctor", "--database-url", suUrl]);
+    expect(line(out, "Stratum policies")).toMatch(/match/);
   });
 });

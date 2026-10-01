@@ -44,6 +44,8 @@ export function printHelp(): void {
     --app-role <role>             Application login for db roles
     --schema <schema>             Schema of the Stratum tables for db commands (default: public)
     --apply                       Run the db roles SQL instead of printing it
+    --grant-references            db roles: also grant the app login REFERENCES on tenants(id),
+                                  for foreign keys from its tables (opt-in)
     --tenant <uuid>               Tenant for the existing rows of a migrated table
                                   (migrate command; required when the table has rows)
     --name <name>                 Name for generated API key

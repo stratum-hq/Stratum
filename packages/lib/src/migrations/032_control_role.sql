@@ -32,7 +32,10 @@
 --     by the control role.
 --   * The tree-column guard of 031 accepts a member of the control role, or
 --     the legacy bypass.
---   * stratum_security gets FORCE ROW LEVEL SECURITY.
+--   * Row-level security is reset on every Stratum table: all its policies
+--     are dropped, RLS is enabled and forced (stratum_security included), and
+--     the canonical policies are created again. Running it restores policies
+--     that an owner of the tables changed, dropped or added.
 --
 -- When the migrating role can neither create nor join the control role (no
 -- CREATEROLE, no ADMIN on an existing role), part 2 is skipped with a
@@ -239,6 +242,7 @@ DECLARE
   v_pg16 boolean := current_setting('server_version_num')::int >= 160000;
   v_bootstrap text;
   v_table text;
+  v_policy name;
   v_tables text[] := ARRAY[
     'tenants', 'config_entries', 'permission_policies', 'audit_logs', 'webhook_events',
     'webhook_deliveries', 'webhooks', 'consent_records', 'abac_policies', 'api_keys',
@@ -319,13 +323,64 @@ BEGIN
 
   FOREACH v_table IN ARRAY v_tables LOOP
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON %I.%I TO %I', v_schema, v_table, v_role);
-    EXECUTE format('DROP POLICY IF EXISTS stratum_control_plane ON %I.%I', v_schema, v_table);
-    EXECUTE format(
-      'CREATE POLICY stratum_control_plane ON %I.%I AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)',
-      v_schema, v_table, v_role
-    );
   END LOOP;
-  EXECUTE format('ALTER TABLE %I.stratum_security FORCE ROW LEVEL SECURITY', v_schema);
+
+  -- Row-level security of the Stratum tables, reset to the canonical set:
+  -- every policy on them is dropped, RLS is enabled and forced, and the
+  -- policies of 019, 020, 031 and 032 (in its legacy form) are created again,
+  -- with stratum_control_plane for the control role. Whatever a former owner
+  -- of the tables changed or added is gone afterwards. The statements below
+  -- are rendered by policiesPlpgsql() in @stratum-hq/lib (stratum-policies.ts);
+  -- a unit test keeps the two identical.
+  FOREACH v_table IN ARRAY v_tables LOOP
+    FOR v_policy IN
+      SELECT p.polname FROM pg_policy p WHERE p.polrelid = format('%I.%I', v_schema, v_table)::regclass
+    LOOP
+      EXECUTE format('DROP POLICY %I ON %I.%I', v_policy, v_schema, v_table);
+    END LOOP;
+    EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', v_schema, v_table);
+    EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', v_schema, v_table);
+  END LOOP;
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.config_entries FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.permission_policies FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.audit_logs FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.webhook_events FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.webhooks FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.consent_records FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.abac_policies FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.api_keys FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.roles FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.usage_events FOR ALL USING ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.tenants FOR ALL USING ((SELECT stratum_legacy_bypass()) OR id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid) WITH CHECK ((SELECT stratum_legacy_bypass()) OR id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.webhook_deliveries FOR ALL USING ((SELECT stratum_legacy_bypass()) OR EXISTS (SELECT 1 FROM webhook_events we WHERE we.id = webhook_deliveries.event_id AND we.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)) WITH CHECK ((SELECT stratum_legacy_bypass()) OR EXISTS (SELECT 1 FROM webhook_events we WHERE we.id = webhook_deliveries.event_id AND we.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_isolation ON %I.principal_roles FOR ALL USING ((SELECT stratum_legacy_bypass()) OR EXISTS (SELECT 1 FROM roles r WHERE r.id = principal_roles.role_id AND r.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)) WITH CHECK ((SELECT stratum_legacy_bypass()) OR EXISTS (SELECT 1 FROM roles r WHERE r.id = principal_roles.role_id AND r.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.config_entries FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]) AND NOT sensitive)$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.permission_policies FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.audit_logs FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.webhook_events FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.consent_records FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.abac_policies FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.roles FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.usage_events FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.tenants FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.webhook_deliveries FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND EXISTS (SELECT 1 FROM webhook_events we WHERE we.id = webhook_deliveries.event_id AND we.tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[])))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY tenant_subtree_read ON %I.principal_roles FOR SELECT USING (current_setting('app.tenant_scope', true) = 'subtree' AND EXISTS (SELECT 1 FROM roles r WHERE r.id = principal_roles.role_id AND r.tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[])))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY stratum_legacy_bypass ON %I.regions FOR ALL USING ((SELECT stratum_legacy_bypass())) WITH CHECK ((SELECT stratum_legacy_bypass()))$pol$, v_schema);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.tenants AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.config_entries AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.permission_policies AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.audit_logs AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.webhook_events AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.webhook_deliveries AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.webhooks AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.consent_records AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.abac_policies AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.api_keys AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.roles AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.principal_roles AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.usage_events AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.regions AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
+  EXECUTE format($pol$CREATE POLICY stratum_control_plane ON %I.stratum_security AS PERMISSIVE FOR ALL TO %I USING (true) WITH CHECK (true)$pol$, v_schema, v_role);
 
   -- stratum_subtree_tenant_ids(): the body of 031, SECURITY DEFINER, without
   -- the SET clauses. It no longer clears app.tenant_scope, so its query on

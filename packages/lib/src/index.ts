@@ -8,6 +8,11 @@ export {
 export { STRATUM_TABLES } from "./stratum-tables.js";
 export { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
 export {
+  stratumPolicyDrift,
+  STRATUM_RLS_TABLES,
+  type PolicyDriftOptions,
+} from "./stratum-policies.js";
+export {
   bootstrapRolesSql,
   inspectRoleModel,
   APP_READ_TABLES,

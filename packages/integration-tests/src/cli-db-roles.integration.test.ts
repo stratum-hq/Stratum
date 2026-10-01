@@ -110,6 +110,7 @@ describe("before stratum db roles: a legacy install owned by the application log
     const { out } = runCli(["doctor", "--database-url", appUrl]);
     expect(line(out, "Control role")).toMatch(/Hardening not active/);
     expect(out).toContain("stratum db roles --apply");
+    expect(line(out, "Stratum policies")).toMatch(/match migration 032/);
   });
 
   it("db lock refuses while the control role is not applied, and leaves the switch on", async () => {
@@ -196,6 +197,7 @@ describe("after stratum db roles --apply", () => {
     expect(line(out, "App role")).toMatch(/Not a member or owner/);
     expect(line(out, "Admin role")).toMatch(/Can act as the control plane/);
     expect(line(out, "Legacy switch")).toMatch(/On:/);
+    expect(line(out, "Stratum policies")).toMatch(/match migration 032/);
     expect(out).not.toContain("legacy app.bypass_rls path");
     const depth = out.match(/Tree depth\s+Max depth: (\d+)/);
     expect(depth, out).not.toBeNull();
@@ -267,8 +269,13 @@ describe("after stratum db roles --apply", () => {
     expect(col.rows).toEqual([]);
   });
 
-  it("migrate --tenant looks the tenant up as the control role once locked, after the grant", async () => {
-    await suPool.query(`GRANT REFERENCES (id) ON tenants TO "${APP}"`);
+  it("migrate --tenant looks the tenant up as the control role once locked, after db roles --grant-references", async () => {
+    const granted = runCli([
+      "db", "roles", "--apply", "--grant-references", "--database-url", suUrl, "--admin-role", ADMIN, "--app-role", APP,
+    ]);
+    expect(granted.code, granted.out).toBe(0);
+    const priv = await suPool.query("SELECT has_column_privilege($1, 'tenants', 'id', 'REFERENCES') AS ok", [APP]);
+    expect(priv.rows[0].ok).toBe(true);
     const { code, out } = runCli(
       ["migrate", "notes", "--tenant", tenantId, "--database-url", appUrl, "--admin-database-url", adminUrl],
       "y\n",

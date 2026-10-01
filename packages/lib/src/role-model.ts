@@ -56,7 +56,7 @@ export const STRATUM_FUNCTION_BODY_MD5: Readonly<Record<string, string>> = Objec
   maintain_ancestry_ltree: "ddce857b77ffe5dad27239825949c886",
   propagate_ancestry_ltree: "a79bc2cb286893cb622c336876491759",
   stratum_legacy_bypass: "6fab3a709d5a9c11869f46397042f802",
-  stratum_apply_control_role: "f73e10108c69ca5baf6dc107b9dab3e4",
+  stratum_apply_control_role: "374e828b1d7fc9c36412a7ac5fc604cb",
 });
 
 export interface BootstrapRolesOptions {

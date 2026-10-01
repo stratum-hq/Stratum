@@ -72,7 +72,7 @@ stratum db lock --admin-database-url <admin url>                              # 
 stratum db unlock --admin-database-url <admin url>                            # reopen it
 ```
 
-`db roles` prints or applies `bootstrapRolesSql()`: it checks the Stratum tables for objects the migrations did not create, creates the NOLOGIN control role, makes the admin login a member, moves the Stratum objects the application login owns to the admin login (never your tables), applies the control role, and limits the application login to `SELECT` on the read list. See the [hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/).
+`db roles` prints or applies `bootstrapRolesSql()`: it checks the Stratum tables for objects the migrations did not create, creates the NOLOGIN control role, makes the admin login a member, moves the Stratum objects the application login owns to the admin login (never your tables), applies the control role (re-creating every Stratum policy from the canonical set), and limits the application login to `SELECT` on the read list. See the [hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/).
 
 ### `stratum scaffold`
 
@@ -96,6 +96,7 @@ stratum scaffold env       # .env template with all variables
 | `--admin-database-url` | Admin login, a member of the control role (default: `DATABASE_ADMIN_URL`); used by `doctor`, `generate api-key`, `migrate --tenant` and `db lock`. Without it they fall back to the legacy `app.bypass_rls` path with a warning |
 | `--control-role` | Control role of migration 032 (default: the `stratum.control_role` setting, else `stratum_control`) |
 | `--admin-role`, `--app-role`, `--schema`, `--apply` | Options of `db roles` |
+| `--grant-references` | `db roles`: also grant the application login `REFERENCES (id)` on `tenants`, for foreign keys from its tables (opt-in) |
 | `--name` | Name for a generated API key |
 | `--tenant` | Tenant ID for a generated API key |
 | `--out` | Output directory for scaffolded files |

@@ -36,7 +36,11 @@ import {
  *      superuser runs `stratum db roles --apply` with a separate admin login,
  *      and the admin login runs `stratum db lock`. The CLI moves the Stratum
  *      objects to the admin login and gives the application role the
- *      recommended grants; this setup adds none by hand.
+ *      recommended grants; this setup adds none by hand. Before that, the
+ *      application role, still the owner, changes the tables the way an
+ *      owner can: a tenant_isolation policy that admits every row, an extra
+ *      permissive policy, and row-level security turned off on api_keys.
+ *      The bootstrap must restore every Stratum policy and the RLS flags.
  * - The legacy app.bypass_rls switch in stratum_security is off.
  * - APP_ROLE has the recommended grants: SELECT on the read-list tables only.
  * - WIDE_ROLE has the write grants older setups gave the application role
@@ -180,6 +184,9 @@ describe(mode.title, () => {
     await stratum.createRegion({ display_name: "Attack region", slug: "atk_region" });
 
     if (mode.key === "cli") {
+      await legacyAppPool!.query("ALTER POLICY tenant_isolation ON tenants USING (true) WITH CHECK (true)");
+      await legacyAppPool!.query("CREATE POLICY app_extra ON config_entries FOR SELECT USING (true)");
+      await legacyAppPool!.query("ALTER TABLE api_keys DISABLE ROW LEVEL SECURITY");
       await legacyAppPool?.end();
       legacyAppPool = undefined;
       runCli([

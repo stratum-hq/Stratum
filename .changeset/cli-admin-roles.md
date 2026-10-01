@@ -12,3 +12,5 @@ Commands for the opt-in role model of `@stratum-hq/lib` migration 032 (GHSA-mg93
 - `--control-role` names the control role for the policy checks of `doctor`, `scan`, `migrate` and `health`.
 - `migrate` names the `REFERENCES` grant on `tenants` that its foreign key needs, when the login lacks it.
 - The policy checks now share their expression rules with `@stratum-hq/db-adapters`.
+- `doctor` reports how the RLS flags and policies of the Stratum tables differ from the canonical set ("Stratum policies"; a warning in 1.x).
+- `db roles --grant-references` also grants the application login `REFERENCES (id)` on `tenants`, for foreign keys from its own tables (opt-in).

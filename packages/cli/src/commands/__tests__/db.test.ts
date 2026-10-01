@@ -42,6 +42,18 @@ describe("stratum db", () => {
     expect(firstLines.every((l) => l.startsWith("--"))).toBe(true);
   });
 
+  it("db roles grants REFERENCES on tenants(id) to the app login only with --grant-references", async () => {
+    await db(["roles"], { "app-role": "acme_app" });
+    expect(output()).not.toContain("GRANT REFERENCES");
+    logSpy.mockClear();
+    await db(["roles"], { "app-role": "acme_app", "grant-references": true });
+    expect(output()).toContain(`GRANT REFERENCES (id) ON "public".tenants TO "acme_app";`);
+  });
+
+  it("db roles refuses --grant-references without --app-role", async () => {
+    await expect(db(["roles"], { "grant-references": true })).rejects.toThrow(/needs --app-role/);
+  });
+
   it("db roles refuses the same login as admin and app", async () => {
     await expect(db(["roles"], { "admin-role": "acme", "app-role": "acme" })).rejects.toThrow(/must be different/);
   });
