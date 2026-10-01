@@ -201,6 +201,15 @@ const jsonLd = {
     color: var(--text-primary);
   }
 
+  /* A note set off from the body, such as a pointer to a newer edition. */
+  .post-body :global(blockquote) {
+    margin: 0 0 var(--space-6) 0;
+    padding: var(--space-4) var(--space-4) var(--space-1);
+    border-left: 3px solid var(--sandstone);
+    background: var(--surface-1);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  }
+
   /* Lists */
   .post-body :global(ul) {
     list-style: none;
