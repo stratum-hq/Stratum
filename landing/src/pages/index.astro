@@ -63,7 +63,7 @@ const packages = [
 <Nav />
 
 <!-- Depth rail: the persistent stratigraphic signature. A thin left axis marked
-     with tenant depth (d0..d3); the teal cursor tracks scroll, and marks light up
+     with tenant depth (d0..d3); the vein cursor tracks scroll, and marks light up
      as the active depth resolves downward. Desktop only, decorative. -->
 <div class="depth-rail" aria-hidden="true">
   <div class="depth-rail-track"><span class="depth-rail-cursor" id="rail-cursor"></span></div>
@@ -88,7 +88,7 @@ const packages = [
       </p>
       <div class="hero-actions">
         <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
-        <a href="https://docs.stratum-hq.org/playground/" class="btn-primary">Try it in your browser</a>
+        <a href="https://docs.stratum-hq.org/playground/" class="btn-vein">Try it in your browser</a>
         <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
       </div>
       <div class="install-box">
@@ -103,24 +103,25 @@ const packages = [
       </div>
     </div>
 
-    <!-- Inheritance flow: values resolve down the strata unless a parent seals a
-         key. The resolved value glows in Signal teal; the sealed key is amber. -->
+    <!-- Inheritance flow: each tenant is a rock band colored by its depth. Values
+         resolve down the strata in vein unless a parent locks a key; the locked
+         key is a magma tag that carries the word LOCKED. -->
     <div class="inherit-panel fade-in" aria-hidden="true">
       <div class="inherit-label">tenant hierarchy</div>
       <div class="inherit-tree">
-        <div class="itrow"><span class="idepth">d0</span><span class="inode inode-root">AcmeSec</span><span class="imeta">root tenant</span></div>
-        <div class="itrow"><span class="idepth">d1</span><span class="inode">├─ NorthStar MSP</span><span class="imeta">reseller</span></div>
-        <div class="itrow"><span class="idepth">d2</span><span class="inode">│&nbsp;&nbsp;└─ client-alpha</span></div>
-        <div class="itrow"><span class="idepth">d3</span><span class="inode">│&nbsp;&nbsp;&nbsp;&nbsp;└─ team-eng</span></div>
+        <div class="itrow d0"><span class="idepth">d0</span><span class="inode">AcmeSec</span><span class="imeta">root tenant</span></div>
+        <div class="itrow d1"><span class="idepth">d1</span><span class="inode">NorthStar MSP</span><span class="imeta">reseller</span></div>
+        <div class="itrow d2"><span class="idepth">d2</span><span class="inode">client-alpha</span></div>
+        <div class="itrow d3"><span class="idepth">d3</span><span class="inode">team-eng</span></div>
       </div>
       <div class="inherit-config">
         <div class="icfg icfg-resolved">
           <span class="ikey">max_users: <span class="ival">1000</span></span>
-          <span class="itag">resolved from d0</span>
+          <span class="tag tag-inherited"><span class="tag-glyph">↓</span>inherited from d0</span>
         </div>
         <div class="icfg icfg-locked">
-          <span class="ikey">data_region: <span class="ilock">LOCKED</span></span>
-          <span class="itag">children cannot override</span>
+          <span class="ikey">data_region: <span class="itag">children cannot override</span></span>
+          <span class="tag tag-locked"><span class="tag-glyph">■</span>locked</span>
         </div>
       </div>
     </div>
@@ -186,17 +187,25 @@ const packages = [
       </div>
       <div class="isolation-diagram" aria-label="Isolation strategy comparison">
         <div class="iso-eyebrow">isolation model</div>
-        <div class="isolation-row">
-          <span class="isolation-label">shared RLS</span>
-          <span class="isolation-bar">row_security = on · lowest cost</span>
-        </div>
-        <div class="isolation-row">
-          <span class="isolation-label">schema</span>
-          <span class="isolation-bar is-active">search_path = tenant_slug</span>
-        </div>
-        <div class="isolation-row">
-          <span class="isolation-label">database</span>
-          <span class="isolation-bar">separate PG instance · strongest</span>
+        <div class="isolation-stack">
+          <div class="isolation-row iso-rls">
+            <div class="isolation-face">
+              <span><span class="isolation-label">Shared RLS</span><span class="isolation-note">row_security = on · lowest cost</span></span>
+              <span class="isolation-mark">shallow</span>
+            </div>
+          </div>
+          <div class="isolation-row iso-schema is-active">
+            <div class="isolation-face">
+              <span><span class="isolation-label">Schema</span><span class="isolation-note">search_path = tenant_slug</span></span>
+              <span class="isolation-mark">in use</span>
+            </div>
+          </div>
+          <div class="isolation-row iso-db">
+            <div class="isolation-face">
+              <span><span class="isolation-label">Database</span><span class="isolation-note">separate PG instance · strongest</span></span>
+              <span class="isolation-mark">deepest</span>
+            </div>
+          </div>
         </div>
         <div class="iso-code">
           <span class="iso-fn">stratum.setIsolation</span>(tenantId, <span class="iso-accent">"schema"</span>)<br/>
@@ -299,19 +308,40 @@ const packages = [
 <Footer />
 
 <style>
-  /* Index hero. Bold typographic, full bleed, one faint teal glow in the ground. */
+  /* Index hero. Plain ground with faint strata drifting behind it: two layers
+     of thin rock lines that slide sideways at different speeds. No gradients. */
   .idx-hero {
     position: relative;
-    background: linear-gradient(175deg, var(--surface-0) 0%, var(--surface-1) 55%, var(--surface-2) 100%);
+    background: var(--surface-0);
     border-bottom: 1px solid var(--border);
     overflow: hidden;
+    isolation: isolate;
   }
-  .idx-hero::before {
+  .idx-hero::before,
+  .idx-hero::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 70% 45% at 18% 82%, var(--accent-muted), transparent);
+    z-index: -1;
     pointer-events: none;
+  }
+  .idx-hero::before {
+    background: repeating-linear-gradient(176deg, transparent 0 46px, var(--topsoil) 46px 50px, transparent 50px 121px, var(--clay) 121px 123px, transparent 123px 210px);
+    background-size: 480px 100%;
+    opacity: 0.2;
+    animation: strata-drift-a 40s linear infinite;
+  }
+  .idx-hero::after {
+    background: repeating-linear-gradient(183deg, transparent 0 77px, var(--sandstone-band) 77px 79px, transparent 79px 164px, var(--basalt) 164px 170px, transparent 170px 260px);
+    background-size: 360px 100%;
+    opacity: 0.18;
+    animation: strata-drift-b 64s linear infinite;
+  }
+  @keyframes strata-drift-a { from { background-position: 0 0; } to { background-position: -480px 0; } }
+  @keyframes strata-drift-b { from { background-position: 0 0; } to { background-position: 360px 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .idx-hero::before,
+    .idx-hero::after { animation: none; }
   }
   .idx-hero-inner {
     position: relative;
@@ -325,10 +355,11 @@ const packages = [
   }
   .idx-display {
     font-family: var(--font-display);
-    font-size: clamp(2.75rem, 6vw, 3.5rem);
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    line-height: 1.08;
+    font-size: clamp(3.5rem, 7.5vw, 4.75rem);
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    line-height: 0.92;
+    text-transform: uppercase;
     margin-bottom: var(--space-6);
     text-wrap: balance;
     color: var(--text-primary);
@@ -342,11 +373,10 @@ const packages = [
   }
   .idx-hero-sub code {
     font-family: var(--font-mono);
-    font-size: 0.9375em;
+    font-size: 0.85em;
     color: var(--accent-text);
-    background: var(--accent-muted);
+    background: var(--surface-2);
     padding: 1px 6px;
-    border-radius: var(--radius-sm);
   }
 
   @media (max-width: 900px) {
@@ -362,10 +392,11 @@ const packages = [
       padding-left: var(--space-4);
       padding-right: var(--space-4);
     }
-    .idx-display { font-size: 2.25rem; }
+    .idx-display { font-size: 3rem; }
     .idx-hero-sub { font-size: 0.9375rem; }
     .hero-actions { flex-direction: column; gap: var(--space-2); }
     .hero-actions .btn-primary,
+    .hero-actions .btn-vein,
     .hero-actions .btn-secondary { width: 100%; justify-content: center; }
     .install-box { max-width: 100%; }
   }
@@ -391,7 +422,7 @@ const packages = [
     }, 2000);
   });
 
-  // Depth rail: move the teal cursor with scroll progress and light up marks up
+  // Depth rail: move the vein cursor with scroll progress and light up marks up
   // to the depth of the section currently in view.
   const rail = document.querySelector('.depth-rail');
   if (rail) {

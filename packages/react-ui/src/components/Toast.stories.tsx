@@ -161,33 +161,33 @@ export const InteractiveContainer: Story = {
           <button
             type="button"
             onClick={() => addToast("Config saved for CyberShield MSP", "success")}
-            style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #8B4A26", background: "#F0E0D2", cursor: "pointer" }}
+            style={{ padding: "8px 16px", border: "2px solid var(--success)", background: "var(--surface-1)", color: "var(--text-primary)", cursor: "pointer" }}
           >
             Success Toast
           </button>
           <button
             type="button"
             onClick={() => addToast("API error: rate limit exceeded (429)", "error")}
-            style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #C4573A", background: "#F5DDD2", cursor: "pointer" }}
+            style={{ padding: "8px 16px", border: "2px solid var(--error)", background: "var(--surface-1)", color: "var(--text-primary)", cursor: "pointer" }}
           >
             Error Toast
           </button>
           <button
             type="button"
             onClick={() => addToast("Permission 'billing.view' expires in 7 days", "warning")}
-            style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #D9A03F", background: "#F3E4C0", cursor: "pointer" }}
+            style={{ padding: "8px 16px", border: "2px solid var(--amber-fill)", background: "var(--surface-1)", color: "var(--text-primary)", cursor: "pointer" }}
           >
             Warning Toast
           </button>
           <button
             type="button"
             onClick={() => addToast("Tenant tree refreshed (8 tenants loaded)", "info")}
-            style={{ padding: "8px 16px", borderRadius: "4px", border: "1px solid #8B4A26", background: "#F0E0D2", cursor: "pointer" }}
+            style={{ padding: "8px 16px", border: "2px solid var(--info)", background: "var(--surface-1)", color: "var(--text-primary)", cursor: "pointer" }}
           >
             Info Toast
           </button>
         </div>
-        <p style={{ color: "#6F6553", fontSize: "13px" }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
           Active toasts: {toasts.length} (max 3 visible)
         </p>
         <ToastContainer toasts={toasts} onDismiss={dismiss} maxVisible={3} />

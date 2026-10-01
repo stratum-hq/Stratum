@@ -6,7 +6,8 @@
    onto those shared tokens and styles docs specific surfaces. Do not hardcode
    hex here; change or add a token in the shared file so this site and the
    landing site cannot drift.
-   Palette: Strata. Type: Libre Franklin / IBM Plex Sans / IBM Plex Mono.
+   Palette: Bedrock (dark, default) / Daylight (light).
+   Type: Big Shoulders Display / Instrument Sans / Martian Mono.
    ========================================================================== */
 
 @import url('../../../assets/tokens.css');
@@ -19,21 +20,44 @@
    -------------------------------------------------------------------------- */
 :root,
 :root[data-theme="light"] {
-  /* Accent: Ember */
+  /* Accent: magma */
   --sl-color-accent-low: var(--surface-2);
   --sl-color-accent: var(--accent);
   --sl-color-accent-high: var(--text-primary);
 
-  /* Gray ramp remapped onto the Peat / Loam / Seam / Marl / Silt scale */
+  /* Gray ramp remapped onto the ground / surface / ink scale */
   --sl-color-white: var(--text-primary);
   --sl-color-gray-1: var(--text-secondary);
   --sl-color-gray-2: var(--text-tertiary);
   --sl-color-text: var(--sl-color-gray-1);
-  --sl-color-gray-3: var(--border-hover);
+  --sl-color-gray-3: var(--rule);
   --sl-color-gray-4: var(--border);
   --sl-color-gray-5: var(--surface-1);
   --sl-color-gray-6: var(--surface-0);
+  --sl-color-gray-7: var(--surface-1);
   --sl-color-black: var(--surface-0);
+  /* Ink on an accent fill (the current page in the sidebar): dark on magma in
+     Bedrock, light on dark magma in Daylight. */
+  --sl-color-text-invert: var(--on-accent);
+
+  /* Aside and card hues. Starlight reads -low as a fill, the base as a rule
+     and -high as text. Note and success follow vein, caution follows amber,
+     danger follows magma, tip follows sand. */
+  --sl-color-blue: var(--flow);
+  --sl-color-blue-low: color-mix(in srgb, var(--flow) 14%, var(--surface-0));
+  --sl-color-blue-high: var(--text-primary);
+  --sl-color-green: var(--flow);
+  --sl-color-green-low: color-mix(in srgb, var(--flow) 14%, var(--surface-0));
+  --sl-color-green-high: var(--text-primary);
+  --sl-color-orange: var(--amber-fill);
+  --sl-color-orange-low: color-mix(in srgb, var(--amber-fill) 14%, var(--surface-0));
+  --sl-color-orange-high: var(--text-primary);
+  --sl-color-red: var(--accent);
+  --sl-color-red-low: color-mix(in srgb, var(--accent) 14%, var(--surface-0));
+  --sl-color-red-high: var(--text-primary);
+  --sl-color-purple: var(--sandstone);
+  --sl-color-purple-low: color-mix(in srgb, var(--sandstone) 14%, var(--surface-0));
+  --sl-color-purple-high: var(--text-primary);
 
   /* Type roles */
   --sl-font: var(--font-body);
@@ -50,7 +74,9 @@
    --sl-* map above adapts to them automatically through var(). */
 
 /* --------------------------------------------------------------------------
-   Typography: Libre Franklin (display) / IBM Plex Sans (body), Strata
+   Typography. Big Shoulders Display is condensed and heavy, so h1 and h2 are
+   set uppercase with tight leading and larger sizes. h3 and below stay in
+   Instrument Sans so long reference pages stay readable.
    -------------------------------------------------------------------------- */
 body {
   font-family: var(--sl-font);
@@ -61,46 +87,67 @@ body {
 
 h1,
 h2,
+.sl-markdown-content h1,
+.sl-markdown-content h2 {
+  font-family: var(--__sl-font-heading);
+  text-transform: uppercase;
+  text-wrap: balance;
+  letter-spacing: 0.01em;
+}
+
 h3,
 h4,
 h5,
 h6,
-.sl-markdown-content h1,
-.sl-markdown-content h2,
 .sl-markdown-content h3,
 .sl-markdown-content h4 {
-  font-family: var(--__sl-font-heading);
+  font-family: var(--sl-font);
   text-wrap: balance;
-  letter-spacing: -0.01em;
 }
 
 h1,
-.sl-markdown-content h1 {
-  font-weight: 700;
-  font-size: 2.25rem;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+h2 {
+  font-weight: 900;
+  line-height: 0.95;
 }
 
-h2,
+.sl-markdown-content h1,
+#_top {
+  font-size: 2.75rem;
+}
+
 .sl-markdown-content h2 {
+  font-size: 2.125rem;
+}
+
+/* "On this page": a structural label, so it takes the mono label style. */
+#starlight__on-this-page {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
   font-weight: 600;
-  font-size: 1.75rem;
-  line-height: 1.2;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
 }
 
 h3,
 .sl-markdown-content h3 {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 1.375rem;
   line-height: 1.25;
 }
 
 h4,
 .sl-markdown-content h4 {
-  font-weight: 600;
+  font-weight: 700;
   font-size: 1.125rem;
   line-height: 1.3;
+}
+
+/* Splash hero title */
+.hero h1,
+.hero #_top {
+  font-size: clamp(2.75rem, calc(0.5rem + 6vw), 4.5rem);
+  line-height: 0.92;
 }
 
 /* --------------------------------------------------------------------------
@@ -115,7 +162,8 @@ h4,
 }
 
 /* --------------------------------------------------------------------------
-   Code: IBM Plex Mono, Strata code well
+   Code: Martian Mono in the code well. Martian Mono is wide, so code runs at
+   about 12.5px. The well stays dark in both themes.
    -------------------------------------------------------------------------- */
 code,
 pre,
@@ -125,22 +173,21 @@ pre,
 }
 
 pre code {
-  font-size: 0.875rem;
-  line-height: 1.65;
+  font-size: 0.78rem;
+  line-height: 1.7;
 }
 
 /* Inline code */
 :not(pre) > code {
-  font-size: 0.875em;
+  font-size: 0.8em;
   padding: 0.15em 0.35em;
-  border-radius: var(--radius-sm);
   background: var(--code-bg);
   color: var(--code-text);
   font-weight: 400;
 }
 
 /* --------------------------------------------------------------------------
-   Tables: data-dense, mono structural headers (Strata)
+   Tables: data-dense, mono structural headers
    -------------------------------------------------------------------------- */
 .sl-markdown-content table {
   font-size: 0.875rem;
@@ -153,10 +200,10 @@ pre code {
   font-weight: 600;
   font-size: 0.6875rem;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.14em;
   color: var(--text-secondary);
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--rule);
 }
 
 .sl-markdown-content td {
@@ -165,7 +212,7 @@ pre code {
 }
 
 .sl-markdown-content td code {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
 }
 
 .sl-markdown-content tr:hover td {
@@ -210,137 +257,217 @@ nav a[aria-current="page"]:hover {
 }
 
 /* --------------------------------------------------------------------------
-   Badge styles: Strata (Ember accent, Ochre lock, neutral)
-   Mono labels so a badge reads as a structural marker, never decoration.
-   Color reinforces a word that is already there (never color alone).
+   Buttons: rock chips. The face is a ::before clipped to --edge-chip with
+   grain; the lip and pool are drop-shadows on the unclipped link, because
+   clip-path removes box-shadow, borders and outlines. Keeping the link itself
+   unclipped keeps the keyboard focus ring visible. The first primary action
+   is magma; a second primary next to it is vein, so only one magma button
+   shows per view. Secondary actions are "scratch" links with a rule underline.
    -------------------------------------------------------------------------- */
-.badge-inherited {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: var(--accent-muted);
+.sl-link-button {
+  border-radius: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sl-link-button.primary {
+  --btn-lip: var(--magma-deep);
+  --btn-face: var(--accent);
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border-color: transparent;
+  color: var(--on-accent);
+  margin-bottom: 4px;
+  filter: drop-shadow(0 4px 0 var(--btn-lip)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.32));
+  transition: transform var(--duration-fast) var(--ease-out),
+              filter var(--duration-fast) var(--ease-out);
+}
+.sl-link-button.primary + .sl-link-button.primary {
+  --btn-lip: var(--vein-deep);
+  --btn-face: var(--vein);
+  color: var(--on-vein);
+}
+.sl-link-button.primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--edge-chip);
+  background-color: var(--btn-face);
+  background-image: var(--lit), var(--grain);
+  background-size: auto, 160px 160px;
+  background-blend-mode: normal, multiply;
+}
+.sl-link-button.primary:hover {
+  color: var(--on-accent);
+  transform: translateY(-3px);
+  filter: drop-shadow(0 7px 0 var(--btn-lip)) drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
+}
+.sl-link-button.primary + .sl-link-button.primary:hover {
+  color: var(--on-vein);
+}
+.sl-link-button.primary:active {
+  transform: translateY(2px);
+  filter: drop-shadow(0 1px 0 var(--btn-lip)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+}
+
+.sl-link-button.secondary {
+  border: 0;
+  padding-inline: 4px;
   color: var(--accent-text);
+  background: linear-gradient(var(--rule), var(--rule)) no-repeat 0 100% / 100% 2px;
+  transition: background-size var(--duration-fast) var(--ease-out);
 }
-
-.badge-locked {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: var(--lock-muted);
-  color: var(--lock);
-}
-
-.badge-own {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: var(--surface-3);
-  color: var(--text-secondary);
-}
-
-/* Per-method verification badge. Marks a documented behavioral guarantee on a
-   method or endpoint. Ember only ever lights the live/verified thing, so the
-   accent is spent here; the word "verified" carries the meaning without color. */
-.badge-verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 500;
-  background: var(--accent-muted);
+.sl-link-button.secondary:hover {
   color: var(--accent-text);
+  background-size: 100% 4px;
 }
 
-/* Mono labels: a badge is a structural marker, so it takes the mono face. */
+.sl-link-button.minimal {
+  font-family: var(--sl-font);
+  font-weight: 600;
+  font-size: var(--sl-text-base);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   Tags: inheritance mode as glyph plus word plus color, never color alone.
+   ■ locked (magma), ↓ inherited (vein), △ own / override, ✓ verified (vein).
+   The glyph is decorative, so its alt text is empty.
+   -------------------------------------------------------------------------- */
 .badge-inherited,
 .badge-locked,
 .badge-own,
 .badge-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.7rem 0.2rem 0.55rem;
+  clip-path: var(--edge-chip);
   font-family: var(--font-mono);
-  letter-spacing: 0.01em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
+.badge-inherited { background: var(--vein); color: var(--on-vein); }
+.badge-locked { background: var(--magma); color: var(--on-accent); }
+.badge-own { background: var(--text-primary); color: var(--surface-0); }
+.badge-verified { background: var(--vein); color: var(--on-vein); }
+
+.badge-inherited::before { content: "\2193" / ""; letter-spacing: 0; }
+.badge-locked::before { content: "\25A0" / ""; letter-spacing: 0; }
+.badge-own::before { content: "\25B3" / ""; letter-spacing: 0; }
+.badge-verified::before { content: "\2713" / ""; letter-spacing: 0; }
+
 /* --------------------------------------------------------------------------
-   Accessibility
+   Accessibility. Keyboard focus is a solid 3px --focus ring (8.7:1 on Bedrock,
+   5.3:1 on Daylight). Focusable elements are never clipped themselves, so the
+   ring always shows. Matches the landing site (landing/src/styles/global.css).
    -------------------------------------------------------------------------- */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
-  border-radius: var(--radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
   }
 }
 
-/* Logo: match landing page treatment (28x28 image, 18px/700 text) */
+/* Stratum has no rounded corners. The mobile menu button was a circle; it
+   carries no meaning as a circle, so it becomes a square (not clipped, so its
+   focus ring still shows). */
+starlight-menu-button button {
+  border-radius: 0;
+}
+
+/* Logo: match landing page treatment (28x28 mark, display wordmark) */
 .site-title img {
   height: 28px !important;
   width: 28px !important;
   object-fit: contain;
 }
 .site-title span {
-  font-size: 18px !important;
-  font-weight: 700 !important;
+  font-family: var(--font-display);
+  font-size: 24px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.02em;
 }
 .site-title {
   gap: 0.5rem !important;
 }
 
 /* --------------------------------------------------------------------------
-   Card icon overrides: Ember accent border + icon on a Loam surface
+   Cards: Layers of rock. A topsoil lip clipped to --edge-ledge (::before) sits
+   over the inner surface clipped to --edge-ledge-b (::after), so the lip
+   varies in thickness; the card itself carries the lip-and-pool shadow.
    -------------------------------------------------------------------------- */
+.card {
+  position: relative;
+  isolation: isolate;
+  border: 0 !important;
+  background: transparent !important;
+  padding-top: calc(clamp(1rem, calc(0.125rem + 3vw), 2.5rem) + 10px);
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
+}
+.card::before,
+.card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+}
+.card::before {
+  inset: 0;
+  z-index: -2;
+  clip-path: var(--edge-ledge);
+  background-color: var(--topsoil);
+  background-image: var(--shade), var(--lam);
+}
+.card::after {
+  inset: 10px 0 0;
+  clip-path: var(--edge-ledge-b);
+  background: var(--surface-1);
+}
+:root[data-theme="light"] .card {
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
+}
 .card .icon {
   color: var(--accent) !important;
   background: var(--accent-muted) !important;
   border: 1px solid var(--accent) !important;
+  border-radius: 0 !important;
 }
-.card .icon svg,
 .card svg {
   fill: var(--accent) !important;
   color: var(--accent) !important;
 }
-/* Override card border to match design system */
-.card {
-  border-color: var(--sl-color-gray-4) !important;
-}
-
-/* Hero action buttons */
-[data-theme="light"] .hero .action.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+.card .title {
+  font-family: var(--sl-font);
+  font-weight: 700;
 }
 
 /* --------------------------------------------------------------------------
    Depth gutter: the stratigraphy signature (DESIGN.md "the depth rail").
-   Two token-driven moves carry the motif into the docs without drifting from
-   the landing: page sections stack as strata separated by hairline Seam rules,
-   and the code well grows a left gutter that continues the depth rail. A seam
-   is the line between two strata, which is the product's whole job.
+   Page sections stack as strata separated by a hairline seam, and the code
+   well grows a left gutter that continues the depth rail, lighting to vein on
+   hover (the flow color).
    -------------------------------------------------------------------------- */
 
-/* Each section heading is a new stratum: a hairline Seam boundary above it. The
-   first heading on a page has nothing above it to divide, so it keeps no rule. */
+/* Each section heading is a new stratum: a hairline seam above it. The first
+   heading on a page has nothing above it to divide, so it keeps no rule. */
 .sl-markdown-content h2 {
   border-top: 1px solid var(--border);
   padding-top: var(--space-6);
@@ -352,14 +479,23 @@ nav a[aria-current="page"]:hover {
   margin-top: 0;
 }
 
-/* The code well is a brand surface: a left gutter in Seam that continues the
-   depth rail, lighting to Ember on hover (the one live color). Expressive
-   Code owns the syntax theme inside; this only frames the well. */
-.sl-markdown-content .expressive-code {
-  border-left: 2px solid var(--border);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+/* The code well is a brand surface: a ragged rock top (--edge-ledge cuts only
+   the top few px, so the horizontal scrollbar is never clipped) and a left
+   gutter that continues the depth rail. Expressive Code owns the syntax theme
+   inside (see astro.config.mjs); this only frames the well. */
+.sl-markdown-content .expressive-code .frame {
+  clip-path: var(--edge-ledge);
+  padding-top: 6px;
+  background: var(--code-bg);
+  border-left: 3px solid var(--rule);
   transition: border-left-color var(--duration-normal) var(--ease-out);
 }
-.sl-markdown-content .expressive-code:hover {
-  border-left-color: var(--accent);
+.sl-markdown-content .expressive-code:hover .frame {
+  border-left-color: var(--flow);
+}
+
+/* The copy button sits near the ragged top of the well, so its focus ring is
+   drawn inside the button where the clip cannot reach it. */
+.sl-markdown-content .expressive-code .copy button:focus-visible {
+  outline-offset: -4px;
 }

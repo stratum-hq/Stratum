@@ -11,13 +11,13 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 
-// Depth-based color dots matching DESIGN.md hierarchy badge colors
+// Depth swatches use the rock bands, shallow to deep (DESIGN.md).
 const depthDotColors: Record<number, string> = {
-  0: "#C9793F", // ember (root/MSSP)
-  1: "#D9A03F", // ochre (MSP)
-  2: "#C9B08A", // sand (client)
-  3: "#C9B08A",
-  4: "#C9B08A",
+  0: "var(--topsoil)", // root / MSSP
+  1: "var(--clay)", // MSP
+  2: "var(--sandstone-band)", // client
+  3: "var(--limestone)",
+  4: "var(--basalt)",
 };
 
 const depthLabels: Record<number, string> = {
@@ -45,7 +45,7 @@ function TreeNode({
 }) {
   const hasChildren = node.children.length > 0;
   const isSelected = node.id === selectedId;
-  const dotColor = depthDotColors[node.depth] || "#A79880";
+  const dotColor = depthDotColors[node.depth] || "var(--basalt)";
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: node.id,
@@ -66,21 +66,20 @@ function TreeNode({
           gap: "var(--space-xs, 4px)",
           padding: "6px 8px",
           paddingLeft: `${8 + node.depth * 16}px`,
-          borderRadius: "var(--radius-sm, 4px)",
           opacity: isDragging ? 0.4 : 1,
-          outline: isOver ? "2px dashed var(--color-accent, #8B4A26)" : "none",
+          outline: isOver ? "3px dashed var(--flow)" : "none",
           outlineOffset: "-2px",
           cursor: "pointer",
-          background: isSelected ? "var(--color-primary, #8B4A26)" : "transparent",
-          color: isSelected ? "white" : "#EFE7D9",
+          background: isSelected ? "var(--accent)" : "transparent",
+          color: isSelected ? "var(--on-accent)" : "var(--text-primary)",
           fontSize: "0.8125rem",
-          fontFamily: "var(--font-body, 'IBM Plex Sans', system-ui, sans-serif)",
+          fontFamily: "var(--font-body)",
           userSelect: "none",
           transition: "background 75ms cubic-bezier(0, 0, 0.2, 1)",
         }}
         onClick={() => onSelect(node.id)}
         onMouseEnter={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--color-800, #241F19)";
+          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--surface-2)";
         }}
         onMouseLeave={(e) => {
           if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
@@ -94,7 +93,7 @@ function TreeNode({
           style={{
             width: 12,
             fontSize: 9,
-            color: isSelected ? "#F0E0D2" : "var(--color-700, #332B21)",
+            color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
             flexShrink: 0,
             cursor: "grab",
             lineHeight: 1,
@@ -110,7 +109,7 @@ function TreeNode({
             style={{
               width: 14,
               fontSize: 10,
-              color: isSelected ? "#F0E0D2" : "var(--color-500, #6F6553)",
+              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
               flexShrink: 0,
               cursor: "pointer",
             }}
@@ -123,9 +122,8 @@ function TreeNode({
         )}
         <span
           style={{
-            width: 7,
-            height: 7,
-            borderRadius: "var(--radius-full, 9999px)",
+            width: 8,
+            height: 8,
             background: dotColor,
             flexShrink: 0,
             display: "inline-block",
@@ -148,9 +146,8 @@ function TreeNode({
           <span
             style={{
               fontSize: 9,
-              color: "var(--color-accent, #8B4A26)",
+              color: isSelected ? "var(--on-accent)" : "var(--flow)",
               flexShrink: 0,
-              opacity: 0.7,
             }}
             title="Has descendants (config inherits downward)"
           >
@@ -161,7 +158,7 @@ function TreeNode({
           <span
             style={{
               fontSize: 11,
-              color: isSelected ? "#F0E0D2" : "var(--color-700, #332B21)",
+              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
               cursor: "pointer",
               padding: "0 2px",
               lineHeight: 1,
@@ -174,7 +171,7 @@ function TreeNode({
           <span
             style={{
               fontSize: 14,
-              color: isSelected ? "#F0E0D2" : "var(--color-700, #332B21)",
+              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
               cursor: "pointer",
               padding: "0 2px",
               lineHeight: 1,
@@ -188,7 +185,7 @@ function TreeNode({
             <span
               style={{
                 fontSize: 11,
-                color: isSelected ? "#F5C9BA" : "var(--color-700, #332B21)",
+                color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
                 cursor: "pointer",
                 padding: "0 2px",
                 lineHeight: 1,
@@ -212,8 +209,8 @@ function TreeNode({
                 top: 0,
                 bottom: 0,
                 width: 1,
-                background: "var(--color-accent, #8B4A26)",
-                opacity: 0.2,
+                background: "var(--flow)",
+                opacity: 0.5,
               }}
             />
             {node.children.map((child) => (
@@ -358,21 +355,20 @@ export function Sidebar({
   const inputStyle: React.CSSProperties = {
     fontSize: "0.6875rem",
     padding: "3px 6px",
-    borderRadius: "var(--radius-sm, 3px)",
-    border: "1px solid var(--color-700, #332B21)",
-    background: "var(--color-800, #241F19)",
-    color: "#EFE7D9",
+    border: "1px solid var(--rule)",
+    background: "var(--surface-1)",
+    boxShadow: "var(--shadow-sunk)",
+    color: "var(--text-primary)",
     width: "100%",
-    fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)",
+    fontFamily: "var(--font-mono)",
   };
 
   const btnSmall: React.CSSProperties = {
     fontSize: "0.625rem",
     padding: "2px 8px",
-    borderRadius: "var(--radius-sm, 3px)",
     border: "none",
     cursor: "pointer",
-    fontFamily: "var(--font-body, 'IBM Plex Sans', system-ui, sans-serif)",
+    fontFamily: "var(--font-body)",
   };
 
   // If collapsed (tablet mode), render a narrow strip
@@ -383,8 +379,8 @@ export function Sidebar({
         style={{
           width: 48,
           flexShrink: 0,
-          background: "var(--color-900, #12100C)",
-          borderRight: "1px solid var(--color-800, #241F19)",
+          background: "var(--surface-0)",
+          borderRight: "1px solid var(--border)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -396,14 +392,14 @@ export function Sidebar({
           style={{
             background: "transparent",
             border: "none",
-            color: "var(--color-400, #A79880)",
+            color: "var(--text-secondary)",
             fontSize: 18,
             cursor: "pointer",
             padding: "var(--space-sm, 8px)",
           }}
           aria-label="Expand sidebar"
         >
-          &#9776;
+          {"\u2630"}
         </button>
       </aside>
     );
@@ -415,12 +411,12 @@ export function Sidebar({
       style={{
         width: 240,
         flexShrink: 0,
-        background: "var(--color-900, #12100C)",
-        borderRight: "1px solid var(--color-800, #241F19)",
+        background: "var(--surface-0)",
+        borderRight: "1px solid var(--border)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        fontFamily: "var(--font-body, 'IBM Plex Sans', system-ui, sans-serif)",
+        fontFamily: "var(--font-body)",
         position: "relative",
         zIndex: 10,
       }}
@@ -428,19 +424,19 @@ export function Sidebar({
       {/* Sidebar header */}
       <div style={{
         padding: "var(--space-md, 12px) var(--space-md, 12px) var(--space-sm, 8px)",
-        borderBottom: "1px solid var(--color-800, #241F19)",
+        borderBottom: "1px solid var(--border)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
       }}>
         <div>
           <div style={{
-            fontSize: "0.6875rem",
+            fontSize: "0.625rem",
             fontWeight: 600,
-            color: "var(--color-600, #4E4636)",
+            color: "var(--text-secondary)",
             textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            fontFamily: "var(--font-display, 'Libre Franklin', sans-serif)",
+            letterSpacing: "0.14em",
+            fontFamily: "var(--font-mono)",
           }}>
             Tenant Hierarchy
           </div>
@@ -449,14 +445,13 @@ export function Sidebar({
             display: "flex",
             gap: "var(--space-md, 12px)",
             fontSize: "0.6875rem",
-            color: "var(--color-600, #4E4636)",
+            color: "var(--text-secondary)",
           }}>
             <span>
               <span style={{
                 display: "inline-block",
                 width: 7,
                 height: 7,
-                borderRadius: "var(--radius-full, 9999px)",
                 background: depthDotColors[0],
                 marginRight: "var(--space-xs, 4px)",
               }} />
@@ -467,7 +462,6 @@ export function Sidebar({
                 display: "inline-block",
                 width: 7,
                 height: 7,
-                borderRadius: "var(--radius-full, 9999px)",
                 background: depthDotColors[1],
                 marginRight: "var(--space-xs, 4px)",
               }} />
@@ -478,7 +472,6 @@ export function Sidebar({
                 display: "inline-block",
                 width: 7,
                 height: 7,
-                borderRadius: "var(--radius-full, 9999px)",
                 background: depthDotColors[2],
                 marginRight: "var(--space-xs, 4px)",
               }} />
@@ -493,14 +486,14 @@ export function Sidebar({
             style={{
               background: "transparent",
               border: "none",
-              color: "var(--color-500, #6F6553)",
+              color: "var(--text-secondary)",
               fontSize: 16,
               cursor: "pointer",
               padding: "var(--space-xs, 4px)",
             }}
             aria-label="Collapse sidebar"
           >
-            &#9776;
+            {"\u2630"}
           </button>
         )}
       </div>
@@ -508,10 +501,10 @@ export function Sidebar({
       {/* Tree */}
       <div style={{ flex: 1, overflow: "auto", padding: "var(--space-sm, 8px) var(--space-xs, 4px)" }}>
         {loading && (
-          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--color-600, #4E4636)" }}>Loading...</div>
+          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Loading...</div>
         )}
         {!loading && tree.length === 0 && (
-          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--color-600, #4E4636)" }}>
+          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
             No tenants found. Create a root tenant below.
           </div>
         )}
@@ -537,13 +530,13 @@ export function Sidebar({
               <div style={{
                 padding: "6px 16px",
                 minWidth: 140,
-                background: "var(--color-800, #241F19)",
-                border: "1px solid var(--color-accent, #8B4A26)",
-                borderRadius: "var(--radius-sm, 4px)",
-                color: "#EFE7D9",
+                background: "var(--accent)",
+                border: "none",
+                clipPath: "var(--edge-row)",
+                color: "var(--on-accent)",
                 fontSize: "0.8125rem",
-                fontFamily: "var(--font-body, 'IBM Plex Sans', system-ui, sans-serif)",
-                boxShadow: "0 4px 16px rgba(18,16,12,0.5)",
+                fontFamily: "var(--font-body)",
+                fontWeight: 600,
                 whiteSpace: "nowrap",
               }}>
                 {draggedNode.name}
@@ -557,25 +550,25 @@ export function Sidebar({
       {addingParentId && (
         <div style={{
           padding: "var(--space-sm, 8px) var(--space-md, 12px)",
-          borderTop: "1px solid var(--color-800, #241F19)",
-          background: "var(--color-800, #241F19)",
+          borderTop: "1px solid var(--border)",
+          background: "var(--surface-2)",
         }}>
-          <div style={{ fontSize: "0.6875rem", color: "var(--color-400, #A79880)", marginBottom: "var(--space-xs, 4px)" }}>
+          <div style={{ fontSize: "0.6875rem", color: "var(--text-secondary)", marginBottom: "var(--space-xs, 4px)" }}>
             {addingParentId === "__root__" ? "New root tenant" : "New child tenant"}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs, 4px)" }}>
             <input style={inputStyle} placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
             <input style={inputStyle} placeholder="slug_name" value={newSlug} onChange={(e) => setNewSlug(e.target.value)} />
-            {error && <div style={{ fontSize: "0.625rem", color: "var(--color-error, #C4573A)" }}>{error}</div>}
+            {error && <div role="alert" style={{ fontSize: "0.625rem", color: "var(--accent-text)" }}>Error: {error}</div>}
             <div style={{ display: "flex", gap: "var(--space-xs, 4px)", marginTop: "var(--space-2xs, 2px)" }}>
               <button
-                style={{ ...btnSmall, background: "var(--color-primary, #8B4A26)", color: "white" }}
+                style={{ ...btnSmall, background: "var(--accent)", color: "var(--on-accent)" }}
                 disabled={creating || !newName.trim() || !newSlug.trim()}
                 onClick={handleCreate}
               >
                 {creating ? "..." : "Create"}
               </button>
-              <button style={{ ...btnSmall, background: "var(--color-700, #332B21)", color: "var(--color-400, #A79880)" }} onClick={handleCancel}>
+              <button style={{ ...btnSmall, background: "var(--surface-3)", color: "var(--text-primary)" }} onClick={handleCancel}>
                 Cancel
               </button>
             </div>
@@ -585,15 +578,15 @@ export function Sidebar({
 
       {/* Add root tenant button */}
       {!addingParentId && (
-        <div style={{ padding: "var(--space-sm, 8px) var(--space-md, 12px)", borderTop: "1px solid var(--color-800, #241F19)" }}>
+        <div style={{ padding: "var(--space-sm, 8px) var(--space-md, 12px)", borderTop: "1px solid var(--border)" }}>
           <button
             style={{
               ...btnSmall,
               width: "100%",
               padding: "5px 8px",
-              background: "var(--color-800, #241F19)",
-              color: "var(--color-500, #6F6553)",
-              border: "1px solid var(--color-700, #332B21)",
+              background: "var(--surface-2)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--rule)",
               fontSize: "0.6875rem",
             }}
             onClick={handleAddRoot}
