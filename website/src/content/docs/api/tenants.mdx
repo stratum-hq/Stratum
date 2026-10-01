@@ -26,6 +26,10 @@ All endpoints require authentication via `X-API-Key` or `Authorization: Bearer` 
 | `POST` | `/api/v1/tenants/:id/purge` | Hard-delete tenant data (GDPR, admin) |
 | `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate to region (admin) |
 
+`ancestry_path` lists the IDs of a tenant's ancestors, root first, and not the tenant's own ID. A root tenant has `/`, its child has `/<root-id>`, and a grandchild has `/<root-id>/<child-id>`. `depth` is the number of ancestors.
+
+Suspending, resuming and activating a tenant have no route. Call `suspendTenant`, `resumeTenant` and `activateTenant` of `@stratum-hq/lib` instead (see [Tenant lifecycle](/packages/lib/#tenant-lifecycle)). `POST /api/v1/tenants` activates a tenant with its own schema or database itself, once it has provisioned the storage.
+
 ---
 
 ## List Tenants
@@ -51,7 +55,7 @@ GET /api/v1/tenants?cursor=<uuid>&limit=50
       "parent_id": null,
       "name": "Acme Corp",
       "slug": "acme_corp",
-      "ancestry_path": "/550e8400-e29b-41d4-a716-446655440000",
+      "ancestry_path": "/",
       "depth": 0,
       "config": {},
       "metadata": {},
@@ -241,7 +245,7 @@ Returns the full tenant context including resolved config and permissions.
 ```json
 {
   "tenant_id": "uuid",
-  "ancestry_path": "/uuid1/uuid2",
+  "ancestry_path": "/parent-uuid",
   "depth": 1,
   "isolation_strategy": "SHARED_RLS",
   "resolved_config": {

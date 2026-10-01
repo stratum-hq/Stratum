@@ -169,11 +169,11 @@ Keys carry **scopes** that determine what operations they can perform:
 | `write` | All mutations on standard routes |
 | `admin` | Admin-only routes (key management, audit logs, GDPR operations) |
 
-Roles (RBAC) can override a key's default scopes by assigning a named role that bundles a specific set of scopes.
+Scopes are ranked: `admin` includes `write`, and `write` includes `read`. A new key gets `read` and `write`. To give a key a different set, such as `read` only or `admin`, assign it a role (RBAC), a named set of scopes that replaces the key's own.
 
 ## Audit Trail
 
-Every mutation in Stratum is recorded in the audit log with:
+Stratum records a change in the audit log when the call that makes it carries an audit context. The control plane builds one from each request on its mutating routes, so changes made through its API are recorded. In the library, pass the optional `audit` argument (see [the `audit` argument](/packages/lib/#the-audit-argument)); a call without it makes the change and writes no audit entry. Each entry has:
 
 - **Actor**: who performed the action (API key ID, JWT subject, or system)
 - **Action**: what happened (`tenant.created`, `config.updated`, etc.)

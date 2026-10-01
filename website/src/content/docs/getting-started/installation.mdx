@@ -139,7 +139,7 @@ For production, you should also set:
 | `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing (optional; when set, at least 32 bytes whenever `NODE_ENV` is not `development` or `test`) |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated) |
 
-See the full list in the [Quick Start](/getting-started/quick-start/) guide.
+The control plane reads more variables, such as `PORT`, the rate limits and `REDIS_URL`. See the [configuration table](https://github.com/stratum-hq/Stratum/tree/main/packages/control-plane#configuration) in its README. The CLI's variables are on the [CLI page](/packages/cli/#environment).
 
 ## Verify Installation
 
@@ -159,12 +159,13 @@ See the full list in the [Quick Start](/getting-started/quick-start/) guide.
   </TabItem>
   <TabItem label="Control Plane">
     ```bash
-    # Start the control plane (runs migrations automatically)
-    node packages/control-plane/dist/index.js
+    # Install and start the control plane (it runs the migrations on startup)
+    npm install @stratum-hq/control-plane
+    node node_modules/@stratum-hq/control-plane/dist/index.js
 
     # Check the health endpoint
     curl http://localhost:3001/api/v1/health
-    # { "status": "ok", "db": "connected" }
+    # { "status": "ok", "timestamp": "...", "db": "connected", "redis": "not_configured" }
     ```
   </TabItem>
   <TabItem label="CLI">

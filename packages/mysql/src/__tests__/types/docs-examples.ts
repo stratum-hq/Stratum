@@ -17,6 +17,7 @@ import knexFactory from "knex";
 import { Model, Sequelize } from "sequelize";
 import { DataSource, type Repository } from "typeorm";
 import { Stratum } from "@stratum-hq/lib";
+import { runWithTenantContext, type StratumClient } from "@stratum-hq/sdk";
 import {
   MysqlSharedAdapter,
   MysqlTableAdapter,
@@ -36,6 +37,8 @@ declare const mysqlPool: ReturnType<typeof mysql.createPool>;
 declare const sharedAdapter: MysqlSharedAdapter;
 declare const tableAdapter: MysqlTableAdapter;
 declare const dbAdapter: MysqlDatabaseAdapter;
+declare const client: StratumClient;
+declare const tenantId: string;
 
 // ─── Guide: Getting Started ───
 
@@ -230,6 +233,15 @@ export async function readmeTypeOrmSubscriber() {
   await dataSource.initialize();
   // Adds one StratumTypeOrmSubscriber. A second call adds nothing.
   registerStratumSubscriber(dataSource);
+}
+
+export async function guideTypeOrmRunWithTenantContext() {
+  // `client` is a StratumClient; resolveTenant returns the tenant's context.
+  const context = await client.resolveTenant(tenantId);
+  const notes = await runWithTenantContext(context, async () => {
+    return await repo.find();
+  });
+  return notes;
 }
 
 export async function readmeKnexHelper() {

@@ -42,6 +42,8 @@ const tenantPrisma = prismaWithTenant(prisma, () => getTenantContext().tenant_id
 const orders = await tenantPrisma.order.findMany();
 ```
 
+The Sequelize wrapper scopes its `query()` method only. Model methods such as `Order.findAll()` do not go through it and run without a tenant.
+
 ## RLS & Migration Helpers
 
 ```typescript

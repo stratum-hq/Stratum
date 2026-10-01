@@ -14,13 +14,44 @@ Most deployments run it as a standalone service rather than importing it. A cont
 
 ## Running
 
+The package has no `bin` entry. Start its entry point with Node:
+
 ```bash
-DATABASE_URL=postgres://stratum:stratum_dev@localhost:5432/stratum \
+DATABASE_URL=postgres://stratum_app:stratum_dev@localhost:5432/stratum \
+DATABASE_ADMIN_URL=postgres://stratum_admin:stratum_dev@localhost:5432/stratum \
 JWT_SECRET=your-secret \
-node dist/index.js
+node node_modules/@stratum-hq/control-plane/dist/index.js
 ```
 
-On startup the server runs database migrations (on `DATABASE_ADMIN_URL` when set), then listens on `PORT` (default `3001`). It handles `SIGTERM`/`SIGINT` for graceful shutdown. OpenAPI docs are served via `@fastify/swagger-ui`.
+In a clone of the repository, run `npm run build`, then `node packages/control-plane/dist/index.js`.
+
+On startup the server runs database migrations (on `DATABASE_ADMIN_URL` when set), then listens on `PORT` (default `3001`). It handles `SIGTERM`/`SIGINT` for graceful shutdown.
+
+The OpenAPI documentation needs no API key: the Swagger UI is at `/api/docs`, and the specification at `/api/docs/json` and `/api/docs/yaml`.
+
+## The first admin key
+
+Every route except the health check and the OpenAPI documentation needs an API key or a JWT, and creating keys needs the `admin` scope. A JWT always belongs to a tenant, and a new API key has the scopes `read` and `write`, so create the first admin key with the library, on the same database and with the same `STRATUM_API_KEY_HMAC_SECRET` as the server:
+
+```typescript
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adminPool = new Pool({ connectionString: process.env.DATABASE_ADMIN_URL });
+const stratum = new Stratum({ adminPool, pool });
+await stratum.initialize();
+
+// A global key (tenant null) with a role that grants the admin scope.
+const role = await stratum.createRole({ name: "operator", scopes: ["admin"] });
+const key = await stratum.createApiKey(null, { name: "bootstrap-admin" });
+await stratum.assignRoleToKey(key.id, role.id);
+console.log(key.plaintext_key); // shown once: store it now
+
+await Promise.all([pool.end(), adminPool.end()]);
+```
+
+Run it after the server has started once, so the tables exist. Without `DATABASE_ADMIN_URL`, leave out `adminPool`. Then send the key in the `X-API-Key` header, and create further keys and roles through `/api/v1/api-keys` and `/api/v1/roles`. `stratum generate api-key` from `@stratum-hq/cli` also creates a global key, but with the default `read` and `write` scopes, so it cannot manage keys.
 
 ## Configuration
 
@@ -64,7 +95,7 @@ All routes are versioned under `/api/v1`:
 | `/api/v1/config` | Config diff |
 | `/api/v1/maintenance` | Retention / purge tasks |
 
-A `/health` endpoint reports server, database (and, with `DATABASE_ADMIN_URL`, admin database) and Redis status.
+`GET /api/v1/health` needs no API key and reports server, database (and, with `DATABASE_ADMIN_URL`, admin database) and Redis status.
 
 ## Links
 

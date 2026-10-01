@@ -176,10 +176,10 @@ const tenant = await stratum.createTenant({
   slug: "premium_client",
   isolation_strategy: "SCHEMA_PER_TENANT",
 });
-// Creates schema: tenant_premium_client
+// The tenant is created "pending". createTenant does not create the schema.
 ```
 
-When the control plane creates a `SCHEMA_PER_TENANT` tenant, it automatically provisions a dedicated schema named `tenant_{slug}` with the Stratum base tables.
+When the control plane creates a `SCHEMA_PER_TENANT` tenant, it provisions a dedicated schema named `tenant_{slug}` (here `tenant_premium_client`) with the Stratum base tables, and activates the tenant. With the library alone, create the schema yourself, for example with `createSchema` from `@stratum-hq/db-adapters`, then call `stratum.activateTenant(tenant.id)`. See [Tenants with their own storage](/guides/tenant-lifecycle/#tenants-with-their-own-storage).
 
 `SchemaRawAdapter`, `createSchemaTenantPool` and `setSchemaSearchPath` from `@stratum-hq/db-adapters` route queries. Each sets `search_path` to the tenant schema alone, inside a transaction. `public` is not on the path. An unqualified table that is missing from the tenant schema raises an error. It does not read a table that all tenants share.
 
@@ -213,8 +213,10 @@ const tenant = await stratum.createTenant({
   slug: "regulated_client",
   isolation_strategy: "DB_PER_TENANT",
 });
-// Creates database: stratum_regulated_client
+// The tenant is created "pending". createTenant does not create the database.
 ```
+
+The control plane provisions a database named `stratum_tenant_{slug}` (here `stratum_tenant_regulated_client`) and activates the tenant. With the library alone, create the database yourself, for example with `createDatabase` from `@stratum-hq/db-adapters`, then call `stratum.activateTenant(tenant.id)`.
 
 ### Advantages
 

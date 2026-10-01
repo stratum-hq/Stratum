@@ -211,12 +211,16 @@ interface MiddlewareOptions {
   jwtClaimPath?: string;         // JWT claim path for tenant ID
   jwtSecret?: string;            // JWT verification secret (HS256)
   jwtVerify?: (token: string) => Record<string, unknown> | null;
+  jwtAudience?: string;          // Require this `aud` claim (with jwtSecret or jwtVerify)
+  jwtIssuer?: string;            // Require this `iss` claim (with jwtSecret or jwtVerify)
   headerName?: string;           // Default: "X-Tenant-ID"
   trustTenantHeader?: boolean;   // Read the header when JWT is configured. Default: false
   resolvers?: TenantResolver[];  // Custom resolution functions
   onError?: (err: Error, req: unknown) => void;
 }
 ```
+
+A verified token whose `aud` or `iss` claim does not match `jwtAudience` or `jwtIssuer` is rejected with `401 INVALID_TOKEN`.
 
 ## Tenant Resolution Order
 

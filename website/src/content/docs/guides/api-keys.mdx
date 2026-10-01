@@ -43,9 +43,11 @@ Three scopes control access:
 
 Scopes are ranked: `admin` includes `write`, and `write` includes `read`. A key with `["read", "write"]` can read and mutate standard routes. A key with `["admin"]` can also call admin routes. A refused request gets 403 `FORBIDDEN` with a message that names the scope the route requires.
 
+A new key gets the scopes `read` and `write`. `createApiKey` and `POST /api/v1/api-keys` take no scopes: to give a key `read` only, or `admin`, assign it a role (see [Role-Based Access Control](#role-based-access-control-rbac)). The role's scopes then replace the key's own.
+
 ### Scope for app servers
 
-The SDK middleware (`expressMiddleware`, `fastifyPlugin`, `resolveTenant`), the NestJS guard and the Hono resolver call `GET /api/v1/tenants/:id/context`. That route needs only the `read` scope. Give an app server a `read` key scoped to the tenant it serves. The key resolves that tenant and its descendants. Use a global key only when one server serves tenants in more than one subtree.
+The SDK middleware (`expressMiddleware`, `fastifyPlugin`, `resolveTenant`), the NestJS guard and the Hono resolver call `GET /api/v1/tenants/:id/context`. That route needs only the `read` scope. Give an app server a key scoped to the tenant it serves, with a role whose scopes are `["read"]`. The key resolves that tenant and its descendants. Use a global key only when one server serves tenants in more than one subtree.
 
 ### Admin-Only Routes
 

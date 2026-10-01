@@ -69,6 +69,24 @@ Call `initialize()` once before using any other method. When `autoMigrate` is en
 
 ## API Reference
 
+### The `audit` argument
+
+The methods that change tenants, config, permissions, keys, roles, webhooks, consent and regions take an optional `audit` argument, shown as `audit?` in the signatures below. It is an `AuditContext` from `@stratum-hq/core`:
+
+```typescript
+import type { AuditContext } from "@stratum-hq/core";
+
+const audit: AuditContext = {
+  actor_id: "user-123",     // required: who made the change
+  actor_type: "jwt",        // required: "api_key" | "jwt" | "system"
+  source_ip: "203.0.113.7", // optional
+  request_id: "req-42",     // optional
+};
+await stratum.createTenant({ name: "Acme Corp", slug: "acme" }, audit);
+```
+
+With `audit`, the method writes an entry to the audit log with the before and after state. Without it, the change is made and no audit entry is written. The control plane passes an audit context built from the request on its mutating routes.
+
 ### Tenants
 
 ```typescript
@@ -101,11 +119,14 @@ Tenants move through an explicit state machine: active to suspended or archived,
 stratum.suspendTenant(id, audit?): Promise<TenantNode>
 stratum.resumeTenant(id, audit?): Promise<TenantNode>
 stratum.archiveTenant(id, audit?): Promise<TenantNode>
+stratum.activateTenant(id, audit?): Promise<TenantNode>
 ```
 
 - `suspendTenant`: a reversible block on access. Rejects if the tenant is not active or has active children (suspend leaf-first). Reverse with `resumeTenant`.
 - `archiveTenant`: a reversible soft delete. Accepts an active or suspended tenant; rejects if already archived or it has active children. Reverse with `resumeTenant`. This is the canonical name for what `deleteTenant` does.
 - `resumeTenant`: returns a suspended or archived tenant to active. Rejects if the tenant is already active or its parent is not active (resume top-down).
+- `activateTenant`: moves a `pending` tenant, created with its own schema or database, to active once its storage exists.
+- The control plane has a route only for archiving (`DELETE /api/v1/tenants/:id`). It has no route to suspend, resume or activate a tenant, so call these methods from the library. (`POST /api/v1/tenants` activates a tenant itself once it has provisioned the storage.)
 - `deleteTenant(id, audit?)` is retained as a **deprecated alias of `archiveTenant`**; prefer `archiveTenant`.
 
 See the [tenant lifecycle guide](/guides/tenant-lifecycle/) for the full state machine and descendant rules.
@@ -150,11 +171,11 @@ stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
 ### ABAC (Attribute-Based Access Control)
 
 ```typescript
-stratum.createAbacPolicy(tenantId, input): Promise<AbacPolicy>
+stratum.createAbacPolicy(tenantId, input, audit?): Promise<AbacPolicy>
 stratum.getAbacPolicies(tenantId): Promise<AbacPolicy[]>
 stratum.resolveAbacPolicies(tenantId): Promise<ResolvedAbacPolicy[]>
 stratum.evaluateAbac(tenantId, request): Promise<AbacEvaluationResult>
-stratum.deleteAbacPolicy(tenantId, policyId): Promise<void>
+stratum.deleteAbacPolicy(tenantId, policyId, audit?): Promise<void>
 ```
 
 ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERITED/DELEGATED modes as permissions. See the [ABAC guide](/guides/abac/) for details.
@@ -162,10 +183,10 @@ ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERIT
 ### API Keys
 
 ```typescript
-stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?): Promise<CreatedApiKey>
+stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?, audit?): Promise<CreatedApiKey>
 stratum.validateApiKey(key): Promise<ValidatedApiKey | null>
-stratum.revokeApiKey(keyId): Promise<boolean>
-stratum.rotateApiKey(keyId, newName?): Promise<CreatedApiKey>
+stratum.revokeApiKey(keyId, audit?): Promise<boolean>
+stratum.rotateApiKey(keyId, newName?, audit?): Promise<CreatedApiKey>
 stratum.listApiKeys(tenantId?): Promise<ApiKeyRecord[]>
 stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
@@ -199,7 +220,7 @@ stratum.getAuditEntry(id): Promise<AuditEntry | null>
 stratum.recordAuditEvent(input): Promise<AuditEntry>
 ```
 
-- `recordAuditEvent(input)`: append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`. If the input does not match `RecordAuditEventInputSchema`, `recordAuditEvent` throws a `ValidationError` and writes no row. The error's `details.issues` lists each failed field.
+- `recordAuditEvent(input)`: append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. The required fields are `tenantId` (a UUID), `actorId`, `action`, `resourceType` and `resourceId` (a string, or `null` for an event about no single resource). `actorType` defaults to `'system'` and `metadata` to `{}`; `before`, `after`, `sourceIp` and `occurredAt` are optional. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`. If the input does not match `RecordAuditEventInputSchema`, `recordAuditEvent` throws a `ValidationError` and writes no row. The error's `details.issues` lists each failed field.
 
 ```typescript
 const entry = await stratum.recordAuditEvent({
@@ -258,11 +279,11 @@ stratum.getRole(id): Promise<Role | null>
 stratum.listRoles(tenantId?): Promise<Role[]>
 stratum.updateRole(id, input, audit?): Promise<Role | null>
 stratum.deleteRole(id, audit?): Promise<boolean>
-stratum.assignRoleToKey(keyId, roleId): Promise<boolean>
-stratum.removeRoleFromKey(keyId): Promise<boolean>
+stratum.assignRoleToKey(keyId, roleId, audit?): Promise<boolean>
+stratum.removeRoleFromKey(keyId, audit?): Promise<boolean>
 stratum.resolveKeyScopes(keyId): Promise<string[]>
-stratum.assignRole(principalType, principalId, roleId, tenantId?): Promise<boolean>
-stratum.removeRole(principalType, principalId): Promise<boolean>
+stratum.assignRole(principalType, principalId, roleId, tenantId?, audit?): Promise<boolean>
+stratum.removeRole(principalType, principalId, audit?): Promise<boolean>
 stratum.resolvePrincipalScopes(principalType, principalId, tenantId?): Promise<string[]>
 ```
 
@@ -425,15 +446,20 @@ await withTransaction(pool, async (client) => {
 
 ## Prerequisites
 
-`@stratum-hq/lib` assumes the Stratum database schema exists. Run the control plane migrations first, or apply the migration SQL manually:
+`@stratum-hq/lib` needs PostgreSQL with the `uuid-ossp` and `ltree` extensions, and the Stratum tables. Create the extensions as a superuser (or your provider's administrative login). Then create the tables in one of these ways:
 
-```bash
-# Option 1: Start the control plane (runs migrations automatically)
-node packages/control-plane/dist/index.js
+```typescript
+import { migrate } from "@stratum-hq/lib";
 
-# Option 2: Apply SQL directly
-psql -d stratum -f packages/control-plane/src/db/migrations/001_init.sql
+// Option 1: run the migrations when the instance initializes
+const stratum = new Stratum({ adminPool, pool, autoMigrate: true });
+await stratum.initialize();
+
+// Option 2: run them as a deploy step, on the admin login
+await migrate({ pool: adminPool });
 ```
+
+The control plane runs the same migrations when it starts. `npx @stratum-hq/cli migrate` does not create Stratum's tables: it adds `tenant_id` and row-level security to your own tables.
 
 ## Error Handling
 
