@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { parse as parseConnectionString } from "pg-connection-string";
 import { DatabasePoolManager } from "../database/pool-manager.js";
 
 // ---------------------------------------------------------------------------
@@ -7,6 +8,7 @@ import { DatabasePoolManager } from "../database/pool-manager.js";
 
 const mockPoolEnd = vi.fn().mockResolvedValue(undefined);
 const createdDatabases: string[] = [];
+const createdConfigs: Array<{ database: string; connectionString?: string }> = [];
 
 vi.mock("pg", () => {
   class Pool {
@@ -15,9 +17,10 @@ vi.mock("pg", () => {
     public idleCount = 0;
     end = () => mockPoolEnd(this.database);
 
-    constructor(config: { database: string }) {
+    constructor(config: { database: string; connectionString?: string }) {
       this.database = config.database;
       createdDatabases.push(config.database);
+      createdConfigs.push(config);
     }
   }
   return { default: { Pool } };
@@ -48,6 +51,7 @@ describe("DatabasePoolManager", () => {
   beforeEach(() => {
     mockPoolEnd.mockClear();
     createdDatabases.length = 0;
+    createdConfigs.length = 0;
   });
 
   describe("slug validation", () => {
@@ -115,6 +119,68 @@ describe("DatabasePoolManager", () => {
       const mgr = makeManager();
       const pool = (await mgr.getPool("acme")) as unknown as { database: string };
       expect(pool.database).toBe("stratum_tenant_acme");
+    });
+  });
+
+  describe("baseConnectionConfig with a connectionString", () => {
+    // pg reads the database name from connectionString before `database`, so
+    // the tenant's name must be in the connection string the pool gets.
+    function managerWith(connectionString: string) {
+      return new DatabasePoolManager({ baseConnectionConfig: { connectionString } });
+    }
+
+    it("names each tenant's database in the connection string of its pool", async () => {
+      const mgr = managerWith("postgresql://app:secret@db.internal:5433/main?sslmode=require");
+      await mgr.getPool("acme");
+      await mgr.getPool("globex");
+      const urls = createdConfigs.map((c) => new URL(c.connectionString!));
+      expect(urls.map((u) => u.pathname)).toEqual(["/stratum_tenant_acme", "/stratum_tenant_globex"]);
+      for (const u of urls) {
+        expect(u.host).toBe("db.internal:5433");
+        expect(u.username).toBe("app");
+        expect(u.password).toBe("secret");
+        expect(u.searchParams.get("sslmode")).toBe("require");
+      }
+    });
+
+    it("names the tenant's database in a socket connection string", async () => {
+      await managerWith("/var/run/postgresql main").getPool("acme");
+      await managerWith("socket:/var/run/postgresql?db=main&encoding=utf8").getPool("acme");
+      expect(createdConfigs[0].connectionString).toBe("/var/run/postgresql stratum_tenant_acme");
+      const socket = new URL(createdConfigs[1].connectionString!);
+      expect(socket.searchParams.get("db")).toBe("stratum_tenant_acme");
+      expect(socket.searchParams.get("encoding")).toBe("utf8");
+    });
+
+    it("refuses a connection string it cannot set the database name in", () => {
+      expect(() => managerWith("not a connection string")).toThrow(/connectionString/);
+    });
+
+    it("refuses a URL without // whose database name it cannot set", async () => {
+      for (const s of ["postgres:main?host=/tmp", "postgresql:main", "postgres://app@/main?host=/tmp"]) {
+        expect(() => managerWith(s), s).toThrow(/connectionString/);
+      }
+    });
+
+    it("names the supported forms when it refuses a connection string", () => {
+      expect(() => managerWith("postgres:main?host=/tmp")).toThrow(
+        /postgresql:\/\/.*socket:.*\?db=.*\/path\/to\/socket dbname/s,
+      );
+    });
+
+    it("gives pg the tenant's database for every accepted form", async () => {
+      const accepted = [
+        "postgresql://app:secret@db.internal:5433/main?sslmode=require",
+        "postgres:/main?host=/var/run/postgresql",
+        "postgresql:///main?host=/var/run/postgresql",
+        "postgresql://db.internal",
+        "socket:/var/run/postgresql?db=main",
+        "/var/run/postgresql main",
+      ];
+      for (const s of accepted) await managerWith(s).getPool("acme");
+      expect(createdConfigs.map((c) => parseConnectionString(c.connectionString!).database)).toEqual(
+        accepted.map(() => "stratum_tenant_acme"),
+      );
     });
   });
 

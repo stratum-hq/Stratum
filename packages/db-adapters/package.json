@@ -55,7 +55,8 @@
   },
   "dependencies": {
     "@stratum-hq/core": "^1.6.0",
-    "pg": "^8.11.0"
+    "pg": "^8.11.0",
+    "pg-connection-string": "^2.6.0"
   },
   "peerDependencies": {
     "@electric-sql/pglite": "^0.4.2",

@@ -11,6 +11,7 @@ import {
   formatPresetString,
   parsePresetString,
   VALID_COMBINATIONS,
+  ormsFor,
   type Database,
   type StackPreset,
 } from "../matrix.js";
@@ -30,13 +31,16 @@ const REPO_ROOT = path.resolve(__dirname, "../../../..");
 // repository so that module resolution finds the root node_modules.
 const VIRTUAL_ROOT = path.join(REPO_ROOT, "packages/create/.generated-presets");
 
-// The workspace installs the drivers these presets import. The prisma, drizzle
-// and sequelize presets need packages that the workspace does not install.
+// The workspace installs the drivers these presets import. The prisma and
+// drizzle presets need packages that the workspace does not install.
 const PRESETS = [
   "postgres-rls-pg-none",
   "postgres-rls-knex-none",
+  "postgres-rls-sequelize-none",
+  "postgres-schema-pg-none",
+  "postgres-database-pg-none",
   "mysql-database-pg-none",
-  "mysql-database-knex-none",
+  "mysql-table-prefix-pg-none",
   "mongodb-database-mongoose-none",
   "mongodb-collection-mongoose-none",
 ].map((s) => parsePresetString(s) as StackPreset);
@@ -147,7 +151,7 @@ function allPresets(): StackPreset[] {
   const presets: StackPreset[] = [];
   for (const [database, config] of Object.entries(VALID_COMBINATIONS)) {
     for (const strategy of config.strategies)
-      for (const orm of config.orms)
+      for (const orm of ormsFor(database as Database, strategy))
         for (const framework of config.frameworks)
           presets.push({ database: database as Database, strategy, orm, framework });
   }

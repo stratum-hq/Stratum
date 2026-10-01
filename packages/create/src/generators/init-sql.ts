@@ -34,19 +34,23 @@ export function postgresAppRoleSql(dbName: string, strategy?: string): string {
   let strategyGrant = "";
   if (strategy === "schema") {
     strategyGrant = `
--- schema-per-tenant: the app creates one schema per tenant. A schema named
--- like a login comes first on that login's default search path ("$user",
--- public), so a schema the app creates could come before public for the
--- Stratum login or the bootstrap superuser. Both search only public.
+-- schema-per-tenant: each tenant has its own schema, which npm run
+-- tenant:provision creates as the superuser. The app role cannot create
+-- schemas. A schema named like a login comes first on that login's default
+-- search path ("$user", public), so the Stratum login and the bootstrap
+-- superuser search only public.
 ALTER ROLE ${stratum} IN DATABASE ${dbName} SET search_path = public;
 ALTER ROLE CURRENT_USER IN DATABASE ${dbName} SET search_path = public;
-GRANT CREATE ON DATABASE ${dbName} TO ${role};
 `;
   } else if (strategy === "database") {
     strategyGrant = `
--- database-per-tenant: the app creates one database per tenant
-ALTER ROLE ${role} CREATEDB;
+-- database-per-tenant: each tenant has its own database, which npm run
+-- tenant:provision creates as the superuser. The app role cannot create
+-- databases.
 `;
+  }
+  if (strategy === "schema" || strategy === "database") {
+    strategyGrant += provisionedTenantsSql(role, strategy);
   }
   return `
 -- Stratum's control role (migration 032 of @stratum-hq/lib). Every Stratum
@@ -86,12 +90,62 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ${strategyGrant}`;
 }
 
+/** Name of the table that records each provisioned tenant of a schema or database preset. */
+export const PROVISIONED_TENANTS = "provisioned_tenants";
+
+/**
+ * The record of provisioned tenants: the app reads a tenant's slug here, by
+ * the tenant ID of a verified token, so a tenant's schema or database does
+ * not follow a later change of its Stratum slug.
+ */
+function provisionedTenantsSql(role: string, strategy: string): string {
+  return `
+-- The provisioned tenants. npm run tenant:provision records each tenant here,
+-- as the superuser, with the slug that names its ${strategy} (${strategy === "schema" ? "tenant_{slug}" : "stratum_tenant_{slug}"}).
+-- The app looks the slug up here by the tenant ID of a verified token, so a
+-- tenant keeps its ${strategy} when its Stratum slug changes, and a tenant that
+-- is not provisioned reaches none. The app role only reads it.
+CREATE TABLE ${PROVISIONED_TENANTS} (
+  tenant_id uuid PRIMARY KEY,
+  slug text NOT NULL UNIQUE,
+  provisioned_at timestamptz NOT NULL DEFAULT now()
+);
+REVOKE ALL ON ${PROVISIONED_TENANTS} FROM ${role};
+GRANT SELECT ON ${PROVISIONED_TENANTS} TO ${role};
+`;
+}
+
+const POLICY_USING = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
+
+/**
+ * SQL that turns on row-level security for a table and creates its
+ * tenant_isolation policy. A pooled connection reads the setting as '' after
+ * a tenant transaction ends, or as NULL before the first one; NULLIF makes
+ * both match no rows, where a bare ::uuid cast of '' raises an error.
+ */
+export function tenantIsolationPolicySql(table: string): string {
+  return `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON ${table};
+CREATE POLICY tenant_isolation ON ${table}
+  USING (${POLICY_USING})
+  WITH CHECK (${POLICY_USING});
+`;
+}
+
+/**
+ * The schema of the Prisma models of the PostgreSQL rls preset. prisma db push
+ * changes only the schemas the datasource lists, so with the models outside
+ * public it never drops or alters Stratum's tables there.
+ */
+export const PRISMA_APP_SCHEMA = "app";
+
 export function generatePresetInitSql(projectName: string, preset: StackPreset): string | null {
   const dbName = projectName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
 
   switch (preset.database) {
     case "postgres":
-      return generatePostgresInit(projectName, dbName, preset.strategy);
+      return generatePostgresInit(projectName, dbName, preset);
     case "mongodb":
       // MongoDB does not use SQL initialization
       return null;
@@ -100,25 +154,23 @@ export function generatePresetInitSql(projectName: string, preset: StackPreset):
   }
 }
 
-function generatePostgresInit(projectName: string, dbName: string, strategy: string): string {
+function generatePostgresInit(projectName: string, dbName: string, preset: StackPreset): string {
+  const strategy = preset.strategy;
   let rlsBlock = "";
   if (strategy === "rls") {
     rlsBlock = `
--- Enable Row-Level Security for tenant isolation
--- Add RLS policies to each tenant-scoped table:
---
---   ALTER TABLE your_table ENABLE ROW LEVEL SECURITY;
---   ALTER TABLE your_table FORCE ROW LEVEL SECURITY;
---   CREATE POLICY tenant_isolation ON your_table
---     USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
+-- Row-Level Security for tenant isolation. Every tenant-scoped table needs a
+-- tenant_id column, ENABLE and FORCE ROW LEVEL SECURITY, and a policy that
+-- compares tenant_id with app.current_tenant_id, the setting that the
+-- generated tenant helper sets for each tenant query. A table without a
+-- policy is not filtered by tenant.
 --
 -- A pooled connection reads the setting as '' after a tenant transaction ends,
 -- or as NULL before the first one. NULLIF makes both return no rows; a bare
 -- ::uuid cast of '' raises an error.
 -- FORCE makes the policy apply to the table owner too; without it, a table
 -- created by the application role is not isolated for that role.
--- The Stratum db-adapters package sets app.current_tenant_id automatically.
-`;
+${rlsTables(preset.orm, dbName)}`;
   }
 
   return `-- Initialize ${projectName} database
@@ -132,6 +184,44 @@ COMMENT ON DATABASE ${dbName} IS 'Multi-tenant database for ${projectName}';
 ${postgresAppRoleSql(dbName, strategy)}${rlsBlock}`;
 }
 
+/**
+ * The tenant-scoped tables of an rls preset and their policies. Prisma and
+ * Drizzle create their tables after this file runs, so their policies are in
+ * the files those tools read.
+ */
+function rlsTables(orm: string, dbName: string): string {
+  if (orm === "prisma") {
+    const role = postgresAppRole(dbName);
+    return `--
+-- The tables are created by Prisma (prisma/schema.prisma). npm run db:push
+-- creates them and then applies their policies from prisma/rls.sql. They are
+-- in their own schema, ${PRISMA_APP_SCHEMA}: prisma db push changes only that schema, so it
+-- never drops or alters Stratum's tables in public.
+CREATE SCHEMA ${PRISMA_APP_SCHEMA};
+GRANT USAGE ON SCHEMA ${PRISMA_APP_SCHEMA} TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA ${PRISMA_APP_SCHEMA} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role};
+ALTER DEFAULT PRIVILEGES FOR ROLE ${dbName} IN SCHEMA ${PRISMA_APP_SCHEMA} GRANT USAGE, SELECT ON SEQUENCES TO ${role};
+`;
+  }
+  if (orm === "drizzle") {
+    return `--
+-- The tables are created by drizzle-kit (src/schema.ts), which also creates
+-- the tenant_isolation policy that src/schema.ts declares for each table.
+`;
+  }
+  return `--
+-- An example tenant-scoped table and its policy. The superuser running this
+-- file owns the table; the app role reads and writes it through the policy.
+CREATE TABLE notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL,
+  body text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX notes_tenant_id_idx ON notes (tenant_id);
+${tenantIsolationPolicySql("notes")}`;
+}
+
 function generateMysqlInit(projectName: string, dbName: string): string {
   return `-- Initialize ${projectName} database
 -- MySQL setup for Stratum multi-tenancy
@@ -139,11 +229,26 @@ function generateMysqlInit(projectName: string, dbName: string): string {
 -- Ensure utf8mb4 for the database
 ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Tenant metadata table
+-- The tenants: npm run tenant:provision adds each one. slug names the
+-- tenant's own database (stratum_tenant_{slug}) or tables ({table}_{slug}),
+-- and the app looks it up by the tenant ID of a verified token. Do not change
+-- a slug: those names are fixed when the tenant is provisioned. ascii_bin
+-- compares IDs byte for byte, so an ID that differs in letter case or
+-- trailing spaces matches no tenant.
 CREATE TABLE IF NOT EXISTS _stratum_tenants (
-  id VARCHAR(36) PRIMARY KEY,
+  id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
+  slug VARCHAR(63) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- The app user (MYSQL_USER in docker-compose.yml) gets ALL on this database
+-- from the MySQL image, which names the database with _ escaped as \\_. The
+-- app user only reads _stratum_tenants: it creates, alters and drops nothing.
+-- npm run tenant:provision runs as the admin user and gives it read and write
+-- access to each tenant's own tables or database.
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${dbName.replace(/_/g, "\\_")}\`.* FROM '${dbName}'@'%';
+REVOKE IF EXISTS ALL PRIVILEGES ON \`${dbName}\`.* FROM '${dbName}'@'%';
+GRANT SELECT ON \`${dbName}\`.\`_stratum_tenants\` TO '${dbName}'@'%';
 `;
 }

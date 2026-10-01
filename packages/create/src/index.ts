@@ -103,7 +103,7 @@ function printUsage(): void {
   console.log("  npx @stratum-hq/create my-app --template fastify");
   console.log("  npx @stratum-hq/create my-app --preset postgres-rls-prisma-express");
   console.log("  npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono");
-  console.log("  npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs");
+  console.log("  npx @stratum-hq/create my-app --preset mysql-table-prefix-pg-nestjs");
 }
 
 // ─── File generation helpers ──────────────────────────────────────────────────

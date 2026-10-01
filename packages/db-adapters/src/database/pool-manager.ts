@@ -1,8 +1,13 @@
 import pg from "pg";
+import { parse as parseConnectionString } from "pg-connection-string";
 import { getDatabaseName } from "./manager.js";
 
 export interface DatabasePoolManagerOptions {
-  /** Template connection config (host, port, user, password, ssl, etc.). The database name is overridden per tenant. */
+  /**
+   * Template connection config (host, port, user, password, ssl, etc.). The
+   * database name is overridden per tenant, also in a `connectionString`. A
+   * `connectionString` that is not a URL or a socket path is refused.
+   */
   baseConnectionConfig: pg.PoolConfig;
   /** Maximum number of tenant pools to keep open simultaneously. Default: 50. */
   maxPools?: number;
@@ -40,6 +45,11 @@ export class DatabasePoolManager {
 
   constructor(options: DatabasePoolManagerOptions) {
     this.baseConfig = options.baseConnectionConfig;
+    // Refuse a connection string the manager cannot set a database name in
+    // now, not on a tenant's first request.
+    if (this.baseConfig.connectionString !== undefined) {
+      withDatabase(this.baseConfig.connectionString, "postgres");
+    }
     this.maxPools = options.maxPools ?? 50;
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30_000;
   }
@@ -65,6 +75,9 @@ export class DatabasePoolManager {
       entry = {
         pool: new pg.Pool({
           ...this.baseConfig,
+          ...(this.baseConfig.connectionString !== undefined && {
+            connectionString: withDatabase(this.baseConfig.connectionString, dbName),
+          }),
           database: dbName,
           idleTimeoutMillis: this.idleTimeoutMs,
         }),
@@ -198,4 +211,43 @@ export class DatabasePoolManager {
     this.pools.delete(oldestKey);
     return entry.pool;
   }
+}
+
+const SUPPORTED_CONNECTION_STRINGS =
+  "a URL with // (postgresql://user:password@host:port/dbname?sslmode=require, " +
+  "or postgresql:///dbname?host=/path/to/socket), a socket URL (socket:/path/to/socket?db=dbname), " +
+  "or a socket path followed by a database name (/path/to/socket dbname)";
+
+/**
+ * Returns the connection string with its database name replaced. pg reads the
+ * database name from a connection string before the `database` option.
+ * Accepts the forms pg reads a database name from: a URL, a `socket:` URL
+ * (its `db` parameter), and a socket path followed by a database name. The
+ * result is parsed as pg parses it, and any other result is refused.
+ */
+function withDatabase(connectionString: string, database: string): string {
+  const refuse = () =>
+    new Error(
+      "DatabasePoolManager: the manager could not set each tenant's database name in " +
+        `baseConnectionConfig.connectionString. Use ${SUPPORTED_CONNECTION_STRINGS}.`,
+    );
+  let result: string;
+  if (connectionString.startsWith("/")) {
+    result = `${connectionString.split(" ")[0]} ${database}`;
+  } else {
+    let url: URL;
+    try {
+      url = new URL(connectionString);
+    } catch {
+      throw refuse();
+    }
+    if (url.protocol === "socket:") {
+      url.searchParams.set("db", database);
+    } else {
+      url.pathname = `/${database}`;
+    }
+    result = url.toString();
+  }
+  if (parseConnectionString(result).database !== database) throw refuse();
+  return result;
 }

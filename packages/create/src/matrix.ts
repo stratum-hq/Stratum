@@ -18,12 +18,22 @@ export interface StackPreset {
 
 const POSTGRES_STRATEGIES: Strategy[] = ["rls", "schema", "database"];
 const POSTGRES_ORMS: Orm[] = ["prisma", "drizzle", "sequelize", "knex", "pg"];
+// @stratum-hq/db-adapters routes queries to a tenant's schema or database
+// only for Prisma and raw pg. The other ORMs have no adapter for those
+// strategies, so the generator offers them only with rls.
+const POSTGRES_ORMS_BY_STRATEGY: Partial<Record<Strategy, Orm[]>> = {
+  schema: ["prisma", "pg"],
+  database: ["prisma", "pg"],
+};
 
 const MONGODB_STRATEGIES: Strategy[] = ["database", "collection"];
 const MONGODB_ORMS: Orm[] = ["mongoose"];
 
 const MYSQL_STRATEGIES: Strategy[] = ["database", "table-prefix"];
-const MYSQL_ORMS: Orm[] = ["sequelize", "knex", "pg"];
+// @stratum-hq/mysql routes queries to a tenant's database or tables only for
+// the raw mysql2 driver ("pg" here). Its Knex and Sequelize helpers scope a
+// shared table by tenant_id, which neither MySQL strategy uses.
+const MYSQL_ORMS: Orm[] = ["pg"];
 
 const ALL_FRAMEWORKS: Framework[] = ["express", "fastify", "nextjs", "hono", "nestjs", "none"];
 
@@ -31,6 +41,8 @@ export interface DatabaseConfig {
   strategies: Strategy[];
   orms: Orm[];
   frameworks: Framework[];
+  /** The ORMs a strategy allows, when it allows fewer than `orms`. */
+  ormsByStrategy?: Partial<Record<Strategy, Orm[]>>;
 }
 
 export const VALID_COMBINATIONS: Record<Database, DatabaseConfig> = {
@@ -38,6 +50,7 @@ export const VALID_COMBINATIONS: Record<Database, DatabaseConfig> = {
     strategies: POSTGRES_STRATEGIES,
     orms: POSTGRES_ORMS,
     frameworks: ALL_FRAMEWORKS,
+    ormsByStrategy: POSTGRES_ORMS_BY_STRATEGY,
   },
   mongodb: {
     strategies: MONGODB_STRATEGIES,
@@ -59,11 +72,18 @@ const ALL_ORMS: Orm[] = ["prisma", "drizzle", "sequelize", "knex", "mongoose", "
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
+/** The ORMs that a database allows with a strategy, or none if it does not allow the strategy. */
+export function ormsFor(database: Database, strategy: Strategy): Orm[] {
+  const config = VALID_COMBINATIONS[database];
+  if (!config || !config.strategies.includes(strategy)) return [];
+  return config.ormsByStrategy?.[strategy] ?? config.orms;
+}
+
 export function isValidPreset(preset: StackPreset): boolean {
   const config = VALID_COMBINATIONS[preset.database];
   if (!config) return false;
   if (!config.strategies.includes(preset.strategy)) return false;
-  if (!config.orms.includes(preset.orm)) return false;
+  if (!ormsFor(preset.database, preset.strategy).includes(preset.orm)) return false;
   if (!config.frameworks.includes(preset.framework)) return false;
   return true;
 }
@@ -129,58 +149,38 @@ export interface ValidOptions {
 }
 
 export function getValidOptions(partial: Partial<StackPreset>): ValidOptions {
-  let databases: Database[] = [...ALL_DATABASES];
-  let strategies: Strategy[] = [];
-  let orms: Orm[] = [];
-  let frameworks: Framework[] = [];
+  const candidates: Database[] = partial.database ? [partial.database] : [...ALL_DATABASES];
+  const databases: Database[] = [];
 
-  // If database is selected, narrow to that database's config
-  if (partial.database) {
-    databases = [partial.database];
-  }
-
-  // Collect valid strategies/orms/frameworks from matching databases
+  // Collect the strategies, ORMs and frameworks of the (strategy, ORM) pairs
+  // that each database allows and that match the selections made so far.
   const strategySet = new Set<Strategy>();
   const ormSet = new Set<Orm>();
   const frameworkSet = new Set<Framework>();
 
-  for (const db of databases) {
+  for (const db of candidates) {
     const config = VALID_COMBINATIONS[db];
-
-    // If strategy is specified, only include this db if it supports it
-    if (partial.strategy && !config.strategies.includes(partial.strategy)) continue;
-    // If orm is specified, only include this db if it supports it
-    if (partial.orm && !config.orms.includes(partial.orm)) continue;
-
-    for (const s of config.strategies) strategySet.add(s);
-    for (const o of config.orms) ormSet.add(o);
-    for (const f of config.frameworks) frameworkSet.add(f);
+    let matched = false;
+    for (const strategy of config.strategies) {
+      if (partial.strategy && strategy !== partial.strategy) continue;
+      for (const orm of ormsFor(db, strategy)) {
+        if (partial.orm && orm !== partial.orm) continue;
+        strategySet.add(strategy);
+        ormSet.add(orm);
+        matched = true;
+      }
+    }
+    if (!matched) continue;
+    databases.push(db);
+    for (const f of config.frameworks) {
+      if (!partial.framework || f === partial.framework) frameworkSet.add(f);
+    }
   }
 
-  strategies = [...strategySet];
-  orms = [...ormSet];
-  frameworks = [...frameworkSet];
-
-  // Further narrow if specific values are set
-  if (partial.strategy) {
-    strategies = strategies.filter((s) => s === partial.strategy);
-  }
-  if (partial.orm) {
-    orms = orms.filter((o) => o === partial.orm);
-  }
-  if (partial.framework) {
-    frameworks = frameworks.filter((f) => f === partial.framework);
-  }
-
-  // Narrow databases to only those that support all specified fields
-  if (partial.strategy || partial.orm) {
-    databases = databases.filter((db) => {
-      const config = VALID_COMBINATIONS[db];
-      if (partial.strategy && !config.strategies.includes(partial.strategy)) return false;
-      if (partial.orm && !config.orms.includes(partial.orm)) return false;
-      return true;
-    });
-  }
-
-  return { databases, strategies, orms, frameworks };
+  return {
+    databases,
+    strategies: [...strategySet],
+    orms: [...ormSet],
+    frameworks: [...frameworkSet],
+  };
 }

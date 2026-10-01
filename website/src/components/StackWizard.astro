@@ -297,6 +297,10 @@
       strategies: ['rls', 'schema', 'database'],
       orms: ['prisma', 'drizzle', 'sequelize', 'knex', 'pg'],
       frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
+      ormsByStrategy: {
+        schema: ['prisma', 'pg'],
+        database: ['prisma', 'pg'],
+      },
     },
     mongodb: {
       strategies: ['database', 'collection'],
@@ -305,7 +309,7 @@
     },
     mysql: {
       strategies: ['database', 'table-prefix'],
-      orms: ['sequelize', 'knex', 'pg'],
+      orms: ['pg'],
       frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
     },
   };
@@ -364,9 +368,10 @@
     // ORM config
     if (orm === 'prisma') {
       if (strategy === 'rls') {
-        lines.push('  prisma/schema.prisma  # Tenant model with RLS');
+        lines.push('  prisma/schema.prisma  # Example tenant-scoped model');
+        lines.push('  prisma/rls.sql        # Its RLS policy');
       } else {
-        lines.push('  prisma/schema.prisma  # Tenant model');
+        lines.push('  prisma/schema.prisma  # Models of each tenant');
       }
     } else if (orm === 'drizzle') {
       lines.push('  drizzle.config.ts     # Drizzle Kit config');
@@ -400,6 +405,10 @@
       // none
       lines.push('    index.ts            # Library entry point');
       lines.push('    stratum-' + orm + '.ts   # ' + (LABELS[orm] || orm) + ' + tenant-scoped wrapper');
+    }
+
+    if (db === 'postgres' && (strategy === 'schema' || strategy === 'database')) {
+      lines.push('  scripts/provision-tenant.mjs  # Creates a tenant\'s ' + strategy);
     }
 
     lines.push('  .env.example');
@@ -483,8 +492,9 @@
       return;
     }
 
-    // Populate ORM
-    populateSelect(ormSelect, config.orms, 'Select ORM...');
+    // Populate ORM: a strategy can allow fewer ORMs than the database
+    const orms = (config.ormsByStrategy && config.ormsByStrategy[strategy]) || config.orms;
+    populateSelect(ormSelect, orms, 'Select ORM...');
     ormSelect.disabled = false;
 
     const orm = ormSelect.value;

@@ -5,7 +5,7 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 import { createProject, type Template } from "../index.js";
 import { generatePresetPackageJson } from "../generators/package-json.js";
-import { VALID_COMBINATIONS, formatPresetString, type Database, type StackPreset } from "../matrix.js";
+import { VALID_COMBINATIONS, ormsFor, formatPresetString, type Database, type StackPreset } from "../matrix.js";
 
 // The test reads the versions from disk so that it does not share a code path with the
 // generator it checks.
@@ -26,7 +26,7 @@ function allPresets(): StackPreset[] {
   const presets: StackPreset[] = [];
   for (const [database, config] of Object.entries(VALID_COMBINATIONS)) {
     for (const strategy of config.strategies) {
-      for (const orm of config.orms) {
+      for (const orm of ormsFor(database as Database, strategy)) {
         for (const framework of config.frameworks) {
           presets.push({ database: database as Database, strategy, orm, framework });
         }

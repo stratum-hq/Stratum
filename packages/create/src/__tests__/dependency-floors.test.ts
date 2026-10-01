@@ -5,7 +5,7 @@ import * as path from "path";
 import { createProject, type Template } from "../index.js";
 import { generatePresetPackageJson } from "../generators/package-json.js";
 import { generateDbSetup } from "../generators/db-setup.js";
-import { VALID_COMBINATIONS, type Database, type StackPreset } from "../matrix.js";
+import { VALID_COMBINATIONS, ormsFor, type Database, type StackPreset } from "../matrix.js";
 
 // The lowest version each generated range allows must be past the published
 // advisories for that package, so a lockfile can never pin a vulnerable floor.
@@ -52,7 +52,7 @@ function allPresets(): StackPreset[] {
   const out: StackPreset[] = [];
   for (const [database, config] of Object.entries(VALID_COMBINATIONS)) {
     for (const strategy of config.strategies) {
-      for (const orm of config.orms) {
+      for (const orm of ormsFor(database as Database, strategy)) {
         for (const framework of config.frameworks) {
           out.push({ database: database as Database, strategy, orm, framework });
         }

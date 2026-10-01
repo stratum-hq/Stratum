@@ -14,8 +14,9 @@ import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
  * generated. The express template is installed, built with tsc and started,
  * to prove its tenant middleware answers 401 without a verified token and
  * takes the tenant from a valid HS256 token. The drizzle preset is installed
- * and built, and drizzle-kit generates a migration from the schema file its
- * config points at. A Prisma Next.js preset is installed with the workspace
+ * and built, and drizzle-kit generates a migration, with the row-level
+ * security policy, from the schema file its config points at. A Prisma
+ * Next.js preset is installed with the workspace
  * build of @stratum-hq/db-adapters, its client is generated, and `next build`
  * type-checks the generated Prisma setup against the real PrismaClient.
  * Installs run one at a time and need network access to the npm registry.
@@ -163,6 +164,10 @@ describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${DRIZZLE_PRESET}, i
       .map((f) => fs.readFileSync(path.join(dir, "drizzle", f), "utf8"))
       .join("\n");
     expect(sql).toContain(`CREATE TABLE "notes"`);
+    // The rls preset declares the table's tenant_isolation policy, and
+    // drizzle-kit turns on row-level security for a table with a policy.
+    expect(sql).toContain(`ALTER TABLE "notes" ENABLE ROW LEVEL SECURITY`);
+    expect(sql).toContain(`CREATE POLICY "tenant_isolation" ON "notes"`);
   }, 120_000);
 
   it("installs no drizzle-orm, drizzle-kit or esbuild version with a published advisory", () => {
