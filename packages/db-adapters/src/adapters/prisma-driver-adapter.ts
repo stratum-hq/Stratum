@@ -28,3 +28,24 @@ export type PrismaDatasourceClientClass<C> = new (options: { datasources: { db: 
 
 /** A PrismaClient class that takes a driver adapter (Prisma 7). */
 export type PrismaDriverAdapterClientClass<C, A> = new (options: { adapter: A }) => C;
+
+/**
+ * Returns a client made with the Prisma 5 and 6 `datasources` option.
+ * Prisma 7 rejects that option. Its error does not name the fix, so this
+ * function replaces that error with one that names the `driverAdapter` option.
+ */
+export function newDatasourceClient<C>(PrismaClient: PrismaDatasourceClientClass<C>, url: string): C {
+  try {
+    return new PrismaClient({ datasources: { db: { url } } });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Unknown property datasources")) {
+      throw new Error(
+        "This PrismaClient does not accept the `datasources` option, which Prisma 7 removed. " +
+          "Pass a driver adapter class as the last argument, for example { driverAdapter: PrismaPg } " +
+          "with PrismaPg from @prisma/adapter-pg.",
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+}

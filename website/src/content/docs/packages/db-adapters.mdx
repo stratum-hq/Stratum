@@ -114,7 +114,7 @@ const databases = new DatabasePrismaAdapter(poolManager, PrismaClient, process.e
 const orders = await schemas.getClient("acme").order.findMany();
 ```
 
-`SchemaPrismaAdapter` gives the driver adapter the tenant schema. `DatabasePrismaAdapter` gives it the tenant database URL, and the `schema` parameter of your URL when the URL has one. Any driver adapter class with the constructor `new (config, { schema })` works.
+`SchemaPrismaAdapter` gives the driver adapter the tenant schema. `DatabasePrismaAdapter` gives it the tenant database URL, and the `schema` parameter of your URL when the URL has one. Any driver adapter class with the constructor `new (config, { schema })` works. If you give a Prisma 7 client without `driverAdapter`, `getClient` throws an error that names the `driverAdapter` option, and makes no client.
 
 ## RLS Management
 

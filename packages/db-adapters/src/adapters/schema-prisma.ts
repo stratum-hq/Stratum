@@ -1,9 +1,10 @@
 import { validateSlug } from "@stratum-hq/core";
 import { tenantSchemaName } from "../schema/manager.js";
-import type {
-  PrismaDatasourceClientClass,
-  PrismaDriverAdapterClientClass,
-  PrismaDriverAdapterOptions,
+import {
+  newDatasourceClient,
+  type PrismaDatasourceClientClass,
+  type PrismaDriverAdapterClientClass,
+  type PrismaDriverAdapterOptions,
 } from "./prisma-driver-adapter.js";
 
 // Minimal interface for Prisma client operations used here.
@@ -55,7 +56,7 @@ export class SchemaPrismaAdapter<C extends PrismaClientLike = PrismaClientLike, 
       this.createClient = (schemaName) => {
         const url = new URL(baseDatasourceUrl);
         url.searchParams.set("schema", schemaName);
-        return new Client({ datasources: { db: { url: url.toString() } } });
+        return newDatasourceClient(Client, url.toString());
       };
     } else {
       const Client = PrismaClient as PrismaDriverAdapterClientClass<C, A>;

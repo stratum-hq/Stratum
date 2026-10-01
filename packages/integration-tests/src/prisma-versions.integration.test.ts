@@ -79,7 +79,24 @@ async function useTenants(getClient, tenantOf) {
 async function main() {
   const options = PrismaPg ? { driverAdapter: PrismaPg } : 50;
   let seen;
-  if (mode === "schema") {
+  if (mode === "legacy") {
+    // The Prisma 5 and 6 form, as a caller without types can write it for Prisma 7.
+    // a is a schema slug and b is a database slug.
+    seen = {};
+    const attempts = {
+      schema: () => new SchemaPrismaAdapter(PrismaClient, url).getClient(a),
+      database: () => new DatabasePrismaAdapter({}, PrismaClient, url).getClient(b),
+    };
+    for (const [name, attempt] of Object.entries(attempts)) {
+      try {
+        const client = attempt();
+        await client.order.create({ data: { tenantId: "legacy" } });
+        seen[name] = ["no error"];
+      } catch (err) {
+        seen[name] = [String(err.message).split("\\n")[0]];
+      }
+    }
+  } else if (mode === "schema") {
     const adapter = new SchemaPrismaAdapter(PrismaClient, url, options);
     seen = await useTenants((s) => adapter.getClient(s), (s) => s);
     await adapter.disconnectAll();
@@ -215,6 +232,32 @@ for (const { major, packages } of VERSIONS) {
         expect(r.rows.map((row) => row.tenant_id)).toEqual([slug]);
       }
     });
+
+    it.runIf(major >= 7)(
+      "refuses the datasource URL form with an error that names the driverAdapter option",
+      async () => {
+        const countRows = async () => {
+          let n = 0;
+          for (const slug of schemaSlugs) {
+            const r = await admin.query(`SELECT count(*)::int AS n FROM "${tenantSchemaName(slug)}".orders`);
+            n += r.rows[0].n;
+          }
+          for (const slug of dbSlugs) {
+            const tenantDb = new pg.Client({ connectionString: urlFor({ database: getDatabaseName(slug) }) });
+            await tenantDb.connect();
+            const r = await tenantDb.query("SELECT count(*)::int AS n FROM orders");
+            await tenantDb.end();
+            n += r.rows[0].n;
+          }
+          return n;
+        };
+        const before = await countRows();
+        const seen = check("legacy", BASE_URL, schemaSlugs[0], dbSlugs[0]);
+        expect(seen.schema[0]).toMatch(/driverAdapter/);
+        expect(seen.database[0]).toMatch(/driverAdapter/);
+        expect(await countRows()).toBe(before);
+      },
+    );
 
     it("limits each tenant to its own rows with prismaWithTenant under RLS", async () => {
       // A superuser bypasses RLS, so the client connects as a login role without it.

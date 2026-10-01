@@ -90,3 +90,29 @@ describe("SchemaPrismaAdapter with a driver adapter (Prisma 7)", () => {
     expect(a.disconnected && b.disconnected).toBe(true);
   });
 });
+
+// Prisma 7 throws a PrismaClientConstructorValidationError with this message
+// when a caller without types passes the Prisma 5 and 6 form.
+describe("a client class that rejects the datasources option", () => {
+  it("throws an error that names the driverAdapter option", () => {
+    class Rejecting {
+      constructor() {
+        throw new Error("Unknown property datasources provided to PrismaClient constructor.");
+      }
+      async $disconnect() {}
+    }
+    const adapter = new SchemaPrismaAdapter(Rejecting as never, BASE);
+    expect(() => adapter.getClient("acme")).toThrow(/driverAdapter/);
+  });
+
+  it("keeps any other constructor error unchanged", () => {
+    class Rejecting {
+      constructor() {
+        throw new Error("Invalid datasource URL");
+      }
+      async $disconnect() {}
+    }
+    const adapter = new SchemaPrismaAdapter(Rejecting as never, BASE);
+    expect(() => adapter.getClient("acme")).toThrow("Invalid datasource URL");
+  });
+});

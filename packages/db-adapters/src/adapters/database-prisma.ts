@@ -1,9 +1,10 @@
 import { DatabasePoolManager } from "../database/pool-manager.js";
 import { getDatabaseName } from "../database/manager.js";
-import type {
-  PrismaDatasourceClientClass,
-  PrismaDriverAdapterClientClass,
-  PrismaDriverAdapterOptions,
+import {
+  newDatasourceClient,
+  type PrismaDatasourceClientClass,
+  type PrismaDriverAdapterClientClass,
+  type PrismaDriverAdapterOptions,
 } from "./prisma-driver-adapter.js";
 
 // Minimal structural interface; avoids a hard runtime dependency on @prisma/client.
@@ -56,7 +57,7 @@ export class DatabasePrismaAdapter<C extends PrismaClientLike = PrismaClientLike
     if (typeof maxClientsOrOptions === "number") {
       const Client = PrismaClient as PrismaDatasourceClientClass<C>;
       this.maxClients = maxClientsOrOptions;
-      this.createClient = (url) => new Client({ datasources: { db: { url } } });
+      this.createClient = (url) => newDatasourceClient(Client, url);
     } else {
       const Client = PrismaClient as PrismaDriverAdapterClientClass<C, A>;
       const { driverAdapter: DriverAdapter, maxClients = 50 } = maxClientsOrOptions;
