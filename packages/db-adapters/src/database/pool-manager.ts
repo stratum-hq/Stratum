@@ -1,4 +1,5 @@
 import pg from "pg";
+import { parse as parseConnectionString } from "pg-connection-string";
 import { getDatabaseName } from "./manager.js";
 
 export interface DatabasePoolManagerOptions {
@@ -212,30 +213,41 @@ export class DatabasePoolManager {
   }
 }
 
+const SUPPORTED_CONNECTION_STRINGS =
+  "a URL with // (postgresql://user:password@host:port/dbname?sslmode=require, " +
+  "or postgresql:///dbname?host=/path/to/socket), a socket URL (socket:/path/to/socket?db=dbname), " +
+  "or a socket path followed by a database name (/path/to/socket dbname)";
+
 /**
  * Returns the connection string with its database name replaced. pg reads the
- * database name from a connection string before the `database` option, so
- * without this every tenant would reach the database of the base string.
+ * database name from a connection string before the `database` option.
  * Accepts the forms pg reads a database name from: a URL, a `socket:` URL
- * (its `db` parameter), and a socket path followed by a database name.
+ * (its `db` parameter), and a socket path followed by a database name. The
+ * result is parsed as pg parses it, and any other result is refused.
  */
 function withDatabase(connectionString: string, database: string): string {
-  if (connectionString.startsWith("/")) {
-    return `${connectionString.split(" ")[0]} ${database}`;
-  }
-  let url: URL;
-  try {
-    url = new URL(connectionString);
-  } catch {
-    throw new Error(
-      "DatabasePoolManager: baseConnectionConfig.connectionString must be a URL or a socket path, " +
-        "so that the manager can set each tenant's database name in it",
+  const refuse = () =>
+    new Error(
+      "DatabasePoolManager: the manager could not set each tenant's database name in " +
+        `baseConnectionConfig.connectionString. Use ${SUPPORTED_CONNECTION_STRINGS}.`,
     );
-  }
-  if (url.protocol === "socket:") {
-    url.searchParams.set("db", database);
+  let result: string;
+  if (connectionString.startsWith("/")) {
+    result = `${connectionString.split(" ")[0]} ${database}`;
   } else {
-    url.pathname = `/${database}`;
+    let url: URL;
+    try {
+      url = new URL(connectionString);
+    } catch {
+      throw refuse();
+    }
+    if (url.protocol === "socket:") {
+      url.searchParams.set("db", database);
+    } else {
+      url.pathname = `/${database}`;
+    }
+    result = url.toString();
   }
-  return url.toString();
+  if (parseConnectionString(result).database !== database) throw refuse();
+  return result;
 }
