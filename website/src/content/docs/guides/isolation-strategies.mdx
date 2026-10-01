@@ -88,6 +88,83 @@ const tenantPool = createTenantPool(pool, () => getTenantContext().tenant_id);
 const orders = await tenantPool.query("SELECT * FROM orders");
 ```
 
+### Subtree Read Scope
+
+By default, a tenant context reads the rows of one tenant only. A parent can opt in to also read the rows of all its descendants. This is the subtree read scope. Use it when a parent must see a roll-up of its tree, for example an MSSP that monitors its MSPs and their clients.
+
+Take this tree:
+
+```
+Acme MSSP
+├── Northwind MSP
+│   ├── Client A
+│   └── Client B
+└── Contoso MSP
+    └── Client C
+```
+
+Pass `{ scope: "subtree" }` to `withTenantContext`:
+
+```typescript
+import { withTenantContext } from "@stratum-hq/db-adapters";
+
+// Northwind MSP reads its own alerts and the alerts of Client A and Client B.
+const alerts = await withTenantContext(
+  pool,
+  northwindId,
+  (client) => client.query("SELECT * FROM alerts ORDER BY created_at DESC"),
+  { scope: "subtree" },
+);
+```
+
+In this scope, Northwind MSP reads its own rows and the rows of Client A and Client B. It does not read the rows of Acme MSSP, Contoso MSP or Client C. Client A in the subtree scope reads only its own rows, because it has no descendants. Acme MSSP in the subtree scope reads the rows of the whole tree.
+
+The subtree scope has these rules:
+
+- **Reads only.** Inserts, updates and deletes stay limited to the exact tenant. An insert for a descendant fails with a row-level security error. An update or a delete does not change a descendant's rows.
+- **All statuses.** The subtree includes suspended, archived and pending descendants. To show active descendants only, filter by the tenant status in your query.
+- **Opt-in per transaction.** The default scope is `"exact"`. The scope ends with the transaction, so it cannot carry over to the next request on a pooled connection.
+- **The bypass does not change.** A session with the RLS bypass reads every row, whatever the scope.
+- **The tree is the ID-based ancestry path.** A move to another parent changes the subtree at once. A slug rename does not change it.
+
+Migration 031 of `@stratum-hq/lib` adds the subtree policy to these Stratum tables:
+
+- `config_entries`, `permission_policies`, `abac_policies`, `roles` and `principal_roles`
+- `audit_logs`, `usage_events` and `consent_records`
+- `webhooks`, `webhook_events` and `webhook_deliveries`
+- `tenants`, so a parent also reads the registry rows of its descendants
+
+`api_keys` does not get the subtree policy. An API key row holds credential material, even though the key is hashed. Only the exact tenant reads its own `api_keys` rows, in every scope.
+
+For your own tables, ask `createPolicy` for the subtree policy:
+
+```typescript
+import { createPolicy, enableRLS } from "@stratum-hq/db-adapters";
+
+await enableRLS(client, "alerts");
+await createPolicy(client, "alerts", { subtreeRead: true });
+```
+
+This adds a second policy, for `SELECT` only, next to `tenant_isolation`:
+
+```sql
+CREATE POLICY tenant_subtree_read ON alerts FOR SELECT
+  USING (
+    current_setting('app.tenant_scope', true) = 'subtree'
+    AND tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[])
+  );
+```
+
+`stratum_subtree_tenant_ids()` returns the current tenant and all its descendants. PostgreSQL runs it once per statement, and the `tenant_id` index serves the match. Migration 031 creates the function, so run the Stratum migrations first. `stratum doctor` and `stratum migrate --scan` count a table with this policy as isolated.
+
+To run a background job in the subtree scope, pass the same option to `runScopedJob`:
+
+```typescript
+import { runScopedJob } from "@stratum-hq/lib";
+
+await runScopedJob(jobPool, northwindId, summarizeAlerts, { scope: "subtree" });
+```
+
 ## Schema-per-Tenant
 
 Each tenant gets a dedicated PostgreSQL schema with its own set of tables. Tenants share the database but have logically separate namespaces.

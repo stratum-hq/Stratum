@@ -1,4 +1,5 @@
 import pg from "pg";
+import { assertSubtreeFunction, SUBTREE_READ_FILTER, type CreatePolicyOptions } from "./rls/manager.js";
 
 // Validate table name to prevent SQL injection (only allows alphanumeric + underscores)
 function validateTableName(name: string): string {
@@ -30,12 +31,21 @@ export async function enableRLS(
 export async function createIsolationPolicy(
   client: pg.PoolClient,
   tableName: string,
+  options: CreatePolicyOptions = {},
 ): Promise<void> {
   const safe = validateTableName(tableName);
+  if (options.subtreeRead) {
+    await assertSubtreeFunction(client);
+  }
   await client.query(
     `CREATE POLICY tenant_isolation ON ${safe}
      USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)`,
   );
+  if (options.subtreeRead) {
+    await client.query(
+      `CREATE POLICY tenant_subtree_read ON ${safe} FOR SELECT USING (${SUBTREE_READ_FILTER})`,
+    );
+  }
 }
 
 export async function migrateTable(
