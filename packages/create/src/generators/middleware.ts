@@ -165,10 +165,16 @@ export function generateMiddleware(projectName: string, preset: StackPreset): Mi
 }
 
 function generateExpressMiddleware(projectName: string): MiddlewareFile[] {
-  return [
-    {
-      filename: "src/index.ts",
-      content: `import express from "express";
+  return [{ filename: "src/index.ts", content: expressServer(projectName) }];
+}
+
+/**
+ * src/index.ts of a generated Express server, for the express template and
+ * every express preset: tenant middleware that takes the tenant from a
+ * verified JWT, and a /tenants route that requires a tenant.
+ */
+export function expressServer(projectName: string): string {
+  return `import express from "express";
 ${VERIFIED_TENANT}
 
 const app = express();
@@ -204,16 +210,20 @@ app.get("/tenants", async (req, res) => {
 app.listen(port, () => {
   console.log(\`${projectName} running on http://localhost:\${port}\`);
 });
-`,
-    },
-  ];
+`;
 }
 
 function generateFastifyMiddleware(projectName: string): MiddlewareFile[] {
-  return [
-    {
-      filename: "src/index.ts",
-      content: `import Fastify from "fastify";
+  return [{ filename: "src/index.ts", content: fastifyServer(projectName) }];
+}
+
+/**
+ * src/index.ts of a generated Fastify server, for the fastify template and
+ * every fastify preset: an onRequest hook that takes the tenant from a
+ * verified JWT, and a /tenants route that requires a tenant.
+ */
+export function fastifyServer(projectName: string): string {
+  return `import Fastify from "fastify";
 ${VERIFIED_TENANT}
 
 const fastify = Fastify({ logger: true });
@@ -248,9 +258,7 @@ fastify.listen({ port, host: "0.0.0.0" }, (err) => {
     process.exit(1);
   }
 });
-`,
-    },
-  ];
+`;
 }
 
 function generateNextjsMiddleware(projectName: string): MiddlewareFile[] {

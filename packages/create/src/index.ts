@@ -2,12 +2,17 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "node:crypto";
 import { execSync } from "child_process";
-import { parsePresetString, isValidPreset } from "./matrix.js";
+import { parsePresetString, isValidPreset, type StackPreset } from "./matrix.js";
 import { createPresetProject } from "./preset-project.js";
 import { STRATUM_RANGES } from "./stratum-versions.js";
 import { postgresAppRole, postgresAppRoleSql, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
 import { generateTsconfig } from "./generators/tsconfig.js";
-import { nextjsRootLayout, nextjsTenantMiddleware } from "./generators/middleware.js";
+import {
+  expressServer,
+  fastifyServer,
+  nextjsRootLayout,
+  nextjsTenantMiddleware,
+} from "./generators/middleware.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,11 +116,11 @@ function writeFile(filePath: string, content: string): void {
 function generatePackageJson(projectName: string, template: Template): string {
   const frameworkDeps: Record<Template, Record<string, string>> = {
     express: {
-      express: "^4.18.0",
+      express: "^4.22.3",
       "@types/express": "^4.17.21",
     },
     fastify: {
-      fastify: "^4.26.0",
+      fastify: "^5.12.5",
     },
     nextjs: {
       next: "^15.5.16",
@@ -123,14 +128,14 @@ function generatePackageJson(projectName: string, template: Template): string {
       "react-dom": "^19.0.0",
       "@types/react": "^19.0.0",
       "@types/react-dom": "^19.0.0",
-      // The middleware verifies the tenant JWT with jose.
-      jose: "^6.2.12",
     },
   };
 
   const deps = {
     "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
     pg: "^8.11.0",
+    // Every template verifies the tenant JWT with jose.
+    jose: "^6.2.12",
     ...frameworkDeps[template],
   };
 
@@ -149,7 +154,7 @@ function generatePackageJson(projectName: string, template: Template): string {
       devDependencies: {
         typescript: "^5.3.0",
         "@types/node": "^20.11.0",
-        ...(template === "nextjs" ? {} : { tsx: "^4.7.0", "@types/pg": "^8.11.0" }),
+        ...(template === "nextjs" ? {} : { tsx: "^4.19.3", "@types/pg": "^8.11.0" }),
       },
       engines: {
         node: ">=20.0.0",
@@ -226,75 +231,6 @@ NODE_ENV=development
 `;
 }
 
-function generateExpressServer(projectName: string): string {
-  return `import express from "express";
-import { Pool } from "pg";
-
-const app = express();
-const port = process.env.PORT || 3000;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-app.use(express.json());
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", project: "${projectName}" });
-});
-
-app.get("/tenants", async (_req, res) => {
-  try {
-    // Example: query your tenant table
-    // const { rows } = await pool.query("SELECT * FROM tenants LIMIT 20");
-    // res.json(rows);
-    res.json({ message: "Replace this with your tenant queries", pool: !!pool });
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.listen(port, () => {
-  console.log(\`${projectName} server running on http://localhost:\${port}\`);
-});
-`;
-}
-
-function generateFastifyServer(projectName: string): string {
-  return `import Fastify from "fastify";
-import { Pool } from "pg";
-
-const fastify = Fastify({ logger: true });
-const port = Number(process.env.PORT) || 3000;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-fastify.get("/health", async () => {
-  return { status: "ok", project: "${projectName}" };
-});
-
-fastify.get("/tenants", async (_request, reply) => {
-  try {
-    // Example: query your tenant table
-    // const { rows } = await pool.query("SELECT * FROM tenants LIMIT 20");
-    // return rows;
-    return { message: "Replace this with your tenant queries", pool: !!pool };
-  } catch (err) {
-    return reply.status(500).send({ error: String(err) });
-  }
-});
-
-fastify.listen({ port, host: "0.0.0.0" }, (err) => {
-  if (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-});
-`;
-}
-
 function generateNextjsPage(projectName: string): string {
   return `// app/page.tsx: ${projectName} root page
 export default function Home() {
@@ -360,7 +296,11 @@ ${template === "nextjs" ? "" : "├── tsconfig.json\n"}└── package.jso
 
 This project uses Stratum for hierarchical multi-tenancy:
 
-- **Tenant resolution**: from the \`tenant_id\` claim of a bearer token verified with \`JWT_SECRET\` (see \`src/middleware.ts\`); the subdomain is only a display slug
+${
+    template === "nextjs"
+      ? "- **Tenant resolution**: from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (see `src/middleware.ts`); the subdomain is only a display slug"
+      : "- **Tenant resolution**: the tenant middleware in `src/index.ts` takes the tenant from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (HS256, using `jose`). A token that does not verify is rejected with 401, and `GET /tenants` answers 401 without a tenant. The hostname and headers such as `x-tenant-id` are never used"
+  }
 - **Config inheritance**: settings flow down the tenant tree with override support
 - **Permission ABAC**: role-based permissions with tenant-scoped enforcement
 
@@ -395,10 +335,10 @@ export function createProject(
 
   // Server starter file
   if (template === "express") {
-    writeFile(path.join(targetDir, "src", "index.ts"), generateExpressServer(projectName));
+    writeFile(path.join(targetDir, "src", "index.ts"), expressServer(projectName));
     writeFile(path.join(targetDir, "tsconfig.json"), generateTsconfig(template));
   } else if (template === "fastify") {
-    writeFile(path.join(targetDir, "src", "index.ts"), generateFastifyServer(projectName));
+    writeFile(path.join(targetDir, "src", "index.ts"), fastifyServer(projectName));
     writeFile(path.join(targetDir, "tsconfig.json"), generateTsconfig(template));
   } else if (template === "nextjs") {
     writeFile(path.join(targetDir, "src", "app", "layout.tsx"), nextjsRootLayout(projectName));
@@ -454,6 +394,25 @@ export function main(argv: string[]): void {
     process.exit(1);
   }
 
+  // Check the preset before touching the file system, so an invalid preset
+  // neither leaves an empty directory nor removes one under --force.
+  let parsedPreset: StackPreset | null = null;
+  if (preset) {
+    parsedPreset = parsePresetString(preset);
+    if (!parsedPreset) {
+      console.error(`Error: Invalid preset string "${preset}".`);
+      console.error("Format: {database}-{strategy}-{orm}-{framework}");
+      console.error("Example: postgres-rls-prisma-express, mongodb-database-mongoose-hono");
+      process.exit(1);
+    }
+    if (!isValidPreset(parsedPreset)) {
+      console.error(`Error: Invalid preset combination "${preset}".`);
+      console.error(`${parsedPreset.database} does not support ${parsedPreset.strategy}/${parsedPreset.orm} together.`);
+      console.error("Run with --help to see valid combinations.");
+      process.exit(1);
+    }
+  }
+
   const targetDir = path.resolve(process.cwd(), projectName);
 
   if (fs.existsSync(targetDir) && !force) {
@@ -469,21 +428,8 @@ export function main(argv: string[]): void {
   fs.mkdirSync(targetDir, { recursive: true });
 
   // Preset path: full stack generation
-  if (preset) {
-    const parsed = parsePresetString(preset);
-    if (!parsed) {
-      console.error(`Error: Invalid preset string "${preset}".`);
-      console.error("Format: {database}-{strategy}-{orm}-{framework}");
-      console.error("Example: postgres-rls-prisma-express, mongodb-database-mongoose-hono");
-      process.exit(1);
-    }
-    if (!isValidPreset(parsed)) {
-      console.error(`Error: Invalid preset combination "${preset}".`);
-      console.error(`${parsed.database} does not support ${parsed.strategy}/${parsed.orm} together.`);
-      console.error("Run with --help to see valid combinations.");
-      process.exit(1);
-    }
-    createPresetProject(projectName, parsed, targetDir, skipInstall);
+  if (parsedPreset) {
+    createPresetProject(projectName, parsedPreset, targetDir, skipInstall);
   } else {
     // Template path: existing behavior, untouched
     createProject(projectName, template, targetDir, skipInstall);

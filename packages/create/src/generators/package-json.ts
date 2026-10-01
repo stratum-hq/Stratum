@@ -2,6 +2,16 @@ import type { StackPreset } from "../matrix.js";
 import { rootSources } from "./tsconfig.js";
 import { STRATUM_RANGES } from "../stratum-versions.js";
 
+/**
+ * drizzle-kit 0.31 still depends on the deprecated @esbuild-kit/esm-loader,
+ * whose @esbuild-kit/core-utils pins esbuild ~0.18, which has a published
+ * advisory (GHSA-67mh-4wv8-2f99). drizzle-kit itself uses esbuild ^0.25, so
+ * the override moves the nested copy to that line too.
+ */
+const DRIZZLE_KIT_OVERRIDES = {
+  "@esbuild-kit/core-utils": { esbuild: "^0.25.4" },
+};
+
 export function generatePresetPackageJson(projectName: string, preset: StackPreset): string {
   const deps: Record<string, string> = {
     "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
@@ -14,7 +24,7 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
   if (preset.framework === "nestjs") {
     devDeps["tsc-watch"] = "^7.2.0";
   } else if (preset.framework !== "nextjs") {
-    devDeps["tsx"] = "^4.7.0";
+    devDeps["tsx"] = "^4.19.3";
   }
 
   // Database driver deps
@@ -40,6 +50,7 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
       scripts,
       dependencies: sortKeys(deps),
       devDependencies: sortKeys(devDeps),
+      ...(preset.orm === "drizzle" ? { overrides: DRIZZLE_KIT_OVERRIDES } : {}),
       engines: {
         node: ">=20.0.0",
       },
@@ -76,7 +87,7 @@ function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, s
       break;
     case "mysql":
       if (preset.orm === "drizzle" || preset.orm === "pg") {
-        deps["mysql2"] = "^3.9.0";
+        deps["mysql2"] = "^3.23.1";
       }
       break;
   }
@@ -92,8 +103,8 @@ function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string
       }
       break;
     case "drizzle":
-      deps["drizzle-orm"] = "^0.30.0";
-      devDeps["drizzle-kit"] = "^0.21.0";
+      deps["drizzle-orm"] = "^0.45.3";
+      devDeps["drizzle-kit"] = "^0.31.11";
       if (preset.database === "postgres") {
         deps["pg"] = "^8.11.0";
       }
@@ -101,7 +112,7 @@ function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string
     case "sequelize":
       deps["sequelize"] = "^6.37.0";
       if (preset.database === "mysql") {
-        deps["mysql2"] = "^3.9.0";
+        deps["mysql2"] = "^3.23.1";
       } else {
         deps["pg"] = "^8.11.0";
       }
@@ -110,7 +121,7 @@ function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string
       deps["knex"] = "^3.1.0";
       break;
     case "mongoose":
-      deps["mongoose"] = "^8.2.0";
+      deps["mongoose"] = "^8.24.1";
       break;
     case "pg":
       // pg already handled in addDatabaseDeps
@@ -125,11 +136,11 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
   }
   switch (preset.framework) {
     case "express":
-      deps["express"] = "^4.18.0";
+      deps["express"] = "^4.22.3";
       devDeps["@types/express"] = "^4.17.21";
       break;
     case "fastify":
-      deps["fastify"] = "^4.26.0";
+      deps["fastify"] = "^5.12.5";
       break;
     case "nextjs":
       deps["next"] = "^15.5.16";
@@ -139,13 +150,13 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
       devDeps["@types/react-dom"] = "^19.0.0";
       break;
     case "hono":
-      deps["hono"] = "^4.1.0";
-      deps["@hono/node-server"] = "^1.8.0";
+      deps["hono"] = "^4.13.7";
+      deps["@hono/node-server"] = "^1.19.15";
       break;
     case "nestjs":
-      deps["@nestjs/core"] = "^11.0.0";
-      deps["@nestjs/common"] = "^11.0.0";
-      deps["@nestjs/platform-express"] = "^11.0.0";
+      deps["@nestjs/core"] = "^11.1.18";
+      deps["@nestjs/common"] = "^11.1.18";
+      deps["@nestjs/platform-express"] = "^11.1.18";
       deps["reflect-metadata"] = "^0.2.0";
       deps["rxjs"] = "^7.8.0";
       break;
