@@ -27,6 +27,14 @@
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License" />
 </p>
 
+<p align="center">
+  <a href="https://stratum-hq.org/"><strong>Website</strong></a> ·
+  <a href="https://docs.stratum-hq.org/"><strong>Docs</strong></a> ·
+  <a href="https://docs.stratum-hq.org/playground/"><strong>Playground</strong></a> ·
+  <a href="https://stratum-hq.org/blog/"><strong>Blog</strong></a> ·
+  <a href="https://stratum-hq.org/compare/"><strong>Compare</strong></a>
+</p>
+
 ---
 
 Stratum gives you hierarchical multi-tenancy with config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance, and multi-region support. Built for B2B SaaS, MSSP/MSP architectures, and any product that needs nested tenant boundaries.
@@ -162,13 +170,13 @@ docker compose --profile demo up --build
 
 ## Documentation
 
-Full docs are available via the [Starlight docs site](website/):
+The full documentation is at **[docs.stratum-hq.org](https://docs.stratum-hq.org/)**. It covers getting started, guides (hierarchy, config, permissions, isolation, API keys, webhooks, GDPR, multi-region), the API reference, and a page for each package.
 
-```bash
-cd website && npm install && npm run dev
-```
+- [Quick start](https://docs.stratum-hq.org/getting-started/quick-start/)
+- [Playground](https://docs.stratum-hq.org/playground/): try Stratum in your browser, with no install
+- [stratum-hq.org](https://stratum-hq.org/): the project site, the [blog](https://stratum-hq.org/blog/), and [comparisons](https://stratum-hq.org/compare/) with other approaches
 
-Covers: getting started, guides (hierarchy, config, permissions, isolation, API keys, webhooks, GDPR, multi-region), API reference, and per-package documentation.
+Contributors can run the docs site locally from [`website/`](website/) with `cd website && npm install && npm run dev`.
 
 ## Development
 
@@ -200,7 +208,7 @@ DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test 
 | `REDIS_URL` | Optional; enables distributed rate limiting |
 | `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
 
-See the [docs site](website/src/content/docs/getting-started/installation.mdx) for the full list.
+See the [installation guide](https://docs.stratum-hq.org/getting-started/installation/) for the full list.
 
 ## Architecture
 
@@ -231,12 +239,10 @@ See the [docs site](website/src/content/docs/getting-started/installation.mdx) f
 
 ## Roadmap
 
-Stratum is in active development toward a stable 1.0. Near-term focus:
+Stratum 1.x is on npm. Near-term focus:
 
-- **v0.3.0 on npm**: ship the current changelog (security hardening, ABAC, Stack Wizard, MongoDB/MySQL isolation) to the registry
 - **5-minute demo**: recorded walkthrough: scaffold → tenant hierarchy → locked config inheritance → GDPR purge
 - **Live showcase**: a hosted white-label MSP portal built entirely on Stratum
-- **Comparisons**: honest "Stratum vs X" docs: hand-rolled `tenant_id`, auth-level organizations, tenant databases, authz engines
 - **Starter template**: Next.js SaaS starter with Stratum pre-wired
 - **`@stratum-hq/control-plane` docs**: dedicated package page and deployment guide
 
