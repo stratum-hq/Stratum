@@ -4,8 +4,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { unpublishedStratumVersions } from "./helpers/published-versions.js";
 import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
+import { useWorkspaceStratumPackages } from "./helpers/workspace-tarballs.js";
 import {
   readFunctionsConfig,
   run,
@@ -31,14 +31,6 @@ import {
 
 const PRESET = "postgres-rls-pg-nextjs";
 const JWT_SECRET = crypto.randomBytes(32).toString("base64url");
-
-// A version PR raises the workspace versions before the release publishes
-// them, so a generated project cannot install them from the registry yet.
-// The install-dependent tests are skipped until the versions are on npm.
-const UNPUBLISHED = unpublishedStratumVersions();
-if (UNPUBLISHED.length > 0) {
-  console.warn(`Skipping generated-project installs: not on npm yet: ${UNPUBLISHED.join(", ")}`);
-}
 
 let tmp: string;
 let templateDir: string;
@@ -84,12 +76,15 @@ describe("@stratum-hq/create Next.js file layout", () => {
   });
 });
 
-describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${PRESET} built with next build`, () => {
+describe(`@stratum-hq/create ${PRESET} built with next build`, () => {
   let tsconfigBefore: string;
 
   beforeAll(async () => {
     writeProbeRoute(path.join(presetDir, "src"));
     tsconfigBefore = fs.readFileSync(path.join(presetDir, "tsconfig.json"), "utf8");
+    // The workspace builds of the Stratum packages, so the test checks the
+    // code under test even before it is on npm.
+    useWorkspaceStratumPackages(presetDir, tmp);
     run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], presetDir);
     run("npx", ["next", "build"], presetDir, { NODE_ENV: "production" });
     server = await startNext(presetDir, JWT_SECRET);

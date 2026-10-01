@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { scaffoldProject } from "./helpers/create-cli.js";
+import { useWorkspaceStratumPackages } from "./helpers/workspace-tarballs.js";
 import { ROLE_PREFIX } from "./helpers/role-model.js";
 
 /**
@@ -23,8 +23,6 @@ import { ROLE_PREFIX } from "./helpers/role-model.js";
 
 const MONGODB_URL = process.env.MONGODB_URL;
 
-const PACKAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const WORKSPACE_PACKAGES = ["core", "lib", "sdk", "mongodb"];
 const PREFIX = ROLE_PREFIX.replace(/[^a-z0-9_]/g, "");
 
 const TENANT_A = "00000000-0000-4000-8000-00000000000a";
@@ -126,7 +124,6 @@ process.exit(0);
 `;
 
 let tmp: string;
-const tarballs: Record<string, string> = {};
 
 // The generated project reads its settings from its .env file. Node lets a
 // variable already in the environment win over .env.
@@ -158,13 +155,7 @@ function parsed(out: string, tag: string): unknown {
 describe.skipIf(!MONGODB_URL)("generated MongoDB presets", () => {
   beforeAll(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-create-mongo-"));
-    for (const name of WORKSPACE_PACKAGES) {
-      const [packed] = JSON.parse(
-        run("npm", ["pack", "--json", "--pack-destination", tmp], path.join(PACKAGES_DIR, name)),
-      ) as { filename: string }[];
-      tarballs[`@stratum-hq/${name}`] = `file:${path.join(tmp, packed.filename)}`;
-    }
-  }, 120_000);
+  });
 
   afterAll(() => {
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
@@ -218,13 +209,7 @@ function isolationSuite(strategy: "collection" | "database"): void {
       // Install the workspace builds of the Stratum packages, so the test
       // checks the code under test even before it is on npm.
       const pkgPath = path.join(dir, "package.json");
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
-        dependencies: Record<string, string>;
-        overrides?: Record<string, string>;
-      };
-      for (const [name, spec] of Object.entries(tarballs)) pkg.dependencies[name] = spec;
-      pkg.overrides = { ...pkg.overrides, "@stratum-hq/core": "$@stratum-hq/core", "@stratum-hq/sdk": "$@stratum-hq/sdk" };
-      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+      useWorkspaceStratumPackages(dir, tmp);
       run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], dir);
 
       // The server as the generated docker-compose.yml sets it up: its root user.
