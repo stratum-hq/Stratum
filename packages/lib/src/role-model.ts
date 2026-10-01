@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { StratumLogger } from "./logger.js";
 import { STRATUM_TABLES } from "./stratum-tables.js";
 import { STRATUM_CONTROL_ROLE, assertRoleName } from "./migration-sql.js";
+import { pinnedQuery, quoteIdentifier, schemaOfTable } from "./pinned-query.js";
 
 /**
  * The role model of migration 032.
@@ -55,7 +56,7 @@ export const STRATUM_FUNCTION_BODY_MD5: Readonly<Record<string, string>> = Objec
   update_updated_at_column: "301a884953d37769916294bb60562e05",
   maintain_ancestry_ltree: "ddce857b77ffe5dad27239825949c886",
   propagate_ancestry_ltree: "a79bc2cb286893cb622c336876491759",
-  stratum_apply_control_role: "6e671399c3cbc7ba2b477e2d9778e820",
+  stratum_apply_control_role: "e01700f8e3ff68a25f344d6143aa17c7",
 });
 
 export interface BootstrapRolesOptions {
@@ -209,18 +210,19 @@ END $$;`,
 }
 
 /**
- * A DO block that stops the bootstrap when the Stratum tables carry code that
- * the migrations did not put there. Whoever owned the tables before (often
- * the application login) could have attached it, and it would run with the
- * rights of whoever writes to the tables later: the admin login, or the
- * superuser that runs this SQL. It checks, in `schema`:
+ * The PL/pgSQL statements of the integrity check: they collect, in
+ * v_problems (text[]), the objects of the schema v_ns (oid) that the Stratum
+ * migrations did not put there. Whoever owned the Stratum tables before
+ * (often the application login) could have attached them, and they would run
+ * with the rights of whoever writes to the tables later: the admin login, the
+ * migrating role, or a superuser. They check, in that schema:
  *
- * - every Stratum relation is a table;
- * - no rule is attached to a Stratum table;
+ * - every Stratum relation (STRATUM_TABLES, _migrations included) is a table;
+ * - no rule is attached to one of them;
  * - every trigger calls a Stratum function;
- * - policies, column defaults, constraints, triggers and indexes of the
- *   Stratum tables call only functions and operators of pg_catalog, of an
- *   extension, or of Stratum;
+ * - policies, column defaults, constraints, triggers and indexes of them
+ *   call only functions and operators of pg_catalog, of an extension, or of
+ *   Stratum;
  * - every column has a type of pg_catalog or of an extension;
  * - the schema holds no operator, and no function or aggregate named like a
  *   function of pg_catalog or of an extension, other than those of
@@ -228,26 +230,22 @@ END $$;`,
  *   built-in one by a query that has the schema on its search path;
  * - the Stratum functions that stratum_apply_control_role() does not
  *   re-create have the bodies the migrations give them, and
- *   stratum_apply_control_role() itself, which this SQL runs, is SECURITY
- *   INVOKER with its pinned search_path.
+ *   stratum_apply_control_role() itself is SECURITY INVOKER with its pinned
+ *   search_path.
+ *
+ * They expect the variables v_ns oid, v_tables text[], v_functions text[],
+ * v_problems text[] and r record, and run with search_path = pg_catalog,
+ * pg_temp. bootstrapRolesSql() raises when they find anything; migration 032
+ * renders the same statements (a unit test keeps them identical) and then
+ * warns and leaves the control role unapplied.
  */
-function integrityCheckSql(schema: string): string {
+export function integrityChecksPlpgsql(): string {
   const bodies = Object.entries(STRATUM_FUNCTION_BODY_MD5)
     .map(([name, md5]) => `(${literal(name)}, ${literal(md5)})`)
     .join(", ");
-  return `-- Refuse to continue when the Stratum tables carry code the migrations did not put there.
-DO $$
-DECLARE
-  v_ns oid := to_regnamespace(${literal(quote(schema))});
-  v_tables text[] := ${sqlArray(STRATUM_TABLES)};
-  v_functions text[] := ${sqlArray(STRATUM_FUNCTIONS)};
-  v_pin text := 'search_path=pg_catalog, pg_temp';
-  v_problems text[] := '{}';
-  r record;
-BEGIN
-  IF v_ns IS NULL THEN
-    RETURN;
-  END IF;
+  return `  v_tables := ${sqlArray(STRATUM_TABLES)};
+  v_functions := ${sqlArray(STRATUM_FUNCTIONS)};
+  v_problems := '{}';
   FOR r IN
     SELECT c.relname, c.relkind FROM pg_class c
      WHERE c.relnamespace = v_ns AND c.relname = ANY (v_tables) AND c.relkind NOT IN ('r', 'p')
@@ -339,12 +337,32 @@ BEGIN
   LOOP
     IF r.present AND NOT r.same_body THEN
       v_problems := v_problems || format('function %I has a body the migrations did not give it', r.name);
-    ELSIF r.present AND r.proconfig IS NOT NULL AND r.proconfig <> ARRAY[v_pin] THEN
+    ELSIF r.present AND r.proconfig IS NOT NULL AND r.proconfig <> ARRAY['search_path=pg_catalog, pg_temp'] THEN
       v_problems := v_problems || format('function %I has settings %s', r.name, r.proconfig::text);
     ELSIF r.present AND r.name = 'stratum_apply_control_role' AND (r.prosecdef OR r.proconfig IS NULL) THEN
       v_problems := v_problems || 'function stratum_apply_control_role is not SECURITY INVOKER with its pinned search_path';
     END IF;
-  END LOOP;
+  END LOOP;`;
+}
+
+/**
+ * A DO block that stops the bootstrap when the Stratum tables carry code that
+ * the migrations did not put there; see {@link integrityChecksPlpgsql}.
+ */
+function integrityCheckSql(schema: string): string {
+  return `-- Refuse to continue when the Stratum tables carry code the migrations did not put there.
+DO $$
+DECLARE
+  v_ns oid := to_regnamespace(${literal(quote(schema))});
+  v_tables text[];
+  v_functions text[];
+  v_problems text[];
+  r record;
+BEGIN
+  IF v_ns IS NULL THEN
+    RETURN;
+  END IF;
+${integrityChecksPlpgsql()}
   IF cardinality(v_problems) > 0 THEN
     RAISE EXCEPTION E'The Stratum tables in schema % carry objects the Stratum migrations did not create:\n  %\nSuch objects run with the rights of whoever writes to the tables. Remove them (or restore the Stratum functions from the migrations), then run this again.',
       ${literal(schema)}, array_to_string(v_problems, E'\n  ')
@@ -353,12 +371,21 @@ BEGIN
 END $$;`;
 }
 
+/*
+ * Every catalog query below runs with the search path pinned to pg_catalog
+ * (pinnedQuery), because the logins that run them (a superuser, the admin
+ * login) must not resolve functions or operators that other roles created in
+ * a schema on their search path. Stratum's own tables are named with the
+ * schema that schemaOfTable() finds through the caller's search path.
+ */
+
 /**
  * The control role the database uses: the role of its stratum_control_plane
  * policies, or null before migration 032.
  */
 async function databaseControlRole(pool: pg.Pool): Promise<string | null> {
-  const res = await pool.query<{ role: string }>(
+  const res = await pinnedQuery<{ role: string }>(
+    pool,
     `SELECT DISTINCT r::text AS role FROM pg_policies p, unnest(p.roles) r
       WHERE p.policyname = 'stratum_control_plane'`,
   );
@@ -376,7 +403,8 @@ interface RoleSubject {
 
 /** Why the admin login cannot act as the control plane. Empty when it can. */
 async function adminRoleIssues(subject: RoleSubject, control: string): Promise<string[]> {
-  const res = await subject.pool.query<{ me: string; rolsuper: boolean; rolbypassrls: boolean; exists: boolean; usage: boolean | null }>(
+  const res = await pinnedQuery<{ me: string; rolsuper: boolean; rolbypassrls: boolean; exists: boolean; usage: boolean | null }>(
+    subject.pool,
     `SELECT r.rolname::text AS me, r.rolsuper, r.rolbypassrls,
             EXISTS (SELECT 1 FROM pg_roles c WHERE c.rolname = $1) AS exists,
             (SELECT pg_has_role(r.oid, c.oid, 'USAGE') FROM pg_roles c WHERE c.rolname = $1) AS usage
@@ -392,7 +420,8 @@ async function adminRoleIssues(subject: RoleSubject, control: string): Promise<s
 
 /** Why the application login is not limited to the application's share. Empty when it is. */
 async function appRoleIssues(subject: RoleSubject, control: string): Promise<string[]> {
-  const res = await subject.pool.query<{
+  const schema = await schemaOfTable(subject.pool);
+  const res = await pinnedQuery<{
     me: string;
     rolsuper: boolean;
     rolbypassrls: boolean;
@@ -404,10 +433,13 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
     owned_schema: string | null;
     create_schema: string | null;
   }>(
-    `WITH t AS (
+    subject.pool,
+    `WITH s AS (
+       SELECT n.oid FROM pg_namespace n WHERE n.nspname = $6::text
+     ), t AS (
        SELECT c.oid, c.relname, c.relowner FROM pg_class c
         WHERE c.relkind IN ('r', 'p') AND c.relname = ANY ($2::text[])
-          AND c.relnamespace = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))
+          AND c.relnamespace = (SELECT oid FROM s)
      )
      SELECT r.rolname::text AS me, r.rolsuper, r.rolbypassrls,
             (SELECT pg_has_role(r.oid, c.oid, 'MEMBER') FROM pg_roles c WHERE c.rolname = $1) AS member,
@@ -420,20 +452,20 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
               WHERE t.relname = ANY ($3::text[]) AND has_table_privilege(r.oid, t.oid, 'SELECT')) AS credential_reads,
             (SELECT array_agg(DISTINCT p.proname::text) FROM pg_proc p
               WHERE pg_has_role(r.oid, p.proowner, 'MEMBER') AND p.proname = ANY ($4::text[])
-                AND p.pronamespace = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))) AS owned_functions,
+                AND p.pronamespace = (SELECT oid FROM s)) AS owned_functions,
             -- The owner of the schema can drop and re-create any table in it.
             -- On PostgreSQL 15 and later, public belongs to pg_database_owner,
             -- so the owner of the database owns it.
             (SELECT n.nspname::text FROM pg_namespace n
-              WHERE n.oid = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))
+              WHERE n.oid = (SELECT oid FROM s)
                 AND pg_has_role(r.oid, n.nspowner, 'MEMBER')) AS owned_schema,
             -- A role that can create objects in the schema can add functions
             -- and operators that queries with the schema on their path use.
             (SELECT n.nspname::text FROM pg_namespace n
-              WHERE n.oid = (SELECT relnamespace FROM pg_class WHERE oid = to_regclass('tenants'))
+              WHERE n.oid = (SELECT oid FROM s)
                 AND has_schema_privilege(r.oid, n.oid, 'CREATE')) AS create_schema
        FROM pg_roles r WHERE r.rolname = COALESCE($5::text, current_user)`,
-    [control, [...STRATUM_TABLES], CREDENTIAL_TABLES, STRATUM_FUNCTIONS, subject.role ?? null],
+    [control, [...STRATUM_TABLES], CREDENTIAL_TABLES, STRATUM_FUNCTIONS, subject.role ?? null, schema],
   );
   const row = res.rows[0];
   if (!row) return subject.role === undefined ? [] : [`the app role "${subject.role}" does not exist`];
@@ -460,14 +492,15 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
 }
 
 /** The login of `pool`. */
-async function currentLogin(pool: pg.Pool): Promise<string> {
-  const res = await pool.query<{ me: string }>("SELECT current_user::text AS me");
+export async function currentLogin(pool: pg.Pool): Promise<string> {
+  const res = await pinnedQuery<{ me: string }>(pool, "SELECT current_user::text AS me");
   return res.rows[0].me;
 }
 
 /** Whether the login of `pool` is a member of `control` and not a superuser. */
 async function isNonSuperuserMember(pool: pg.Pool, control: string): Promise<boolean> {
-  const res = await pool.query<{ member: boolean | null }>(
+  const res = await pinnedQuery<{ member: boolean | null }>(
+    pool,
     `SELECT NOT r.rolsuper AND (SELECT pg_has_role(r.oid, c.oid, 'MEMBER') FROM pg_roles c WHERE c.rolname = $1) AS member
        FROM pg_roles r WHERE r.rolname = current_user`,
     [control],
@@ -480,7 +513,8 @@ async function isNonSuperuserMember(pool: pg.Pool, control: string): Promise<boo
  * or through another role, with whether each can log in.
  */
 async function controlRoleMembers(pool: pg.Pool, control: string): Promise<{ role: string; login: boolean }[]> {
-  const res = await pool.query<{ role: string; login: boolean }>(
+  const res = await pinnedQuery<{ role: string; login: boolean }>(
+    pool,
     `SELECT r.rolname::text AS role, r.rolcanlogin AS login FROM pg_roles r, pg_roles c
       WHERE c.rolname = $1 AND r.oid <> c.oid AND NOT r.rolsuper AND pg_has_role(r.oid, c.oid, 'MEMBER')
       ORDER BY r.rolname`,
@@ -491,12 +525,50 @@ async function controlRoleMembers(pool: pg.Pool, control: string): Promise<{ rol
 
 /** Whether the legacy app.bypass_rls switch of migration 032 is on, or null without 032. */
 async function legacyBypassOn(adminPool: pg.Pool): Promise<boolean | null> {
-  const present = await adminPool.query<{ present: boolean }>(
-    "SELECT to_regclass('stratum_security') IS NOT NULL AS present",
+  const schema = await schemaOfTable(adminPool, "stratum_security");
+  if (schema === null) return null;
+  const res = await pinnedQuery<{ on: boolean }>(
+    adminPool,
+    `SELECT legacy_guc_bypass AS on FROM ${quoteIdentifier(schema)}.stratum_security LIMIT 1`,
   );
-  if (!present.rows[0]?.present) return null;
-  const res = await adminPool.query<{ on: boolean }>("SELECT legacy_guc_bypass AS on FROM stratum_security LIMIT 1");
   return res.rows[0]?.on ?? null;
+}
+
+/**
+ * Why the login of `pool`, an application login, should not be able to
+ * create objects in the schema of the Stratum tables, or null when it cannot
+ * (or is a superuser, which the other checks report). The privilege may come
+ * from PUBLIC.
+ */
+async function schemaCreateIssue(pool: pg.Pool): Promise<string | null> {
+  const schema = await schemaOfTable(pool);
+  if (schema === null) return null;
+  const res = await pinnedQuery<{ me: string; su: boolean; login: boolean; everyone: boolean }>(
+    pool,
+    `SELECT r.rolname::text AS me, r.rolsuper AS su,
+            has_schema_privilege(r.oid, n.oid, 'CREATE') AS login,
+            has_schema_privilege('public', n.oid, 'CREATE') AS everyone
+       FROM pg_roles r, pg_namespace n
+      WHERE r.rolname = current_user AND n.nspname = $1::text`,
+    [schema],
+  );
+  const row = res.rows[0];
+  if (!row || row.su || !row.login) return null;
+  const via = row.everyone ? " (granted to PUBLIC)" : "";
+  return (
+    `the app role "${row.me}" can create objects in the schema "${schema}" of the Stratum tables${via}. ` +
+    `Only the logins that run the Stratum migrations should: REVOKE CREATE ON SCHEMA ${quoteIdentifier(schema)} ` +
+    `FROM ${row.everyone ? "PUBLIC" : quoteIdentifier(row.me)}, and see the guide "Hardening: separate admin and app roles"`
+  );
+}
+
+/** Whether a stratum_control_plane policy exists in the database. */
+async function controlPlanePolicyExists(pool: pg.Pool): Promise<boolean> {
+  const res = await pinnedQuery<{ active: boolean }>(
+    pool,
+    "SELECT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'stratum_control_plane') AS active",
+  );
+  return res.rows[0]?.active === true;
 }
 
 /**
@@ -504,11 +576,17 @@ async function legacyBypassOn(adminPool: pg.Pool): Promise<boolean | null> {
  * stratum_security table exists and no stratum_control_plane policy does.
  */
 async function hardeningInactive(pool: pg.Pool): Promise<boolean> {
-  const res = await pool.query<{ inactive: boolean }>(
-    `SELECT to_regclass('stratum_security') IS NOT NULL
-        AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'stratum_control_plane') AS inactive`,
-  );
-  return res.rows[0]?.inactive === true;
+  if ((await schemaOfTable(pool, "stratum_security")) === null) return false;
+  return !(await controlPlanePolicyExists(pool));
+}
+
+/** Warns, or with `strict` throws, when the application login can create objects in the Stratum schema. */
+async function reportSchemaCreate(appPool: pg.Pool, strict: boolean, logger: StratumLogger): Promise<void> {
+  const issue = await schemaCreateIssue(appPool);
+  if (issue === null) return;
+  const message = `[stratum] pool: ${issue}.`;
+  if (strict) throw new Error(message);
+  logger.warn(message);
 }
 
 export interface RoleModelCheckOptions {
@@ -526,7 +604,9 @@ export interface RoleModelCheckOptions {
  * Reports whether the control-role hardening of migration 032 is active and,
  * with an adminPool, checks the admin and application logins against the
  * role model, warning about each problem. With `strict`, a misconfigured
- * application login throws instead.
+ * application login throws instead. In every mode it reports an
+ * application login that can create objects in the schema of the Stratum
+ * tables; with an adminPool and `strict` that is an error too.
  */
 export async function checkRoleModel(options: RoleModelCheckOptions): Promise<void> {
   const { adminPool, appPool, logger } = options;
@@ -537,6 +617,9 @@ export async function checkRoleModel(options: RoleModelCheckOptions): Promise<vo
         "so this database keeps the pre-1.8 behavior. Run the SQL from bootstrapRolesSql() as a superuser " +
         "(or `stratum db roles`) to activate it.",
     );
+    // With adminPool and strict, an application login that can create
+    // objects in the Stratum schema is an error, as in the checks below.
+    await reportSchemaCreate(appPool, adminPool !== undefined && options.strict, logger);
     return;
   }
   if (!adminPool) {
@@ -552,9 +635,11 @@ export async function checkRoleModel(options: RoleModelCheckOptions): Promise<vo
       if (options.strict) throw new Error(message);
       logger.warn(message, { control_role: control });
     }
+    await reportSchemaCreate(appPool, false, logger);
     return;
   }
 
+  // appRoleIssues() below reports CREATE on the Stratum schema too.
   const control = options.controlRole ?? (await databaseControlRole(adminPool)) ?? STRATUM_CONTROL_ROLE;
 
   for (const issue of await adminRoleIssues({ pool: adminPool }, control)) {
@@ -642,12 +727,8 @@ export async function inspectRoleModel(options: InspectRoleModelOptions): Promis
     options.adminRole !== undefined ? { pool, role: options.adminRole } : adminPool ? { pool: adminPool } : undefined;
   const switchReader = adminPool ?? options.pool;
 
-  const present = await pool.query<{ migrated: boolean; active: boolean }>(
-    `SELECT to_regclass('stratum_security') IS NOT NULL AS migrated,
-            EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'stratum_control_plane') AS active`,
-  );
-  const migrated = present.rows[0]?.migrated === true;
-  const hardeningActive = present.rows[0]?.active === true;
+  const migrated = (await schemaOfTable(pool, "stratum_security")) !== null;
+  const hardeningActive = await controlPlanePolicyExists(pool);
   const control = options.controlRole ?? (await databaseControlRole(pool)) ?? STRATUM_CONTROL_ROLE;
 
   return {

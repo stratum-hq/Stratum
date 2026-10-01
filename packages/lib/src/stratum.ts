@@ -74,7 +74,7 @@ import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { assertRoleSubjectToRls, migrate } from "./migrate.js";
 import { markAdminPool } from "./pool-helpers.js";
 import { assertRoleName } from "./migration-sql.js";
-import { checkRoleModel, warnLegacyKeyHash, warnNoAdminPool } from "./role-model.js";
+import { checkRoleModel, currentLogin, warnLegacyKeyHash, warnNoAdminPool } from "./role-model.js";
 import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
@@ -111,7 +111,9 @@ export interface StratumOptions {
   /**
    * When true, initialize() (and migrations) hard-fail if the PG role has
    * BYPASSRLS. Checked on every initialize, whether or not a migration runs.
-   * Use in production.
+   * With adminPool, initialize() also fails when the login of pool does not
+   * fit the role model, including when it can create objects in the schema
+   * of the Stratum tables. Use in production.
    */
   enforceRls?: boolean;
 }
@@ -166,6 +168,17 @@ export class Stratum {
           `autoMigrate is enabled without enforceRls (NODE_ENV=${nodeEnv}). ` +
           "Set enforceRls: true for every deployment other than development and test.",
         );
+      }
+      if (this.hasAdminPool) {
+        // autoMigrate grants the control role to the login of adminPool, so
+        // that login must not be the application's.
+        const admin = await currentLogin(this.pool);
+        if (admin === (await currentLogin(this.appPool))) {
+          throw new Error(
+            `[stratum] adminPool and pool log in as the same role "${admin}". adminPool must be a separate ` +
+              "login: autoMigrate makes it a member of the control role, which passes every Stratum policy.",
+          );
+        }
       }
       this.logger.info("running auto-migration");
       // With adminPool, enforceRls is about the application login, which

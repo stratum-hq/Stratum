@@ -7,6 +7,7 @@ export {
 } from "./migrate-schemas.js";
 export { STRATUM_TABLES } from "./stratum-tables.js";
 export { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
+export { PINNED_SEARCH_PATH, pinnedQuery, schemaOfTable, withPinnedSearchPath } from "./pinned-query.js";
 export {
   stratumPolicyDrift,
   STRATUM_RLS_TABLES,

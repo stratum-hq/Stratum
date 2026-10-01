@@ -89,7 +89,17 @@ REVOKE ALL ON stratum_security FROM PUBLIC;
 -- policy reference in a statement. Every role that queries a Stratum table
 -- evaluates the policies, so EXECUTE stays granted to PUBLIC; the function
 -- returns one boolean and gives no other access.
-DO $create$ BEGIN
+--
+-- Each DO block of this migration reads the current schema, then sets the
+-- search path to pg_catalog, pg_temp until its end, so that no function or
+-- operator another role created in a schema on the migrating role's search
+-- path is chosen in it. It names Stratum objects with that schema.
+DO $create$
+DECLARE
+  v_schema text := pg_catalog.current_schema();
+  v_path text := pg_catalog.current_setting('search_path');
+BEGIN
+  PERFORM pg_catalog.set_config('search_path', 'pg_catalog, pg_temp', true);
   EXECUTE pg_catalog.format($fn$
 CREATE OR REPLACE FUNCTION %1$I.stratum_legacy_bypass()
 RETURNS boolean
@@ -105,7 +115,8 @@ BEGIN
   RETURN coalesce((SELECT s.legacy_guc_bypass FROM %1$I.stratum_security s WHERE s.id), false);
 END;
 $body$
-$fn$, pg_catalog.current_schema());
+$fn$, v_schema);
+  PERFORM pg_catalog.set_config('search_path', v_path, true);
 END $create$;
 
 -- stratum_subtree_tenant_ids() as migration 031 left it for a migrating
@@ -116,13 +127,18 @@ END $create$;
 -- this version clears app.tenant_scope around that read and restores it.
 -- A version that still has its SET app.* clauses, or that another role
 -- owns, is left as it is.
-DO $subtree$ BEGIN
+DO $subtree$
+DECLARE
+  v_schema text := pg_catalog.current_schema();
+  v_path text := pg_catalog.current_setting('search_path');
+BEGIN
+  PERFORM pg_catalog.set_config('search_path', 'pg_catalog, pg_temp', true);
   IF EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc p
-     WHERE p.pronamespace = pg_catalog.current_schema()::regnamespace
-       AND p.proname = 'stratum_subtree_tenant_ids' AND p.pronargs = 0
+     WHERE p.pronamespace OPERATOR(pg_catalog.=) pg_catalog.to_regnamespace(pg_catalog.quote_ident(v_schema))::pg_catalog.oid
+       AND p.proname OPERATOR(pg_catalog.=) 'stratum_subtree_tenant_ids' AND p.pronargs OPERATOR(pg_catalog.=) 0
        AND NOT p.prosecdef
-       AND NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(p.proconfig) c WHERE c LIKE 'app.%')
+       AND NOT EXISTS (SELECT 1 FROM pg_catalog.unnest(p.proconfig) c WHERE c OPERATOR(pg_catalog.~~) 'app.%')
        AND pg_catalog.pg_has_role(current_user, p.proowner, 'USAGE')
   ) THEN
     EXECUTE pg_catalog.format($fn$
@@ -157,8 +173,9 @@ BEGIN
   RETURN v_ids;
 END;
 $body$
-$fn$, pg_catalog.current_schema());
+$fn$, v_schema);
   END IF;
+  PERFORM pg_catalog.set_config('search_path', v_path, true);
 END $subtree$;
 
 -- ---------------------------------------------------------------------------
@@ -308,6 +325,7 @@ DECLARE
   v_bootstrap text;
   v_table text;
   v_policy name;
+  v_function regprocedure;
   v_tables text[] := ARRAY[
     'tenants', 'config_entries', 'permission_policies', 'audit_logs', 'webhook_events',
     'webhook_deliveries', 'webhooks', 'consent_records', 'abac_policies', 'api_keys',
@@ -578,6 +596,19 @@ END;
   EXECUTE pg_catalog.format('ALTER FUNCTION %I.stratum_legacy_bypass() OWNER TO %I', v_schema, v_role);
   EXECUTE pg_catalog.format('ALTER FUNCTION %I.stratum_subtree_tenant_ids() OWNER TO %I', v_schema, v_role);
   EXECUTE pg_catalog.format('ALTER FUNCTION %I.refuse_tenant_parent_cycle() OWNER TO %I', v_schema, v_role);
+  EXECUTE pg_catalog.format('ALTER FUNCTION %I.refuse_tenant_tree_column_change() OWNER TO %I', v_schema, v_role);
+
+  -- The other Stratum functions, this one included, belong to the role that
+  -- applies the control role, so that no former owner can change them.
+  FOR v_function IN
+    SELECT p.oid::regprocedure FROM pg_proc p
+     WHERE p.pronamespace = pg_catalog.to_regnamespace(pg_catalog.quote_ident(v_schema))
+       AND p.proname = ANY (ARRAY['update_updated_at_column', 'maintain_ancestry_ltree',
+                                  'propagate_ancestry_ltree', 'stratum_apply_control_role'])
+       AND p.proowner <> (SELECT r.oid FROM pg_roles r WHERE r.rolname = current_user)
+  LOOP
+    EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO %I', v_function, current_user);
+  END LOOP;
 END;
 $apply$;
 
@@ -589,23 +620,47 @@ REVOKE ALL ON FUNCTION stratum_apply_control_role(text, text) FROM PUBLIC;
 -- Applying it grants the control role to the migrating login. That login
 -- must be the library's admin login, never the application's, so the grant
 -- needs an explicit opt-in: the setting stratum.apply_control_role = 'on',
--- which migrate({ applyControlRole: true }) sets, and Stratum's autoMigrate
--- sets when it runs on adminPool. Without it, the control role is applied
--- only when that grants nothing new: the migrating login is a superuser, or
--- already a member of the control role. Otherwise part 2 is skipped with a
--- WARNING that prints the SQL to run, and the install keeps the pre-1.8
--- behavior until then.
+-- set in the migrating session itself, which migrate({ applyControlRole:
+-- true }) does, and Stratum's autoMigrate does when it runs on adminPool. A
+-- value that comes from a default (ALTER DATABASE or ALTER ROLE ... SET, or
+-- the connection options) does not count. Without the opt-in, the control
+-- role is applied only when that grants nothing new: the migrating login is
+-- a superuser, or already a member of the control role. Otherwise part 2 is
+-- skipped with a WARNING that prints the SQL to run, and the install keeps
+-- the pre-1.8 behavior until then.
+--
+-- Before it applies the control role, it runs the integrity check of
+-- bootstrapRolesSql() in @stratum-hq/lib on the schema. When that finds
+-- objects the Stratum migrations did not create, it warns with the list and
+-- does not apply the control role.
 -- ---------------------------------------------------------------------------
 DO $control$
 DECLARE
   v_schema text := pg_catalog.current_schema();
-  v_role text := NULLIF(pg_catalog.current_setting('stratum.control_role', true), '');
-  v_opt_in boolean := coalesce(pg_catalog.current_setting('stratum.apply_control_role', true) = 'on', false);
+  v_path text := pg_catalog.current_setting('search_path');
+  v_role text;
+  v_set text;
+  v_default text;
+  v_opt_in boolean;
   v_existing text[];
   v_message text;
+  v_ns oid;
+  v_tables text[];
+  v_functions text[];
+  v_problems text[];
+  r record;
 BEGIN
-  SELECT pg_catalog.array_agg(DISTINCT r::text) INTO v_existing
-    FROM pg_catalog.pg_policies p, pg_catalog.unnest(p.roles) r
+  PERFORM pg_catalog.set_config('search_path', 'pg_catalog, pg_temp', true);
+  v_role := NULLIF(pg_catalog.current_setting('stratum.control_role', true), '');
+  -- The opt-in counts only when this session set it: RESET shows the value
+  -- the session would have without it.
+  v_set := pg_catalog.current_setting('stratum.apply_control_role', true);
+  RESET stratum.apply_control_role;
+  v_default := pg_catalog.current_setting('stratum.apply_control_role', true);
+  PERFORM pg_catalog.set_config('stratum.apply_control_role', coalesce(v_set, ''), true);
+  v_opt_in := coalesce(v_set = 'on' AND v_default IS DISTINCT FROM 'on', false);
+  SELECT pg_catalog.array_agg(DISTINCT pr::text) INTO v_existing
+    FROM pg_catalog.pg_policies p, pg_catalog.unnest(p.roles) pr
    WHERE p.policyname = 'stratum_control_plane';
   IF v_role IS NULL THEN
     v_role := CASE WHEN pg_catalog.cardinality(v_existing) = 1 THEN v_existing[1] ELSE 'stratum_control' END;
@@ -620,6 +675,118 @@ BEGIN
       pg_catalog.format('CREATE ROLE %I NOLOGIN;', v_role) || E'\n' ||
       pg_catalog.format('GRANT %I TO <admin login> WITH INHERIT TRUE, SET TRUE;', v_role) || E'\n' ||
       pg_catalog.format('SELECT %I.stratum_apply_control_role(%L, %L);', v_schema, v_role, v_schema);
+    PERFORM pg_catalog.set_config('search_path', v_path, true);
+    RETURN;
+  END IF;
+
+  -- The integrity check of bootstrapRolesSql(), rendered by
+  -- integrityChecksPlpgsql() in @stratum-hq/lib (role-model.ts); a unit test
+  -- keeps the two identical.
+  v_ns := pg_catalog.to_regnamespace(pg_catalog.quote_ident(v_schema));
+  v_tables := ARRAY['_migrations', 'abac_policies', 'api_keys', 'audit_logs', 'config_entries', 'consent_records', 'permission_policies', 'principal_roles', 'regions', 'roles', 'stratum_security', 'tenants', 'usage_events', 'webhook_deliveries', 'webhook_events', 'webhooks'];
+  v_functions := ARRAY['update_updated_at_column', 'maintain_ancestry_ltree', 'propagate_ancestry_ltree', 'refuse_tenant_parent_cycle', 'refuse_tenant_tree_column_change', 'stratum_subtree_tenant_ids', 'stratum_legacy_bypass', 'stratum_apply_control_role'];
+  v_problems := '{}';
+  FOR r IN
+    SELECT c.relname, c.relkind FROM pg_class c
+     WHERE c.relnamespace = v_ns AND c.relname = ANY (v_tables) AND c.relkind NOT IN ('r', 'p')
+  LOOP
+    v_problems := v_problems || format('%I is not a table (relkind %s)', r.relname, r.relkind);
+  END LOOP;
+  FOR r IN
+    SELECT c.relname, w.rulename FROM pg_rewrite w JOIN pg_class c ON c.oid = w.ev_class
+     WHERE c.relnamespace = v_ns AND c.relname = ANY (v_tables)
+  LOOP
+    v_problems := v_problems || format('rule %I on %I', r.rulename, r.relname);
+  END LOOP;
+  FOR r IN
+    SELECT c.relname, t.tgname, t.tgfoid::regprocedure::text AS fn FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_proc p ON p.oid = t.tgfoid
+     WHERE NOT t.tgisinternal AND c.relnamespace = v_ns AND c.relname = ANY (v_tables)
+       AND NOT (p.pronamespace = v_ns AND p.proname = ANY (v_functions))
+  LOOP
+    v_problems := v_problems || format('trigger %I on %I calls %s', r.tgname, r.relname, r.fn);
+  END LOOP;
+  FOR r IN
+    WITH t AS (
+      SELECT c.oid, c.relname FROM pg_class c WHERE c.relnamespace = v_ns AND c.relname = ANY (v_tables)
+    ), o AS (
+      SELECT 'pg_policy'::regclass AS classid, x.oid AS objid, t.relname, 'policy ' || quote_ident(x.polname) AS what
+        FROM pg_policy x JOIN t ON t.oid = x.polrelid
+      UNION ALL
+      SELECT 'pg_attrdef'::regclass, x.oid, t.relname, 'column default' FROM pg_attrdef x JOIN t ON t.oid = x.adrelid
+      UNION ALL
+      SELECT 'pg_constraint'::regclass, x.oid, t.relname, 'constraint ' || quote_ident(x.conname)
+        FROM pg_constraint x JOIN t ON t.oid = x.conrelid
+      UNION ALL
+      SELECT 'pg_trigger'::regclass, x.oid, t.relname, 'trigger ' || quote_ident(x.tgname)
+        FROM pg_trigger x JOIN t ON t.oid = x.tgrelid WHERE NOT x.tgisinternal
+      UNION ALL
+      SELECT 'pg_class'::regclass, x.indexrelid, t.relname, 'index ' || quote_ident(x.indexrelid::regclass::text)
+        FROM pg_index x JOIN t ON t.oid = x.indrelid
+    )
+    SELECT DISTINCT o.relname, o.what,
+           CASE WHEN d.refclassid = 'pg_proc'::regclass THEN 'function ' || d.refobjid::regprocedure::text
+                ELSE 'operator ' || d.refobjid::regoperator::text END AS ref
+      FROM o JOIN pg_depend d ON d.classid = o.classid AND d.objid = o.objid
+      LEFT JOIN pg_proc p ON d.refclassid = 'pg_proc'::regclass AND p.oid = d.refobjid
+      LEFT JOIN pg_operator op ON d.refclassid = 'pg_operator'::regclass AND op.oid = d.refobjid
+     WHERE d.refclassid IN ('pg_proc'::regclass, 'pg_operator'::regclass)
+       AND coalesce(p.pronamespace, op.oprnamespace) <> 'pg_catalog'::regnamespace
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = d.refclassid AND e.objid = d.refobjid AND e.deptype = 'e')
+       AND NOT (p.pronamespace = v_ns AND p.proname = ANY (v_functions))
+  LOOP
+    v_problems := v_problems || format('%s on %I uses %s', r.what, r.relname, r.ref);
+  END LOOP;
+  FOR r IN
+    SELECT c.relname, a.attname, a.atttypid::regtype::text AS typ FROM pg_attribute a
+      JOIN pg_class c ON c.oid = a.attrelid JOIN pg_type ty ON ty.oid = a.atttypid
+     WHERE c.relnamespace = v_ns AND c.relname = ANY (v_tables) AND a.attnum > 0 AND NOT a.attisdropped
+       AND ty.typnamespace <> 'pg_catalog'::regnamespace
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = 'pg_type'::regclass AND e.deptype = 'e'
+                          AND e.objid IN (ty.oid, ty.typelem))
+  LOOP
+    v_problems := v_problems || format('column %I.%I has type %s', r.relname, r.attname, r.typ);
+  END LOOP;
+  FOR r IN
+    SELECT p.oid::regprocedure::text AS fn FROM pg_proc p
+     WHERE p.pronamespace = v_ns AND NOT (p.proname = ANY (v_functions))
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = 'pg_proc'::regclass AND e.objid = p.oid AND e.deptype = 'e')
+       AND EXISTS (SELECT 1 FROM pg_proc q
+                    WHERE q.proname = p.proname AND q.oid <> p.oid
+                      AND (q.pronamespace = 'pg_catalog'::regnamespace
+                           OR EXISTS (SELECT 1 FROM pg_depend e
+                                       WHERE e.classid = 'pg_proc'::regclass AND e.objid = q.oid AND e.deptype = 'e')))
+  LOOP
+    v_problems := v_problems || format('function %s in the schema has the name of a built-in or extension function', r.fn);
+  END LOOP;
+  FOR r IN
+    SELECT o.oid::regoperator::text AS op FROM pg_operator o
+     WHERE o.oprnamespace = v_ns
+       AND NOT EXISTS (SELECT 1 FROM pg_depend e
+                        WHERE e.classid = 'pg_operator'::regclass AND e.objid = o.oid AND e.deptype = 'e')
+  LOOP
+    v_problems := v_problems || format('operator %s in the schema', r.op);
+  END LOOP;
+  FOR r IN
+    SELECT f.name, p.oid IS NOT NULL AS present, md5(p.prosrc) = f.md5 AS same_body, p.proconfig, p.prosecdef
+      FROM (VALUES ('update_updated_at_column', '301a884953d37769916294bb60562e05'), ('maintain_ancestry_ltree', 'ddce857b77ffe5dad27239825949c886'), ('propagate_ancestry_ltree', 'a79bc2cb286893cb622c336876491759'), ('stratum_apply_control_role', 'e01700f8e3ff68a25f344d6143aa17c7')) AS f(name, md5)
+      LEFT JOIN pg_proc p ON p.pronamespace = v_ns AND p.proname = f.name
+  LOOP
+    IF r.present AND NOT r.same_body THEN
+      v_problems := v_problems || format('function %I has a body the migrations did not give it', r.name);
+    ELSIF r.present AND r.proconfig IS NOT NULL AND r.proconfig <> ARRAY['search_path=pg_catalog, pg_temp'] THEN
+      v_problems := v_problems || format('function %I has settings %s', r.name, r.proconfig::text);
+    ELSIF r.present AND r.name = 'stratum_apply_control_role' AND (r.prosecdef OR r.proconfig IS NULL) THEN
+      v_problems := v_problems || 'function stratum_apply_control_role is not SECURITY INVOKER with its pinned search_path';
+    END IF;
+  END LOOP;
+  IF pg_catalog.cardinality(v_problems) > 0 THEN
+    RAISE WARNING E'Stratum control-role hardening is NOT active in schema "%": the Stratum tables carry objects the Stratum migrations did not create:\n  %\nSuch objects run with the rights of whoever writes to the tables. Remove them (or restore the Stratum functions from the migrations), then run `stratum db roles --apply`. Until then, this database keeps the pre-1.8 behavior.',
+      v_schema, pg_catalog.array_to_string(v_problems, E'\n  ');
+    PERFORM pg_catalog.set_config('search_path', v_path, true);
     RETURN;
   END IF;
 
@@ -631,5 +798,6 @@ BEGIN
     RAISE WARNING E'Stratum control-role hardening is NOT active in schema "%": %\nUntil that SQL runs, this database keeps the pre-1.8 behavior.',
       v_schema, v_message;
   END;
+  PERFORM pg_catalog.set_config('search_path', v_path, true);
 END
 $control$;

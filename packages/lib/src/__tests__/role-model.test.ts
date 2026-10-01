@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { bootstrapRolesSql, APP_READ_TABLES, STRATUM_FUNCTION_BODY_MD5 } from "../role-model.js";
+import { bootstrapRolesSql, integrityChecksPlpgsql, APP_READ_TABLES, STRATUM_FUNCTION_BODY_MD5 } from "../role-model.js";
 import { migrationSql, setApplyControlRole, STRATUM_CONTROL_ROLE } from "../migration-sql.js";
 import * as lib from "../index.js";
 
@@ -80,6 +80,18 @@ function lastBody(name: string): string {
 describe("the integrity check of bootstrapRolesSql", () => {
   it.each(Object.keys(STRATUM_FUNCTION_BODY_MD5))("pins the body of %s that the migrations define last", (name) => {
     expect(crypto.createHash("md5").update(lastBody(name)).digest("hex")).toBe(STRATUM_FUNCTION_BODY_MD5[name]);
+  });
+
+  it("is the check migration 032 runs before it applies the control role, statement for statement", () => {
+    const sql032 = fs.readFileSync(path.resolve(__dirname, "../migrations/032_control_role.sql"), "utf8");
+    const control = sql032.slice(sql032.indexOf("DO $control$"));
+    expect(control).toContain(integrityChecksPlpgsql());
+    expect(control.indexOf(integrityChecksPlpgsql())).toBeLessThan(control.indexOf("EXECUTE pg_catalog.format('SELECT %I.stratum_apply_control_role"));
+    expect(bootstrapRolesSql()).toContain(integrityChecksPlpgsql());
+  });
+
+  it("covers the _migrations table", () => {
+    expect(integrityChecksPlpgsql()).toMatch(/v_tables := ARRAY\['_migrations'/);
   });
 
   it("runs before every other statement of the bootstrap SQL", () => {

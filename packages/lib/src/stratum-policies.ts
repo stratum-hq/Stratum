@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
+import { PINNED_SEARCH_PATH, quoteIdentifier, schemaOfTable } from "./pinned-query.js";
 
 /**
  * The canonical row-level security of the Stratum tables: the tables that
@@ -108,13 +109,12 @@ function createPolicyTemplate(p: StratumPolicy): string {
 }
 
 /**
- * `text` without its schema qualifiers, for the canonical policies that
- * stratumPolicyDrift() puts on temporary tables: there the names resolve
- * through the search path, the temporary tables first, as the live policies
- * of 019, 020 and 031 were written.
+ * `text` with the schema placeholder replaced by `schema`, for the canonical
+ * policies that stratumPolicyDrift() puts on temporary tables: the functions
+ * and tables they name are the live Stratum ones, as in the live policies.
  */
-function unqualified(text: string): string {
-  return text.split("%1$I.").join("");
+function inSchema(text: string, schema: string): string {
+  return text.split("%1$I.").join(`${quoteIdentifier(schema)}.`);
 }
 
 /**
@@ -159,18 +159,20 @@ export interface PolicyDriftOptions {
  * The canonical expressions are deparsed by the same server: the check
  * creates temporary tables with the same names and columns, puts the
  * canonical policies on them, and compares pg_get_expr() of both, all in a
- * transaction that it rolls back. It needs only the TEMP privilege.
+ * transaction that it rolls back. It needs only the TEMP privilege. The
+ * transaction's search path is pg_catalog only (see pinned-query.ts), so
+ * both sides print the Stratum names with their schema.
  */
 export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOptions = {}): Promise<string[]> {
+  const nsp = await schemaOfTable(pool);
+  if (!nsp) return ["the tenants table was not found; run the Stratum migrations"];
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const ns = await client.query<{ nsp: string | null; control: string | null }>(
-      `SELECT (SELECT relnamespace::regnamespace::text FROM pg_class WHERE oid = to_regclass('tenants')) AS nsp,
-              (SELECT min(r::text) FROM pg_policies p, unnest(p.roles) r WHERE p.policyname = 'stratum_control_plane') AS control`,
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
+    const ns = await client.query<{ control: string | null }>(
+      `SELECT (SELECT min(r::text) FROM pg_policies p, unnest(p.roles) r WHERE p.policyname = 'stratum_control_plane') AS control`,
     );
-    const nsp = ns.rows[0]?.nsp;
-    if (!nsp) return ["the tenants table was not found; run the Stratum migrations"];
     const applied = ns.rows[0].control !== null;
     const control = options.controlRole ?? ns.rows[0].control ?? STRATUM_CONTROL_ROLE;
     const expected = stratumPolicies().filter((p) => applied || p.to !== "control");
@@ -210,13 +212,13 @@ export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOpti
       [nsp, STRATUM_RLS_TABLES],
     );
     for (const t of columns.rows) {
-      await client.query(`CREATE TEMP TABLE "${t.relname}" (${t.cols}) ON COMMIT DROP`);
+      await client.query(`CREATE TEMP TABLE pg_temp."${t.relname}" (${t.cols}) ON COMMIT DROP`);
     }
     for (const p of expected) {
       if (!columns.rows.some((t) => t.relname === p.table)) continue;
       const to = p.to === "control" ? ` AS PERMISSIVE FOR ALL TO "${control}"` : ` FOR ${p.cmd}`;
-      const check = p.check === null ? "" : ` WITH CHECK (${unqualified(p.check)})`;
-      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${unqualified(p.using)})${check}`);
+      const check = p.check === null ? "" : ` WITH CHECK (${inSchema(p.check, nsp)})`;
+      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${inSchema(p.using, nsp)})${check}`);
     }
     const temp = await client.query<{ nsp: string }>("SELECT pg_my_temp_schema()::regnamespace::text AS nsp");
     const canonical = (await policyQuery(temp.rows[0].nsp)).rows;

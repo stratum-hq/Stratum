@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import { assertRoleName, isSuperuser, migrationSql, setApplyControlRole, setControlRole } from "./migration-sql.js";
+import { quoteIdentifier } from "./pinned-query.js";
 
 export interface MigrateOptions {
   pool: pg.Pool;
@@ -52,9 +53,18 @@ export async function migrate(options: MigrateOptions): Promise<void> {
     await assertRoleSubjectToRls(pool);
   }
 
+  // The migrations create their objects in the first schema of the search
+  // path; the tracking table lives there too, named with that schema.
+  const current = await pool.query<{ schema: string | null }>("SELECT pg_catalog.current_schema() AS schema");
+  const schema = current.rows[0]?.schema;
+  if (!schema) {
+    throw new Error("[stratum] migrate: no schema on the search path of the migrating login to create the Stratum tables in");
+  }
+  const migrationsTable = `${quoteIdentifier(schema)}._migrations`;
+
   // Create migrations tracking table
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS _migrations (
+    CREATE TABLE IF NOT EXISTS ${migrationsTable} (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -93,7 +103,7 @@ export async function migrate(options: MigrateOptions): Promise<void> {
 
       // Re-check if already applied (after lock, to prevent TOCTOU race)
       const { rows } = await client.query(
-        "SELECT 1 FROM _migrations WHERE name = $1",
+        `SELECT 1 FROM ${migrationsTable} WHERE name = $1`,
         [file],
       );
       if (rows.length > 0) {
@@ -110,7 +120,7 @@ export async function migrate(options: MigrateOptions): Promise<void> {
 
       const sql = migrationSql(file, fs.readFileSync(path.join(migrationsDir, file), "utf-8"), superuser);
       await client.query(sql);
-      await client.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
+      await client.query(`INSERT INTO ${migrationsTable} (name) VALUES ($1)`, [file]);
       await client.query("COMMIT");
     } catch (err) {
       try { await client.query("ROLLBACK"); } catch { /* ignore rollback failure */ }
