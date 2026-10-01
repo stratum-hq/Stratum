@@ -3,10 +3,10 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { migrate, Stratum } from "@stratum-hq/lib";
 import { scaffoldProject } from "./helpers/create-cli.js";
+import { useWorkspaceStratumPackages } from "./helpers/workspace-tarballs.js";
 import { ROLE_PREFIX, dropTestRole } from "./helpers/role-model.js";
 
 /**
@@ -26,8 +26,6 @@ const BASE_URL =
   process.env.DATABASE_URL ||
   "postgresql://stratum_test:stratum_test@localhost:5433/stratum_test";
 
-const PACKAGES_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const WORKSPACE_PACKAGES = ["core", "lib", "db-adapters"];
 const PREFIX = ROLE_PREFIX.replace(/[^a-z0-9_]/g, "");
 
 // Fixed tenant IDs, used when the generated project needs no Stratum tenant.
@@ -107,7 +105,6 @@ const APP_NAME = `${ROLE_PREFIX.replace(/[^a-z0-9_]/g, "")}iso_app`;
 
 let tmp: string;
 let admin: pg.Client;
-const tarballs: Record<string, string> = {};
 
 // The generated project reads its settings from its .env file. Node and
 // Prisma let a variable already in the environment win over .env, so child
@@ -133,13 +130,7 @@ function urlFor(db: string, user: string, password: string): string {
 
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-create-isolation-"));
-  for (const name of WORKSPACE_PACKAGES) {
-    const [packed] = JSON.parse(
-      run("npm", ["pack", "--json", "--pack-destination", tmp], path.join(PACKAGES_DIR, name)),
-    ) as { filename: string }[];
-    tarballs[`@stratum-hq/${name}`] = `file:${path.join(tmp, packed.filename)}`;
-  }
-}, 120_000);
+});
 
 afterAll(() => {
   if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
@@ -188,13 +179,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       // Install the workspace builds of the Stratum packages, so the test
       // checks the code under test even before it is on npm.
       const pkgPath = path.join(dir, "package.json");
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
-        dependencies: Record<string, string>;
-        overrides?: Record<string, string>;
-      };
-      for (const [name, spec] of Object.entries(tarballs)) pkg.dependencies[name] = spec;
-      pkg.overrides = { ...pkg.overrides, "@stratum-hq/core": "$@stratum-hq/core" };
-      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+      useWorkspaceStratumPackages(dir, tmp);
       run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], dir);
 
       // Add a tenant-scoped table, as the generated files say to. A Prisma

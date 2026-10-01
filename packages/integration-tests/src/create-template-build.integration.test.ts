@@ -5,9 +5,8 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { unpublishedStratumVersions } from "./helpers/published-versions.js";
 import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
+import { useWorkspaceStratumPackages } from "./helpers/workspace-tarballs.js";
 
 /**
  * Projects that `@stratum-hq/create` generates must install and build as
@@ -16,26 +15,18 @@ import { createCliEntry, scaffoldProject } from "./helpers/create-cli.js";
  * takes the tenant from a valid HS256 token. The drizzle preset is installed
  * and built, and drizzle-kit generates a migration, with the row-level
  * security policy, from the schema file its config points at. A Prisma
- * Next.js preset is installed with the workspace
- * build of @stratum-hq/db-adapters, its client is generated, and `next build`
+ * Next.js preset is installed, its client is generated, and `next build`
  * type-checks the generated Prisma setup against the real PrismaClient.
- * Installs run one at a time and need network access to the npm registry.
+ * Every project installs the workspace builds of the Stratum packages, so
+ * the tests check the code under test even before it is on npm. Installs
+ * run one at a time and need network access to the npm registry for
+ * third-party packages.
  */
 
 const DRIZZLE_PRESET = "postgres-rls-drizzle-none";
 const PRISMA_PRESET = "postgres-rls-prisma-nextjs";
-const DB_ADAPTERS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../db-adapters");
 const JWT_SECRET = crypto.randomBytes(32).toString("base64url");
 const TENANT = "11111111-1111-1111-1111-111111111111";
-
-
-// A version PR raises the workspace versions before the release publishes
-// them, so a generated project cannot install them from the registry yet.
-// The install-dependent tests are skipped until the versions are on npm.
-const UNPUBLISHED = unpublishedStratumVersions();
-if (UNPUBLISHED.length > 0) {
-  console.warn(`Skipping generated-project installs: not on npm yet: ${UNPUBLISHED.join(", ")}`);
-}
 
 let tmp: string;
 
@@ -55,6 +46,7 @@ function run(cmd: string, args: string[], cwd: string): string {
 }
 
 function install(dir: string): void {
+  useWorkspaceStratumPackages(dir, tmp);
   run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts"], dir);
 }
 
@@ -89,7 +81,7 @@ afterAll(() => {
   if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe.skipIf(UNPUBLISHED.length > 0)("@stratum-hq/create express template, installed, built and started", () => {
+describe("@stratum-hq/create express template, installed, built and started", () => {
   let dir: string;
   let server: ChildProcess | undefined;
   let baseUrl: string;
@@ -143,7 +135,7 @@ describe.skipIf(UNPUBLISHED.length > 0)("@stratum-hq/create express template, in
   });
 });
 
-describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${DRIZZLE_PRESET}, installed and built`, () => {
+describe(`@stratum-hq/create ${DRIZZLE_PRESET}, installed and built`, () => {
   let dir: string;
 
   beforeAll(() => {
@@ -182,19 +174,12 @@ describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${DRIZZLE_PRESET}, i
   }, 120_000);
 });
 
-describe.skipIf(UNPUBLISHED.length > 0)(`@stratum-hq/create ${PRISMA_PRESET}, installed and built`, () => {
+describe(`@stratum-hq/create ${PRISMA_PRESET}, installed and built`, () => {
   let dir: string;
 
   beforeAll(() => {
     dir = scaffoldProject(tmp, "prisma-app", PRISMA_PRESET);
     install(dir);
-    // The registry can serve an older @stratum-hq/db-adapters than the
-    // workspace. Install the workspace build, so that the build checks the
-    // Prisma helper types of the code under test.
-    const [packed] = JSON.parse(run("npm", ["pack", "--json", "--pack-destination", tmp], DB_ADAPTERS_DIR)) as {
-      filename: string;
-    }[];
-    run("npm", ["install", "--no-audit", "--no-fund", "--ignore-scripts", path.join(tmp, packed.filename)], dir);
     // The install skips scripts, so the postinstall of @prisma/client does not
     // generate the client. Without this step, the build sees no real PrismaClient.
     run("npx", ["prisma", "generate"], dir);
