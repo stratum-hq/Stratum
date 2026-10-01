@@ -1,0 +1,14 @@
+-- Migration 033: Index api_keys.tenant_id.
+--
+-- Listing, revoking and purging a tenant's API keys select by tenant_id, and
+-- `stratum doctor` warns about every tenant_id column without an index. The
+-- column is nullable (global keys), and a plain btree serves both.
+--
+-- Safe to re-run, and safe in every tenant schema of migrateAllSchemas: the
+-- table name is unqualified, so the index is created next to the api_keys
+-- table that the search_path resolves.
+--
+-- This statement blocks writes to api_keys until the index is built. On a
+-- large table, an operator can build it first with CREATE INDEX CONCURRENTLY
+-- and the same name and definition. IF NOT EXISTS then skips this statement.
+CREATE INDEX IF NOT EXISTS idx_api_keys_tenant_id ON api_keys (tenant_id);

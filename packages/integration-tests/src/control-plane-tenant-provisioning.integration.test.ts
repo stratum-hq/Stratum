@@ -9,7 +9,7 @@ import {
   databaseExists,
   dropDatabase,
 } from "@stratum-hq/db-adapters";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // POST /tenants for isolated strategies drives the real control-plane app
@@ -63,7 +63,7 @@ async function statusOf(id: string): Promise<string | undefined> {
 describe("control-plane tenant provisioning (integration)", () => {
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     const cpApp: ControlPlaneApp = await import("../../control-plane/dist/app.js");
     cpDb = await import("../../control-plane/dist/db/connection.js");
     app = await cpApp.buildApp();

@@ -14,7 +14,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith("--")) {
+      // The next token is the value unless it is another flag, long or short.
+      if (next && !next.startsWith("--") && !/^-[a-zA-Z]$/.test(next)) {
         flags[key] = next;
         i += 2;
       } else {

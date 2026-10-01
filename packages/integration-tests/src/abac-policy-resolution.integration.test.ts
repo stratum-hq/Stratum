@@ -6,6 +6,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -20,7 +21,7 @@ describe("ABAC attribute namespaces + same-name policies (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

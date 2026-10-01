@@ -6,6 +6,7 @@ import {
   type BatchSetConfigEntry,
   type ResolvedConfigEntry,
   type ResolvedConfig,
+  type ResolveConfigOptions,
   type BatchSetConfigResult,
   type BatchSetConfigKeyResult,
   ConfigLockedError,
@@ -18,10 +19,54 @@ import { encrypt, decrypt } from "../crypto.js";
 import { loadActiveTenant } from "./tenant-service.js";
 
 /**
+ * Build the resolved entry for a stored `entry` read at `tenantId`.
+ *
+ * A sensitive value set on another tenant (an ancestor) is masked: `value` is
+ * null and `masked` is true, and it is never decrypted. `options` reveals it
+ * to trusted server code (`revealSensitive`) or to the tenant that set it
+ * (`viewerTenantId`). A tenant's own sensitive values are always decrypted.
+ */
+function toResolvedEntry(
+  entry: ConfigEntry,
+  tenantId: string,
+  inherited: boolean,
+  locked: boolean,
+  options: ResolveConfigOptions,
+): ResolvedConfigEntry {
+  const resolved: ResolvedConfigEntry = {
+    key: entry.key,
+    value: entry.value,
+    source_tenant_id: entry.source_tenant_id,
+    inherited,
+    locked,
+  };
+  if (!entry.sensitive) return resolved;
+  resolved.sensitive = true;
+  const reveal =
+    entry.tenant_id === tenantId ||
+    options.revealSensitive === true ||
+    (options.viewerTenantId !== undefined && options.viewerTenantId === entry.source_tenant_id);
+  if (reveal) {
+    resolved.value = JSON.parse(decrypt(entry.value as string));
+  } else {
+    resolved.value = null;
+    resolved.masked = true;
+  }
+  return resolved;
+}
+
+/**
  * Resolve the effective config for a tenant by batch-loading ancestor configs
  * in a single query and walking root→leaf.
+ *
+ * Sensitive values inherited from an ancestor come back masked unless
+ * `options` reveals them (see {@link ResolveConfigOptions}).
  */
-export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<ResolvedConfig> {
+export async function resolveConfig(
+  pool: pg.Pool,
+  tenantId: string,
+  options: ResolveConfigOptions = {},
+): Promise<ResolvedConfig> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1 AND status != 'archived'`,
@@ -79,16 +124,10 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
         }
 
         const isCurrentTenant = currentTenantId === tenantId;
-        const resolvedValue = entry.sensitive
-          ? JSON.parse(decrypt(entry.value as string))
-          : entry.value;
-        resolved.set(entry.key, {
-          key: entry.key,
-          value: resolvedValue,
-          source_tenant_id: entry.source_tenant_id,
-          inherited: !isCurrentTenant,
-          locked: entry.locked,
-        });
+        resolved.set(
+          entry.key,
+          toResolvedEntry(entry, tenantId, !isCurrentTenant, entry.locked, options),
+        );
       }
     }
 
@@ -151,9 +190,33 @@ export async function setConfig(
 }
 
 /**
- * Set multiple config keys for a tenant in a single transaction.
- * Partial success: locked keys are skipped and reported as errors,
- * while unlocked keys are set successfully within the same transaction.
+ * Return why a batch entry cannot be written, or null when it can.
+ * The value must serialize to JSON because config_entries.value is JSONB NOT NULL.
+ */
+function invalidBatchEntryReason(entry: BatchSetConfigEntry): string | null {
+  if (typeof entry.key !== "string" || entry.key.length === 0) {
+    return "Config key must be a non-empty string";
+  }
+  let serialized: string | undefined;
+  try {
+    serialized = JSON.stringify(entry.value);
+  } catch {
+    serialized = undefined;
+  }
+  if (serialized === undefined) {
+    return `Config '${entry.key}' has a value that cannot be stored as JSON`;
+  }
+  return null;
+}
+
+/**
+ * Set multiple config keys for a tenant in a single, atomic transaction.
+ *
+ * Every entry is checked before anything is written. If any key is locked by
+ * an active ancestor or is invalid, the whole batch is rolled back: nothing is
+ * written, `rolled_back` is true, and each result has status "error". The
+ * offending keys carry their own reason; the rest name the keys that caused
+ * the rollback.
  */
 export async function batchSetConfig(
   pool: pg.Pool,
@@ -184,22 +247,42 @@ export async function batchSetConfig(
       }
     }
 
-    const results: BatchSetConfigKeyResult[] = [];
-    let succeeded = 0;
-    let failed = 0;
-
-    for (const entry of entries) {
+    // Check every entry before writing anything.
+    const failures = new Map<number, string>();
+    entries.forEach((entry, i) => {
+      const invalid = invalidBatchEntryReason(entry);
+      if (invalid) {
+        failures.set(i, invalid);
+        return;
+      }
       const lockerTenantId = lockedKeys.get(entry.key);
       if (lockerTenantId) {
-        results.push({
-          key: entry.key,
-          status: "error",
-          error: `Config '${entry.key}' is locked by tenant ${lockerTenantId} and cannot be overridden`,
-        });
-        failed++;
-        continue;
+        failures.set(
+          i,
+          `Config '${entry.key}' is locked by tenant ${lockerTenantId} and cannot be overridden`,
+        );
       }
+    });
 
+    if (failures.size > 0) {
+      const failedKeys = [...failures.keys()].map((i) => `'${entries[i].key}'`).join(", ");
+      const rolledBack = `Not applied: the batch was rolled back because ${failedKeys} failed`;
+      return {
+        results: entries.map((entry, i) => ({
+          key: entry.key,
+          status: "error" as const,
+          error: failures.get(i) ?? rolledBack,
+        })),
+        succeeded: 0,
+        failed: entries.length,
+        rolled_back: true,
+      };
+    }
+
+    const results: BatchSetConfigKeyResult[] = [];
+    let succeeded = 0;
+
+    for (const entry of entries) {
       const sensitive = entry.sensitive ?? false;
       const storedValue = sensitive
         ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
@@ -225,7 +308,7 @@ export async function batchSetConfig(
       succeeded++;
     }
 
-    return { results, succeeded, failed };
+    return { results, succeeded, failed: 0, rolled_back: false };
   });
 }
 
@@ -251,10 +334,13 @@ export async function deleteConfig(
 /**
  * Return all config entries for a tenant showing inheritance status:
  * inherited (from ancestor), overridden (tenant has own value), or locked.
+ *
+ * Inherited sensitive values are masked as in {@link resolveConfig}.
  */
 export async function getConfigWithInheritance(
   pool: pg.Pool,
   tenantId: string,
+  options: ResolveConfigOptions = {},
 ): Promise<ResolvedConfig> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
@@ -322,11 +408,6 @@ export async function getConfigWithInheritance(
       }
     }
 
-    const decryptEntryValue = (entry: ConfigEntry): unknown =>
-      entry.sensitive
-        ? JSON.parse(decrypt(entry.value as string))
-        : entry.value;
-
     const result: ResolvedConfig = {};
 
     for (const [key, rec] of byKey) {
@@ -336,31 +417,13 @@ export async function getConfigWithInheritance(
 
       if (lockedEntry) {
         // Key is locked: show ancestor's locked value regardless of tenant override
-        result[key] = {
-          key,
-          value: decryptEntryValue(lockedEntry),
-          source_tenant_id: lockedEntry.source_tenant_id,
-          inherited: true,
-          locked: true,
-        };
+        result[key] = toResolvedEntry(lockedEntry, tenantId, true, true, options);
       } else if (tenantEntry) {
         // Tenant has its own value (override or own entry)
-        result[key] = {
-          key,
-          value: decryptEntryValue(tenantEntry),
-          source_tenant_id: tenantEntry.source_tenant_id,
-          inherited: false,
-          locked: tenantEntry.locked,
-        };
+        result[key] = toResolvedEntry(tenantEntry, tenantId, false, tenantEntry.locked, options);
       } else if (ancestorEntry) {
         // Inherited from ancestor
-        result[key] = {
-          key,
-          value: decryptEntryValue(ancestorEntry),
-          source_tenant_id: ancestorEntry.source_tenant_id,
-          inherited: true,
-          locked: ancestorEntry.locked,
-        };
+        result[key] = toResolvedEntry(ancestorEntry, tenantId, true, ancestorEntry.locked, options);
       }
     }
 

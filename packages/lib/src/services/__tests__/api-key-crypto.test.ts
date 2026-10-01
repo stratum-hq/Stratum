@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { generateKey } from "../api-key-service.js";
 
@@ -81,5 +81,46 @@ describe("generateKey", () => {
       const { plaintextKey, keyHash } = generateKey("sk_live_");
       expect(hmacSha256(plaintextKey, "top-secret-hmac-key")).toBe(keyHash);
     });
+  });
+});
+
+describe("STRATUM_API_KEY_HMAC_SECRET checks at startup outside development and test", () => {
+  const names = [HMAC_SECRET_ENV, "NODE_ENV", "STRATUM_ENCRYPTION_KEY", "STRATUM_HKDF_SALT"] as const;
+  const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+
+  afterEach(() => {
+    for (const n of names) {
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+    }
+    vi.resetModules();
+  });
+
+  const load = async (nodeEnv: string, secret?: string) => {
+    process.env.NODE_ENV = nodeEnv;
+    process.env.STRATUM_ENCRYPTION_KEY = "k".repeat(32);
+    process.env.STRATUM_HKDF_SALT = "a1".repeat(32);
+    if (secret === undefined) delete process.env[HMAC_SECRET_ENV];
+    else process.env[HMAC_SECRET_ENV] = secret;
+    vi.resetModules();
+    return import("../api-key-service.js");
+  };
+
+  it("refuses to load with a secret shorter than 32 bytes", async () => {
+    for (const nodeEnv of ["production", "staging"]) {
+      for (const secret of ["x", "s".repeat(31)]) {
+        await expect(load(nodeEnv, secret)).rejects.toThrow(/STRATUM_API_KEY_HMAC_SECRET must be at least 32 bytes/);
+      }
+    }
+  });
+
+  it("loads with a secret of 32 bytes or more, or without a secret", async () => {
+    await expect(load("production", "s".repeat(32))).resolves.toBeDefined();
+    await expect(load("production")).resolves.toBeDefined();
+  });
+
+  it("accepts a short secret in development and test", async () => {
+    await expect(load("development", "x")).resolves.toBeDefined();
+    await expect(load("test", "x")).resolves.toBeDefined();
   });
 });

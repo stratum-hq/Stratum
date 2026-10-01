@@ -115,7 +115,9 @@ If you cloned the Stratum repository, use the included `docker-compose.yml`:
 docker compose up db -d
 ```
 
-This starts PostgreSQL 16 with all extensions pre-configured and creates the `stratum_app` role.
+This starts PostgreSQL 16 with all extensions pre-configured and creates three roles: `stratum_app` for the application, `stratum_admin` for the control plane's migrations and cross-tenant work, and the NOLOGIN control role `stratum_control`. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
+
+The roles are created only when the database volume is created. If your volume is from before 1.8, recreate it with `docker compose down -v` (this deletes its data), or start the stack with `DATABASE_ADMIN_URL=` to keep the single-pool mode.
 
 ## Environment Variables
 
@@ -129,14 +131,15 @@ For production, you should also set:
 
 | Variable | Description |
 |----------|-------------|
+| `DATABASE_ADMIN_URL` | Optional in 1.x: a separate admin login for Stratum's own cross-tenant work, a member of the control role. The control plane and the CLI read it; with the library, pass it as `adminPool`. See [Hardening: separate admin and app roles](/guides/hardening-roles/) |
 | `JWT_SECRET` | JWT signing secret (required whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder such as `change-me-in-production`) |
 | `JWT_AUDIENCE` | Required `aud` claim for Bearer tokens, for example `stratum-control-plane` |
-| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
+| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required, at least 32 bytes, whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
 | `STRATUM_HKDF_SALT` | Hex-encoded HKDF salt for the encryption key (required whenever `NODE_ENV` is not `development` or `test`) |
-| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
+| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing (optional; when set, at least 32 bytes whenever `NODE_ENV` is not `development` or `test`) |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated) |
 
-See the full list in the [Quick Start](/getting-started/quick-start/) guide.
+The control plane reads more variables, such as `PORT`, the rate limits and `REDIS_URL`. See the [configuration table](https://github.com/stratum-hq/Stratum/tree/main/packages/control-plane#configuration) in its README. The CLI's variables are on the [CLI page](/packages/cli/#environment).
 
 ## Verify Installation
 
@@ -156,12 +159,13 @@ See the full list in the [Quick Start](/getting-started/quick-start/) guide.
   </TabItem>
   <TabItem label="Control Plane">
     ```bash
-    # Start the control plane (runs migrations automatically)
-    node packages/control-plane/dist/index.js
+    # Install and start the control plane (it runs the migrations on startup)
+    npm install @stratum-hq/control-plane
+    node node_modules/@stratum-hq/control-plane/dist/index.js
 
     # Check the health endpoint
     curl http://localhost:3001/api/v1/health
-    # { "status": "ok", "db": "connected" }
+    # { "status": "ok", "timestamp": "...", "db": "connected", "redis": "not_configured" }
     ```
   </TabItem>
   <TabItem label="CLI">

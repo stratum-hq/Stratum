@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { scaffold } from "../scaffold.js";
+import { expectEnvSecrets } from "./env-assertions.js";
 
 class ExitError extends Error {
   constructor(public code: number) {
@@ -56,6 +57,15 @@ describe("scaffold", () => {
     expect(read("middleware.ts")).toContain("NextResponse");
   });
 
+  it("nextjs template writes the middleware and API route into src when the app lives in src/app", async () => {
+    fs.mkdirSync(path.join(tmpDir, "src", "app"), { recursive: true });
+    await scaffold(["nextjs"], { out: tmpDir });
+    expect(exists("src/middleware.ts")).toBe(true);
+    expect(exists("src/app/api/stratum/[...path]/route.ts")).toBe(true);
+    expect(exists("middleware.ts")).toBe(false);
+    expect(exists("app")).toBe(false);
+  });
+
   it("react template writes provider, guards and hooks", async () => {
     await scaffold(["react"], { out: tmpDir });
     expect(exists("stratum-provider.tsx")).toBe(true);
@@ -82,6 +92,53 @@ describe("scaffold", () => {
     const content = read(".env.stratum");
     expect(content).toContain("DATABASE_URL");
     expect(content).toMatch(/JWT_SECRET=.+/);
+  });
+
+  it("env template writes the encryption, salt and HMAC secrets and the admin login", async () => {
+    await scaffold(["env"], { out: tmpDir });
+    expectEnvSecrets(read(".env.stratum"));
+  });
+
+  it("env template generates different secrets on each run", async () => {
+    await scaffold(["env"], { out: tmpDir });
+    const first = read(".env.stratum");
+    await scaffold(["env"], { out: tmpDir, force: true });
+    const key = (c: string) => c.match(/^STRATUM_ENCRYPTION_KEY=(.+)$/m)?.[1];
+    expect(key(first)).toBeDefined();
+    expect(key(read(".env.stratum"))).not.toBe(key(first));
+  });
+
+  it("docker template sets up the control, admin and app roles of the role model", async () => {
+    await scaffold(["docker"], { out: tmpDir });
+    const sql = read("stratum-init-db.sql");
+    expect(sql).toMatch(/CREATE ROLE stratum_control NOLOGIN NOSUPERUSER NOBYPASSRLS;/);
+    expect(sql).toMatch(/CREATE ROLE stratum_admin WITH LOGIN PASSWORD '[^']+' NOSUPERUSER NOBYPASSRLS CREATEDB;/);
+    expect(sql).toContain("GRANT stratum_control TO stratum_admin WITH INHERIT TRUE, SET TRUE;");
+    expect(sql).toMatch(/CREATE ROLE stratum_app WITH LOGIN PASSWORD '[^']+' NOSUPERUSER NOBYPASSRLS;/);
+    // The application login gets no membership in the control role and no
+    // privilege on the Stratum tables.
+    expect(sql).not.toMatch(/GRANT stratum_control TO stratum_app/);
+    expect(sql).not.toMatch(/ON ALL TABLES/);
+    const statements = sql.split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
+    expect(statements).not.toMatch(/\bSUPERUSER\b|\bBYPASSRLS\b/);
+
+    const compose = read("docker-compose.stratum.yml");
+    expect(compose).toContain("DATABASE_URL: postgres://stratum_app:");
+    expect(compose).toContain("DATABASE_ADMIN_URL: postgres://stratum_admin:");
+    expect(compose).toMatch(/STRATUM_ENCRYPTION_KEY:\s*\n/);
+    expect(compose).toMatch(/STRATUM_HKDF_SALT:\s*\n/);
+    expect(compose).toMatch(/STRATUM_API_KEY_HMAC_SECRET:\s*\n/);
+  });
+
+  it("docker template runs the same statements as the repository's docker/init-db.sql", async () => {
+    await scaffold(["docker"], { out: tmpDir });
+    const statements = (sql: string) =>
+      sql
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "" && !l.startsWith("--") && !l.startsWith("\\c "));
+    const repoSql = fs.readFileSync(path.resolve(__dirname, "../../../../../docker/init-db.sql"), "utf8");
+    expect(statements(read("stratum-init-db.sql"))).toEqual(statements(repoSql));
   });
 
   it("skips an existing file without --force but overwrites with --force", async () => {

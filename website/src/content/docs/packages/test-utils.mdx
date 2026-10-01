@@ -1,6 +1,6 @@
 ---
 title: "@stratum-hq/test-utils"
-description: Cross-tenant isolation test helpers for PostgreSQL, MongoDB, and MySQL.
+description: Cross-tenant isolation test helpers for PostgreSQL and MongoDB.
 ---
 
 `@stratum-hq/test-utils` provides test helpers that verify tenant isolation is working correctly. Use these in your CI pipeline to catch isolation regressions before they reach production.
@@ -32,6 +32,7 @@ describe("tenant isolation", () => {
 ## Features
 
 - **`assertIsolation(pool, tenantA, tenantB, table, options?)`**: inserts a row as tenantB, checks tenantB can read it back, and asserts tenantA cannot, then rolls back
+- **`assertMongoIsolation(getCollection, tenantA, tenantB)`**: the same check for MongoDB, through the collection your Stratum adapter or Mongoose plugin returns for a tenant
 - **`assertConfigInheritance(stratum, parentId, childId, key)`**: verifies inheritance, child override and parent locks through Stratum's config API
 - **Descriptive error messages**: clear failure output showing exactly which isolation boundary was breached
-- **Database-agnostic**: works with PostgreSQL, MongoDB, and MySQL
+- **PostgreSQL and MongoDB**: there is no MySQL helper yet

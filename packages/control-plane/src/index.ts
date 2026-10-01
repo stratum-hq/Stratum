@@ -4,8 +4,7 @@ import { migrate } from "./db/migrate.js";
 import { closePool } from "./db/connection.js";
 
 async function main(): Promise<void> {
-  // Run database migrations
-  console.log("Running migrations...");
+  // Run database migrations (migrate() reports its own progress)
   await migrate();
 
   // Build and start the app

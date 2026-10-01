@@ -155,6 +155,60 @@ describe("shared-table tenant filter", () => {
       ).rejects.toThrow();
       expect((await allRows()).find((r) => r.id === 1)?.tenant_id).toBe("tenant-a");
     });
+
+    it("update cannot change tenant_id through a table- or schema-qualified key in any letter case", async () => {
+      for (const key of ["users.tenant_id", `${SHARED_DB}.users.tenant_id`, "users.TENANT_ID", "USERS.Tenant_Id"]) {
+        await scopedKnex("tenant-a")("users").where("id", 1).update({ [key]: "tenant-b", name: key });
+        await expect(
+          (async () => scopedKnex("tenant-a")("users").where("id", 1).update(key, "tenant-b"))(),
+        ).rejects.toThrow(/cannot change tenant_id/);
+        await expect(
+          (async () => scopedKnex("tenant-a")("users").where("id", 1).increment(key, 1))(),
+        ).rejects.toThrow(/cannot change tenant_id/);
+      }
+      const alice = (await allRows()).find((r) => r.id === 1);
+      expect(alice?.tenant_id).toBe("tenant-a");
+      expect(alice?.name).toBe("USERS.Tenant_Id");
+    });
+
+    it("insert writes the caller's tenant_id even when the data names tenant_id with a qualified or cased key", async () => {
+      await scopedKnex("tenant-a")("users").insert({ id: 3, name: "c", "users.tenant_id": "tenant-b" });
+      await scopedKnex("tenant-a")("users").insert([
+        { id: 4, name: "d", TENANT_ID: "tenant-b" },
+        { id: 5, name: "e", [`${SHARED_DB}.users.Tenant_Id`]: "tenant-b" },
+      ]);
+      const added = (await allRows()).filter((r) => r.id >= 3).map((r) => [r.id, r.tenant_id]);
+      expect(added).toEqual([
+        [3, "tenant-a"],
+        [4, "tenant-a"],
+        [5, "tenant-a"],
+      ]);
+    });
+  });
+
+  describe("MysqlSharedAdapter qualified tenant keys", () => {
+    it("scopedUpdate and scopedInsert never write another tenant through a qualified or cased key", async () => {
+      const adapter = new MysqlSharedAdapter({
+        pool: pool as unknown as MysqlPoolLike,
+        databaseName: SHARED_DB,
+      });
+      const attempt = async (fn: () => Promise<unknown>) => {
+        try {
+          await fn();
+        } catch {
+          // refused
+        }
+      };
+
+      for (const key of ["users.tenant_id", `${SHARED_DB}.users.tenant_id`, "TENANT_ID"]) {
+        await attempt(() => adapter.scopedUpdate("tenant-a", "users", { [key]: "tenant-b", name: "x" }, { id: 1 }));
+        await attempt(() => adapter.scopedInsert("tenant-a", "users", { id: 9, name: "z", [key]: "tenant-b" }));
+      }
+
+      const rows = await allRows();
+      expect(rows.find((r) => r.id === 1)?.tenant_id).toBe("tenant-a");
+      expect(rows.filter((r) => r.tenant_id === "tenant-b").map((r) => r.id)).toEqual([2]);
+    });
   });
 
   describe("MysqlSharedAdapter.scopedUpdate", () => {

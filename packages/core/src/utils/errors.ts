@@ -28,6 +28,7 @@ export enum ErrorCode {
   WEBHOOK_DELIVERY_FAILED = "WEBHOOK_DELIVERY_FAILED",
   WEBHOOK_URL_INVALID = "WEBHOOK_URL_INVALID",
   REGION_NOT_FOUND = "REGION_NOT_FOUND",
+  DECRYPTION_FAILED = "DECRYPTION_FAILED",
 }
 
 export class StratumError extends Error {
@@ -82,10 +83,13 @@ export class TenantAlreadyExistsError extends StratumError {
 }
 
 export class TenantHasChildrenError extends StratumError {
-  constructor(tenantId: string) {
+  /** `action` names the blocked transition. */
+  constructor(tenantId: string, action: "archive" | "suspend" = "archive") {
     super(
       ErrorCode.TENANT_HAS_CHILDREN,
-      `Cannot archive tenant ${tenantId}: it has active children. Archive children first.`,
+      action === "suspend"
+        ? `Cannot suspend tenant ${tenantId}: it has active children. Suspend or archive its children first.`
+        : `Cannot archive tenant ${tenantId}: it has active children. Archive children first.`,
       409,
     );
     this.name = "TenantHasChildrenError";
@@ -400,5 +404,30 @@ export class AbacPolicyLockedError extends StratumError {
       403,
     );
     this.name = "AbacPolicyLockedError";
+  }
+}
+
+/**
+ * A stored encrypted value could not be decrypted: it is not in the Stratum
+ * ciphertext format, or it fails authentication because it was encrypted
+ * under a different key or HKDF salt (or was altered). The message never
+ * contains the value. `cause` holds the underlying error.
+ */
+export class DecryptionError extends StratumError {
+  constructor(reason: "format" | "authentication", options?: { cause?: unknown }) {
+    super(
+      ErrorCode.DECRYPTION_FAILED,
+      reason === "format"
+        ? "Cannot decrypt a stored value: Invalid encrypted value format"
+        : "Cannot decrypt a stored value: it was encrypted under a different " +
+            "STRATUM_ENCRYPTION_KEY or STRATUM_HKDF_SALT, or it was altered. During a key " +
+            "or salt change, set STRATUM_ENCRYPTION_KEY_PREVIOUS and STRATUM_HKDF_SALT_PREVIOUS " +
+            "to the earlier values.",
+      500,
+    );
+    this.name = "DecryptionError";
+    if (options && "cause" in options) {
+      Object.defineProperty(this, "cause", { value: options.cause, writable: true, configurable: true });
+    }
   }
 }

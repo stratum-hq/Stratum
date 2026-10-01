@@ -5,6 +5,10 @@ import { confirm } from "../../utils/prompt.js";
 
 vi.mock("../../utils/db.js", () => ({
   connectDb: vi.fn(),
+  connectAdminDb: vi.fn(() => Promise.resolve(undefined)),
+  controlRoleFlag: vi.fn(() => undefined),
+  crossTenantRunner: vi.fn(),
+  quoteIdent: (name: string) => `"${name}"`,
   scanTables: vi.fn(),
 }));
 vi.mock("../../utils/prompt.js", () => ({
@@ -22,25 +26,28 @@ class ExitError extends Error {
 /**
  * Fake pg pool whose client records every SQL string it is asked to run.
  * The only query that returns a non-empty result is the table-existence
- * check (`pg_tables ... tablename = $1`, i.e. a query with bound params),
+ * check (`to_regclass($1)`, i.e. a query with bound params),
  * so every "add column / enable RLS / create policy / create index" branch
  * in migrateTable fires.
  */
 function makeFakePool(
-  opts: { tableExists?: boolean; tenantsExists?: boolean; rowCount?: number } = {},
+  opts: { tableExists?: boolean; tenantsExists?: boolean; rowCount?: number; canReference?: boolean } = {},
 ) {
-  const { tableExists = true, tenantsExists = false, rowCount = 0 } = opts;
+  const { tableExists = true, tenantsExists = false, rowCount = 0, canReference = true } = opts;
   const queries: string[] = [];
 
   const client = {
     query: vi.fn((sql: string, params?: unknown[]) => {
       queries.push(sql.trim());
+      if (sql.includes("has_column_privilege")) {
+        return Promise.resolve({ rows: [{ ok: canReference }] });
+      }
       if (sql.includes("count(*)")) {
         return Promise.resolve({ rows: [{ n: rowCount }] });
       }
-      if (sql.includes("pg_tables") && params && params.length > 0) {
-        // table-existence check
-        return Promise.resolve({ rows: tableExists ? [{ n: 1 }] : [] });
+      if (sql.includes("to_regclass") && params && params.length > 0) {
+        // table-existence check, through the search path
+        return Promise.resolve({ rows: tableExists ? [{ nsp: "public" }] : [] });
       }
       if (sql.includes("pg_tables") && sql.includes("'tenants'")) {
         return Promise.resolve({ rows: tenantsExists ? [{ n: 1 }] : [] });
@@ -90,13 +97,13 @@ describe("migrate", () => {
     const joined = queries.join("\n");
     expect(queries[0]).toBe("BEGIN");
     expect(joined).toMatch(/ADD COLUMN tenant_id UUID/);
-    expect(joined).toMatch(/ALTER TABLE orders ENABLE ROW LEVEL SECURITY/);
-    expect(joined).toMatch(/ALTER TABLE orders FORCE ROW LEVEL SECURITY/);
-    expect(joined).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(joined).toMatch(/ALTER TABLE "public".orders ENABLE ROW LEVEL SECURITY/);
+    expect(joined).toMatch(/ALTER TABLE "public".orders FORCE ROW LEVEL SECURITY/);
+    expect(joined).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
     expect(joined).toContain(
       "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid",
     );
-    expect(joined).toMatch(/CREATE INDEX idx_orders_tenant_id ON orders/);
+    expect(joined).toMatch(/CREATE INDEX idx_orders_tenant_id ON "public".orders/);
     expect(queries[queries.length - 1]).toBe("COMMIT");
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
@@ -112,6 +119,17 @@ describe("migrate", () => {
     expect(queries.join("\n")).toMatch(/ADD CONSTRAINT fk_orders_tenant_id/);
   });
 
+  it("refuses, rolls back and names the grant when the login has no REFERENCES on tenants", async () => {
+    const { pool, queries } = makeFakePool({ tenantsExists: true, canReference: false });
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([]);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await expect(migrate(["orders"], {})).rejects.toThrow(/GRANT REFERENCES \(id\) ON tenants/);
+    expect(queries.join("\n")).not.toMatch(/ADD CONSTRAINT fk_orders_tenant_id/);
+    expect(queries[queries.length - 1]).toBe("ROLLBACK");
+  });
+
   it("adds tenant_id without a default, then adds the foreign key NOT VALID and validates it", async () => {
     const { pool, queries } = makeFakePool({ tenantsExists: true });
     (connectDb as Mock).mockResolvedValue(pool);
@@ -122,13 +140,13 @@ describe("migrate", () => {
 
     const joined = queries.join("\n");
     expect(joined).not.toContain("00000000-0000-0000-0000-000000000000");
-    expect(queries).toContain("ALTER TABLE orders ADD COLUMN tenant_id UUID");
-    expect(joined).toMatch(/REFERENCES tenants\(id\) ON DELETE CASCADE NOT VALID/);
-    const addColumn = queries.indexOf("ALTER TABLE orders ADD COLUMN tenant_id UUID");
+    expect(queries).toContain('ALTER TABLE "public".orders ADD COLUMN tenant_id UUID');
+    expect(joined).toMatch(/REFERENCES public.tenants\(id\) ON DELETE CASCADE NOT VALID/);
+    const addColumn = queries.indexOf('ALTER TABLE "public".orders ADD COLUMN tenant_id UUID');
     const addConstraint = queries.findIndex((q) =>
-      q.startsWith("ALTER TABLE orders ADD CONSTRAINT fk_orders_tenant_id"),
+      q.startsWith('ALTER TABLE "public".orders ADD CONSTRAINT fk_orders_tenant_id'),
     );
-    const validate = queries.indexOf("ALTER TABLE orders VALIDATE CONSTRAINT fk_orders_tenant_id");
+    const validate = queries.indexOf('ALTER TABLE "public".orders VALIDATE CONSTRAINT fk_orders_tenant_id');
     expect(addColumn).toBeGreaterThan(-1);
     expect(addConstraint).toBeGreaterThan(addColumn);
     expect(validate).toBeGreaterThan(addConstraint);
@@ -154,12 +172,12 @@ describe("migrate", () => {
 
     await migrate(["orders"], { tenant });
 
-    const update = queries.indexOf("UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL");
-    const setNotNull = queries.indexOf("ALTER TABLE orders ALTER COLUMN tenant_id SET NOT NULL");
+    const update = queries.indexOf('UPDATE "public".orders SET tenant_id = $1 WHERE tenant_id IS NULL');
+    const setNotNull = queries.indexOf('ALTER TABLE "public".orders ALTER COLUMN tenant_id SET NOT NULL');
     expect(update).toBeGreaterThan(-1);
     expect(setNotNull).toBeGreaterThan(update);
     expect(client.query).toHaveBeenCalledWith(
-      "UPDATE orders SET tenant_id = $1 WHERE tenant_id IS NULL",
+      'UPDATE "public".orders SET tenant_id = $1 WHERE tenant_id IS NULL',
       [tenant],
     );
     expect(queries[queries.length - 1]).toBe("COMMIT");
@@ -262,6 +280,32 @@ describe("migrate", () => {
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
 
+  it("--scan suggests stratum migrate only for tables that migrate accepts", async () => {
+    const { pool } = makeFakePool();
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([
+      { table_name: "orders", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+      {
+        table_name: "invoices",
+        has_tenant_id: true,
+        rls_enabled: true,
+        rls_forced: true,
+        has_policy: false,
+        policy_issue: 'policy "open" (ALL) USING (true) does not filter by tenant',
+      },
+      { table_name: "Order Lines", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+    ] satisfies TableInfo[]);
+
+    await migrate([], { scan: true });
+
+    const out = logSpy.mock.calls.flat().join("\n");
+    expect(out).toContain("stratum migrate orders");
+    expect(out).not.toContain("stratum migrate invoices");
+    expect(out).not.toContain("stratum migrate Order Lines");
+    expect(out).toContain("stratum scan --generate");
+    expect(out).toMatch(/Order Lines/);
+  });
+
   it("--all short-circuits when every table is already migrated", async () => {
     const { pool, client } = makeFakePool();
     (connectDb as Mock).mockResolvedValue(pool);
@@ -293,9 +337,25 @@ describe("migrate", () => {
     ] satisfies TableInfo[]);
 
     await expect(migrate([], { all: true })).rejects.toThrow(/1 table\(s\) still have policies/);
-    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
     expect(queries.join("\n")).not.toMatch(/ON invoices/);
     expect(pool.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("--all skips, and names, tables whose names migrate does not take", async () => {
+    const { pool, queries } = makeFakePool();
+    (connectDb as Mock).mockResolvedValue(pool);
+    (confirm as Mock).mockResolvedValue(true);
+    (scanTables as Mock).mockResolvedValue([
+      { table_name: "orders", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+      { table_name: "Order Lines", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+    ] satisfies TableInfo[]);
+
+    await migrate([], { all: true });
+
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON "public".orders/);
+    expect(queries.join("\n")).not.toMatch(/Order Lines/);
+    expect(logSpy.mock.calls.flat().join("\n")).toMatch(/Order Lines/);
   });
 
   it("prints usage and exits 1 when given neither a table nor a mode flag", async () => {

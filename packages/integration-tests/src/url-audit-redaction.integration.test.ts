@@ -11,6 +11,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -52,7 +53,7 @@ describe("URL credential redaction in audit_logs (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   beforeEach(() => {

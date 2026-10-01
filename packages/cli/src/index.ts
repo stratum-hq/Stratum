@@ -12,6 +12,8 @@ import { scaffold } from "./commands/scaffold.js";
 import { doctor } from "./commands/doctor.js";
 import { scan } from "./commands/scan.js";
 import { playground } from "./commands/playground.js";
+import { db } from "./commands/db.js";
+import { closePrompt } from "./utils/prompt.js";
 
 function getVersion(): string {
   // package.json sits one level up from the compiled dist/index.js at runtime.
@@ -68,6 +70,9 @@ async function main(): Promise<void> {
       case "playground":
         await playground(flags);
         break;
+      case "db":
+        await db(args, flags);
+        break;
       case "help":
       case "--help":
       case "-h":
@@ -88,10 +93,16 @@ async function main(): Promise<void> {
         process.exit(command ? 1 : 0);
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    closePrompt();
+    // A refused connection to every address of a host is an AggregateError
+    // with an empty message; its code still says what happened.
+    const code = (err as { code?: unknown } | null)?.code;
+    const message =
+      (err instanceof Error && err.message) || (typeof code === "string" ? code : "") || String(err);
     console.error(`\n  Error: ${message}\n`);
     process.exit(1);
   }
+  closePrompt();
 }
 
 main();

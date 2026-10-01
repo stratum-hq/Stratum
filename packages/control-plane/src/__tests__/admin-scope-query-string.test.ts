@@ -29,10 +29,6 @@ describe("admin scope is enforced independent of the query string", () => {
     (stratum.purgeTenant as ReturnType<typeof vi.fn>).mockResolvedValue(
       undefined,
     );
-    // getTenantContext is not stubbed by the shared helper; add it locally.
-    (stratum as unknown as Record<string, unknown>).getTenantContext = vi
-      .fn()
-      .mockResolvedValue({ tenant: SAMPLE_TENANT });
     app = await buildTestApp(stratum);
   });
 
@@ -71,15 +67,12 @@ describe("admin scope is enforced independent of the query string", () => {
 
     const res = await app.inject({
       method: "GET",
-      url: `/api/v1/tenants/${id}/context?probe=1`,
+      url: `/api/v1/tenants/${id}/export?probe=1`,
       headers: authHeaders(),
     });
 
     expect(res.statusCode).toBe(403);
-    expect(
-      (stratum as unknown as { getTenantContext: ReturnType<typeof vi.fn> })
-        .getTenantContext,
-    ).not.toHaveBeenCalled();
+    expect(stratum.exportTenantData).not.toHaveBeenCalled();
   });
 
   it("admin-scope key is still allowed on an admin route with a query string", async () => {

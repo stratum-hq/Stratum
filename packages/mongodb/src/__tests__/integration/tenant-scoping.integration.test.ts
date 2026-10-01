@@ -153,3 +153,83 @@ describe("update sanitization (shared-collection proxy)", () => {
     expect(docs[0].tenant_id).toBe("tenant-a");
   });
 });
+
+describe("a filter that names another tenant (shared-collection proxy)", () => {
+  const CONFLICT = /conflicts with the tenant context/;
+
+  const conflicting: Array<[string, Record<string, unknown>]> = [
+    ["a top-level tenant_id", { tenant_id: "tenant-b" }],
+    ["tenant_id inside $and", { $and: [{ tenant_id: "tenant-b" }] }],
+    ["tenant_id inside $or", { $or: [{ tenant_id: "tenant-b" }, { name: "a-order" }] }],
+    ["tenant_id inside $nor", { $nor: [{ tenant_id: "tenant-b" }] }],
+    ["tenant_id in nested logical operators", { $and: [{ $or: [{ tenant_id: "tenant-b" }] }] }],
+    ["a query operator on tenant_id", { tenant_id: { $in: ["tenant-a", "tenant-b"] } }],
+    ["a $ne on tenant_id", { tenant_id: { $ne: "tenant-a" } }],
+    ["a dotted tenant_id path", { "tenant_id.x": "y" }],
+  ];
+
+  for (const [label, filter] of conflicting) {
+    it(`refuses ${label} in find, the same as every other filter method`, async () => {
+      expect(() => colA.find(filter)).toThrow(CONFLICT);
+      expect(() => colA.findOne(filter)).toThrow(CONFLICT);
+      expect(() => colA.countDocuments(filter)).toThrow(CONFLICT);
+      expect(() => colA.distinct("name", filter)).toThrow(CONFLICT);
+      expect(() => colA.updateOne(filter, { $set: { touched: true } })).toThrow(CONFLICT);
+      expect(() => colA.updateMany(filter, { $set: { touched: true } })).toThrow(CONFLICT);
+      expect(() => colA.deleteOne(filter)).toThrow(CONFLICT);
+      expect(() => colA.deleteMany(filter)).toThrow(CONFLICT);
+      expect(() =>
+        colA.bulkWrite([{ updateOne: { filter, update: { $set: { touched: true } } } }]),
+      ).toThrow(CONFLICT);
+
+      // Nothing ran: both tenants' documents are as they were.
+      const docs = await rawDocs("orders");
+      expect(docs.map((d) => [d.name, d.tenant_id, d.touched]).sort()).toEqual([
+        ["a-order", "tenant-a", undefined],
+        ["b-order", "tenant-b", undefined],
+      ]);
+    });
+  }
+
+  it("refuses another tenant's id set later through the find cursor's filter()", () => {
+    const cursor = colA.find({}) as unknown as { filter(f: Record<string, unknown>): unknown };
+    expect(() => cursor.filter({ $and: [{ tenant_id: "tenant-b" }] })).toThrow(CONFLICT);
+  });
+
+  it("matches only the current tenant's documents with $expr, $where and $elemMatch filters", async () => {
+    await colA.updateOne({ name: "a-order" }, { $set: { items: [{ tenant_id: "tenant-b" }] } });
+    await colB.updateOne({ name: "b-order" }, { $set: { items: [{ tenant_id: "tenant-b" }] } });
+    const filters: Record<string, unknown>[] = [
+      { $expr: { $or: [{ $eq: ["$tenant_id", "tenant-b"] }, true] } },
+      { $where: "this.tenant_id === 'tenant-b' || true" },
+      { items: { $elemMatch: { tenant_id: "tenant-b" } } },
+      { $or: [{ $expr: { $eq: ["$tenant_id", "tenant-b"] } }, { name: "a-order" }] },
+    ];
+    for (const filter of filters) {
+      const docs = (await colA.find(filter).toArray()) as Array<{ name: string }>;
+      expect(docs.map((d) => d.name)).toEqual(["a-order"]);
+      // countDocuments runs as an aggregate $match, where the server does not allow $where.
+      if (!("$where" in filter)) expect(await colA.countDocuments(filter)).toBe(1);
+      await colA.updateMany(filter, { $set: { touched: true } });
+    }
+    expect(await colA.countDocuments({ $expr: { $eq: ["$tenant_id", "tenant-b"] } })).toBe(0);
+
+    const docs = await rawDocs("orders");
+    expect(docs.map((d) => [d.name, d.tenant_id, d.touched]).sort()).toEqual([
+      ["a-order", "tenant-a", true],
+      ["b-order", "tenant-b", undefined],
+    ]);
+  });
+
+  it("accepts the context's own tenant_id, as a value, an $eq, or inside $and", async () => {
+    for (const filter of [
+      { tenant_id: "tenant-a" },
+      { tenant_id: { $eq: "tenant-a" } },
+      { $and: [{ tenant_id: "tenant-a" }, { name: "a-order" }] },
+    ]) {
+      const docs = (await colA.find(filter).toArray()) as Array<{ name: string }>;
+      expect(docs.map((d) => d.name)).toEqual(["a-order"]);
+      expect(await colA.countDocuments(filter)).toBe(1);
+    }
+  });
+});

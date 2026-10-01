@@ -30,7 +30,7 @@ describe("API Key Routes", () => {
   describe("POST /api/v1/api-keys", () => {
     it("creates a key and returns plaintext once with 201", async () => {
       const createdKey = {
-        id: "key-uuid-1",
+        id: "6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601",
         tenant_id: "550e8400-e29b-41d4-a716-446655440000",
         plaintext: "sk_test_abc123def456",
         name: "My API Key",
@@ -47,7 +47,7 @@ describe("API Key Routes", () => {
 
       expect(response.statusCode).toBe(201);
       const body = response.json();
-      expect(body.id).toBe("key-uuid-1");
+      expect(body.id).toBe("6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601");
       expect(body.plaintext).toBe("sk_test_abc123def456");
       expect(stratum.createApiKey).toHaveBeenCalledOnce();
       expect((stratum.createApiKey as Mock).mock.calls[0][0]).toBe("550e8400-e29b-41d4-a716-446655440000");
@@ -130,7 +130,7 @@ describe("API Key Routes", () => {
     it("lists keys without plaintext", async () => {
       const keys = [
         {
-          id: "key-uuid-1",
+          id: "6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601",
           tenant_id: "550e8400-e29b-41d4-a716-446655440000",
           name: "Key 1",
           created_at: new Date().toISOString(),
@@ -162,7 +162,7 @@ describe("API Key Routes", () => {
       // Plaintext should never appear in list response
       expect(body[0]).not.toHaveProperty("plaintext");
       expect(body[1]).not.toHaveProperty("plaintext");
-      expect(body[0].id).toBe("key-uuid-1");
+      expect(body[0].id).toBe("6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601");
     });
 
     it("lists keys filtered by tenant_id query param", async () => {
@@ -188,13 +188,13 @@ describe("API Key Routes", () => {
 
       const response = await app.inject({
         method: "DELETE",
-        url: "/api/v1/api-keys/key-uuid-1",
+        url: "/api/v1/api-keys/6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601",
         headers: authHeaders(),
       });
 
       expect(response.statusCode).toBe(204);
       expect(response.body).toBe("");
-      expect(stratum.revokeApiKey).toHaveBeenCalledWith("key-uuid-1", expect.objectContaining({ actor_id: expect.any(String) }));
+      expect(stratum.revokeApiKey).toHaveBeenCalledWith("6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601", expect.objectContaining({ actor_id: expect.any(String) }));
     });
 
     it("returns 404 when key does not exist", async () => {
@@ -202,7 +202,7 @@ describe("API Key Routes", () => {
 
       const response = await app.inject({
         method: "DELETE",
-        url: "/api/v1/api-keys/nonexistent-key",
+        url: "/api/v1/api-keys/6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f699",
         headers: authHeaders(),
       });
 
@@ -227,7 +227,7 @@ describe("API Key Routes", () => {
 
       const response = await app.inject({
         method: "POST",
-        url: "/api/v1/api-keys/key-uuid-1/rotate",
+        url: "/api/v1/api-keys/6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601/rotate",
         headers: authHeaders(),
         payload: {},
       });
@@ -235,7 +235,7 @@ describe("API Key Routes", () => {
       expect(response.statusCode).toBe(201);
       const body = response.json();
       expect(body.plaintext).toBe("sk_test_rotated_xyz789");
-      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", undefined, expect.objectContaining({ actor_id: expect.any(String) }));
+      expect(stratum.rotateApiKey).toHaveBeenCalledWith("6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601", undefined, expect.objectContaining({ actor_id: expect.any(String) }));
     });
 
     it("rotates a key with a new name", async () => {
@@ -250,14 +250,14 @@ describe("API Key Routes", () => {
 
       const response = await app.inject({
         method: "POST",
-        url: "/api/v1/api-keys/key-uuid-1/rotate",
+        url: "/api/v1/api-keys/6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601/rotate",
         headers: authHeaders(),
         payload: { name: "New Name" },
       });
 
       expect(response.statusCode).toBe(201);
       expect(response.json().name).toBe("New Name");
-      expect(stratum.rotateApiKey).toHaveBeenCalledWith("key-uuid-1", "New Name", expect.objectContaining({ actor_id: expect.any(String) }));
+      expect(stratum.rotateApiKey).toHaveBeenCalledWith("6f1c2a3b-4d5e-4f60-8a71-b2c3d4e5f601", "New Name", expect.objectContaining({ actor_id: expect.any(String) }));
     });
   });
 

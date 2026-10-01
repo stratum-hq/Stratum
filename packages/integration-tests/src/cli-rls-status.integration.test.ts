@@ -27,7 +27,7 @@ const scratchUrl = (() => {
   return u.toString();
 })();
 
-function runCli(args: string[], databaseUrl: string): { code: number | null; out: string } {
+function runCli(args: string[], databaseUrl: string): { code: number | null; out: string; stdout: string } {
   const res = spawnSync(process.execPath, [CLI, ...args, "--database-url", databaseUrl], {
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },
@@ -37,10 +37,10 @@ function runCli(args: string[], databaseUrl: string): { code: number | null; out
   // Strip ANSI colour codes so assertions read naturally.
   // eslint-disable-next-line no-control-regex
   const out = `${res.stdout}${res.stderr}`.replace(/\x1b\[[0-9;]*m/g, "");
-  return { code: res.status, out };
+  return { code: res.status, out, stdout: res.stdout };
 }
 
-/** The SQL block `scan --generate` prints after its report. */
+/** The SQL block `scan --generate` prints to stdout (the report goes to stderr). */
 function generatedSql(out: string): string {
   const start = out.indexOf("-- Stratum Migration Scanner");
   expect(start).toBeGreaterThanOrEqual(0);
@@ -89,7 +89,7 @@ describe("CLI RLS status: a table with RLS enabled but not forced", () => {
   });
 
   it("scan --generate emits FORCE ROW LEVEL SECURITY for the table", () => {
-    const { out } = runCli(["scan", "--generate"], scratchUrl);
+    const { stdout: out } = runCli(["scan", "--generate"], scratchUrl);
     expect(generatedSql(out)).toContain(`ALTER TABLE "cli_orders" FORCE ROW LEVEL SECURITY;`);
   });
 
@@ -121,12 +121,12 @@ describe("CLI scan --generate: SQL that a DBA runs as written", () => {
   });
 
   it("forces RLS on tables that get a new tenant_id column", () => {
-    const { out } = runCli(["scan", "--generate"], scratchUrl);
+    const { stdout: out } = runCli(["scan", "--generate"], scratchUrl);
     expect(generatedSql(out)).toContain(`ALTER TABLE "CliInvoices" FORCE ROW LEVEL SECURITY;`);
   });
 
   it("quotes table names so the generated SQL applies to exactly those tables", async () => {
-    const { out } = runCli(["scan", "--generate"], scratchUrl);
+    const { stdout: out } = runCli(["scan", "--generate"], scratchUrl);
     const sql = generatedSql(out);
 
     // Executing the generated script must succeed and affect only the scanned

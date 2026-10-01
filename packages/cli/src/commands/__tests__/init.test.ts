@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { init } from "../init.js";
 import { select, confirm } from "../../utils/prompt.js";
+import { expectEnvSecrets } from "./env-assertions.js";
 
 vi.mock("../../utils/prompt.js", () => ({
   select: vi.fn(),
@@ -71,6 +72,24 @@ describe("init", () => {
     expect(read("stratum.config.ts")).toContain('integration: "sdk"');
   });
 
+  it("writes the Next.js middleware and proxy route into src when the app lives in src/app", async () => {
+    fs.mkdirSync(path.join(outDir, "src", "app"), { recursive: true });
+    fs.writeFileSync(
+      path.join(detectDir, "package.json"),
+      JSON.stringify({ dependencies: { next: "*", pg: "*", react: "*" } }),
+      "utf8",
+    );
+    (select as Mock).mockResolvedValueOnce(1); // integration: sdk
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    expect(exists("src/middleware.ts")).toBe(true);
+    expect(exists("src/app/api/stratum/[...path]/route.ts")).toBe(true);
+    expect(exists("middleware.ts")).toBe(false);
+    expect(exists("app")).toBe(false);
+  });
+
   it("uses the detected framework, ORM and React from an existing package.json", async () => {
     fs.writeFileSync(
       path.join(detectDir, "package.json"),
@@ -103,4 +122,30 @@ describe("init", () => {
     expect(output()).toContain("Cancelled");
     expect(fs.readdirSync(outDir)).toHaveLength(0);
   });
+
+  it("offers a default for each choice, which Enter accepts", async () => {
+    (select as Mock).mockImplementation((_q: string, _opts: string[], def?: number) => Promise.resolve(def));
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    for (const call of (select as Mock).mock.calls) {
+      expect(typeof call[2]).toBe("number");
+    }
+    expect((select as Mock).mock.calls).toHaveLength(3);
+    // Defaults: framework Other / None, direct library, pg.
+    expect(read("stratum.config.ts")).toContain('integration: "lib"');
+    expect(exists("stratum-setup.ts")).toBe(true);
+    expect(exists("stratum-db.ts")).toBe(true);
+  });
+
+  it("writes the encryption, salt and HMAC secrets and the admin login to .env.stratum", async () => {
+    (select as Mock).mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    expectEnvSecrets(read(".env.stratum"));
+  });
 });
+

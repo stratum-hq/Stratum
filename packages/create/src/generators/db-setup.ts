@@ -129,6 +129,15 @@ export { pool };
   }
 
   files.push({
+    filename: "src/schema.ts",
+    content: drizzleSchema(preset),
+  });
+
+  // drizzle-kit creates tables, so on PostgreSQL it connects as the superuser
+  // in DATABASE_SUPERUSER_URL, kept for migrations. A table the app role owned
+  // would not be subject to its own RLS policies; init.sql grants the app role
+  // access to the tables the superuser creates.
+  files.push({
     filename: "drizzle.config.ts",
     content: `import type { Config } from "drizzle-kit";
 
@@ -137,13 +146,46 @@ export default {
   out: "./drizzle",
   ${preset.database === "mysql" ? 'dialect: "mysql",' : 'dialect: "postgresql",'}
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    url: ${preset.database === "mysql" ? "process.env.DATABASE_URL!" : "(process.env.DATABASE_SUPERUSER_URL ?? process.env.DATABASE_URL)!"},
   },
 } satisfies Config;
 `,
   });
 
   return files;
+}
+
+/** src/schema.ts, the Drizzle table definitions that drizzle.config.ts points at. */
+function drizzleSchema(preset: StackPreset): string {
+  if (preset.database === "mysql") {
+    return `// Drizzle table definitions. drizzle.config.ts reads this file.
+import { mysqlTable, varchar, text, timestamp } from "drizzle-orm/mysql-core";
+
+// An example tenant-scoped table: every row carries the tenant it belongs to.
+export const notes = mysqlTable("notes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+`;
+  }
+  return `// Drizzle table definitions. drizzle.config.ts reads this file.
+import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
+
+// An example tenant-scoped table: every row carries the tenant it belongs to.
+// Stratum's own tables, such as tenants, are created by Stratum, not here.
+export const notes = pgTable(
+  "notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("notes_tenant_id_idx").on(table.tenantId)],
+);
+`;
 }
 
 function generateSequelizeSetup(preset: StackPreset): DbSetupFile[] {

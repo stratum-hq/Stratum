@@ -37,8 +37,12 @@ async function seed() {
   // The control plane hashes keys with SHA-256 unless STRATUM_API_KEY_HMAC_SECRET
   // is set, which the demo stack does not set, so store the SHA-256 hash here.
   const keyHash = createHash("sha256").update(API_KEY).digest("hex");
+  // With DATABASE_ADMIN_URL (docker-compose sets it), the key is inserted as
+  // the admin login, a member of the control role; the application login of
+  // DATABASE_URL cannot write api_keys then.
   const bootstrapPool = new Pool({
     connectionString:
+      process.env.DATABASE_ADMIN_URL ||
       process.env.DATABASE_URL ||
       "postgresql://stratum:stratum@localhost:5432/stratum",
   });
@@ -57,6 +61,12 @@ async function seed() {
   `,
     [keyHash, KEY_PREFIX],
   );
+  if (process.env.DATABASE_ADMIN_URL) {
+    // The demo's security_events table below, owned by the application
+    // login, has a foreign key to tenants, which needs REFERENCES on it.
+    const appRole = new URL(process.env.DATABASE_URL || "postgresql://stratum_app@localhost/stratum").username;
+    await bootstrapPool.query(`GRANT REFERENCES (id) ON tenants TO "${appRole.replace(/"/g, '""')}"`);
+  }
   await bootstrapPool.end();
 
   // 1. Create tenant hierarchy

@@ -2,8 +2,9 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "node:crypto";
 import * as log from "../utils/log.js";
+import { databaseEnvLines, secretEnvLines } from "../utils/env-template.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
-import { nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
+import { nextjsAppRoot, nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
 
 function writeFile(filePath: string, content: string, force: boolean): void {
   if (fs.existsSync(filePath) && !force) {
@@ -162,7 +163,9 @@ export { fastifyPlugin };
 }
 
 function scaffoldNextjs(outDir: string, force: boolean): void {
-  writeFile(path.join(outDir, "middleware.ts"), nextjsMiddleware(), force);
+  // Next.js runs middleware only from the directory that holds the app directory.
+  const appRoot = nextjsAppRoot(outDir);
+  writeFile(path.join(appRoot, "middleware.ts"), nextjsMiddleware(), force);
 
   writeFile(path.join(outDir, "lib/stratum.ts"), `// Stratum helpers for Next.js
 import { StratumClient } from "@stratum-hq/sdk";
@@ -213,10 +216,10 @@ function TenantBoundary({ children }: { children: React.ReactNode }) {
 }
 `, force);
 
-  writeFile(path.join(outDir, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
+  writeFile(path.join(appRoot, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
 
   log.info("Install: npm install @stratum-hq/sdk @stratum-hq/react jose");
-  log.info("Place middleware.ts in your Next.js project root. It needs JWT_SECRET set.");
+  log.info("middleware.ts must sit next to your app directory (src/middleware.ts for src/app). It needs JWT_SECRET set.");
   log.info("Place lib/stratum.ts in your lib/ directory.");
   log.info("Wrap layouts with <TenantLayout>.");
   log.info("Implement authorize() in app/api/stratum/[...path]/route.ts; it denies every request until you do.");
@@ -333,6 +336,10 @@ function scaffoldDocker(outDir: string, force: boolean): void {
 # Required environment (for example in a .env file next to this one):
 #   JWT_SECRET   long random value, e.g. the output of: openssl rand -base64 32
 #   STRATUM_REF  Stratum release tag to build the control plane from
+#
+# Outside development, also set STRATUM_ENCRYPTION_KEY, STRATUM_HKDF_SALT and
+# STRATUM_API_KEY_HMAC_SECRET (see .env.stratum from: stratum scaffold env),
+# and replace the stratum_dev passwords in stratum-init-db.sql and below.
 version: "3.8"
 
 services:
@@ -363,14 +370,22 @@ services:
       stratum-db:
         condition: service_healthy
     environment:
-      # stratum_app is NOSUPERUSER NOBYPASSRLS (see stratum-init-db.sql), so
-      # row-level security applies to the control plane's queries.
+      # The application login: no BYPASSRLS and no privilege on the Stratum
+      # tables (see stratum-init-db.sql), so row-level security applies.
       DATABASE_URL: postgres://stratum_app:stratum_dev@stratum-db:5432/stratum
+      # The admin login, a member of stratum_control: the migrations and the
+      # library's cross-tenant work run on it.
+      DATABASE_ADMIN_URL: postgres://stratum_admin:stratum_dev@stratum-db:5432/stratum
       JWT_SECRET: \${JWT_SECRET:?Set JWT_SECRET to a long random value}
       # Bearer tokens must carry this audience (aud) to be accepted.
       JWT_AUDIENCE: \${JWT_AUDIENCE:-stratum-control-plane}
       NODE_ENV: \${NODE_ENV:-development}
       PORT: "3001"
+      # Passed through from your environment when set. Required when NODE_ENV
+      # is not development or test.
+      STRATUM_ENCRYPTION_KEY:
+      STRATUM_HKDF_SALT:
+      STRATUM_API_KEY_HMAC_SECRET:
     ports:
       - "127.0.0.1:3001:3001"
 
@@ -378,20 +393,58 @@ volumes:
   stratum_data:
 `, force);
 
-  writeFile(path.join(outDir, "stratum-init-db.sql"), `-- Runs once, as the bootstrap superuser, when the database volume is created.
+  writeFile(path.join(outDir, "stratum-init-db.sql"), `-- Runs once, as the bootstrap superuser (POSTGRES_USER, stratum), when the
+-- database volume is created. See the "Hardening: separate admin and app
+-- roles" guide for the role model of @stratum-hq/lib migration 032.
+-- Replace the stratum_dev passwords outside development.
+
+-- Extensions need the superuser (uuid-ossp and ltree).
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "ltree";
 
--- The control plane connects as stratum_app. A superuser or BYPASSRLS role
--- ignores every row-level security policy, FORCE included, so the bootstrap
--- superuser is never used by the application.
-CREATE ROLE stratum_app WITH LOGIN PASSWORD 'stratum_dev' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;
-GRANT CONNECT, CREATE ON DATABASE stratum TO stratum_app;
-GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
+-- stratum_control: the NOLOGIN control role. Every Stratum table gets a
+-- policy for it, and only its members reach rows across tenants. Created
+-- here, by the superuser, so that the migrations can apply it although they
+-- run as stratum_admin, which cannot create roles.
+CREATE ROLE stratum_control NOLOGIN NOSUPERUSER NOBYPASSRLS;
+GRANT USAGE, CREATE ON SCHEMA public TO stratum_control;
+
+-- stratum_admin: the control plane's admin login (DATABASE_ADMIN_URL). Not a
+-- superuser and no BYPASSRLS: it reaches the Stratum tables as a member of
+-- stratum_control. It runs the migrations, so it owns the Stratum tables, and
+-- it creates the schemas and databases of isolated tenants.
+CREATE ROLE stratum_admin WITH LOGIN PASSWORD 'stratum_dev' NOSUPERUSER NOBYPASSRLS CREATEDB;
+GRANT stratum_control TO stratum_admin WITH INHERIT TRUE, SET TRUE;
+GRANT CONNECT, CREATE ON DATABASE stratum TO stratum_admin;
+GRANT USAGE, CREATE ON SCHEMA public TO stratum_admin;
+
+-- stratum_app: the application login (DATABASE_URL), without BYPASSRLS. It
+-- is not a member of stratum_control, owns nothing of Stratum's, and cannot
+-- write the Stratum tables. It cannot create objects in public, where the
+-- Stratum tables live: it creates and owns the application's own tables in
+-- its own schema, stratum_app, which is first on its default search path
+-- ("$user", public), so unqualified CREATE TABLE statements land there and
+-- unqualified names still find the Stratum tables in public. To let it read
+-- the recommended read list (tenants, config_entries, ...; never api_keys,
+-- webhooks or regions), run once the control plane has migrated:
+--   stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \\
+--     --database-url postgres://stratum:stratum_dev@localhost:5432/stratum
+-- Default privileges cannot name tables, so they cannot grant that list.
+CREATE ROLE stratum_app WITH LOGIN PASSWORD 'stratum_dev' NOSUPERUSER NOBYPASSRLS;
+GRANT CONNECT ON DATABASE stratum TO stratum_app;
+GRANT USAGE ON SCHEMA public TO stratum_app;
+CREATE SCHEMA stratum_app AUTHORIZATION stratum_app;
+
+-- Only roles granted CREATE by name create objects in public. PostgreSQL 15
+-- and later already start this way; older versions grant it to PUBLIC.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 `, force);
 
   log.info("Set JWT_SECRET and STRATUM_REF (a Stratum release tag), then:");
   log.info("Start with: docker compose -f docker-compose.stratum.yml up -d");
+  log.info("Once the control plane has migrated, give the app login its read access:");
+  log.dim("  stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \\");
+  log.dim("    --database-url postgres://stratum:stratum_dev@localhost:5432/stratum");
   log.info("Control plane: http://localhost:3001");
   log.info("Swagger docs: http://localhost:3001/api/docs");
 }
@@ -399,13 +452,15 @@ GRANT USAGE, CREATE ON SCHEMA public TO stratum_app;
 function scaffoldEnv(outDir: string, force: boolean): void {
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
   writeFile(path.join(outDir, ".env.stratum"), `# Stratum Environment Variables
+# Holds secrets: keep this file out of version control.
 
 # Database
-# Application role (NOSUPERUSER NOBYPASSRLS), so row-level security applies.
-DATABASE_URL=postgres://stratum_app:stratum_dev@localhost:5432/stratum
+${databaseEnvLines()}
 
 # Authentication
 JWT_SECRET=${jwtSecret}
+
+${secretEnvLines()}
 
 # Control Plane (if using @stratum-hq/sdk)
 STRATUM_URL=http://localhost:3001
@@ -424,5 +479,5 @@ RATE_LIMIT_WINDOW=1 minute
 `, force);
 
   log.info("Copy variables to your .env file.");
-  log.info("Update DATABASE_URL and JWT_SECRET for production.");
+  log.info("Generate new secrets and database passwords for production; never reuse these values.");
 }

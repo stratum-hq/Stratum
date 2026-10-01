@@ -7,6 +7,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -37,7 +38,7 @@ describe("Encryption & Key Rotation (integration)", () => {
   beforeAll(async () => {
     process.env.STRATUM_ENCRYPTION_KEY = "test-encryption-key-32chars-long!";
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {
@@ -142,7 +143,7 @@ describe("Key rotation resume after a partial failure (integration)", () => {
   beforeAll(async () => {
     delete process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {
