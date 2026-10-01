@@ -196,6 +196,31 @@ describe("a filter that names another tenant (shared-collection proxy)", () => {
     expect(() => cursor.filter({ $and: [{ tenant_id: "tenant-b" }] })).toThrow(CONFLICT);
   });
 
+  it("matches only the current tenant's documents with $expr, $where and $elemMatch filters", async () => {
+    await colA.updateOne({ name: "a-order" }, { $set: { items: [{ tenant_id: "tenant-b" }] } });
+    await colB.updateOne({ name: "b-order" }, { $set: { items: [{ tenant_id: "tenant-b" }] } });
+    const filters: Record<string, unknown>[] = [
+      { $expr: { $or: [{ $eq: ["$tenant_id", "tenant-b"] }, true] } },
+      { $where: "this.tenant_id === 'tenant-b' || true" },
+      { items: { $elemMatch: { tenant_id: "tenant-b" } } },
+      { $or: [{ $expr: { $eq: ["$tenant_id", "tenant-b"] } }, { name: "a-order" }] },
+    ];
+    for (const filter of filters) {
+      const docs = (await colA.find(filter).toArray()) as Array<{ name: string }>;
+      expect(docs.map((d) => d.name)).toEqual(["a-order"]);
+      // countDocuments runs as an aggregate $match, where the server does not allow $where.
+      if (!("$where" in filter)) expect(await colA.countDocuments(filter)).toBe(1);
+      await colA.updateMany(filter, { $set: { touched: true } });
+    }
+    expect(await colA.countDocuments({ $expr: { $eq: ["$tenant_id", "tenant-b"] } })).toBe(0);
+
+    const docs = await rawDocs("orders");
+    expect(docs.map((d) => [d.name, d.tenant_id, d.touched]).sort()).toEqual([
+      ["a-order", "tenant-a", true],
+      ["b-order", "tenant-b", undefined],
+    ]);
+  });
+
   it("accepts the context's own tenant_id, as a value, an $eq, or inside $and", async () => {
     for (const filter of [
       { tenant_id: "tenant-a" },

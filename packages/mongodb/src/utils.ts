@@ -68,6 +68,13 @@ function isOwnTenantCondition(path: string, value: unknown, tenantId: string): b
  * $in or $ne, and dotted tenant_id paths are refused, so a filter that names
  * another tenant fails the same way in every form instead of quietly matching
  * the current tenant's documents or none.
+ *
+ * $expr, $where and $elemMatch are not inspected. They need no check to keep
+ * the scope: scopeFilter sets tenant_id at the top level of the filter, and
+ * MongoDB ANDs top-level conditions, so no condition inside them can match
+ * another tenant's documents. A tenant_id inside $elemMatch names a field of
+ * an array element, not the document's tenant. A condition on another tenant
+ * inside $expr or $where therefore matches nothing rather than throwing.
  */
 export function assertFilterTenant(filter: unknown, tenantId: string): void {
   if (filter === null || typeof filter !== "object" || Array.isArray(filter)) return;

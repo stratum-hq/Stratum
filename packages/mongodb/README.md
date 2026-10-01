@@ -11,7 +11,7 @@ Three isolation strategies:
 
 ## Shared collection filters
 
-A filter may name the current tenant (`tenant_id: "<tenant>"` or `{ $eq: "<tenant>" }`), but any other condition on `tenant_id` throws, whether at the top level or inside `$and`, `$or` or `$nor`: another tenant's ID, a query operator such as `$in` or `$ne`, or a dotted `tenant_id.*` path. This applies to every filter of the scoped collection, including `bulkWrite` filters and a find cursor's `filter()`. Use the raw collection for cross-tenant admin queries.
+A filter may name the current tenant (`tenant_id: "<tenant>"` or `{ $eq: "<tenant>" }`), but any other condition on `tenant_id` throws, whether at the top level or inside `$and`, `$or` or `$nor`: another tenant's ID, a query operator such as `$in` or `$ne`, or a dotted `tenant_id.*` path. This applies to every filter of the scoped collection, including `bulkWrite` filters and a find cursor's `filter()`. Use the raw collection for cross-tenant admin queries. `$expr`, `$where` and `$elemMatch` are not inspected, and need not be: the current tenant's `tenant_id` is set at the top level of every filter, and MongoDB ANDs it with the rest, so a condition inside them cannot match another tenant's documents (one that names another tenant matches nothing).
 
 ## Mongoose plugin scope
 

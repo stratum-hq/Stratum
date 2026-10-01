@@ -41,6 +41,19 @@ describe("createTenantScopedCollection", () => {
       expect(mock.bulkWrite).not.toHaveBeenCalled();
     });
 
+    it("keeps the top-level tenant_id next to $expr, $where and $elemMatch", () => {
+      const filters: Record<string, unknown>[] = [
+        { $expr: { $eq: ["$tenant_id", "other"] } },
+        { $where: "this.tenant_id === 'other'" },
+        { items: { $elemMatch: { tenant_id: "other" } } },
+        { $or: [{ $expr: { $ne: ["$tenant_id", tenantId] } }] },
+      ];
+      for (const filter of filters) {
+        scoped.find(filter);
+        expect(mock.find).toHaveBeenLastCalledWith({ ...filter, tenant_id: tenantId }, undefined);
+      }
+    });
+
     it("passes the context's own tenant_id through", () => {
       scoped.find({ $and: [{ tenant_id: tenantId }] });
       expect(mock.find).toHaveBeenCalledWith(
