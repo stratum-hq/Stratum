@@ -126,16 +126,12 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 </figure>
 
 <style>
-  /* The two series colors pass the dataviz palette check (lightness, chroma,
-     color vision deficiency separation, contrast) against each theme's canvas. */
+  /* The two series are the brand pair, vein and magma: they separate under
+     color vision deficiency and both tokens flip with the theme. */
   .yoy {
-    --yoy-prior: #5e90c8;
+    --yoy-prior: var(--flow);
     --yoy-current: var(--accent);
     margin: var(--space-8) 0;
-  }
-
-  :global([data-theme='light']) .yoy {
-    --yoy-prior: #2f6aa8;
   }
 
   .yoy-title {
@@ -163,7 +159,6 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
     display: inline-block;
     width: 10px;
     height: 10px;
-    border-radius: 2px;
     flex: none;
   }
 
@@ -228,7 +223,6 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   .yoy-bar {
     width: 38%;
     max-width: 16px;
-    border-radius: 3px 3px 0 0;
   }
 
   .yoy-bar-prior {
