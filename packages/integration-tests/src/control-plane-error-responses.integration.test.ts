@@ -61,7 +61,8 @@ describe("control-plane error responses against real Postgres (integration)", ()
   });
 
   it("answers 400 VALIDATION_ERROR for a non-UUID path id on every documented route", async () => {
-    const spec = app.swagger() as { paths: Record<string, Record<string, unknown>> };
+    // @fastify/swagger decorates the app with swagger(); its types are not a dependency here.
+    const spec = (app as unknown as { swagger(): { paths: Record<string, Record<string, unknown>> } }).swagger();
     const failures: string[] = [];
     let checked = 0;
     for (const [template, operations] of Object.entries(spec.paths)) {
