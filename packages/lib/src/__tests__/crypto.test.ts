@@ -150,14 +150,13 @@ describe("crypto key material outside development and test", () => {
     }
   });
 
-  it("refuses to encrypt with the built-in dev key in any non-development, non-test environment", async () => {
+  it("refuses to load without STRATUM_ENCRYPTION_KEY in any non-development, non-test environment", async () => {
     for (const nodeEnv of ["staging", "preview", "qa"]) {
       process.env.STRATUM_HKDF_SALT = "a1".repeat(32);
       delete process.env.STRATUM_ENCRYPTION_KEY;
       delete process.env.WEBHOOK_ENCRYPTION_KEY;
       process.env.NODE_ENV = nodeEnv;
-      const mod = await freshCrypto();
-      expect(() => mod.encrypt("x")).toThrow(/STRATUM_ENCRYPTION_KEY must be set/);
+      await expect(freshCrypto()).rejects.toThrow(/STRATUM_ENCRYPTION_KEY must be set/);
     }
   });
 
@@ -171,9 +170,83 @@ describe("crypto key material outside development and test", () => {
   });
 });
 
+describe("crypto key material checks at startup outside development and test", () => {
+  const names = ["STRATUM_HKDF_SALT", "STRATUM_ENCRYPTION_KEY", "WEBHOOK_ENCRYPTION_KEY", "NODE_ENV"] as const;
+  const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+  const GOOD_KEY = "k".repeat(32);
+  const GOOD_SALT = "a1".repeat(32);
+  const DEV_SALT_HEX = Buffer.from("stratum-non-production-hkdf-salt-v1", "utf8").toString("hex");
+
+  afterEach(() => {
+    for (const n of names) {
+      if (saved[n] === undefined) delete process.env[n];
+      else process.env[n] = saved[n];
+    }
+    vi.resetModules();
+  });
+
+  const freshCrypto = async () => {
+    vi.resetModules();
+    return import("../crypto.js");
+  };
+
+  const env = (vars: Partial<Record<(typeof names)[number], string>>) => {
+    for (const n of names) delete process.env[n];
+    Object.assign(process.env, vars);
+  };
+
+  it("refuses to load with only STRATUM_HKDF_SALT set", async () => {
+    for (const nodeEnv of ["production", "staging"]) {
+      env({ NODE_ENV: nodeEnv, STRATUM_HKDF_SALT: GOOD_SALT });
+      await expect(freshCrypto()).rejects.toThrow(/STRATUM_ENCRYPTION_KEY must be set/);
+    }
+  });
+
+  it("refuses to load with a salt that is not non-empty, even-length hex", async () => {
+    for (const salt of ["not-hex-at-all", "abc", "a1g2"]) {
+      env({ NODE_ENV: "production", STRATUM_HKDF_SALT: salt, STRATUM_ENCRYPTION_KEY: GOOD_KEY });
+      await expect(freshCrypto()).rejects.toThrow(/STRATUM_HKDF_SALT must be a non-empty, even-length hex string/);
+    }
+  });
+
+  it("refuses to load with the built-in development key or salt", async () => {
+    env({ NODE_ENV: "production", STRATUM_HKDF_SALT: GOOD_SALT, STRATUM_ENCRYPTION_KEY: "stratum-dev-key" });
+    await expect(freshCrypto()).rejects.toThrow(/built-in development key/);
+    env({ NODE_ENV: "production", STRATUM_HKDF_SALT: DEV_SALT_HEX, STRATUM_ENCRYPTION_KEY: GOOD_KEY });
+    await expect(freshCrypto()).rejects.toThrow(/built-in development salt/);
+  });
+
+  it("refuses to load with a key shorter than 32 bytes", async () => {
+    for (const key of ["x", "k".repeat(31)]) {
+      env({ NODE_ENV: "production", STRATUM_HKDF_SALT: GOOD_SALT, STRATUM_ENCRYPTION_KEY: key });
+      await expect(freshCrypto()).rejects.toThrow(/STRATUM_ENCRYPTION_KEY must be at least 32 bytes/);
+    }
+  });
+
+  it("does not read WEBHOOK_ENCRYPTION_KEY, and says so", async () => {
+    env({ NODE_ENV: "production", STRATUM_HKDF_SALT: GOOD_SALT, WEBHOOK_ENCRYPTION_KEY: GOOD_KEY });
+    await expect(freshCrypto()).rejects.toThrow(/WEBHOOK_ENCRYPTION_KEY is read only in development and test/);
+  });
+
+  it("loads and round-trips with a real key and salt", async () => {
+    env({ NODE_ENV: "production", STRATUM_HKDF_SALT: GOOD_SALT, STRATUM_ENCRYPTION_KEY: GOOD_KEY });
+    const mod = await freshCrypto();
+    expect(mod.decrypt(mod.encrypt("ok"))).toBe("ok");
+  });
+
+  it("refuses a salt that is not hex in development too, instead of using an empty salt", async () => {
+    env({ NODE_ENV: "development", STRATUM_HKDF_SALT: "not-hex-at-all" });
+    await expect(freshCrypto()).rejects.toThrow(/STRATUM_HKDF_SALT must be a non-empty, even-length hex string/);
+  });
+});
+
 describe("crypto previous HKDF salt during a salt change", () => {
   const SALT_A = "a1".repeat(32);
   const SALT_B = "b2".repeat(32);
+  // Keys outside development and test must be at least 32 bytes.
+  const SAME_KEY = "same-key".padEnd(32, "-");
+  const OLD_KEY = "old-key".padEnd(32, "-");
+  const NEW_KEY = "new-key".padEnd(32, "-");
   const names = [
     "STRATUM_HKDF_SALT",
     "STRATUM_HKDF_SALT_PREVIOUS",
@@ -207,7 +280,7 @@ describe("crypto previous HKDF salt during a salt change", () => {
 
   it("decrypts a value from the previous salt when only the salt changed", async () => {
     process.env.NODE_ENV = "production";
-    const ciphertext = await encryptUnder("same-key", SALT_A, "salt-only");
+    const ciphertext = await encryptUnder(SAME_KEY, SALT_A, "salt-only");
 
     process.env.STRATUM_HKDF_SALT = SALT_B;
     process.env.STRATUM_HKDF_SALT_PREVIOUS = SALT_A;
@@ -216,28 +289,28 @@ describe("crypto previous HKDF salt during a salt change", () => {
 
   it("decrypts a value from the previous key and previous salt together", async () => {
     process.env.NODE_ENV = "production";
-    const ciphertext = await encryptUnder("old-key", SALT_A, "old-pair");
+    const ciphertext = await encryptUnder(OLD_KEY, SALT_A, "old-pair");
 
-    process.env.STRATUM_ENCRYPTION_KEY = "new-key";
+    process.env.STRATUM_ENCRYPTION_KEY = NEW_KEY;
     process.env.STRATUM_HKDF_SALT = SALT_B;
-    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = "old-key";
+    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = OLD_KEY;
     process.env.STRATUM_HKDF_SALT_PREVIOUS = SALT_A;
     expect((await freshCrypto()).decrypt(ciphertext)).toBe("old-pair");
   });
 
   it("does not decrypt a value from an earlier salt when STRATUM_HKDF_SALT_PREVIOUS is unset", async () => {
     process.env.NODE_ENV = "production";
-    const ciphertext = await encryptUnder("old-key", SALT_A, "old-pair");
+    const ciphertext = await encryptUnder(OLD_KEY, SALT_A, "old-pair");
 
-    process.env.STRATUM_ENCRYPTION_KEY = "new-key";
+    process.env.STRATUM_ENCRYPTION_KEY = NEW_KEY;
     process.env.STRATUM_HKDF_SALT = SALT_B;
-    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = "old-key";
+    process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = OLD_KEY;
     await expect(freshCrypto().then((m) => m.decrypt(ciphertext))).rejects.toThrow();
   });
 
   it("encrypts and decrypts with an explicit salt instead of the configured salt", async () => {
     process.env.NODE_ENV = "production";
-    process.env.STRATUM_ENCRYPTION_KEY = "configured-key";
+    process.env.STRATUM_ENCRYPTION_KEY = "configured-key".padEnd(32, "-");
     process.env.STRATUM_HKDF_SALT = SALT_A;
     const mod = await freshCrypto();
 

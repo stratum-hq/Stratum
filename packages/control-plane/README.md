@@ -35,7 +35,7 @@ On startup the server runs database migrations, then listens on `PORT` (default 
 | `RATE_LIMIT_MAX` | `100` | Requests per window |
 | `RATE_LIMIT_WINDOW` | `1 minute` | Rate-limit window |
 | `REDIS_URL` | none | Optional; enables distributed per-key rate limiting. While Redis is unreachable the client keeps reconnecting and per-key limits are counted in memory per process |
-| `STRATUM_ENCRYPTION_KEY` | dev fallback | Field-level encryption key, **required** whenever `NODE_ENV` is not `development` or `test` |
+| `STRATUM_ENCRYPTION_KEY` | dev fallback | Field-level encryption key, **required** (at least 32 bytes) whenever `NODE_ENV` is not `development` or `test` |
 | `STRATUM_HKDF_SALT` | dev fallback | Hex-encoded HKDF salt, **required** whenever `NODE_ENV` is not `development` or `test` |
 | `NODE_ENV` | `development` | Environment. Any value other than `development` or `test` (staging and preview included) enforces the `JWT_SECRET` checks, requires real encryption key material, and runs migrations with RLS enforcement (refusing a `BYPASSRLS` role). Unset counts as `development` |
 
