@@ -166,8 +166,9 @@ const posts = await getPosts();
   }
 
   @media (max-width: 640px) {
+    /* The top padding clears the fixed nav, which is 69px tall on phones. */
     .blog-index {
-      padding: var(--space-8) var(--space-4);
+      padding: calc(var(--space-8) * 3) var(--space-4) var(--space-8);
     }
   }
 </style>
