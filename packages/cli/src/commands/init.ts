@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
-import { nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
+import { nextjsAppRoot, nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
 
 interface ProjectInfo {
   framework: string;
@@ -466,7 +466,8 @@ process.on("SIGTERM", () => pool.end());
   } else if (info.framework === "nextjs") {
     // Next.js middleware: the tenant comes from a verified JWT, never the subdomain.
     const middlewareContent = nextjsMiddleware();
-    writeFile(path.join(outDir, "middleware.ts"), middlewareContent, force);
+    // Next.js runs middleware only from the directory that holds the app directory.
+    writeFile(path.join(nextjsAppRoot(outDir), "middleware.ts"), middlewareContent, force);
 
     // Next.js API route helper
     const apiHelperContent = `// lib/stratum.ts
@@ -821,7 +822,7 @@ export function useIsRootTenant(): boolean {
 
   // The server-side half: the only place the control-plane API key lives.
   if (info.framework === "nextjs") {
-    writeFile(path.join(outDir, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
+    writeFile(path.join(nextjsAppRoot(outDir), "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
   } else {
     writeFile(path.join(outDir, "stratum-proxy.ts"), expressProxy(), force);
   }

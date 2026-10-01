@@ -56,6 +56,15 @@ describe("scaffold", () => {
     expect(read("middleware.ts")).toContain("NextResponse");
   });
 
+  it("nextjs template writes the middleware and API route into src when the app lives in src/app", async () => {
+    fs.mkdirSync(path.join(tmpDir, "src", "app"), { recursive: true });
+    await scaffold(["nextjs"], { out: tmpDir });
+    expect(exists("src/middleware.ts")).toBe(true);
+    expect(exists("src/app/api/stratum/[...path]/route.ts")).toBe(true);
+    expect(exists("middleware.ts")).toBe(false);
+    expect(exists("app")).toBe(false);
+  });
+
   it("react template writes provider, guards and hooks", async () => {
     await scaffold(["react"], { out: tmpDir });
     expect(exists("stratum-provider.tsx")).toBe(true);

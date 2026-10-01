@@ -1,3 +1,18 @@
+import * as fs from "fs";
+import * as path from "path";
+
+/**
+ * The directory that holds a Next.js project's app (or pages) directory. Next.js
+ * reads middleware and the app directory only from there: the project root
+ * when it has app/ or pages/, else src/ when it has src/app or src/pages.
+ */
+export function nextjsAppRoot(dir: string): string {
+  const has = (...parts: string[]) => fs.existsSync(path.join(dir, ...parts));
+  if (has("app") || has("pages")) return dir;
+  if (has("src", "app") || has("src", "pages")) return path.join(dir, "src");
+  return dir;
+}
+
 /**
  * The Next.js middleware that `stratum init` and `stratum scaffold nextjs`
  * generate. It follows examples/with-nextjs: the tenant ID comes only from
@@ -5,7 +20,7 @@
  * subdomain is forwarded as a slug for display, never as the tenant ID.
  */
 export function nextjsMiddleware(): string {
-  return `// middleware.ts (place in project root)
+  return `// middleware.ts: place it next to your app directory (src/middleware.ts for src/app)
 // Next.js middleware for Stratum tenant resolution
 //
 // The tenant ID comes only from the tenant_id claim of a bearer token that
