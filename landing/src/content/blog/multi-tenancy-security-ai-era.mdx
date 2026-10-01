@@ -45,27 +45,28 @@ checklist for judging any library, including ours.
 
 ## Where this problem comes from
 
-Before Stratum, I worked at a managed security service provider (MSSP). An MSSP runs security
-monitoring for many customers at once, so its tools are multi-tenant by necessity.
+I work at a managed security service provider (MSSP). An MSSP runs security monitoring for
+many customers at once, so its tools are multi-tenant by necessity.
 
-One client ran several AWS accounts under a single AWS organization. The accounts were not
-managed by the client directly. A managed service provider (MSP) ran them on the client's
-behalf, so three parties had a stake in the same data: us, the MSP, and the client.
+Recently, during a normal workday, I ran into this problem again. One of our clients runs
+several AWS accounts under a single AWS organization. The client does not manage those
+accounts directly. A managed service provider (MSP) runs them on the client's behalf, so three
+parties have a stake in the same data: us, the MSP, and the client.
 
-The extended detection and response (XDR) platform we used could not create sub-tenants for
-that client. Every AWS account's data landed in one tenant. Once it was there, we could not
-separate it again:
+The extended detection and response (XDR) platform we use cannot create sub-tenants for that
+client. Every AWS account's data lands in one tenant. Once it is there, we cannot separate it
+again:
 
-- An alert did not tell us which account it came from without manual digging.
-- We could not give the MSP access to the accounts it managed and nothing else.
-- We could not report, retain, or hand off data per account.
-- The client's own team could see all of it or none of it.
+- An alert does not tell us which account it came from without manual digging.
+- We cannot give the MSP access to the accounts it manages and nothing else.
+- We cannot report, retain, or hand off data per account.
+- The client's own team can see all of it or none of it.
 
-None of this was exotic. The real structure was a tree: MSSP, then MSP, then client, then
-sub-account. The platform modeled one level of it. Everything below that level was flattened,
-and the people who needed narrow, delegated access got broad access or no access.
+None of this is exotic. The real structure is a tree: MSSP, then MSP, then client, then
+sub-account. The platform models one level of it. Everything below that level is flattened,
+and the people who need narrow, delegated access get broad access or no access.
 
-That is the problem Stratum was built from. Three things follow from it:
+That is the kind of problem Stratum is built for. Three things follow from it:
 
 - **Hierarchy.** Tenants form a tree, and real organizations are more than two levels deep.
   Stratum stores the tree in PostgreSQL, so a tenant can sit under a parent that sits under
