@@ -27,7 +27,7 @@ export function roleModelChecks(report: RoleModelReport): RoleModelCheck[] {
       {
         status: "warn",
         label: "Control role",
-        summary: "Hardening not active: migration 032 could not apply the control role",
+        summary: "Hardening not active: migration 032 did not apply the control role",
         details: ["Run `stratum db roles --apply` as a superuser (or the SQL it prints) to apply it."],
       },
     ];
@@ -63,6 +63,33 @@ export function roleModelChecks(report: RoleModelReport): RoleModelCheck[] {
             details: report.adminIssues,
           },
     );
+  }
+
+  // Every member of the control role passes every Stratum policy.
+  const others = report.controlMembers.filter((m) => m.role !== report.adminLogin);
+  if (others.length === 0) {
+    checks.push({
+      status: "pass",
+      label: "Control members",
+      summary: report.adminLogin ? `Only the admin login (${report.adminLogin})` : "No member other than superusers",
+    });
+  } else if (report.adminLogin === null) {
+    checks.push({
+      status: "pass",
+      label: "Control members",
+      summary: `Members: ${others.map((m) => m.role).join(", ")}`,
+      details: ["Each should be an admin login of the library. Pass --admin-database-url to check them against it."],
+    });
+  } else {
+    checks.push({
+      status: "warn",
+      label: "Control members",
+      summary: `Members other than the admin login: ${others.map((m) => m.role).join(", ")}`,
+      details: [
+        "A member of the control role passes every Stratum policy. Remove each one that is not an admin login of the library:",
+        ...others.map((m) => `REVOKE "${report.controlRole}" FROM "${m.role}";`),
+      ],
+    });
   }
 
   if (report.legacyBypass === false) {

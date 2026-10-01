@@ -45,7 +45,8 @@ export function printHelp(): void {
     --control-role <role>         Control role of migration 032 (default: the
                                   stratum.control_role setting, else stratum_control)
     --admin-role <role>           Admin login for db roles
-    --app-role <role>             Application login for db roles
+    --app-role <role>             Application login for db roles, and for db lock, which
+                                  refuses while it is a member of the control role
     --schema <schema>             Schema of the Stratum tables for db commands (default: public)
     --apply                       Run the db roles SQL instead of printing it
     --grant-references            db roles: also grant the app login REFERENCES on tenants(id),

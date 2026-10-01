@@ -183,6 +183,55 @@ async function withSchemaPool<T>(
 }
 
 /**
+ * The application login: --app-role, else, when an admin connection is
+ * given, the user of --database-url (or DATABASE_URL). Undefined when it
+ * cannot be told apart from the admin login.
+ */
+function appLogin(flags: Record<string, string | boolean>): string | undefined {
+  const named = roleFlag(flags, "app-role");
+  if (named !== undefined) return named;
+  if (getAdminConnectionString(flags) === undefined) return undefined;
+  const explicit = flags["database-url"] || flags["d"];
+  const url = typeof explicit === "string" ? explicit : process.env.DATABASE_URL;
+  if (!url) return undefined;
+  try {
+    return decodeURIComponent(new URL(url).username) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Refuses to lock while the application login is a member of the control
+ * role: such a login passes every Stratum policy, so turning the legacy
+ * switch off would not limit it.
+ */
+async function refuseAppLoginInControlRole(
+  pool: pg.Pool,
+  flags: Record<string, string | boolean>,
+  schema: string,
+): Promise<void> {
+  const app = appLogin(flags);
+  if (app === undefined) return;
+  const res = await pool.query<{ control: string; member: boolean }>(
+    `SELECT c.rolname::text AS control, NOT r.rolsuper AND pg_has_role(r.oid, c.oid, 'MEMBER') AS member
+       FROM pg_roles r, pg_roles c
+      WHERE r.rolname = $1
+        AND c.rolname IN (SELECT x::text FROM pg_policies p, unnest(p.roles) x
+                           WHERE p.schemaname = $2 AND p.tablename = 'tenants' AND p.policyname = 'stratum_control_plane')`,
+    [app, schema],
+  );
+  const hit = res.rows.find((r) => r.member);
+  if (hit) {
+    throw new Error(
+      `The application login "${app}" is a member of the control role "${hit.control}", so it passes every Stratum ` +
+        `policy and locking would not limit it. Remove it first (REVOKE ${quoteIdent(hit.control)} FROM ${quoteIdent(app)}), ` +
+        "and give the library a separate admin login.",
+    );
+  }
+}
+
+/**
  * Sets the legacy switch of migration 032 in one schema. The UPDATE runs as
  * the login of --admin-database-url (DATABASE_ADMIN_URL), else of
  * --database-url. Only a member of the control role (or a superuser) sees
@@ -210,6 +259,8 @@ async function setLegacySwitch(flags: Record<string, string | boolean>, on: bool
           "Run `stratum db roles --apply` first.",
       );
     }
+
+    if (!on) await refuseAppLoginInControlRole(pool, flags, schema);
 
     let updated;
     try {
