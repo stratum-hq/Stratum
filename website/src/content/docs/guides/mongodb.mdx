@@ -66,7 +66,6 @@ import { Pool } from "pg";
 import { MongoClient } from "mongodb";
 import { Stratum } from "@stratum-hq/lib";
 import { MongoSharedAdapter } from "@stratum-hq/mongodb";
-import type { MongoClientLike } from "@stratum-hq/mongodb";
 
 // Control plane: always PostgreSQL
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -77,8 +76,7 @@ await stratum.initialize();
 const client = new MongoClient(process.env.MONGODB_URI!);
 await client.connect();
 const mongo = new MongoSharedAdapter({
-  // The driver's MongoClient type does not match MongoClientLike exactly, so cast it.
-  client: client as unknown as MongoClientLike,
+  client,
   databaseName: "app",
 });
 
@@ -95,7 +93,7 @@ For `COLLECTION_PER_TENANT`, list every base collection name:
 import { MongoCollectionAdapter } from "@stratum-hq/mongodb";
 
 const mongo = new MongoCollectionAdapter({
-  client: client as unknown as MongoClientLike,
+  client,
   databaseName: "app",
   baseCollections: ["orders", "invoices"],
 });
@@ -113,7 +111,7 @@ const mongo = new MongoDatabaseAdapter({
   createClient: async (uri) => {
     const tenantClient = new MongoClient(uri, { maxPoolSize: 5 }); // connections per tenant database
     await tenantClient.connect();
-    return tenantClient as unknown as MongoClientLike;
+    return tenantClient;
   },
   baseUri: "mongodb://localhost:27017/app",
   maxClients: 100, // close the least recently used client above this count
@@ -229,7 +227,7 @@ To receive delete events, use the `watchDeletes` option. The stream then reads t
 Enable the pre-images on the collection first:
 
 ```typescript
-await mongoose.connection.db.command({
+await mongoose.connection.db!.command({
   collMod: "orders",
   changeStreamPreAndPostImages: { enabled: true },
 });
@@ -335,7 +333,7 @@ const mongo = new MongoDatabaseAdapter({
       minPoolSize: 1, // keep at least 1 connection warm
     });
     await tenantClient.connect();
-    return tenantClient as unknown as MongoClientLike;
+    return tenantClient;
   },
   baseUri: "mongodb://localhost:27017/app",
   maxClients: 200,      // close the least recently used client above this count (default: 20)

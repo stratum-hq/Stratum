@@ -29,7 +29,7 @@ This option needs:
 Enable the pre-images on the collection first:
 
 ```typescript
-await connection.db.command({
+await connection.db!.command({
   collMod: "orders",
   changeStreamPreAndPostImages: { enabled: true },
 });

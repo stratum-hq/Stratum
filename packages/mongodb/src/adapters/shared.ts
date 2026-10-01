@@ -5,6 +5,7 @@ import type {
   AdapterStats,
   DatabaseLike,
   CollectionLike,
+  MongoIndexDirection,
 } from "../types.js";
 import { ALLOWED_PROXY_METHODS } from "../types.js";
 import {
@@ -130,7 +131,7 @@ export function createTenantScopedCollection(
           };
 
         case "createIndex":
-          return (spec: Record<string, unknown>, options?: unknown) => {
+          return (spec: Record<string, MongoIndexDirection>, options?: unknown) => {
             return target.createIndex(spec, options);
           };
 
