@@ -59,6 +59,7 @@ Check a database that already runs Stratum for configuration problems and damage
 ```bash
 stratum doctor
 stratum doctor --database-url postgres://user:pass@host:5432/mydb
+stratum doctor --depth-warning 30
 ```
 
 Checks:
@@ -73,9 +74,11 @@ Checks:
 - Stale API keys: not used for 90 days or more
 - Expired API keys that are not revoked
 - The `STRATUM_ENCRYPTION_KEY` setting
-- Tree depth
+- Tree depth: the maximum depth of an active tenant (advisory)
 
 The command reads the Stratum tables under the `app.bypass_rls` setting, so it sees every tenant when it connects as the application role. If a check fails, the command exits with code 1. A warning does not change the exit code.
+
+The tree depth check is advisory. Stratum accepts a tenant tree of any depth. Config resolution reads every ancestor of a tenant, so a deep tree makes it slower. If the maximum depth is more than the warning threshold, `doctor` warns and lists the deepest tenants. The check never fails `doctor`. The default threshold is 20. To change it, use the `--depth-warning <n>` option or the `STRATUM_DOCTOR_DEPTH_WARNING` environment variable. The option has priority over the variable. If the value is not a positive integer, `doctor` warns and uses 20.
 
 Stratum refuses every write that makes a parent cycle (migration 029), but it does not repair a cycle that is already in the data. While a cycle is in the data, a write that changes the `slug` of a tenant in the cycle fails. For each cycle, `doctor` lists its tenants from child to parent.
 

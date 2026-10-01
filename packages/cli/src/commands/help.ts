@@ -38,6 +38,8 @@ export function printHelp(): void {
     --force                       Overwrite existing files
     --generate, -g                Output migration SQL (scan command)
     --exclude <tables>            Comma-separated tables to skip (scan command)
+    --depth-warning <n>           Tree depth above which doctor warns (doctor command;
+                                  default: STRATUM_DOCTOR_DEPTH_WARNING env or 20)
     --help, -h                    Show this help message
     --version, -v                 Show version
 
