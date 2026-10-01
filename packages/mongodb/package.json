@@ -52,6 +52,7 @@
     "@stratum-hq/test-utils": "*",
     "mongodb": "^7.6.0",
     "mongoose": "^8.0.0",
+    "mongoose9": "npm:mongoose@^9.10.3",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
   },
