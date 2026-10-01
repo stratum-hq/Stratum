@@ -657,6 +657,10 @@ BEGIN
   -- The opt-in counts only when this session set it: RESET shows the value
   -- the session would have without it.
   v_set := pg_catalog.current_setting('stratum.apply_control_role', true);
+  -- RESET has no LOCAL form, so it clears the session's value too. The
+  -- set_config() below restores it for this transaction only: once the
+  -- migration commits, a session-level opt-in is gone, which is intended
+  -- (migrate() sets it per transaction).
   RESET stratum.apply_control_role;
   v_default := pg_catalog.current_setting('stratum.apply_control_role', true);
   PERFORM pg_catalog.set_config('stratum.apply_control_role', coalesce(v_set, ''), true);
