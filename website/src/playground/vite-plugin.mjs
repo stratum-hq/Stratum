@@ -9,6 +9,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const packagesDir = path.resolve(here, "../../../packages") + path.sep;
 const shimsDir = path.join(here, "shims");
 const bufferEntry = createRequire(import.meta.url).resolve("buffer/");
+// Bare imports inside packages/ resolve from website/, because a docs-only
+// install (Cloudflare Pages) has no node_modules above packages/. Each one the
+// Playground loads (zod, @electric-sql/pglite) is declared in
+// website/package.json. Optional ones (drizzle-orm, @opentelemetry/api) stay
+// unresolved, as the Playground never loads them.
+const websiteImporter = path.resolve(here, "../../package.json");
 
 const WORKSPACE = {
   "@stratum-hq/lib": "lib/src/index.ts",
@@ -37,6 +43,10 @@ const SHIMS = {
 // development. The rest of the site keeps the production NODE_ENV.
 const PLAYGROUND_ENV = JSON.stringify({ NODE_ENV: "development" });
 
+function isBare(source) {
+  return !source.startsWith(".") && !path.isAbsolute(source) && !source.startsWith("\0");
+}
+
 export function stratumPlayground() {
   return {
     name: "stratum-playground",
@@ -45,6 +55,9 @@ export function stratumPlayground() {
       if (source in WORKSPACE) return path.join(packagesDir, WORKSPACE[source]);
       if (importer?.startsWith(packagesDir) && source in SHIMS) {
         return path.join(shimsDir, SHIMS[source]);
+      }
+      if (importer?.startsWith(packagesDir) && isBare(source)) {
+        return this.resolve(source, websiteImporter, { skipSelf: true });
       }
       return null;
     },
