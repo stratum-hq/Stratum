@@ -42,8 +42,8 @@ const ROLES: Record<string, RoleRow> = {
   [ROLE_GLOBAL]: { id: ROLE_GLOBAL, name: "global", description: null, scopes: ["read"], tenant_id: null },
 };
 
-const OWN_KEY = "own-key-id";
-const FOREIGN_KEY = "foreign-key-id";
+const OWN_KEY = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const FOREIGN_KEY = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 
 const KEYS: Record<string, { id: string; tenant_id: string | null }> = {
   [OWN_KEY]: { id: OWN_KEY, tenant_id: ATTACKER },

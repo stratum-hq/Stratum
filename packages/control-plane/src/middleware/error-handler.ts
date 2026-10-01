@@ -1,7 +1,6 @@
 import { FastifyRequest, FastifyReply, FastifyError } from "fastify";
 import type { ZodError } from "zod";
 import { ErrorCode } from "@stratum-hq/core";
-import { config } from "../config.js";
 
 /** One failed field of a request, in the shape every validation response uses. */
 export interface ValidationIssue {
@@ -124,16 +123,37 @@ function clientErrorCode(error: FastifyError): string {
   return CLIENT_ERROR_CODES[error.statusCode as number] ?? "BAD_REQUEST";
 }
 
+/**
+ * Logs an error that the API answers with a 5xx status, in every environment.
+ * The request logger adds the request id (reqId), so a report from a client
+ * can be matched to the log line.
+ */
+function logServerError(request: FastifyRequest, error: Error): void {
+  request.log.error({ err: error }, "request failed with a server error");
+}
+
+/**
+ * Answers a request that matches no route with the error envelope of every
+ * other error. The global hooks run first, so a caller without credentials
+ * gets 401 and only an authenticated caller learns that the route is unknown.
+ */
+export function notFoundHandler(request: FastifyRequest, reply: FastifyReply): void {
+  const path = request.url.split("?")[0];
+  reply.status(404).send({
+    error: {
+      code: "NOT_FOUND",
+      message: `Route ${request.method} ${path} not found`,
+    },
+  });
+}
+
 export function errorHandler(
   error: FastifyError | Error,
   request: FastifyRequest,
   reply: FastifyReply,
 ): void {
-  if (config.nodeEnv === "development") {
-    console.error("[error]", error);
-  }
-
   if (isStratumError(error)) {
+    if (error.statusCode >= 500) logServerError(request, error);
     const issues = error.details?.issues;
     if (error.code === ErrorCode.VALIDATION_ERROR && isIssueList(issues)) {
       reply.status(error.statusCode).send(validationErrorBody(error.message, issues, error.details));
@@ -165,6 +185,8 @@ export function errorHandler(
     return;
   }
 
+  // The client gets no detail of the cause; the log has it, under the request id.
+  logServerError(request, error);
   reply.status(500).send({
     error: {
       code: "INTERNAL_SERVER_ERROR",

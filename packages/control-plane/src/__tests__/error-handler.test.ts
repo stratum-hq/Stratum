@@ -211,3 +211,64 @@ describe("legacyValidationErrorBody", () => {
     });
   });
 });
+
+describe("errorHandler logging", () => {
+  let logged: Array<Record<string, unknown>>;
+  let logApp: FastifyInstance;
+
+  beforeAll(async () => {
+    logged = [];
+    logApp = Fastify({
+      logger: { level: "info", stream: { write: (line: string) => logged.push(JSON.parse(line)) } },
+    });
+    logApp.setErrorHandler(errorHandler);
+    logApp.get("/boom", async () => {
+      throw new Error("connection to 10.0.0.5 refused for user stratum");
+    });
+    logApp.get("/stratum-5xx", async () => {
+      throw new ForeignStratumError("TENANT_PROVISIONING_FAILED", "provisioning failed", 500);
+    });
+    logApp.get("/not-found", async () => {
+      throw new ForeignStratumError("REGION_NOT_FOUND", "Region r-1 not found", 404);
+    });
+    await logApp.ready();
+  });
+
+  afterAll(async () => {
+    await logApp.close();
+  });
+
+  function errorLines() {
+    return logged.filter((line) => line.level === 50);
+  }
+
+  it("logs a 500 with the request id and the cause, and sends the client no detail", async () => {
+    logged.length = 0;
+    const res = await logApp.inject({ method: "GET", url: "/boom" });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: { code: "INTERNAL_SERVER_ERROR", message: "An unexpected error occurred" } });
+    expect(res.body).not.toContain("10.0.0.5");
+
+    const lines = errorLines();
+    expect(lines).toHaveLength(1);
+    const reqId = logged.find((line) => line.msg === "incoming request")?.reqId;
+    expect(reqId).toBeDefined();
+    expect(lines[0].reqId).toBe(reqId);
+    expect((lines[0].err as { message: string }).message).toBe("connection to 10.0.0.5 refused for user stratum");
+    expect((lines[0].err as { stack: string }).stack).toContain("error-handler.test.ts");
+  });
+
+  it("logs a StratumError with a 5xx status", async () => {
+    logged.length = 0;
+    const res = await logApp.inject({ method: "GET", url: "/stratum-5xx" });
+    expect(res.statusCode).toBe(500);
+    expect(errorLines()).toHaveLength(1);
+  });
+
+  it("does not log a client error at error level", async () => {
+    logged.length = 0;
+    const res = await logApp.inject({ method: "GET", url: "/not-found" });
+    expect(res.statusCode).toBe(404);
+    expect(errorLines()).toHaveLength(0);
+  });
+});

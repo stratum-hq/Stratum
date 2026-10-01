@@ -129,50 +129,121 @@ describe("Config Routes", () => {
   // ── PUT /api/v1/tenants/:id/config/batch ────────────────────────────
 
   describe("PUT /api/v1/tenants/:id/config/batch", () => {
-    it("batch sets config with partial success", async () => {
-      const batchResult = {
-        results: [
-          {
-            key: "feature.a",
-            status: "ok",
-            entry: {
-              tenant_id: tenantId,
-              key: "feature.a",
-              value: true,
-              locked: false,
-              sensitive: false,
-            },
-          },
-          {
-            key: "feature.b",
-            status: "error",
-            error: "CONFIG_LOCKED",
-            message: "Config 'feature.b' is locked by tenant parent-id and cannot be overridden",
-          },
-        ],
-        succeeded: 1,
-        failed: 1,
-      };
-      (stratum.batchSetConfig as Mock).mockResolvedValue(batchResult);
+    const entryFor = (key: string, value: unknown) => ({
+      tenant_id: tenantId,
+      key,
+      value,
+      locked: false,
+      sensitive: false,
+    });
 
-      const response = await app.inject({
+    function putBatch(entries: unknown[]) {
+      return app.inject({
         method: "PUT",
         url: `/api/v1/tenants/${tenantId}/config/batch`,
         headers: authHeaders(),
-        payload: {
-          entries: [
-            { key: "feature.a", value: true },
-            { key: "feature.b", value: false },
-          ],
-        },
+        payload: { entries },
       });
+    }
+
+    it("returns 200 with the per-key result when every entry is written", async () => {
+      const batchResult = {
+        results: [
+          { key: "feature.a", status: "ok", entry: entryFor("feature.a", true) },
+          { key: "feature.b", status: "ok", entry: entryFor("feature.b", false) },
+        ],
+        succeeded: 2,
+        failed: 0,
+        rolled_back: false,
+      };
+      (stratum.batchSetConfig as Mock).mockResolvedValue(batchResult);
+
+      const response = await putBatch([
+        { key: "feature.a", value: true },
+        { key: "feature.b", value: false },
+      ]);
 
       expect(response.statusCode).toBe(200);
-      const body = response.json();
-      expect(body.succeeded).toBe(1);
-      expect(body.failed).toBe(1);
-      expect(body.results).toHaveLength(2);
+      expect(response.json()).toEqual(batchResult);
       expect(stratum.batchSetConfig).toHaveBeenCalledOnce();
+    });
+
+    it("returns 403 CONFIG_LOCKED with the per-key result when a locked key rolls the batch back", async () => {
+      const batchResult = {
+        results: [
+          { key: "feature.a", status: "error", error: "Not applied: the batch was rolled back because 'feature.b' failed" },
+          {
+            key: "feature.b",
+            status: "error",
+            error: "Config 'feature.b' is locked by tenant parent-id and cannot be overridden",
+          },
+        ],
+        succeeded: 0,
+        failed: 2,
+        rolled_back: true,
+      };
+      (stratum.batchSetConfig as Mock).mockResolvedValue(batchResult);
+
+      const response = await putBatch([
+        { key: "feature.a", value: true },
+        { key: "feature.b", value: false },
+      ]);
+
+      expect(response.statusCode).toBe(403);
+      const body = response.json();
+      expect(body.error.code).toBe("CONFIG_LOCKED");
+      expect(body.error.message).toContain("feature.b");
+      expect(body.error.details).toEqual(batchResult);
+    });
+
+    it("returns 400 VALIDATION_ERROR with the per-key result when the library refuses an entry", async () => {
+      const batchResult = {
+        results: [
+          { key: "feature.a", status: "error", error: "Config 'feature.a' has a value that cannot be stored as JSON" },
+        ],
+        succeeded: 0,
+        failed: 1,
+        rolled_back: true,
+      };
+      (stratum.batchSetConfig as Mock).mockResolvedValue(batchResult);
+
+      const response = await putBatch([{ key: "feature.a", value: 1 }]);
+
+      expect(response.statusCode).toBe(400);
+      const body = response.json();
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details).toMatchObject(batchResult);
+      expect(body.error.details.issues).toEqual([
+        { path: ["entries", 0], message: "Config 'feature.a' has a value that cannot be stored as JSON", code: "custom" },
+      ]);
+    });
+
+    it("returns 400 VALIDATION_ERROR for an invalid entry without calling the library", async () => {
+      const response = await putBatch([
+        { key: "feature.a", value: true },
+        { value: 1 },
+        { key: "feature.c" },
+        { key: "feature.d", value: 1, locked: "yes" },
+      ]);
+
+      expect(response.statusCode).toBe(400);
+      const body = response.json();
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      expect(body.error.details.issues.map((i: { path: unknown[] }) => i.path)).toEqual([
+        ["entries", 1, "key"],
+        ["entries", 2, "value"],
+        ["entries", 3, "locked"],
+      ]);
+      expect(body.error.details.rolled_back).toBe(true);
+      expect(body.error.details.succeeded).toBe(0);
+      expect(body.error.details.failed).toBe(4);
+      expect(body.error.details.results.map((r: { status: string }) => r.status)).toEqual([
+        "error",
+        "error",
+        "error",
+        "error",
+      ]);
+      expect(stratum.batchSetConfig).not.toHaveBeenCalled();
     });
 
     it("returns 400 for empty entries array", async () => {
