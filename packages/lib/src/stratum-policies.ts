@@ -183,14 +183,14 @@ export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOpti
                 ARRAY(SELECT CASE WHEN r = 0 THEN 'public' ELSE pg_get_userbyid(r)::text END FROM unnest(p.polroles) r ORDER BY 1) AS roles,
                 pg_get_expr(p.polqual, p.polrelid) AS qual, pg_get_expr(p.polwithcheck, p.polrelid) AS chk
            FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
-          WHERE c.relnamespace = $1::regnamespace AND c.relname = ANY ($2::text[])`,
+          WHERE c.relnamespace = (SELECT n.oid FROM pg_namespace n WHERE n.nspname = $1::text) AND c.relname = ANY ($2::text[])`,
         [namespace, STRATUM_RLS_TABLES],
       );
 
     const issues: string[] = [];
     const flags = await client.query<{ relname: string; on: boolean; forced: boolean }>(
       `SELECT c.relname, c.relrowsecurity AS on, c.relforcerowsecurity AS forced FROM pg_class c
-        WHERE c.relnamespace = $1::regnamespace AND c.relname = ANY ($2::text[])`,
+        WHERE c.relnamespace = (SELECT n.oid FROM pg_namespace n WHERE n.nspname = $1::text) AND c.relname = ANY ($2::text[])`,
       [nsp, STRATUM_RLS_TABLES],
     );
     for (const f of flags.rows) {
@@ -207,7 +207,7 @@ export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOpti
     const columns = await client.query<{ relname: string; cols: string }>(
       `SELECT c.relname, string_agg(format('%I %s', a.attname, format_type(a.atttypid, a.atttypmod)), ', ' ORDER BY a.attnum) AS cols
          FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
-        WHERE c.relnamespace = $1::regnamespace AND c.relname = ANY ($2::text[])
+        WHERE c.relnamespace = (SELECT n.oid FROM pg_namespace n WHERE n.nspname = $1::text) AND c.relname = ANY ($2::text[])
         GROUP BY c.relname`,
       [nsp, STRATUM_RLS_TABLES],
     );
