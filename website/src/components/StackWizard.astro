@@ -308,9 +308,13 @@
       frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
     },
     mysql: {
-      strategies: ['database', 'table-prefix'],
-      orms: ['pg'],
+      strategies: ['database', 'table-prefix', 'shared'],
+      orms: ['pg', 'knex', 'sequelize'],
       frameworks: ['express', 'fastify', 'nextjs', 'hono', 'nestjs', 'none'],
+      ormsByStrategy: {
+        database: ['pg'],
+        'table-prefix': ['pg'],
+      },
     },
   };
 
@@ -321,6 +325,7 @@
     database: 'Database-per-tenant',
     collection: 'Collection-per-tenant',
     'table-prefix': 'Table prefix',
+    shared: 'Shared table',
     prisma: 'Prisma',
     drizzle: 'Drizzle',
     sequelize: 'Sequelize',

@@ -46,6 +46,7 @@ npx @stratum-hq/create my-app --preset postgres-rls-prisma-express
 npx @stratum-hq/create my-app --preset postgres-schema-prisma-fastify
 npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono
 npx @stratum-hq/create my-app --preset mysql-table-prefix-pg-nestjs
+npx @stratum-hq/create my-app --preset mysql-shared-knex-express
 ```
 
 | Database | Strategies | ORMs |
@@ -54,6 +55,7 @@ npx @stratum-hq/create my-app --preset mysql-table-prefix-pg-nestjs
 | `postgres` | `schema`, `database` | `prisma`, `pg` |
 | `mongodb` | `database`, `collection` | `mongoose` |
 | `mysql` | `database`, `table-prefix` | `pg` (the `mysql2` driver) |
+| `mysql` | `shared` | `pg` (the `mysql2` driver), `knex`, `sequelize` |
 
 Every combination in the table works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none`. An invalid preset exits with an error before anything is written. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
 
@@ -69,8 +71,11 @@ Tables are created by the superuser in `DATABASE_SUPERUSER_URL`, never by the ap
 
 - **database**: each tenant's tables are in its own database, `stratum_tenant_{slug}`, and the generated helper sends each query there with `MysqlDatabaseAdapter` from `@stratum-hq/mysql`.
 - **table-prefix**: each tenant has its own copy of each table, `{table}_{slug}`, and the generated helper names the tenant's tables with `MysqlTableAdapter`.
+- **shared**: all tenants share each table, and the `tenant_id` column of a row names its tenant. See below.
 
-Run `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. It runs as the admin user in `DATABASE_SUPERUSER_URL`, creates the tenant's database or tables from `sql/tenant.sql`, gives the app user read and write access to them, and records the slug in `_stratum_tenants`. A failed run removes what it created. The app user in `DATABASE_URL` creates, alters and drops nothing, and only reads `_stratum_tenants`. The helper takes the tenant ID from the verified token and looks up the slug there; it never takes the slug from the hostname or a header. The names are fixed at provisioning, so do not change a slug or give a tenant a slug that another tenant had. The Knex and Sequelize helpers of `@stratum-hq/mysql` scope a shared table by `tenant_id`, which neither strategy uses, so the generator offers MySQL only with the `mysql2` driver.
+For the database and table-prefix strategies, run `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. It runs as the admin user in `DATABASE_SUPERUSER_URL`, creates the tenant's database or tables from `sql/tenant.sql`, gives the app user read and write access to them, and records the slug in `_stratum_tenants`. A failed run removes what it created. The app user in `DATABASE_URL` creates, alters and drops nothing, and only reads `_stratum_tenants`. The helper takes the tenant ID from the verified token and looks up the slug there; it never takes the slug from the hostname or a header. The names are fixed at provisioning, so do not change a slug or give a tenant a slug that another tenant had. `@stratum-hq/mysql` routes a tenant's own database or tables only for the `mysql2` driver, so these two strategies have no Knex or Sequelize preset.
+
+The **shared** presets use the shared-table helper of `@stratum-hq/mysql` for their ORM: `tenantDb(tenantId)` wraps `MysqlSharedAdapter` (`mysql2`), `tenantKnex(tenantId)` wraps `withTenantScope` (Knex), and `withTenantScope(tenantId, fn)` wraps `withMysqlTenantScope` (Sequelize). The helper takes the tenant ID from the verified token and refuses an ID that is not 1 to 36 printable ASCII characters without spaces. `init.sql` creates an example tenant table, `notes`, with a `tenant_id` column that compares letter case exactly and an index that starts with `tenant_id`. The app user in `DATABASE_URL` keeps only `SELECT`, `INSERT`, `UPDATE` and `DELETE`, so tables are created and changed by the admin user in `DATABASE_SUPERUSER_URL`. There is nothing to provision. MySQL has no row-level security, so a query that does not go through the helper is not filtered by tenant. The helpers also refuse what they cannot scope: Knex joins, unions and upserts, and Sequelize `upsert()` and `truncate()`. The generated README lists each helper's limits.
 
 ### Tenant isolation on MongoDB
 

@@ -25,6 +25,8 @@ All tenants share the same MySQL tables. A `tenant_id` column on every table sco
 
 **Tradeoff:** Isolation is application-enforced. MySQL has no equivalent of PostgreSQL Row-Level Security. A bug in your application code could expose cross-tenant data. Mitigate this with isolation tests in your test suite and code review discipline.
 
+To start a project on this strategy, generate it with `npx @stratum-hq/create my-app --preset mysql-shared-<orm>-<framework>`, where `<orm>` is `pg` (the `mysql2` driver, through `MysqlSharedAdapter`), `knex` or `sequelize`. See [@stratum-hq/create](/packages/create/).
+
 ### Table-per-Tenant
 
 Each tenant gets its own set of tables, named `{table}_{tenantSlug}`. This provides namespace separation but not security isolation: both tenants' tables still live in the same database and are accessible to the same connection.
