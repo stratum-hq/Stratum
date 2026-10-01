@@ -1,0 +1,26 @@
+// Fixture for the Prisma type test in src/__tests__/types/prisma-client.ts.
+// Only the generated declaration and source files are in git. See ../README.md.
+// Prisma 7 has two generators. `prisma-client` is the default in Prisma 7 and
+// writes TypeScript source. `prisma-client-js` writes declaration files, as in
+// Prisma 5 and 6. The fixture holds the output of both.
+generator client {
+  provider = "prisma-client-js"
+  output   = "./client"
+}
+
+generator esm {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+// Prisma 7 reads the connection URL from prisma.config.ts, not from this file.
+datasource db {
+  provider = "postgresql"
+}
+
+model Order {
+  id       String @id @default(uuid())
+  tenantId String @map("tenant_id")
+
+  @@map("orders")
+}
