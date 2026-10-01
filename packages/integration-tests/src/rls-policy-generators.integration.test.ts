@@ -264,6 +264,61 @@ describe("db-adapters createPolicy with an existing tenant_isolation policy", ()
   });
 });
 
+describe("db-adapters createPolicy with other policies on the table", () => {
+  const FILTER = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
+
+  it("rejects a table where another permissive policy does not filter by tenant", async () => {
+    await scratch.query(`CREATE POLICY tenant_isolation ON ${TABLE} USING (${FILTER})`);
+    await scratch.query(`CREATE POLICY open_read ON ${TABLE} FOR SELECT USING (true)`);
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/open_read.*does not filter by tenant/);
+    });
+  });
+
+  it("rejects a table without tenant_isolation whose existing permissive policy does not filter, and creates nothing", async () => {
+    await scratch.query(`CREATE POLICY allow_all ON ${TABLE} USING (true)`);
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/allow_all.*does not filter by tenant/);
+    });
+
+    const { rows } = await scratch.query(`SELECT policyname FROM pg_policies WHERE tablename = $1`, [TABLE]);
+    expect(rows).toEqual([{ policyname: "allow_all" }]);
+  });
+
+  it("rejects a permissive INSERT policy whose WITH CHECK does not filter by tenant", async () => {
+    await scratch.query(`CREATE POLICY tenant_isolation ON ${TABLE} USING (${FILTER})`);
+    await scratch.query(`CREATE POLICY open_insert ON ${TABLE} FOR INSERT WITH CHECK (true)`);
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/open_insert.*WITH CHECK.*does not filter by tenant/);
+    });
+  });
+
+  it("rejects a tenant_isolation policy that applies to specific roles instead of PUBLIC", async () => {
+    await scratch.query(`CREATE POLICY tenant_isolation ON ${TABLE} TO CURRENT_USER USING (${FILTER})`);
+
+    await withScratchClient(async (c) => {
+      await expect(createPolicy(c, TABLE)).rejects.toThrow(/tenant_isolation.*PUBLIC/);
+    });
+  });
+
+  it("accepts other permissive policies that filter by tenant and restrictive policies on other conditions", async () => {
+    await scratch.query(`CREATE POLICY tenant_read ON ${TABLE} FOR SELECT USING (${FILTER})`);
+    await scratch.query(`CREATE POLICY tenant_insert ON ${TABLE} FOR INSERT WITH CHECK (${FILTER})`);
+    await scratch.query(`CREATE POLICY live_rows ON ${TABLE} AS RESTRICTIVE USING (id > 0)`);
+
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await createPolicy(c, TABLE);
+    });
+    await grantAndSeed();
+
+    expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
+  });
+});
+
 describe("db-adapters isRLSEnabled", () => {
   it("reports the table the name resolves to, not a same-named table in another schema", async () => {
     // public.gen_orders (from beforeEach) has RLS; app.gen_orders, which the

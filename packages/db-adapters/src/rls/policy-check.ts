@@ -1,9 +1,22 @@
 /**
- * Decides whether an existing tenant_isolation policy restricts rows to the
- * current tenant, from the expressions PostgreSQL stores in pg_policies.
+ * Decides whether the row-level security policies on a table restrict rows to
+ * the current tenant, from the expressions PostgreSQL stores in pg_policies.
  *
- * `createPolicy` uses this before it skips creating a policy that already
- * exists, because a policy's name proves nothing about what it checks.
+ * `createPolicy` uses this before it keeps an existing tenant_isolation policy
+ * or adds one, because a policy's name proves nothing about what it checks, and
+ * PostgreSQL ORs permissive policies together: one permissive policy that does
+ * not filter by tenant opens the table whatever tenant_isolation says.
+ *
+ * Rules:
+ * - Every permissive policy must filter by tenant for the commands it covers:
+ *   USING for SELECT, UPDATE, DELETE and ALL, WITH CHECK for INSERT, and WITH
+ *   CHECK for UPDATE and ALL when it is set. This applies whatever roles the
+ *   policy names, because this package cannot know which role the
+ *   application connects as.
+ * - Restrictive policies can only narrow access, so they may check anything.
+ * - The tenant_isolation policy itself must be permissive, apply to ALL
+ *   commands, and apply to PUBLIC, like the one `createPolicy` generates and
+ *   every policy Stratum ships.
  *
  * The check recognises the form this package generates, with the operands in
  * either order, with casts, inside an AND with other conditions, and ORed with
@@ -20,6 +33,8 @@ export interface PolicyRow {
   cmd: string;
   qual: string | null;
   with_check: string | null;
+  /** The roles the policy applies to; ["public"] for PUBLIC. */
+  roles: string[];
 }
 
 /** The session setting that holds the current tenant (see rls/session.ts). */
@@ -141,12 +156,26 @@ function oneLine(expr: string | null): string {
   return expr === null ? "none" : expr.replace(/\s+/g, " ");
 }
 
-/**
- * Why an existing policy does not restrict every command to the current
- * tenant, or null when it does. The policy must be permissive and apply to
- * ALL commands, like the one `createPolicy` creates.
- */
-export function tenantPolicyIssue(p: PolicyRow): string | null {
+/** Why one permissive policy lets rows of other tenants through, or null. */
+function permissiveIssue(p: PolicyRow): string | null {
+  const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
+  // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
+  // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
+  if (p.cmd !== "INSERT") {
+    if (p.qual === null || !filtersByTenant(normalize(p.qual))) {
+      return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
+    }
+  }
+  if (p.cmd === "INSERT" || p.with_check !== null) {
+    if (p.with_check === null || !filtersByTenant(normalize(p.with_check))) {
+      return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
+    }
+  }
+  return null;
+}
+
+/** Why the tenant_isolation policy is not the shape createPolicy generates, or null. */
+function tenantIsolationShapeIssue(p: PolicyRow): string | null {
   const name = `policy "${oneLine(p.policyname)}"`;
   if (p.permissive !== "PERMISSIVE") {
     return `${name} is ${p.permissive.toLowerCase()}, not permissive`;
@@ -154,12 +183,30 @@ export function tenantPolicyIssue(p: PolicyRow): string | null {
   if (p.cmd !== "ALL") {
     return `${name} applies to ${p.cmd} only, not ALL commands`;
   }
-  if (p.qual === null || !filtersByTenant(normalize(p.qual))) {
-    return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
-  }
-  // A missing WITH CHECK means PostgreSQL reuses USING for writes.
-  if (p.with_check !== null && !filtersByTenant(normalize(p.with_check))) {
-    return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
+  if (p.roles.length !== 1 || p.roles[0] !== "public") {
+    return `${name} applies to roles ${p.roles.join(", ")}, not PUBLIC`;
   }
   return null;
+}
+
+/**
+ * Every reason the table's policies do not isolate it by tenant. Empty when
+ * they do, or when the table has no policies.
+ */
+export function tablePolicyIssues(policies: PolicyRow[]): string[] {
+  const issues: string[] = [];
+  for (const p of policies) {
+    if (p.policyname === "tenant_isolation") {
+      const shape = tenantIsolationShapeIssue(p);
+      if (shape !== null) {
+        issues.push(shape);
+        continue;
+      }
+    }
+    if (p.permissive === "PERMISSIVE") {
+      const issue = permissiveIssue(p);
+      if (issue !== null) issues.push(issue);
+    }
+  }
+  return issues;
 }
