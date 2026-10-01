@@ -152,12 +152,18 @@ await repo.upsert({ id: 1, name: "Renamed" }, ["id"]);
 await repo.upsert({ id: 1, tenant_id: "other", name: "Renamed" }, ["id"]);
 ```
 
+Inserts get the current tenant's `tenant_id`, in whichever entity property maps to the `tenant_id` column, and updates never change it. The insert and update query builders enforce both, so `save(entity, { listeners: false })` and `.callListeners(false)` do not skip them.
+
+`INSERT ... SELECT` (`valuesFromSelect()`) into a tenant entity is refused, because the tenant of the selected rows cannot be set. Into another table it is allowed, and a SELECT of a tenant entity keeps its tenant condition.
+
 MySQL applies `ON DUPLICATE KEY UPDATE` on a conflict with any unique key of the table, whatever conflict columns you pass. The subscriber therefore allows an upsert only when every unique key of the target table, including the primary key, contains `tenant_id` (for example `PRIMARY KEY (tenant_id, id)`). It reads the keys from `information_schema` before the statement runs, and rejects the upsert otherwise.
 
 `registerStratumSubscriber()` also scopes reads. Every query that TypeORM's select query builder builds on the data source gets `tenant_id = <current tenant>`: repository `find*()`, `findOne*()`, `count*()`, `exists*()`, `sum()` / `average()` / `minimum()` / `maximum()` and `preload()`, query builder `getMany()`, `getOne()`, `getRawMany()`, `getRawOne()`, `getCount()`, `getManyAndCount()`, `getExists()` and `stream()`, relation loading (joins, eager relations, `relationLoadStrategy: "query"`), the row that `save()` loads before it writes, subqueries, and the count and pagination queries TypeORM builds internally. The condition is ANDed to the WHERE clause for the entity in FROM, so an `orWhere()` cannot widen the read, and it is added to the ON condition of every joined entity with a `tenant_id` column, so `leftJoinAndSelect()` still returns the parent row and leaves another tenant's related row out. A read of an entity with a `tenant_id` column outside a tenant context is refused. Entities without a `tenant_id` column, and data sources without the subscriber, are not affected.
 
+A view entity whose `expression` is a query builder is created by `synchronize()` without the tenant condition, because the view definition is one schema object shared by all tenants. Reads from a view entity are scoped like reads from a table when the view has a `tenant_id` column. A view without a `tenant_id` column is read unscoped.
+
 <Aside type="caution">
-  Not scoped: raw SQL (`dataSource.query()`, `queryRunner.query()`), SQL taken from `getQuery()` / `getQueryAndParameters()` and run by hand (a select builder's SQL includes the tenant condition, but an update or delete builder adds it only when its `execute()` runs), reads from a table that has no entity on the data source, and many-to-many junction tables. Add the tenant condition to those yourself, or use the shared-table adapter's structured methods.
+  Not scoped: raw SQL (`dataSource.query()`, `queryRunner.query()`), SQL taken from `getQuery()` / `getQueryAndParameters()` and run by hand (a select builder's SQL includes the tenant condition, but an update or delete builder adds it only when its `execute()` runs), reads from a table name that does not exactly match (including letter case) the name or table name of an entity on the data source, and many-to-many junction tables. Add the tenant condition to those yourself, or use the shared-table adapter's structured methods.
 </Aside>
 
 ### Knex Helper

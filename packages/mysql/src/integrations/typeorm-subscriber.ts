@@ -4,20 +4,31 @@ import { assertTenantId } from "../utils.js";
 
 // ─── Structural types (no hard dependency on typeorm) ───
 
+/** The part of a TypeORM column's metadata that tenant scoping uses. */
+interface ColumnLike {
+  propertyName: string;
+  databaseName: string;
+  getEntityValue?(entity: Record<string, unknown>): unknown;
+  setEntityValue?(entity: Record<string, unknown>, value: unknown): void;
+}
+
+/** The part of a TypeORM entity's metadata that tenant scoping uses. */
+interface EntityMetadataLike {
+  tablePath: string;
+  columns: ColumnLike[];
+  primaryColumns: ColumnLike[];
+}
+
+interface QueryRunnerLike {
+  query(sql: string, parameters?: unknown[]): Promise<unknown>;
+}
+
 export interface InsertEvent {
   entity: Record<string, unknown>;
   /** The inserted entity's metadata, when TypeORM has it. */
-  metadata?: {
-    tablePath: string;
-    columns: { databaseName: string }[];
-    primaryColumns: {
-      propertyName: string;
-      databaseName: string;
-      getEntityValue?(entity: Record<string, unknown>): unknown;
-    }[];
-  };
+  metadata?: EntityMetadataLike;
   /** The query runner that will run the insert. */
-  queryRunner?: { query(sql: string, parameters?: unknown[]): Promise<unknown> };
+  queryRunner?: QueryRunnerLike;
 }
 
 export interface UpdateEvent {
@@ -52,6 +63,8 @@ export interface TypeOrmDataSourceLike {
    * query builder classes. The returned builder is itself the select query builder.
    */
   createQueryBuilder(): { insert(): object; update(): object; delete(): object; softDelete(): object };
+  /** Entity and view metadata; view expressions built by a query builder are exempt from the read scope. */
+  readonly entityMetadatas?: readonly { expression?: unknown }[];
 }
 
 /** The part of a TypeORM update / delete / soft-delete query builder that tenant scoping uses. */
@@ -61,12 +74,28 @@ interface WriteQueryBuilderLike {
     mainAlias?: {
       name: string;
       hasMetadata: boolean;
-      metadata: { columns: { databaseName: string }[] };
+      metadata: { columns: ColumnLike[] };
     };
+    queryType?: string;
+    valuesSet?: unknown;
     aliasNamePrefixingEnabled: boolean;
     extraAppendedAndWhereCondition: string;
   };
   escape(name: string): string;
+  setParameter(key: string, value: unknown): unknown;
+}
+
+/** The part of a TypeORM insert query builder that tenant scoping uses. */
+interface InsertQueryBuilderLike {
+  connection: { subscribers: unknown[]; query(sql: string, parameters?: unknown[]): Promise<unknown> };
+  queryRunner?: { query(sql: string, parameters?: unknown[]): Promise<unknown> };
+  expressionMap: {
+    mainAlias?: { hasMetadata: boolean; metadata: EntityMetadataLike };
+    valuesSet?: unknown;
+    onUpdate?: unknown;
+    onIgnore?: unknown;
+    insertFromSelect?: { getQuery(): string };
+  };
   setParameter(key: string, value: unknown): unknown;
 }
 
@@ -107,9 +136,16 @@ const TENANT_COLUMN_SQL =
 const TENANT_PARAMETER = "stratumTenantId";
 const SCOPED_EXECUTE = Symbol("stratum.tenantScopedExecute");
 const SCOPED_GET_QUERY = Symbol("stratum.tenantScopedGetQuery");
-/** True while an insert builder with ON DUPLICATE KEY UPDATE (an upsert) runs. */
-const upsertInProgress = new AsyncLocalStorage<boolean>();
-const MARKED_UPSERT = Symbol("stratum.markedUpsert");
+const SCOPED_INSERT = Symbol("stratum.tenantScopedInsert");
+const EXEMPT_VIEW_EXPRESSION = Symbol("stratum.exemptViewExpression");
+/** Inserted values whose primary key was already checked. */
+const keyChecked = new WeakSet<object>();
+/** Values of an upsert while its builder runs; their keys are checked in beforeQuery instead. */
+const upsertValues = new WeakSet<object>();
+/** True while a view entity's query builder expression is being built. */
+const buildingViewExpression = new AsyncLocalStorage<boolean>();
+/** Select query builders returned by a view entity's expression. */
+const viewExpressionBuilders = new WeakSet<object>();
 /** The WHERE addition that addTenantCondition set on each write builder's expression map. */
 const scopedWriteConditions = new WeakMap<object, string>();
 /** Data sources whose update and delete query builders are tenant-scoped. */
@@ -150,24 +186,28 @@ const UNIQUE_KEYS_SQL =
  */
 export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
   /**
-   * Injects the current tenant's ID into the entity before insert.
+   * Injects the current tenant's ID into the entity before insert, into the
+   * property mapped to the tenant_id column.
    *
-   * When the entity supplies its whole primary key, the table is first checked
-   * for a row with that key. The lookup ignores the read scope, and its result
-   * is used only for this decision. save() does not load another tenant's row,
-   * so without the check save() would become an insert that either fails on
-   * the key or, when the key includes tenant_id, creates a row for this tenant.
+   * When the entity supplies its whole primary key and the insert builder has
+   * not checked it yet (save() runs this hook before the builder), the key is
+   * checked against the table first, so a save() with another tenant's key is
+   * refused rather than inserted. See checkKeyIsFree.
    *
-   * @returns A promise that rejects when a row with the entity's primary key
-   *   belongs to another tenant.
+   * @returns A promise that rejects when the key belongs to another tenant's row.
    */
   beforeInsert(event: InsertEvent): void | Promise<void> {
     const context = getTenantContext();
     assertTenantId(context.tenant_id);
-    // An upsert is checked in beforeQuery against the table's unique keys.
-    const key = upsertInProgress.getStore() ? undefined : suppliedPrimaryKey(event);
-    event.entity["tenant_id"] = context.tenant_id;
-    if (key) return assertKeyNotOwnedByAnotherTenant(event, key, context.tenant_id);
+    let key: Map<string, unknown> | undefined;
+    if (event.metadata && !keyChecked.has(event.entity) && !upsertValues.has(event.entity)) {
+      keyChecked.add(event.entity);
+      key = primaryKeyOf(event.metadata, event.entity);
+    }
+    setTenant(event.entity, event.metadata, context.tenant_id);
+    if (key && event.metadata && event.queryRunner) {
+      return checkKeyIsFree(event.queryRunner, event.metadata, key, context.tenant_id);
+    }
   }
 
   /**
@@ -286,6 +326,7 @@ function addTenantCondition(builder: WriteQueryBuilderLike): void {
 
   const context = getTenantContext();
   assertTenantId(context.tenant_id);
+  stripTenantFromUpdateValues(builder);
   const qualified =
     builder.expressionMap.aliasNamePrefixingEnabled && alias
       ? `${builder.escape(alias.name)}.${builder.escape(column)}`
@@ -302,6 +343,28 @@ function addTenantCondition(builder: WriteQueryBuilderLike): void {
     scopedWriteConditions.set(builder.expressionMap, builder.expressionMap.extraAppendedAndWhereCondition);
   }
   builder.setParameter(TENANT_PARAMETER, context.tenant_id);
+}
+
+/**
+ * Drops tenant_id from the SET values of an update builder, so an update never
+ * moves a row to another tenant, with or without listeners (beforeUpdate).
+ */
+function stripTenantFromUpdateValues(builder: WriteQueryBuilderLike): void {
+  const map = builder.expressionMap;
+  const values = map.valuesSet;
+  if (map.queryType !== "update" || !values || typeof values !== "object" || Array.isArray(values)) return;
+  const alias = map.mainAlias;
+  const tenantProps = new Set(
+    (alias?.hasMetadata ? alias.metadata.columns : [])
+      .filter((c) => c.databaseName.toLowerCase() === "tenant_id")
+      .map((c) => c.propertyName),
+  );
+  const keys = Object.keys(values);
+  const isTenantKey = (key: string) => key.toLowerCase() === "tenant_id" || tenantProps.has(key);
+  if (!keys.some(isTenantKey)) return;
+  map.valuesSet = Object.fromEntries(
+    keys.filter((key) => !isTenantKey(key)).map((key) => [key, (values as Record<string, unknown>)[key]]),
+  );
 }
 
 /** Wraps execute() of TypeORM's update, delete and soft-delete query builder classes, once. */
@@ -324,49 +387,115 @@ function scopeWriteBuilders(dataSource: TypeOrmDataSourceLike): void {
   scopedDataSources.add(dataSource);
 }
 
+/** Returns the tenant_id column of an entity's metadata, if it has one. */
+function tenantColumnIn(metadata: { columns: ColumnLike[] } | undefined): ColumnLike | undefined {
+  return metadata?.columns.find((c) => c.databaseName.toLowerCase() === "tenant_id");
+}
+
+/** Writes the tenant into the property mapped to the tenant_id column. */
+function setTenant(entity: Record<string, unknown>, metadata: EntityMetadataLike | undefined, tenantId: string): void {
+  const column = tenantColumnIn(metadata);
+  if (!column) {
+    entity["tenant_id"] = tenantId;
+  } else if (column.setEntityValue) {
+    column.setEntityValue(entity, tenantId);
+  } else {
+    entity[column.propertyName] = tenantId;
+  }
+}
+
 /**
- * Returns the primary key values that an inserted entity supplies, keyed by
- * column name. Returns undefined when the entity has no tenant_id column or
- * any part of its primary key is missing.
+ * Returns the primary key values that an entity supplies, keyed by column
+ * name. Returns undefined when the entity has no tenant_id column or any part
+ * of its primary key is missing or computed by SQL.
  */
-function suppliedPrimaryKey(event: InsertEvent): Map<string, unknown> | undefined {
-  const metadata = event.metadata;
-  if (!metadata || !event.queryRunner || metadata.primaryColumns.length === 0) return undefined;
-  if (!metadata.columns.some((c) => c.databaseName.toLowerCase() === "tenant_id")) return undefined;
+function primaryKeyOf(metadata: EntityMetadataLike, entity: Record<string, unknown>): Map<string, unknown> | undefined {
+  if (metadata.primaryColumns.length === 0 || !tenantColumnIn(metadata)) return undefined;
   const key = new Map<string, unknown>();
   for (const column of metadata.primaryColumns) {
-    const value = column.getEntityValue
-      ? column.getEntityValue(event.entity)
-      : event.entity[column.propertyName];
-    if (value === undefined || value === null) return undefined;
+    const value = column.getEntityValue ? column.getEntityValue(entity) : entity[column.propertyName];
+    if (value === undefined || value === null || typeof value === "function") return undefined;
     key.set(column.databaseName, value);
   }
   return key;
 }
 
 /**
- * Refuses an insert whose primary key already belongs to another tenant's
- * row. The lookup is raw SQL on the insert's own query runner, so it is not
- * tenant-scoped, and its result is never returned to the caller.
+ * Refuses an insert whose primary key belongs to another tenant's row. The
+ * lookup is raw SQL, so it is not tenant-scoped, and its result is used only
+ * for this decision.
  */
-async function assertKeyNotOwnedByAnotherTenant(
-  event: InsertEvent,
+async function checkKeyIsFree(
+  runner: QueryRunnerLike,
+  metadata: EntityMetadataLike,
   key: Map<string, unknown>,
   tenantId: string,
 ): Promise<void> {
-  const metadata = event.metadata as NonNullable<InsertEvent["metadata"]>;
   const quote = (name: string) => "`" + name.replace(/`/g, "``") + "`";
-  const tenantColumn = metadata.columns.find((c) => c.databaseName.toLowerCase() === "tenant_id")
-    ?.databaseName as string;
+  const tenantColumn = tenantColumnIn(metadata) as ColumnLike;
   const table = metadata.tablePath.split(".").map(quote).join(".");
   const where = [...key.keys()].map((column) => `${quote(column)} = ?`).join(" AND ");
-  const rows = (await event.queryRunner?.query(
-    `SELECT ${quote(tenantColumn)} AS tenant_id FROM ${table} WHERE ${where} LIMIT 1`,
+  const rows = (await runner.query(
+    `SELECT ${quote(tenantColumn.databaseName)} AS tenant_id FROM ${table} WHERE ${where} LIMIT 1`,
     [...key.values()],
   )) as { tenant_id: unknown }[];
   if (rows.length > 0 && rows[0].tenant_id !== tenantId) {
-    throw new Error("Stratum: save() refused, because the row belongs to another tenant.");
+    throw new Error("Stratum: insert refused, because a row with this primary key belongs to another tenant.");
   }
+}
+
+/**
+ * Prepares an insert builder whose data source has the subscriber.
+ *
+ * - INSERT ... SELECT into a tenant entity is refused, because the tenant of
+ *   the selected rows cannot be set. Into other tables, the tenant parameter
+ *   of a scoped SELECT is copied to the insert.
+ * - Each value of a tenant entity gets the current tenant, whether or not
+ *   listeners (beforeInsert) run.
+ * - A plain insert whose value supplies its whole primary key is refused when
+ *   a row with that key belongs to another tenant. The lookup is raw SQL, so it
+ *   is not tenant-scoped, and its result is used only for this decision.
+ *   Upserts are checked in beforeQuery against the table's unique keys.
+ */
+async function prepareInsert(builder: InsertQueryBuilderLike): Promise<object[]> {
+  if (!builder.connection.subscribers.some((s) => s instanceof StratumTypeOrmSubscriber)) return [];
+  const map = builder.expressionMap;
+  const metadata = map.mainAlias?.hasMetadata ? map.mainAlias.metadata : undefined;
+  const tenantColumn = tenantColumnIn(metadata);
+
+  if (map.insertFromSelect) {
+    if (tenantColumn) {
+      throw new Error(
+        "Stratum: INSERT ... SELECT into a tenant table is refused, because the tenant of the selected rows " +
+          "cannot be set. Load the rows and insert them as entities instead.",
+      );
+    }
+    if (map.insertFromSelect.getQuery().includes(`:${TENANT_PARAMETER}`)) {
+      const context = getTenantContext();
+      assertTenantId(context.tenant_id);
+      builder.setParameter(TENANT_PARAMETER, context.tenant_id);
+    }
+    return [];
+  }
+  if (!metadata || !tenantColumn) return [];
+
+  const context = getTenantContext();
+  assertTenantId(context.tenant_id);
+  const values = (Array.isArray(map.valuesSet) ? map.valuesSet : [map.valuesSet]).filter(
+    (value): value is Record<string, unknown> => !!value && typeof value === "object",
+  );
+  const runner = builder.queryRunner ?? builder.connection;
+  for (const value of values) {
+    if (map.onUpdate || map.onIgnore) {
+      upsertValues.add(value);
+    } else if (!keyChecked.has(value)) {
+      keyChecked.add(value);
+      const key = primaryKeyOf(metadata, value);
+      if (key) await checkKeyIsFree(runner, metadata, key, context.tenant_id);
+    }
+    setTenant(value, metadata, context.tenant_id);
+  }
+  return values;
 }
 
 /** Returns the tenant_id column of an entity alias, or undefined when it has none. */
@@ -385,6 +514,9 @@ function tenantColumnOf(alias: AliasLike | undefined): string | undefined {
  */
 function buildScopedSelect(builder: SelectQueryBuilderLike, build: () => string): string {
   if (!builder.connection.subscribers.some((s) => s instanceof StratumTypeOrmSubscriber)) return build();
+  // A view's definition is a schema object, built by synchronize() outside any
+  // tenant context. Reads from the view entity are scoped like any entity.
+  if (buildingViewExpression.getStore() || viewExpressionBuilders.has(builder)) return build();
 
   const map = builder.expressionMap;
   const condition = (alias: AliasLike, column: string) =>
@@ -455,18 +587,45 @@ function scopeSelectBuilder(dataSource: TypeOrmDataSourceLike): void {
   proto[SCOPED_GET_QUERY] = true;
 }
 
-/**
- * Wraps execute() of TypeORM's insert query builder class, once, so that
- * beforeInsert knows when the insert is an upsert.
- */
-function markUpserts(dataSource: TypeOrmDataSourceLike): void {
+/** Wraps execute() of TypeORM's insert query builder class, once (see prepareInsert). */
+function scopeInsertBuilder(dataSource: TypeOrmDataSourceLike): void {
   const proto = Object.getPrototypeOf(dataSource.createQueryBuilder().insert()) as Record<PropertyKey, unknown>;
-  if (proto[MARKED_UPSERT]) return;
-  const original = proto.execute as (this: { expressionMap: { onUpdate?: unknown } }) => Promise<unknown>;
-  proto.execute = function (this: { expressionMap: { onUpdate?: unknown } }): Promise<unknown> {
-    return upsertInProgress.run(Boolean(this.expressionMap.onUpdate), () => original.call(this));
+  if (proto[SCOPED_INSERT]) return;
+  const original = proto.execute as (this: InsertQueryBuilderLike) => Promise<unknown>;
+  proto.execute = async function (this: InsertQueryBuilderLike): Promise<unknown> {
+    const values = await prepareInsert(this);
+    try {
+      return await original.call(this);
+    } finally {
+      // An upsert's values are exempt from the key check only while it runs.
+      for (const value of values) upsertValues.delete(value);
+    }
   };
-  proto[MARKED_UPSERT] = true;
+  proto[SCOPED_INSERT] = true;
+}
+
+/**
+ * Marks the query builders that view entity expressions return, so that
+ * synchronize() can build the view definition without the read scope.
+ */
+function exemptViewExpressions(dataSource: TypeOrmDataSourceLike): void {
+  for (const metadata of dataSource.entityMetadatas ?? []) {
+    const expression = metadata.expression as
+      | (((source: unknown) => object) & { [EXEMPT_VIEW_EXPRESSION]?: boolean })
+      | string
+      | undefined;
+    if (typeof expression !== "function" || expression[EXEMPT_VIEW_EXPRESSION]) continue;
+    const exempt = Object.assign(
+      (source: unknown) =>
+        buildingViewExpression.run(true, () => {
+          const builder = expression(source);
+          viewExpressionBuilders.add(builder);
+          return builder;
+        }),
+      { [EXEMPT_VIEW_EXPRESSION]: true },
+    );
+    (metadata as { expression?: unknown }).expression = exempt;
+  }
 }
 
 /**
@@ -548,7 +707,8 @@ export function registerStratumSubscriber(
   }
   scopeSelectBuilder(dataSource);
   scopeWriteBuilders(dataSource);
-  markUpserts(dataSource);
+  scopeInsertBuilder(dataSource);
+  exemptViewExpressions(dataSource);
   const existing = dataSource.subscribers.find(
     (subscriber): subscriber is StratumTypeOrmSubscriber =>
       subscriber instanceof StratumTypeOrmSubscriber,
