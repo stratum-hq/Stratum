@@ -1,5 +1,29 @@
 # @stratum-hq/mysql
 
+## 0.7.0
+
+### Minor Changes
+
+- 99437c5: `withTenantScope` (Knex) accepts only plain ASCII column names (letters, digits, `_`, `$`, dotted qualifiers) in `insert()`, `update()`, `increment()` and `decrement()`; use plain Knex with an explicit `tenant_id` condition for other names. See GHSA-mg93-96h7-h9fq.
+- 99437c5: `withTenantScope` (Knex) treats any key that resolves to `tenant_id` as the tenant column: any letter case, and table- or schema-qualified forms such as `notes.tenant_id` or `db.notes.TENANT_ID`. `update()` drops such keys from the data, `update(column, value)`, `increment()` and `decrement()` refuse them, and `insert()` drops them before it adds the current tenant's `tenant_id`. Previously a qualified key was passed through to MySQL. See GHSA-mg93-96h7-h9fq.
+
+### Patch Changes
+
+- 99437c5: README corrections (#476). lib: the usage metering link works on npm. control-plane: how to start it from an npm install, the health check at `/api/v1/health`, the OpenAPI URLs, and how to create the first admin key. db-adapters: the Sequelize wrapper scopes `query()` only. hono: the quick start defines `sdkClient`. mysql: the TypeORM subscriber reads the tenant from the `@stratum-hq/sdk` context, set with `runWithTenantContext` outside the SDK middleware. compliance: links to its new documentation page.
+- e1b2249: The documented examples now compile under `tsc --strict` against the mysql2, Knex and Sequelize types:
+
+  - A mysql2 `Pool` is assignable to `MysqlPoolLike`. `MysqlConnectionLike.execute()` takes `MysqlExecuteValue[]`, which mysql2 accepts, and `MysqlPoolLike.query()` resolves to a `[rows, fields]` tuple, so `const [rows] = await tenantPool.query(...)` compiles.
+  - `withTenantScope(knex, tenantId)` returns the builder type of the Knex instance given. For a real Knex instance, that is Knex's `QueryBuilder`, so `orWhere()` and the three-argument `where()` compile. The runtime behavior does not change: the methods that the scope refuses still throw.
+  - The `transaction` argument of the `withMysqlTenantScope()` callback has the Sequelize `Transaction` type, so `{ transaction }` can go into Sequelize query options.
+
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/core@1.6.0
+  - @stratum-hq/sdk@1.4.0
+
 ## 0.6.1
 
 ### Patch Changes

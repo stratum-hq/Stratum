@@ -1,5 +1,28 @@
 # @stratum-hq/db-adapters
 
+## 1.5.0
+
+### Minor Changes
+
+- 99437c5: Support for the control role of `@stratum-hq/lib` migration 032 (GHSA-mg93-96h7-h9fq).
+
+  - `createPolicy` accepts a `stratum_control_plane` policy only when it applies to exactly the control role (`controlRole` option, default `stratum_control`), recognizes the migration 032 legacy form, and emits a `STRATUM_GUC_BYPASS_POLICY` process warning for a policy that checks `app.bypass_rls` directly.
+  - `withRlsBypass` is deprecated and emits a one-time deprecation warning. It will be removed in 2.0.
+  - The PGlite guide shows `adminPool` with a restricted application pool.
+
+- 99437c5: Exports the policy checks that `createPolicy` uses: `tablePolicyIssues`, `tablePolicyWarnings`, `permissivePolicyIssue`, `isControlPlanePolicy`, `DEFAULT_CONTROL_ROLE` and the `PolicyRow` type. `@stratum-hq/cli` now uses them, so both apply the same rules (GHSA-mg93-96h7-h9fq).
+
+### Patch Changes
+
+- 99437c5: Correct the doc comments of the Sequelize and Drizzle tenant-scope wrappers: with an empty tenant ID they throw, they do not forward the query unwrapped. Behavior is unchanged. (#477)
+- 99437c5: `createPolicy()`, `isRLSEnabled()` and `listTenantSchemas()` harden their catalog lookups (GHSA-mg93-96h7-h9fq).
+- 99437c5: README corrections (#476). lib: the usage metering link works on npm. control-plane: how to start it from an npm install, the health check at `/api/v1/health`, the OpenAPI URLs, and how to create the first admin key. db-adapters: the Sequelize wrapper scopes `query()` only. hono: the quick start defines `sdkClient`. mysql: the TypeORM subscriber reads the tenant from the `@stratum-hq/sdk` context, set with `runWithTenantContext` outside the SDK middleware. compliance: links to its new documentation page.
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/core@1.6.0
+
 ## 1.4.0
 
 ### Minor Changes

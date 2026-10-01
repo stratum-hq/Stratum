@@ -1,5 +1,24 @@
 # @stratum-hq/core
 
+## 1.6.0
+
+### Minor Changes
+
+- 99437c5: Sensitive config values are still inherited, but reads of a descendant's config now return them masked: `value: null`, `sensitive: true` and `masked: true`, with `source_tenant_id` naming the tenant that set the value. A tenant's own sensitive values are unchanged.
+
+  - `@stratum-hq/lib`: `resolveConfig`, `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take an optional `ResolveConfigOptions`. Pass `{ revealSensitive: true }` in trusted server code that needs an inherited secret, or `{ viewerTenantId }` to reveal only the values that tenant set.
+  - `@stratum-hq/control-plane`: the config, inheritance, diff and context routes reveal an inherited sensitive value only to a key of the tenant that set it. Global keys get the masked entry and can read the value from the owning tenant's own config.
+  - `@stratum-hq/react`: `ConfigEditor` and `ConfigInheritanceVisualizer` show a masked value as "Sensitive value set by an ancestor" and never pre-fill it into the edit field.
+  - `@stratum-hq/core`: `ResolvedConfigEntry` and `ConfigDiffEntry` gain optional `sensitive` and `masked` fields, and `ResolveConfigOptions` is exported.
+
+  (GHSA-mg93-96h7-h9fq)
+
+### Patch Changes
+
+- 99437c5: `batchSetConfig` is now atomic, as the config inheritance guide documents. Every entry is checked before anything is written. If any key is locked by an active ancestor or is invalid (an empty key, or a value that cannot be stored as JSON), nothing is written and the result has `rolled_back: true`, `succeeded: 0`, and `failed` equal to the number of entries. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the others say they were not applied and name those keys. Previously the unlocked keys of a batch were written and only the locked ones failed. `BatchSetConfigResult` in `@stratum-hq/core` gains the optional `rolled_back` field. (#471)
+- 99437c5: Reading an encrypted value under the wrong `STRATUM_ENCRYPTION_KEY` or `STRATUM_HKDF_SALT` now throws a `DecryptionError` (code `DECRYPTION_FAILED`) that says which settings to check, instead of Node's "Unsupported state or unable to authenticate data". The original error is kept as `cause`. A value that is not in the encrypted format also throws `DecryptionError`, and its message still contains "Invalid encrypted value format". `@stratum-hq/core` exports the new error class and code, and `@stratum-hq/lib` re-exports it. Key material validation at startup is unchanged. (#477)
+- 99437c5: `suspendTenant` on a tenant with active children now reports "Cannot suspend tenant ...", not "Cannot archive tenant ...". `TenantHasChildrenError` takes an optional action (`"archive"` by default, or `"suspend"`) that names the blocked transition. (#477)
+
 ## 1.5.1
 
 ### Patch Changes

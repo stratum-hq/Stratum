@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/compliance",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Content-free compliance kernel for Stratum: baseline coverage scoring, a finding state machine, and a control type vocabulary",
   "keywords": [
     "compliance",
