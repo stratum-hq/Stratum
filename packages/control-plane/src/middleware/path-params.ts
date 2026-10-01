@@ -59,3 +59,23 @@ export async function rejectInvalidPathParams(request: FastifyRequest, _reply: F
   const issues = [...names].map((name) => ({ path: ["params", name], message: "Invalid uuid", code: "invalid_string" }));
   throw new ValidationError("Invalid path parameter", { issues });
 }
+
+/** Query-string parameters that hold a tenant id. Every such id is a UUID. */
+export const UUID_QUERY_PARAMS: readonly string[] = ["tenant_id", "tenant_a", "tenant_b"];
+
+const UUID_REGEX = new RegExp(UUID_PATTERN);
+
+/**
+ * A global preHandler, registered after authentication and before the tenant
+ * scope enforcer: answers a request whose query string carries a tenant id that
+ * is not a single UUID with 400 VALIDATION_ERROR, one issue per bad parameter.
+ */
+export async function rejectInvalidQueryTenantIds(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  const query = (request.query ?? {}) as Record<string, unknown>;
+  const bad = UUID_QUERY_PARAMS.filter(
+    (name) => query[name] !== undefined && !(typeof query[name] === "string" && UUID_REGEX.test(query[name])),
+  );
+  if (bad.length === 0) return;
+  const issues = bad.map((name) => ({ path: ["query", name], message: "Invalid uuid", code: "invalid_string" }));
+  throw new ValidationError("Invalid query parameter", { issues });
+}
