@@ -2,6 +2,8 @@
 
 First-class [NestJS](https://nestjs.com) integration for [Stratum](https://github.com/stratum-hq/Stratum): a guard that resolves tenants from incoming requests, a `@Tenant()` parameter decorator, and a DI module.
 
+Read the documentation at [docs.stratum-hq.org/packages/nestjs](https://docs.stratum-hq.org/packages/nestjs/).
+
 ## Installation
 
 ```bash

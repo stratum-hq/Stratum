@@ -1,12 +1,15 @@
 {
   "name": "@stratum-hq/core",
   "version": "1.5.0",
-  "description": "Stratum shared types, utilities, and validation schemas",
+  "description": "Shared types, Zod schemas, and errors for the Stratum multi-tenancy packages",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
+    "tenant-isolation",
+    "zod",
     "typescript",
     "validation",
     "schemas",
@@ -45,7 +48,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/core#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/core/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

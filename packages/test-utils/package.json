@@ -4,15 +4,17 @@
   "description": "Cross-tenant isolation test helpers for Stratum: assertIsolation and assertConfigInheritance",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
     "tenant-isolation",
-    "testing",
-    "test-utils",
     "row-level-security",
     "rls",
     "postgresql",
+    "mongodb",
+    "testing",
+    "test-utils",
     "stratum"
   ],
   "type": "module",
@@ -56,7 +58,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/test-utils#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/test-utils/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

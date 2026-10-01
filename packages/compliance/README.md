@@ -2,6 +2,8 @@
 
 A content-free compliance **kernel** for [Stratum](https://github.com/stratum-hq/Stratum): the pure mechanics and type shapes any compliance product needs, with none of the content. Zero runtime dependencies, no database, no network, no provider, and no built-in catalog.
 
+Read the documentation at [docs.stratum-hq.org](https://docs.stratum-hq.org/).
+
 It gives you three things:
 
 1. **Coverage scoring:** diff a declared baseline against a resolved state and get a per-control breakdown plus a 0 to 100 score.

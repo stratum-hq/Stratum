@@ -2,6 +2,8 @@
 
 Shared foundation for all [Stratum](https://github.com/stratum-hq/Stratum) packages: TypeScript types, Zod validation schemas, error classes, utility functions, and constants. Every other Stratum package depends on it.
 
+Read the documentation at [docs.stratum-hq.org/packages/core](https://docs.stratum-hq.org/packages/core/).
+
 ## Installation
 
 ```bash

@@ -1,16 +1,20 @@
 {
   "name": "@stratum-hq/cli",
   "version": "0.8.0",
-  "description": "Stratum CLI: project scaffolding, database migration, and developer tools",
+  "description": "Multi-tenancy CLI for Node.js: add tenant isolation to an existing app, migrate tables to RLS, and check readiness",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
+    "tenant-isolation",
+    "row-level-security",
+    "rls",
+    "postgresql",
     "cli",
     "scaffolding",
     "migration",
-    "postgresql",
     "node",
     "typescript",
     "stratum"
@@ -55,7 +59,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/cli#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/cli/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

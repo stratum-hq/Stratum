@@ -1,13 +1,16 @@
 {
   "name": "@stratum-hq/hono",
   "version": "1.3.0",
-  "description": "Stratum Hono integration: tenant extraction middleware with ALS context",
+  "description": "Hono multi-tenancy middleware: tenant resolution with AsyncLocalStorage context",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
+    "tenant-isolation",
     "hono",
+    "asynclocalstorage",
     "middleware",
     "typescript",
     "stratum"
@@ -51,7 +54,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/hono#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/hono/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

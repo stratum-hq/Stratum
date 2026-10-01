@@ -2,6 +2,8 @@
 
 Command-line tool for integrating [Stratum](https://github.com/stratum-hq/Stratum) into existing projects. It detects your framework, generates boilerplate, checks database readiness, and migrates tables to tenant isolation.
 
+Read the documentation at [docs.stratum-hq.org/packages/cli](https://docs.stratum-hq.org/packages/cli/).
+
 ## Installation
 
 ```bash
