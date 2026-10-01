@@ -25,7 +25,7 @@ Each tenant stores two paths:
 - **`ancestry_path`**: UUID chain (`/uuid1/uuid2/uuid3`) used for ancestor lookups
 - **`ancestry_ltree`**: slug-based path (`acmesec.northstar_msp.client_alpha`) used by PostgreSQL for efficient subtree queries via the `@>` operator
 
-The maximum tree depth is 20 levels. Advisory locks on parent UUIDs prevent race conditions during concurrent modifications.
+Advisory locks on parent UUIDs prevent race conditions during concurrent modifications.
 
 ### Tree Operations
 

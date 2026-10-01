@@ -128,7 +128,7 @@ npm install -g @stratum-hq/cli
 
 ## Key Features
 
-- **Tenant hierarchy**: tree structure with ltree, advisory locks, max depth 20
+- **Tenant hierarchy**: tree structure with ltree, advisory locks
 - **Config inheritance**: values flow root→leaf, parents can lock keys
 - **Permission delegation**: LOCKED / INHERITED / DELEGATED modes with cascade revocation
 - **ABAC**: attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
