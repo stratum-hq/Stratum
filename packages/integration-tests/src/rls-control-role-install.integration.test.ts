@@ -195,7 +195,9 @@ describe("an upgrade by a migrating role without CREATEROLE and outside the cont
   });
 
   it("completes migration 032 with a warning that prints the bootstrap SQL", async () => {
-    await migrate({ pool: ownerPool });
+    // The owner is the admin login here, so it migrates with the control-role
+    // opt-in; it cannot create the role.
+    await migrate({ pool: ownerPool, applyControlRole: true });
     const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
     const applied = await ownerPool.query<{ name: string }>("SELECT name FROM _migrations ORDER BY name");
     expect(applied.rows.map((r) => r.name)).toEqual(files);

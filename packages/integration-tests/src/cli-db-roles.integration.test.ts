@@ -10,6 +10,7 @@ import {
   ROLE_PREFIX,
   controlRoleName,
   dropTestRole,
+  errorCode,
   scratchDatabase,
   urlFor,
 } from "./helpers/role-model.js";
@@ -256,6 +257,22 @@ describe("after stratum db roles --apply", () => {
     expect(row.rows).toEqual([]);
   });
 
+  it("moves the application's own table to the application login's schema, as the hardening guide describes", async () => {
+    // db roles --apply took CREATE on public from the application login, so
+    // its tables move to a schema of its own, first on its search path.
+    const app = new pg.Client({ connectionString: appUrl });
+    await app.connect();
+    try {
+      expect(await errorCode(() => app.query("CREATE TABLE public.cli_roles_probe (id int)"))).toBe("42501");
+      await suPool.query(`CREATE SCHEMA "${APP}" AUTHORIZATION "${APP}"`);
+      await app.query(`ALTER TABLE public.notes SET SCHEMA "${APP}"`);
+      const res = await app.query("SELECT count(*)::int AS n FROM notes");
+      expect(res.rows[0].n).toBe(2);
+    } finally {
+      await app.end();
+    }
+  });
+
   it("migrate --tenant names the REFERENCES grant the application login lacks, and changes nothing", async () => {
     const { code, out } = runCli(
       ["migrate", "notes", "--tenant", tenantId, "--database-url", appUrl, "--admin-database-url", adminUrl],
@@ -281,7 +298,7 @@ describe("after stratum db roles --apply", () => {
       "y\n",
     );
     expect(code, out).toBe(0);
-    const rows = await suPool.query("SELECT DISTINCT tenant_id FROM notes");
+    const rows = await suPool.query(`SELECT DISTINCT tenant_id FROM "${APP}".notes`);
     expect(rows.rows).toEqual([{ tenant_id: tenantId }]);
   });
 

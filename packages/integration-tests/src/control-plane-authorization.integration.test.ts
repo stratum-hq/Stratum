@@ -311,7 +311,8 @@ describe("control-plane authorization against real Postgres (integration)", () =
         const ids = (res.json() as Array<{ id: string }>).map((r) => r.id);
         expect(ids).not.toContain(foreign.id);
       } else {
-        expect(res.statusCode).toBe(403);
+        // Refused: 400 for the empty filter, or 403.
+        expect([400, 403]).toContain(res.statusCode);
       }
     });
   });

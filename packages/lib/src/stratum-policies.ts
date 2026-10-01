@@ -107,9 +107,14 @@ function createPolicyTemplate(p: StratumPolicy): string {
   return `CREATE POLICY ${p.name} ON %1$I.${p.table}${to} USING (${p.using})${check}`;
 }
 
-/** `text` with the schema placeholder %1$I replaced by the quoted schema name `nsp`. */
-function withSchema(text: string, nsp: string): string {
-  return text.split("%1$I").join(nsp);
+/**
+ * `text` without its schema qualifiers, for the canonical policies that
+ * stratumPolicyDrift() puts on temporary tables: there the names resolve
+ * through the search path, the temporary tables first, as the live policies
+ * of 019, 020 and 031 were written.
+ */
+function unqualified(text: string): string {
+  return text.split("%1$I.").join("");
 }
 
 /**
@@ -210,8 +215,8 @@ export async function stratumPolicyDrift(pool: pg.Pool, options: PolicyDriftOpti
     for (const p of expected) {
       if (!columns.rows.some((t) => t.relname === p.table)) continue;
       const to = p.to === "control" ? ` AS PERMISSIVE FOR ALL TO "${control}"` : ` FOR ${p.cmd}`;
-      const check = p.check === null ? "" : ` WITH CHECK (${withSchema(p.check, nsp)})`;
-      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${withSchema(p.using, nsp)})${check}`);
+      const check = p.check === null ? "" : ` WITH CHECK (${unqualified(p.check)})`;
+      await client.query(`CREATE POLICY ${p.name} ON pg_temp."${p.table}"${to} USING (${unqualified(p.using)})${check}`);
     }
     const temp = await client.query<{ nsp: string }>("SELECT pg_my_temp_schema()::regnamespace::text AS nsp");
     const canonical = (await policyQuery(temp.rows[0].nsp)).rows;

@@ -78,21 +78,24 @@ async function migrateTable(
   try {
     await client.query("BEGIN");
 
-    // Check if table exists
-    const exists = await client.query(
-      "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = $1",
+    // Find the table through the search path: public, or a schema of the
+    // login's own (the hardening guide keeps the application's tables there).
+    const exists = await client.query<{ nsp: string }>(
+      `SELECT n.nspname AS nsp FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.oid = to_regclass($1) AND c.relkind IN ('r', 'p')`,
       [safe],
     );
     if (exists.rows.length === 0) {
-      throw new Error(`Table "${safe}" does not exist in the public schema`);
+      throw new Error(`Table "${safe}" does not exist in a schema on the search path`);
     }
+    const tableSchema = exists.rows[0].nsp;
 
     // Add tenant_id if missing
     if (!info || !info.has_tenant_id) {
       const hasCol = await client.query(
         `SELECT 1 FROM information_schema.columns
-         WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'tenant_id'`,
-        [safe],
+         WHERE table_schema = $2 AND table_name = $1 AND column_name = 'tenant_id'`,
+        [safe, tableSchema],
       );
       if (hasCol.rows.length === 0) {
         const countRes = await client.query(`SELECT count(*)::int AS n FROM ${safe}`);
@@ -146,8 +149,8 @@ async function migrateTable(
     // Add index on tenant_id
     const idxName = `idx_${safe}_tenant_id`;
     const hasIdx = await client.query(
-      "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = $1",
-      [idxName],
+      "SELECT 1 FROM pg_indexes WHERE schemaname = $2 AND indexname = $1",
+      [idxName, tableSchema],
     );
     if (hasIdx.rows.length === 0) {
       await client.query(`CREATE INDEX ${idxName} ON ${safe}(tenant_id)`);

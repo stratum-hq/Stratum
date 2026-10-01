@@ -123,7 +123,7 @@ describe("stratum db roles --apply on tables the application login owned", () =>
     try {
       const { code, out } = applyRoles();
       expect(code).toBe(1);
-      expect(out).toContain("trigger app_on_key on api_keys calls app_on_key()");
+      expect(out).toContain("trigger app_on_key on api_keys calls public.app_on_key()");
       await expectUnchanged();
     } finally {
       await appPool.query("DROP TRIGGER app_on_key ON api_keys");
@@ -137,7 +137,7 @@ describe("stratum db roles --apply on tables the application login owned", () =>
     try {
       const { code, out } = applyRoles();
       expect(code).toBe(1);
-      expect(out).toContain("column default on api_keys uses function app_name()");
+      expect(out).toContain("column default on api_keys uses function public.app_name()");
       await expectUnchanged();
     } finally {
       await appPool.query("ALTER TABLE api_keys ALTER COLUMN name DROP DEFAULT");
