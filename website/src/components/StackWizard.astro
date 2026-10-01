@@ -84,7 +84,7 @@
     margin-top: 12px;
     padding: 8px 16px;
     background: var(--code-bg);
-    color: var(--sandstone);
+    color: var(--code-text);
     border-radius: var(--radius-sm, 4px);
     font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
     font-size: 0.875rem;
@@ -96,10 +96,10 @@
 
   .wizard-header h2 {
     margin: 0 0 8px;
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-size: 2.125rem;
+    font-weight: 900;
     color: var(--text-primary);
-    line-height: 1.2;
+    line-height: 0.95;
     text-wrap: balance;
   }
 
@@ -186,7 +186,7 @@
     font-size: 0.9375rem;
     padding: 10px 36px 10px 12px;
     cursor: pointer;
-    transition: border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: border-color var(--duration-fast) var(--ease-out);
     width: 100%;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A39E95' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -199,7 +199,7 @@
   }
 
   .wizard-field select:focus {
-    outline: 2px solid var(--sl-color-accent);
+    outline: 3px solid var(--focus);
     outline-offset: 1px;
     border-color: transparent;
   }
@@ -244,14 +244,14 @@
     box-sizing: border-box;
     padding: 6px 14px;
     background: var(--sl-color-accent);
-    color: var(--text-primary);
+    color: var(--on-accent);
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
     font-size: 0.8125rem;
     font-weight: 600;
     border-radius: var(--radius-sm, 4px);
     cursor: pointer;
     white-space: nowrap;
-    transition: opacity 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity var(--duration-fast) var(--ease-out);
     min-width: 60px;
     text-align: center;
   }
@@ -261,7 +261,7 @@
   }
 
   .wizard-command button:focus-visible {
-    outline: 2px solid var(--sl-color-accent);
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 

@@ -30,11 +30,12 @@ const jsonLd = {
   ],
 };
 
-// Strata type families (documented in DESIGN.md). Loaded non-blocking from
+// Stratum type families: Big Shoulders Display, Instrument Sans, Martian Mono
+// (documented in DESIGN.md). Loaded non-blocking from
 // the document head rather than via a render-blocking @import in the shared
 // token file, so fonts never gate first paint.
 const fontsHref =
-  "https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap";
+  "https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap";
 
 export default defineConfig({
   site: "https://docs.stratum-hq.org",
@@ -62,10 +63,39 @@ export default defineConfig({
         dark: "./src/assets/stratum-mark-dark.svg",
         alt: "Stratum",
       },
-      favicon: "/favicon.svg?v=strata",
+      favicon: "/favicon.svg?v=bedrock",
       description:
         "Drop-in multi-tenancy for Node.js and TypeScript.",
       customCss: ["./src/styles/custom.css"],
+      // Bedrock (dark) is the default for every visitor, whatever the OS
+      // preference; Daylight only when chosen in the theme select.
+      components: {
+        ThemeProvider: "./src/components/ThemeProvider.astro",
+        ThemeSelect: "./src/components/ThemeSelect.astro",
+      },
+      // The code well stays dark in both themes, so Expressive Code renders one
+      // dark theme and takes its frame colors from the shared tokens.
+      expressiveCode: {
+        themes: ["starlight-dark"],
+        useStarlightUiThemeColors: false,
+        styleOverrides: {
+          borderRadius: "0",
+          borderColor: "var(--seam)",
+          codeBackground: "var(--code-bg)",
+          codeFontFamily: "var(--font-mono)",
+          codeFontSize: "0.78rem",
+          uiFontFamily: "var(--font-body)",
+          frames: {
+            shadowColor: "transparent",
+            editorTabBarBackground: "var(--code-bg)",
+            editorActiveTabBackground: "var(--code-bg)",
+            editorActiveTabIndicatorTopColor: "var(--magma)",
+            terminalTitlebarBackground: "var(--code-bg)",
+            terminalBackground: "var(--code-bg)",
+            terminalTitlebarDotsForeground: "var(--topsoil)",
+          },
+        },
+      },
       social: [
         { icon: "github", label: "GitHub", href: "https://github.com/stratum-hq/Stratum" },
       ],
@@ -110,8 +140,8 @@ export default defineConfig({
             src: "https://plausible.io/js/script.js",
           },
         },
-        { tag: "link", attrs: { rel: "icon", href: "/favicon.ico?v=strata", sizes: "32x32" } },
-        { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=strata" } },
+        { tag: "link", attrs: { rel: "icon", href: "/favicon.ico?v=bedrock", sizes: "32x32" } },
+        { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=bedrock" } },
         { tag: "link", attrs: { rel: "manifest", href: "/site.webmanifest" } },
         { tag: "meta", attrs: { property: "og:image", content: "https://docs.stratum-hq.org/og.png" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },

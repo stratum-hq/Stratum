@@ -140,8 +140,8 @@
     cursor: pointer;
     white-space: nowrap;
     line-height: 1.4;
-    transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition: color var(--duration-fast) var(--ease-out),
+                border-color var(--duration-fast) var(--ease-out);
   }
 
   .tab:hover {
@@ -155,7 +155,7 @@
   }
 
   .tab:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 3px solid var(--focus);
     outline-offset: -2px;
     border-radius: var(--radius-sm, 4px);
   }
@@ -214,7 +214,7 @@
   }
 
   .tour-steps :global(.step-btn:focus-visible) {
-    outline: 2px solid var(--accent);
+    outline: 3px solid var(--focus);
     outline-offset: -2px;
   }
 
@@ -244,7 +244,7 @@
     overflow: auto;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 0;
     font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
     font-size: 0.75rem;
     line-height: 1.5;
@@ -258,7 +258,7 @@
 
   .panel {
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 0;
     padding: 10px 12px;
     background: var(--surface-0);
     min-width: 0;
@@ -294,7 +294,7 @@
     all: unset;
     cursor: pointer;
     padding: 1px 4px;
-    border-radius: 3px;
+    border-radius: 0;
   }
 
   .tree :global(.tree-node.selected) {
@@ -303,7 +303,7 @@
   }
 
   .tree :global(.tree-node:focus-visible) {
-    outline: 2px solid var(--accent);
+    outline: 3px solid var(--focus);
   }
 
   .inspector {
@@ -329,20 +329,34 @@
   .inspector :global(.badge) {
     display: inline-block;
     padding: 0 6px;
-    border-radius: 3px;
+    border-radius: 0;
     font-size: 0.6875rem;
     font-weight: 600;
     border: 1px solid var(--border-hover);
   }
 
+  /* Tags: glyph plus word plus color. The locked fill and glyph come from
+     .badge-locked in custom.css; delegated is the amber tag. */
   .inspector :global(.badge-locked) {
-    color: var(--error);
-    border-color: var(--error);
+    color: var(--on-accent);
+    border-color: transparent;
   }
 
   .inspector :global(.badge-delegated) {
-    color: var(--success);
-    border-color: var(--success);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    background: var(--amber-fill);
+    color: var(--on-ember);
+    border-color: transparent;
+    clip-path: var(--edge-chip);
+    font-family: var(--font-mono);
+    letter-spacing: 0.14em;
+  }
+
+  .inspector :global(.badge-delegated)::before {
+    content: "\21C4" / "";
+    letter-spacing: 0;
   }
 
   /* Code editor */
@@ -410,17 +424,22 @@
     padding: 6px 16px !important;
     min-height: 32px !important;
     min-width: 72px !important;
-    border-radius: 4px !important;
+    border-radius: 0 !important;
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
     font-size: 0.8125rem;
     font-weight: 600;
     line-height: 1.4;
     cursor: pointer;
     text-align: center;
-    transition: background 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
   }
 
   .run-btn {
+    font-family: var(--font-display) !important;
+    font-size: 1rem !important;
+    font-weight: 900 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     background: var(--accent) !important;
     color: var(--on-accent) !important;
     border: 1px solid transparent !important;
@@ -437,7 +456,7 @@
 
   .run-btn:focus-visible,
   .reset-btn:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
 
@@ -466,7 +485,7 @@
     word-break: break-word;
     background: var(--surface-0);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 0;
   }
 
   .playground-output .output-pre {
