@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/mysql",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MySQL tenant isolation for Stratum: shared table, table-per-tenant, and database-per-tenant strategies",
   "keywords": [
     "multi-tenancy",
@@ -34,13 +34,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.types.json",
     "lint": "eslint .",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@stratum-hq/core": "^1.5.0",
-    "@stratum-hq/sdk": "^1.3.0"
+    "@stratum-hq/core": "^1.6.0",
+    "@stratum-hq/sdk": "^1.4.0"
   },
   "peerDependencies": {
     "mysql2": "^3.0.0",
@@ -60,6 +60,8 @@
     }
   },
   "devDependencies": {
+    "@stratum-hq/lib": "*",
+    "@types/pg": "^8.11.0",
     "knex": "^3.3.0",
     "mysql2": "^3.24.4",
     "sequelize": "^6.37.8",

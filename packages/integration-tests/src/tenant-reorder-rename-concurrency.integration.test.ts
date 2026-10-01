@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 import {
   GATE_PREFIX,
@@ -25,7 +25,7 @@ let stratum: Stratum;
 beforeAll(async () => {
   await runMigrations();
   await installGate(getPool());
-  stratum = new Stratum({ pool: getPool() });
+  stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
 });
 
 afterEach(async () => {

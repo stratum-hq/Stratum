@@ -35,10 +35,34 @@ export type BatchSetConfigEntry = SetConfigInput & { key: string };
 
 export interface ResolvedConfigEntry {
   key: string;
+  /** The value, or `null` when `masked` is true. */
   value: unknown;
   source_tenant_id: string;
   inherited: boolean;
   locked: boolean;
+  /** Present and true when the value was set with `sensitive: true`. */
+  sensitive?: boolean;
+  /**
+   * Present and true when a sensitive value inherited from an ancestor was
+   * withheld from this read. `value` is then `null`; `source_tenant_id` names
+   * the tenant that set it.
+   */
+  masked?: boolean;
+}
+
+/** Options for reading a tenant's resolved config. */
+export interface ResolveConfigOptions {
+  /**
+   * Return sensitive values inherited from ancestors decrypted. By default they
+   * come back masked. Only for trusted server-side code that needs the secret
+   * itself; do not pass the result back to a client.
+   */
+  revealSensitive?: boolean;
+  /**
+   * The tenant the reader acts for. An inherited sensitive value that this
+   * tenant set is returned decrypted; any other stays masked.
+   */
+  viewerTenantId?: string;
 }
 
 export type ResolvedConfig = Record<string, ResolvedConfigEntry>;
@@ -50,10 +74,19 @@ export interface BatchSetConfigKeyResult {
   error?: string;
 }
 
+/**
+ * The outcome of a batch config write. The batch is atomic: when any entry is
+ * locked by an ancestor or invalid, nothing is written, `rolled_back` is true,
+ * `succeeded` is 0, and every result has status `"error"`. The entries that
+ * caused the rollback carry their own reason; the others say they were not
+ * applied because of those keys.
+ */
 export interface BatchSetConfigResult {
   results: BatchSetConfigKeyResult[];
   succeeded: number;
   failed: number;
+  /** True when the batch was rolled back and nothing was written. */
+  rolled_back?: boolean;
 }
 
 /** Per-key diff entry showing the value and status for one tenant side. */
@@ -61,6 +94,8 @@ export interface ConfigDiffEntry {
   value: unknown;
   status: "inherited" | "own" | "locked";
   source: string;
+  /** Present and true when an inherited sensitive value was withheld (see {@link ResolvedConfigEntry.masked}). */
+  masked?: boolean;
 }
 
 /** A single key comparison between two tenants. */

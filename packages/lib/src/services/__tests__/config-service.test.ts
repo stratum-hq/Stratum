@@ -380,7 +380,7 @@ describe("resolveConfig", () => {
 // batchSetConfig
 // ---------------------------------------------------------------------------
 describe("batchSetConfig", () => {
-  it("partial success: some keys locked, others succeed", async () => {
+  it("rolls back the whole batch when one key is locked, and writes nothing", async () => {
     const pool = makeMockPool();
     const mockQuery = vi.fn();
 
@@ -401,24 +401,6 @@ describe("batchSetConfig", () => {
       ],
     });
 
-    // Query 3: INSERT for the unlocked key "open_key"
-    mockQuery.mockResolvedValueOnce({
-      rows: [
-        {
-          id: "entry-1",
-          tenant_id: "child-id",
-          key: "open_key",
-          value: JSON.stringify("new-value"),
-          locked: false,
-          sensitive: false,
-          source_tenant_id: "child-id",
-          inherited: false,
-          created_at: "2024-01-01T00:00:00.000Z",
-          updated_at: "2024-01-01T00:00:00.000Z",
-        },
-      ],
-    });
-
     vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
       const client = { query: mockQuery } as unknown as import("pg").PoolClient;
       return fn(client);
@@ -429,19 +411,46 @@ describe("batchSetConfig", () => {
       { key: "open_key", value: "new-value" },
     ]);
 
-    expect(result.succeeded).toBe(1);
-    expect(result.failed).toBe(1);
+    expect(result.rolled_back).toBe(true);
+    expect(result.succeeded).toBe(0);
+    expect(result.failed).toBe(2);
     expect(result.results).toHaveLength(2);
 
-    // First result: locked_key failed
     expect(result.results[0].key).toBe("locked_key");
     expect(result.results[0].status).toBe("error");
     expect(result.results[0].error).toContain("locked");
 
-    // Second result: open_key succeeded
     expect(result.results[1].key).toBe("open_key");
-    expect(result.results[1].status).toBe("ok");
-    expect(result.results[1].entry).toBeDefined();
+    expect(result.results[1].status).toBe("error");
+    expect(result.results[1].entry).toBeUndefined();
+    expect(result.results[1].error).toContain("'locked_key'");
+
+    // No INSERT was issued: only the ancestry and lock queries ran.
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+  });
+
+  it("rolls back the whole batch when an entry is invalid", async () => {
+    const pool = makeMockPool();
+    const mockQuery = vi.fn();
+    mockQuery.mockResolvedValueOnce({ rows: [{ ancestry_path: "/" }] });
+
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+
+    const result = await configService.batchSetConfig(pool, "root-id", [
+      { key: "ok", value: 1 },
+      { key: "bad", value: () => 1 },
+      { key: "", value: 1 },
+    ]);
+
+    expect(result.rolled_back).toBe(true);
+    expect(result.succeeded).toBe(0);
+    expect(result.results[1].error).toContain("JSON");
+    expect(result.results[2].error).toContain("non-empty string");
+    expect(result.results[0].error).toContain("rolled back");
+    expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
   it("all keys succeed when none are locked", async () => {

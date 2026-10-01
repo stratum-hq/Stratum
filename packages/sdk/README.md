@@ -67,7 +67,7 @@ app.get("/data", (req, res) => {
 ## Features
 
 - **`StratumClient`**: HTTP client for the control plane API (`resolveTenant`, `getTenantTree`, `createTenant`, `createWebhook`, `listRegions`, …) with a built-in LRU cache. Mutations made through the client invalidate affected entries (a move clears the whole cache); changes made elsewhere, such as a suspension or a config or permission change, are picked up when the entry expires, so the cache TTL (`cache.ttlMs`, default 60s) bounds how stale a context can be.
-- **`expressMiddleware` / `fastifyPlugin`**: resolve the tenant from a JWT claim, `X-Tenant-ID` header, or custom resolvers (tried in that order), then populate `req.tenant`.
+- **`expressMiddleware` / `fastifyPlugin`**: resolve the tenant from a JWT claim, `X-Tenant-ID` header, or custom resolvers (tried in that order), then populate `req.tenant`. Resolving a tenant needs only the `read` scope: give the app server a `read` key scoped to its tenant, which also resolves that tenant's descendants. In `resolved_config`, a sensitive value inherited from an ancestor arrives masked (`value: null`, `masked: true`) unless the key belongs to the tenant that set it.
 - **AsyncLocalStorage context**: `getTenantContext()` and `runWithTenantContext()` make the resolved context available to services that never see the request object.
 - **Custom resolvers**: supply async functions (e.g. subdomain- or query-based) via the `resolvers` option.
 

@@ -372,13 +372,17 @@ async function loadForTransition(client: pg.PoolClient, id: string): Promise<Ten
  * and forces a leaf-first walk so no active tenant is ever left under a
  * non-active parent.
  */
-async function assertNoActiveChildren(client: pg.PoolClient, id: string): Promise<void> {
+async function assertNoActiveChildren(
+  client: pg.PoolClient,
+  id: string,
+  action: "archive" | "suspend",
+): Promise<void> {
   const childrenRes = await client.query<{ count: string }>(
     `SELECT COUNT(*) as count FROM tenants WHERE parent_id = $1 AND status = 'active'`,
     [id],
   );
   if (parseInt(childrenRes.rows[0].count, 10) > 0) {
-    throw new TenantHasChildrenError(id);
+    throw new TenantHasChildrenError(id, action);
   }
 }
 
@@ -392,7 +396,7 @@ export async function suspendTenant(pool: pg.Pool, id: string): Promise<TenantNo
     if (tenant.status !== "active") {
       throw new InvalidTenantStateError(id, tenant.status, "suspend", ["active"]);
     }
-    await assertNoActiveChildren(client, id);
+    await assertNoActiveChildren(client, id, "suspend");
     const res = await client.query<TenantNode>(
       `UPDATE tenants SET status = 'suspended', updated_at = now() WHERE id = $1 RETURNING *`,
       [id],
@@ -411,7 +415,7 @@ export async function archiveTenant(pool: pg.Pool, id: string): Promise<TenantNo
     if (tenant.status !== "active" && tenant.status !== "suspended") {
       throw new InvalidTenantStateError(id, tenant.status, "archive", ["active", "suspended"]);
     }
-    await assertNoActiveChildren(client, id);
+    await assertNoActiveChildren(client, id, "archive");
     const res = await client.query<TenantNode>(
       `UPDATE tenants SET status = 'archived', deleted_at = now(), updated_at = now() WHERE id = $1 RETURNING *`,
       [id],

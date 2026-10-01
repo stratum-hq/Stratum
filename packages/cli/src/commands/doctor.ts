@@ -1,16 +1,26 @@
 import pg from "pg";
-import { connectDb, withRlsBypass } from "../utils/db.js";
-import { evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
+import { inspectRoleModel, pinnedQuery, schemaOfTable, stratumPolicyDrift } from "@stratum-hq/lib";
+import { tablePolicyWarnings } from "@stratum-hq/db-adapters";
+import {
+  connectDb,
+  connectAdminDb,
+  controlRoleFlag,
+  crossTenantRunner,
+  type CrossTenantRunner,
+} from "../utils/db.js";
+import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
+import { roleModelChecks } from "../utils/role-model.js";
+import { ansi } from "../utils/log.js";
 
-// ── ANSI Colors ──────────────────────────────────────────────────────
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const GREEN = "\x1b[32m";
-const RED = "\x1b[31m";
-const YELLOW = "\x1b[33m";
-const CYAN = "\x1b[36m";
-const WHITE = "\x1b[37m";
+// ── ANSI Colors (none when NO_COLOR is set) ──────────────────────────
+const RESET = ansi("\x1b[0m");
+const BOLD = ansi("\x1b[1m");
+const DIM = ansi("\x1b[2m");
+const GREEN = ansi("\x1b[32m");
+const RED = ansi("\x1b[31m");
+const YELLOW = ansi("\x1b[33m");
+const CYAN = ansi("\x1b[36m");
+const WHITE = ansi("\x1b[37m");
 
 // ── Result types ─────────────────────────────────────────────────────
 type CheckStatus = "pass" | "fail" | "warn";
@@ -76,7 +86,7 @@ async function checkConnectivity(
 }
 
 async function checkSchema(pool: pg.Pool): Promise<CheckResult> {
-  const res = await pool.query(`
+  const res = await pinnedQuery<{ tablename: string }>(pool, `
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public'
       AND tablename = ANY($1);
@@ -111,7 +121,7 @@ async function checkSchema(pool: pg.Pool): Promise<CheckResult> {
 
 async function checkRLSEnabled(pool: pg.Pool): Promise<CheckResult> {
   // Check tenant-scoped tables (those with a tenant_id column) for RLS
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name,
       COALESCE(pc.relrowsecurity, false) AS rls_enabled,
@@ -167,19 +177,24 @@ async function checkRLSEnabled(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
+async function checkRLSPolicies(pool: pg.Pool, controlRole: string | undefined): Promise<CheckResult> {
   // Check that the policies on every tenant-scoped table filter by tenant.
   // A policy's name proves nothing, so its expressions are checked.
-  const res = await pool.query(`
+  // The control role of migration 032 comes from --control-role, else the
+  // stratum.control_role setting of the connection (ALTER DATABASE ... SET),
+  // else stratum_control.
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name,
+      COALESCE($1::text, NULLIF(current_setting('stratum.control_role', true), '')) AS control_role,
       COALESCE((
         SELECT json_agg(json_build_object(
           'policyname', p.policyname,
           'permissive', p.permissive,
           'cmd', p.cmd,
           'qual', p.qual,
-          'with_check', p.with_check
+          'with_check', p.with_check,
+          'roles', p.roles
         ))
         FROM pg_policies p
         WHERE p.tablename = c.table_name
@@ -190,11 +205,13 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
       AND c.column_name = 'tenant_id'
       AND c.table_name NOT LIKE 'pg_%'
     ORDER BY c.table_name;
-  `);
+  `, [controlRole ?? null]);
 
-  const tables = (res.rows as Array<{ table_name: string; policies: PolicyRow[] }>).map((t) => ({
+  const tables = (
+    res.rows as Array<{ table_name: string; control_role: string | null; policies: PolicyRow[] }>
+  ).map((t) => ({
     table_name: t.table_name,
-    verdict: evaluatePolicies(t.policies, "public"),
+    verdict: evaluatePolicies(t.policies, "public", t.control_role ?? DEFAULT_CONTROL_ROLE),
   }));
 
   if (tables.length === 0) {
@@ -225,8 +242,104 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
+/**
+ * The role model of @stratum-hq/lib migration 032: whether the control-role
+ * hardening is active, whether the login of --database-url is limited to the
+ * application's share, whether the login of --admin-database-url can act as
+ * the control plane, and the state of the legacy switch.
+ */
+async function checkRoleModel(
+  pool: pg.Pool,
+  adminPool: pg.Pool | undefined,
+  controlRole: string | undefined,
+): Promise<CheckResult[]> {
+  try {
+    return roleModelChecks(await inspectRoleModel({ appPool: pool, adminPool, controlRole }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return [{ status: "warn", label: "Control role", summary: "Could not check the role model", details: [msg] }];
+  }
+}
+
+/**
+ * Compares the row-level security of the Stratum tables with the canonical
+ * set of migration 032: RLS enabled and forced, and exactly the Stratum
+ * policies with their expressions. `stratum db roles --apply` restores it.
+ */
+async function checkStratumPolicies(pool: pg.Pool, controlRole: string | undefined): Promise<CheckResult> {
+  const label = "Stratum policies";
+  try {
+    if ((await schemaOfTable(pool, "stratum_security")) === null) {
+      return { status: "warn", label, summary: "Migration 032 not applied; run the Stratum migrations" };
+    }
+    const drift = await stratumPolicyDrift(pool, { controlRole });
+    if (drift.length === 0) {
+      return { status: "pass", label, summary: "RLS and policies match migration 032" };
+    }
+    return {
+      status: "warn",
+      label,
+      summary: `${drift.length} difference(s) from migration 032`,
+      details: [
+        ...drift,
+        "Fix: stratum db roles --apply (as a superuser) re-creates every Stratum policy and forces RLS",
+      ],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { status: "warn", label, summary: "Could not compare the Stratum policies", details: [msg] };
+  }
+}
+
+/**
+ * Policies that admit the app.bypass_rls setting directly. Any session can
+ * set it, so such a policy holds only against clients that never do. The
+ * policies of migration 032 go through the legacy switch instead.
+ */
+async function checkDirectBypassPolicies(pool: pg.Pool): Promise<CheckResult> {
+  const res = await pinnedQuery(pool, `
+    SELECT tablename AS table_name,
+           json_agg(json_build_object(
+             'policyname', policyname, 'permissive', permissive, 'cmd', cmd,
+             'qual', qual, 'with_check', with_check, 'roles', roles
+           )) AS policies
+      FROM pg_policies
+     WHERE schemaname = 'public'
+     GROUP BY tablename
+     ORDER BY tablename;
+  `);
+  const details = (res.rows as Array<{ table_name: string; policies: PolicyRow[] }>).flatMap((t) =>
+    tablePolicyWarnings(t.policies.map((p) => ({ ...p, roles: p.roles ?? [] }))).map((w) => `${t.table_name}: ${w}`),
+  );
+  if (details.length === 0) {
+    return { status: "pass", label: "Bypass policies", summary: "No policy admits app.bypass_rls directly" };
+  }
+  return {
+    status: "warn",
+    label: "Bypass policies",
+    summary: `${details.length} policy(ies) admit app.bypass_rls directly`,
+    details,
+  };
+}
+
+/** Runs a data check across tenants; a failure becomes a warning that says why. */
+async function dataCheck(
+  run: CrossTenantRunner | Error,
+  label: string,
+  what: string,
+  check: (client: pg.PoolClient, schema: string) => Promise<CheckResult>,
+): Promise<CheckResult> {
+  try {
+    if (run instanceof Error) throw run;
+    return await run(check);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { status: "warn", label, summary: `Could not query ${what}`, details: [msg] };
+  }
+}
+
 async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
-  const res = await pool.query(`
+  const res = await pinnedQuery(pool, `
     SELECT
       c.table_name
     FROM information_schema.columns c
@@ -261,13 +374,13 @@ async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
-async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkOrphanedTenants(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT t.id, t.name, t.parent_id
-    FROM tenants t
+    FROM ${schema}.tenants t
     WHERE t.parent_id IS NOT NULL
       AND NOT EXISTS (
-        SELECT 1 FROM tenants p
+        SELECT 1 FROM ${schema}.tenants p
         WHERE p.id = t.parent_id
           AND p.status = 'active'
       );
@@ -293,25 +406,25 @@ async function checkOrphanedTenants(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkParentCycles(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   // Walk up from each tenant and keep the ids already seen, so the walk ends
   // on a loop. A tenant is on a cycle when its walk comes back to it. Each
   // cycle is reported once: from the member with the lowest id.
   const res = await pool.query(`
     WITH RECURSIVE up(start_id, id, parent_id, seen) AS (
       SELECT t.id, t.id, t.parent_id, ARRAY[t.id]
-      FROM tenants t
+      FROM ${schema}.tenants t
       WHERE t.parent_id IS NOT NULL
       UNION ALL
       SELECT up.start_id, p.id, p.parent_id, up.seen || p.id
       FROM up
-      JOIN tenants p ON p.id = up.parent_id
+      JOIN ${schema}.tenants p ON p.id = up.parent_id
       WHERE p.id <> ALL (up.seen)
     )
     SELECT (
       SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY m.ord)
       FROM unnest(up.seen) WITH ORDINALITY AS m(id, ord)
-      JOIN tenants t ON t.id = m.id
+      JOIN ${schema}.tenants t ON t.id = m.id
     ) AS members
     FROM up
     WHERE up.parent_id = up.start_id
@@ -348,10 +461,10 @@ async function checkParentCycles(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkStaleApiKeys(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, last_used_at
-    FROM api_keys
+    FROM ${schema}.api_keys
     WHERE revoked_at IS NULL
       AND last_used_at IS NOT NULL
       AND last_used_at < NOW() - INTERVAL '90 days';
@@ -386,10 +499,10 @@ async function checkStaleApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
-async function checkExpiredApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
+async function checkExpiredApiKeys(pool: pg.PoolClient, schema: string): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT id, name, key_prefix, expires_at
-    FROM api_keys
+    FROM ${schema}.api_keys
     WHERE revoked_at IS NULL
       AND expires_at IS NOT NULL
       AND expires_at < NOW();
@@ -421,20 +534,51 @@ async function checkExpiredApiKeys(pool: pg.PoolClient): Promise<CheckResult> {
   };
 }
 
+/**
+ * Checks STRATUM_ENCRYPTION_KEY and STRATUM_HKDF_SALT against the rules that
+ * @stratum-hq/lib applies when it loads. Outside development and test (an
+ * unset NODE_ENV counts as development), lib refuses to start when a rule is
+ * broken, so the check fails. In development and test it warns.
+ */
 function checkEncryptionKey(): CheckResult {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const strict = nodeEnv !== "development" && nodeEnv !== "test";
   const key = process.env.STRATUM_ENCRYPTION_KEY;
-  if (key && key.length > 0) {
+  const salt = process.env.STRATUM_HKDF_SALT;
+  const issues: string[] = [];
+  if (!key) {
+    issues.push("STRATUM_ENCRYPTION_KEY must be set");
+  } else if (key === "stratum-dev-key") {
+    issues.push("STRATUM_ENCRYPTION_KEY is the built-in development key");
+  } else if (Buffer.byteLength(key, "utf8") < 32) {
+    issues.push("STRATUM_ENCRYPTION_KEY must be at least 32 bytes");
+  }
+  if (!salt) {
+    issues.push("STRATUM_HKDF_SALT must be set");
+  } else if (!/^(?:[0-9a-fA-F]{2})+$/.test(salt)) {
+    issues.push("STRATUM_HKDF_SALT must be a non-empty, even-length hex string");
+  } else if (Buffer.from(salt, "hex").equals(Buffer.from("stratum-non-production-hkdf-salt-v1", "utf8"))) {
+    issues.push("STRATUM_HKDF_SALT is the built-in development salt");
+  }
+  if (issues.length === 0) {
+    return { status: "pass", label: "Encryption key", summary: "Configured" };
+  }
+  if (strict) {
     return {
-      status: "pass",
+      status: "fail",
       label: "Encryption key",
-      summary: "Configured",
+      summary: `Stratum refuses to start in ${nodeEnv}`,
+      details: issues,
     };
   }
   return {
     status: "warn",
     label: "Encryption key",
-    summary: "STRATUM_ENCRYPTION_KEY env var not set",
-    details: ["Sensitive config values will not be encrypted at rest"],
+    summary: "Not valid outside development and test",
+    details: [
+      ...issues,
+      ...(key ? [] : ["Sensitive config values are encrypted with the built-in development key"]),
+    ],
   };
 }
 
@@ -466,11 +610,12 @@ function resolveDepthWarning(flags: Record<string, string | boolean>): DepthWarn
 
 async function checkTreeDepth(
   pool: pg.PoolClient,
+  schema: string,
   { threshold, issue }: DepthWarning,
 ): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT COALESCE(MAX(depth), 0) AS max_depth
-    FROM tenants
+    FROM ${schema}.tenants
     WHERE status = 'active';
   `);
 
@@ -480,7 +625,7 @@ async function checkTreeDepth(
 
   if (maxDepth > threshold) {
     const overRes = await pool.query(
-      `SELECT id, name, depth FROM tenants WHERE depth > $1 AND status = 'active' ORDER BY depth DESC LIMIT 5;`,
+      `SELECT id, name, depth FROM ${schema}.tenants WHERE depth > $1 AND status = 'active' ORDER BY depth DESC LIMIT 5;`,
       [threshold],
     );
     const over = overRes.rows as Array<{ id: string; name: string; depth: number }>;
@@ -508,10 +653,17 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
   console.log(`  ${separator}`);
   console.log();
 
+  const controlRole = controlRoleFlag(flags);
+
   // 1. Attempt database connection
   let pool: pg.Pool;
+  let adminPool: pg.Pool | undefined;
   try {
     pool = await connectDb(flags);
+    adminPool = await connectAdminDb(flags).catch(async (err) => {
+      await pool.end();
+      throw err;
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     printResult({
@@ -541,61 +693,44 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
       schemaResult.status === "pass" ||
       (schemaResult.status === "fail" && !schemaResult.summary.includes("No Stratum tables"));
 
+    // The data checks read Stratum tables that have FORCE RLS. They run as
+    // the control role on the admin login, or under the legacy bypass;
+    // without either they would see zero rows and report a pass they never
+    // checked.
+    let run: CrossTenantRunner | Error = new Error("not connected");
+
     if (hasCoreSchema) {
       // c. RLS enabled
       results.push(await checkRLSEnabled(pool));
 
       // d. RLS policies
-      results.push(await checkRLSPolicies(pool));
+      results.push(await checkRLSPolicies(pool, controlRole));
+      results.push(await checkDirectBypassPolicies(pool));
+      results.push(await checkStratumPolicies(pool, controlRole));
+
+      // d2. Control-role hardening and the role model (migration 032)
+      results.push(...(await checkRoleModel(pool, adminPool, controlRole)));
 
       // e. Missing indexes
       results.push(await checkMissingIndexes(pool));
 
-      // f. Orphaned tenants. The data checks below read Stratum tables that
-      // have FORCE RLS, so each runs under the administrative bypass; without
-      // it they see zero rows and report a pass they never checked.
-      try {
-        results.push(await withRlsBypass(pool, (client) => checkOrphanedTenants(client)));
-      } catch {
-        results.push({
-          status: "warn",
-          label: "Orphaned tenants",
-          summary: "Could not query tenants table",
-        });
-      }
+      run = await crossTenantRunner(pool, adminPool, controlRole).catch((err: unknown) =>
+        err instanceof Error ? err : new Error(String(err)),
+      );
+
+      // f. Orphaned tenants
+      results.push(await dataCheck(run, "Orphaned tenants", "tenants table", checkOrphanedTenants));
 
       // Tenant parent cycles
-      try {
-        results.push(await withRlsBypass(pool, (client) => checkParentCycles(client)));
-      } catch {
-        results.push({
-          status: "warn",
-          label: "Tenant parent cycles",
-          summary: "Could not query tenants table",
-        });
-      }
+      results.push(await dataCheck(run, "Tenant parent cycles", "tenants table", checkParentCycles));
 
       // g. Stale API keys
-      try {
-        results.push(await withRlsBypass(pool, (client) => checkStaleApiKeys(client)));
-      } catch {
-        results.push({
-          status: "warn",
-          label: "Stale API keys",
-          summary: "Could not query api_keys table",
-        });
-      }
+      results.push(await dataCheck(run, "Stale API keys", "api_keys table", checkStaleApiKeys));
 
       // h. Expired API keys
-      try {
-        results.push(await withRlsBypass(pool, (client) => checkExpiredApiKeys(client)));
-      } catch {
-        results.push({
-          status: "warn",
-          label: "Expired API keys",
-          summary: "Could not query api_keys table (expires_at column may not exist)",
-        });
-      }
+      results.push(
+        await dataCheck(run, "Expired API keys", "api_keys table (expires_at column may not exist)", checkExpiredApiKeys),
+      );
     }
 
     // i. Encryption key (no DB required)
@@ -603,21 +738,14 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
 
     // j. Tree depth
     if (hasCoreSchema) {
-      try {
-        const depthWarning = resolveDepthWarning(flags);
-        results.push(
-          await withRlsBypass(pool, (client) => checkTreeDepth(client, depthWarning)),
-        );
-      } catch {
-        results.push({
-          status: "warn",
-          label: "Tree depth",
-          summary: "Could not query tenant tree depth",
-        });
-      }
+      const depthWarning = resolveDepthWarning(flags);
+      results.push(
+        await dataCheck(run, "Tree depth", "tenant tree depth", (client, schema) => checkTreeDepth(client, schema, depthWarning)),
+      );
     }
   } finally {
     await pool.end();
+    await adminPool?.end();
   }
 
   // Print all results

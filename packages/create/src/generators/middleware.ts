@@ -50,8 +50,10 @@ const TENANT_REQUIRED = `{ error: "A bearer token with a tenant_id claim is requ
  * x-tenant-id. The subdomain is forwarded as x-tenant-slug, never as the ID.
  */
 export function nextjsTenantMiddleware(): string {
-  return `// middleware.ts (place in project root)
-// Next.js middleware for Stratum tenant resolution
+  return `// src/middleware.ts: Next.js middleware for Stratum tenant resolution
+//
+// Next.js runs middleware only from the directory that holds the app
+// directory: src/middleware.ts for src/app, middleware.ts for app.
 //
 // The tenant ID comes only from the tenant_id claim of a bearer token that
 // verifies with JWT_SECRET, and is forwarded as x-tenant-id. Any copy of the
@@ -127,6 +129,24 @@ export const config = {
 `;
 }
 
+/**
+ * The root layout of a generated Next.js app, src/app/layout.tsx. \`next build\`
+ * refuses an app directory without one.
+ */
+export function nextjsRootLayout(projectName: string): string {
+  return `// app/layout.tsx: ${projectName} root layout
+import type { ReactNode } from "react";
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+`;
+}
+
 export function generateMiddleware(projectName: string, preset: StackPreset): MiddlewareFile[] {
   switch (preset.framework) {
     case "express":
@@ -145,10 +165,16 @@ export function generateMiddleware(projectName: string, preset: StackPreset): Mi
 }
 
 function generateExpressMiddleware(projectName: string): MiddlewareFile[] {
-  return [
-    {
-      filename: "src/index.ts",
-      content: `import express from "express";
+  return [{ filename: "src/index.ts", content: expressServer(projectName) }];
+}
+
+/**
+ * src/index.ts of a generated Express server, for the express template and
+ * every express preset: tenant middleware that takes the tenant from a
+ * verified JWT, and a /tenants route that requires a tenant.
+ */
+export function expressServer(projectName: string): string {
+  return `import express from "express";
 ${VERIFIED_TENANT}
 
 const app = express();
@@ -184,16 +210,20 @@ app.get("/tenants", async (req, res) => {
 app.listen(port, () => {
   console.log(\`${projectName} running on http://localhost:\${port}\`);
 });
-`,
-    },
-  ];
+`;
 }
 
 function generateFastifyMiddleware(projectName: string): MiddlewareFile[] {
-  return [
-    {
-      filename: "src/index.ts",
-      content: `import Fastify from "fastify";
+  return [{ filename: "src/index.ts", content: fastifyServer(projectName) }];
+}
+
+/**
+ * src/index.ts of a generated Fastify server, for the fastify template and
+ * every fastify preset: an onRequest hook that takes the tenant from a
+ * verified JWT, and a /tenants route that requires a tenant.
+ */
+export function fastifyServer(projectName: string): string {
+  return `import Fastify from "fastify";
 ${VERIFIED_TENANT}
 
 const fastify = Fastify({ logger: true });
@@ -228,16 +258,18 @@ fastify.listen({ port, host: "0.0.0.0" }, (err) => {
     process.exit(1);
   }
 });
-`,
-    },
-  ];
+`;
 }
 
 function generateNextjsMiddleware(projectName: string): MiddlewareFile[] {
   return [
     {
-      filename: "middleware.ts",
+      filename: "src/middleware.ts",
       content: nextjsTenantMiddleware(),
+    },
+    {
+      filename: "src/app/layout.tsx",
+      content: nextjsRootLayout(projectName),
     },
     {
       filename: "src/app/page.tsx",
@@ -249,7 +281,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>The tenant comes from a verified JWT in <code>middleware.ts</code></li>
+        <li>The tenant comes from a verified JWT in <code>src/middleware.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>

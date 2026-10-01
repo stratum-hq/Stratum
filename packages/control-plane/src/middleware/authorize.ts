@@ -93,8 +93,11 @@ export function createAuthorizeMiddleware() {
 
     // Hierarchical scopes: admin implies write implies read. A granted scope
     // satisfies any required scope of equal-or-lower rank.
-    if (!scopeSatisfies(scopes, requiredScope === "operator" ? "admin" : requiredScope)) {
-      throw new ForbiddenError("Insufficient permissions for this operation");
+    const neededScope = requiredScope === "operator" ? "admin" : requiredScope;
+    if (!scopeSatisfies(scopes, neededScope)) {
+      throw new ForbiddenError(
+        `Insufficient permissions for this operation: it requires the "${neededScope}" scope`,
+      );
     }
     if (requiredScope === "operator") {
       assertOperator(request);

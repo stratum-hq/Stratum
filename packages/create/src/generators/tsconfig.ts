@@ -24,12 +24,15 @@ export function generateTsconfig(framework: Framework, extraSources: string[] = 
     {
       compilerOptions: {
         target: "ESNext",
-        module: "NodeNext",
-        moduleResolution: "NodeNext",
+        // Next.js resolves imports like a bundler: "next/server" has no file
+        // extension, which NodeNext refuses in an ES module package.
+        ...(framework === "nextjs"
+          ? { module: "ESNext", moduleResolution: "Bundler" }
+          : { module: "NodeNext", moduleResolution: "NodeNext" }),
         strict: true,
-        outDir: "dist",
-        rootDir,
-        declaration: true,
+        // next build compiles a Next.js app itself and type-checks the files it
+        // generates under .next/types, which a rootDir of src would reject.
+        ...(framework === "nextjs" ? { noEmit: true } : { outDir: "dist", rootDir, declaration: true }),
         skipLibCheck: true,
         esModuleInterop: true,
         ...(framework === "nestjs"
@@ -39,7 +42,10 @@ export function generateTsconfig(framework: Framework, extraSources: string[] = 
           ? { jsx: "preserve", plugins: [{ name: "next" }] }
           : {}),
       },
-      include: ["src", ...extraSources],
+      include:
+        framework === "nextjs"
+          ? ["next-env.d.ts", "src", ...extraSources, ".next/types/**/*.ts"]
+          : ["src", ...extraSources],
       exclude: ["node_modules", "dist"],
     },
     null,

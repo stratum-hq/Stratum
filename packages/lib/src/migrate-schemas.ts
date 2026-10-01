@@ -2,12 +2,18 @@ import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import { withClient } from "./pool-helpers.js";
+import { assertRoleName, isSuperuser, migrationSql, setApplyControlRole, setControlRole } from "./migration-sql.js";
+import { assertRoleSubjectToRls } from "./migrate.js";
 
 export interface MigrateSchemasOptions {
   pool: pg.Pool;
   concurrency?: number;
   onProgress?: (schema: string, index: number, total: number) => void;
   enforceRls?: boolean;
+  /** The control role for migration 032; see MigrateOptions.controlRole. */
+  controlRole?: string;
+  /** Lets migration 032 grant the control role to the login of `pool`; see MigrateOptions.applyControlRole. */
+  applyControlRole?: boolean;
 }
 
 export interface MigrateSchemasResult {
@@ -24,7 +30,12 @@ export interface MigrateSchemasResult {
 export async function migrateAllSchemas(
   options: MigrateSchemasOptions,
 ): Promise<MigrateSchemasResult> {
-  const { pool, concurrency = 5, onProgress, enforceRls } = options;
+  const { pool, concurrency = 5, onProgress, enforceRls, controlRole, applyControlRole } = options;
+  if (controlRole !== undefined) assertRoleName(controlRole, "control role");
+
+  if (enforceRls) {
+    await assertRoleSubjectToRls(pool);
+  }
 
   // Discover tenant schemas. The tenants registry is under FORCE RLS, so
   // discovery runs under the control-plane bypass like every other lib read.
@@ -54,9 +65,10 @@ export async function migrateAllSchemas(
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
-  const migrationSql = files.map((file) => ({
+  const superuser = await isSuperuser(pool);
+  const migrations = files.map((file) => ({
     name: file,
-    sql: fs.readFileSync(path.join(migrationsDir, file), "utf-8"),
+    sql: migrationSql(file, fs.readFileSync(path.join(migrationsDir, file), "utf-8"), superuser),
   }));
 
   // Process schemas in chunks of `concurrency` size
@@ -64,7 +76,7 @@ export async function migrateAllSchemas(
   for (let i = 0; i < schemas.length; i += concurrency) {
     const chunk = schemas.slice(i, i + concurrency);
     const results = await Promise.allSettled(
-      chunk.map((schema) => migrateSchema(pool, schema, migrationSql, enforceRls)),
+      chunk.map((schema) => migrateSchema(pool, schema, migrations, enforceRls, controlRole, applyControlRole)),
     );
 
     for (let j = 0; j < results.length; j++) {
@@ -92,6 +104,8 @@ async function migrateSchema(
   schema: string,
   migrations: { name: string; sql: string }[],
   enforceRls?: boolean,
+  controlRole?: string,
+  applyControlRole?: boolean,
 ): Promise<void> {
   // Use a hash of the schema name for a unique advisory lock key per schema
   const lockKey = hashSchemaLock(schema);
@@ -103,7 +117,7 @@ async function migrateSchema(
       await client.query("BEGIN");
 
       // Advisory lock scoped to this schema
-      await client.query(`SELECT pg_advisory_xact_lock($1)`, [lockKey]);
+      await client.query(`SELECT pg_catalog.pg_advisory_xact_lock($1::pg_catalog.int8)`, [lockKey]);
 
       // Set search_path to the tenant schema. public stays on the path because
       // the migration SQL uses extension types and functions installed there
@@ -134,6 +148,8 @@ async function migrateSchema(
       if (enforceRls) {
         await client.query("SET LOCAL stratum.enforce_rls = 'on'");
       }
+      await setControlRole(client, controlRole);
+      await setApplyControlRole(client, applyControlRole);
 
       await client.query(migration.sql);
       await client.query(`INSERT INTO ${quoted}._migrations (name) VALUES ($1)`, [

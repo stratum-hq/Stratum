@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import crypto from "node:crypto";
 
 // Mock pool-helpers before importing api-key-service
 vi.mock("../../pool-helpers.js", () => ({
@@ -105,3 +106,61 @@ describe("validateApiKey", () => {
     expect(result?.key_id).toBe("key-1");
   });
 });
+
+describe("validateApiKey hash candidates", () => {
+  const HMAC_ENV_NAME = "STRATUM_API_KEY_HMAC_SECRET";
+  const sha256 = (k: string) => crypto.createHash("sha256").update(k).digest("hex");
+  const hmac = (k: string, s: string) => crypto.createHmac("sha256", s).update(k).digest("hex");
+
+  /** The [hash, version] pairs validateApiKey looks up for `key`, none of which match. */
+  async function lookups(options?: { allowLegacyHashes?: boolean }): Promise<Array<[unknown, unknown]>> {
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [] });
+    withMockQuery(mockQuery);
+    expect(await apiKeyService.validateApiKey(makeMockPool(), "presented-key", options)).toBeNull();
+    return mockQuery.mock.calls.map(([, params]) => [params[0], params[2]]);
+  }
+
+  afterEach(() => {
+    delete process.env[HMAC_ENV_NAME];
+  });
+
+  it("looks up only the SHA-256 hash with version 1 when no HMAC secret is set", async () => {
+    expect(await lookups()).toEqual([[sha256("presented-key"), 1]]);
+  });
+
+  it("looks up the HMAC hash first, then the legacy SHA-256 hash, by default once an HMAC secret is set", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    expect(await lookups()).toEqual([
+      [hmac("presented-key", "unit-secret"), 2],
+      [sha256("presented-key"), 1],
+    ]);
+  });
+
+  it("looks up only the HMAC hash with version 2 when legacy hashes are turned off", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    expect(await lookups({ allowLegacyHashes: false })).toEqual([[hmac("presented-key", "unit-secret"), 2]]);
+  });
+
+  it("re-hashes a version 1 key with HMAC only while the stored row is still version 1", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    const legacyRow = {
+      id: "key-1", tenant_id: null, key_hash: sha256("presented-key"), key_prefix: "sk_live_", name: null,
+      created_at: new Date(), last_used_at: null, revoked_at: null, expires_at: null,
+      scopes: ["read"], rate_limit_max: null, rate_limit_window: null, hash_version: 1, stamp_due: false,
+    };
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [legacyRow] })
+      .mockResolvedValue({ rows: [{ scopes: ["read"], role_scopes: null }] });
+    withMockQuery(mockQuery);
+
+    expect((await apiKeyService.validateApiKey(makeMockPool(), "presented-key"))?.key_id).toBe("key-1");
+
+    const update = mockQuery.mock.calls.find(([sql]) => String(sql).includes("SET key_hash"));
+    expect(update).toBeDefined();
+    const [sql, params] = update!;
+    expect(String(sql).replace(/\s+/g, " ")).toContain("WHERE id = $3 AND hash_version = 1");
+    expect(params).toEqual([hmac("presented-key", "unit-secret"), 2, "key-1"]);
+  });
+});
+

@@ -63,7 +63,7 @@ const stratum = new Stratum({ pool, autoMigrate: true });
 await stratum.initialize();
 
 // MySQL adapter for application data
-const mysqlPool = mysql.createPool(process.env.MYSQL_URL);
+const mysqlPool = mysql.createPool(process.env.MYSQL_URL!);
 const adapter = new MysqlSharedAdapter({
   pool: mysqlPool,
   databaseName: "myapp",
@@ -139,6 +139,20 @@ registerStratumSubscriber(dataSource);
 ```
 
 Call `registerStratumSubscriber()` after `dataSource.initialize()`. It throws before that, because `initialize()` replaces the subscriber list. Do not put `StratumTypeOrmSubscriber` in the `subscribers` option: TypeORM only loads classes decorated with `@EventSubscriber()` from that option.
+
+The subscriber reads the current tenant from the AsyncLocalStorage context of `@stratum-hq/sdk`. The SDK's Express and Fastify middleware set that context for each request. Anywhere else, for example in a background job, run the queries inside `runWithTenantContext`, and await them inside the callback so they run in the context:
+
+```typescript
+import { runWithTenantContext } from "@stratum-hq/sdk";
+
+// `client` is a StratumClient; resolveTenant returns the tenant's context.
+const context = await client.resolveTenant(tenantId);
+const notes = await runWithTenantContext(context, async () => {
+  return await repo.find();
+});
+```
+
+Install `@stratum-hq/sdk` in your application (`npm install @stratum-hq/sdk`), so that your code and the subscriber use the same copy of the context.
 
 `registerStratumSubscriber()` also scopes updates and deletes to the current tenant: repository `update()`, `delete()`, `softDelete()`, `restore()`, `save()` of an existing row, `remove()`, and query builder updates and deletes get `tenant_id = <current tenant>` ANDed to their WHERE clause. A row of another tenant is left unchanged, and an update or delete of a tenant table outside a tenant context is refused. `save()` of a row that belongs to another tenant throws: before an insert (other than an upsert) whose entity supplies its whole primary key, the subscriber looks that key up without the read scope, uses the result only for this check, and refuses the insert when the row belongs to another tenant. An update or delete builder aimed at a raw table name (not an entity) is treated as a tenant table and always gets the tenant condition, so it fails on a table without `tenant_id`. `TRUNCATE` of a table with a `tenant_id` column (`repository.clear()`, `queryRunner.clearTable()`) is refused, because it would remove every tenant's rows. A subscriber added to `dataSource.subscribers` by hand refuses every UPDATE and DELETE, so always register it with `registerStratumSubscriber()`.
 
@@ -283,7 +297,7 @@ Each tenant database gets its own connection pool. Tune `maxPools` and `idleTime
 ```typescript
 const adapter = new MysqlDatabaseAdapter({
   createPool: (uri) => mysql.createPool(uri),
-  baseUri: process.env.MYSQL_URL,
+  baseUri: process.env.MYSQL_URL!,
   maxPools: 50,          // max concurrent tenant pools (default: 20)
   idleTimeoutMs: 60000,  // close idle pools after 60s (default: 60000)
 });

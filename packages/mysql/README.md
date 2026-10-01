@@ -24,7 +24,7 @@ npm install @stratum-hq/mysql mysql2
 import mysql from "mysql2/promise";
 import { MysqlSharedAdapter } from "@stratum-hq/mysql";
 
-const pool = mysql.createPool(process.env.MYSQL_URL);
+const pool = mysql.createPool(process.env.MYSQL_URL!);
 const adapter = new MysqlSharedAdapter({ pool, databaseName: "myapp" });
 
 // Structured query methods auto-inject tenant_id
@@ -93,6 +93,20 @@ registerStratumSubscriber(dataSource);
 
 Call `registerStratumSubscriber()` after `dataSource.initialize()`. It throws before that, because `initialize()` replaces the subscriber list. Do not put `StratumTypeOrmSubscriber` in the `subscribers` option: TypeORM only loads classes decorated with `@EventSubscriber()` from that option.
 
+The subscriber reads the current tenant from the AsyncLocalStorage context of `@stratum-hq/sdk`. The SDK's Express and Fastify middleware set that context for each request. Anywhere else, for example in a background job, run the queries inside `runWithTenantContext`, and await them inside the callback so they run in the context:
+
+```typescript
+import { runWithTenantContext } from "@stratum-hq/sdk";
+
+// `client` is a StratumClient; resolveTenant returns the tenant's context.
+const context = await client.resolveTenant(tenantId);
+const notes = await runWithTenantContext(context, async () => {
+  return await repo.find();
+});
+```
+
+Install `@stratum-hq/sdk` in your application (`npm install @stratum-hq/sdk`), so that your code and the subscriber use the same copy of the context.
+
 Inserts get the current tenant's `tenant_id`, in whichever entity property maps to the `tenant_id` column (a relation whose join column is `tenant_id` cannot set or change it). Updates never change `tenant_id`: `save()` keeps the loaded value, and `update()` / query builder updates drop it from the SET values. The insert and update query builders enforce both, so `save(entity, { listeners: false })` and `.callListeners(false)` do not skip them.
 
 `registerStratumSubscriber()` also scopes updates and deletes to the current tenant: repository `update()`, `delete()`, `softDelete()`, `restore()`, `save()` of an existing row, `remove()`, and query builder updates and deletes get `tenant_id = <current tenant>` ANDed to their WHERE clause. A row of another tenant is left unchanged, and an update or delete of a tenant table outside a tenant context is refused. `save()` of a row that belongs to another tenant throws: before an insert (other than an upsert) whose entity supplies its whole primary key, the subscriber looks that key up without the read scope, uses the result only for this check, and refuses the insert when the row belongs to another tenant. An update or delete builder aimed at a raw table name (not an entity) is treated as a tenant table and always gets the tenant condition, so it fails on a table without `tenant_id`. `TRUNCATE` of a table with a `tenant_id` column (`repository.clear()`, `queryRunner.clearTable()`) is refused, because it would remove every tenant's rows. A subscriber added to `dataSource.subscribers` by hand refuses every UPDATE and DELETE, so always register it with `registerStratumSubscriber()`.
@@ -120,6 +134,8 @@ const users = await tenantKnex("users").where("name", "like", q).orWhere("email"
 ```
 
 Your where clauses are always grouped after the tenant filter, including on clones and when the builder is used as a subquery. `insert()` sets `tenant_id`, `update()` never changes it, and `onConflict().merge()`, `upsert()`, `truncate()` and `modify()` throw (a `modify()` callback would call the builder without these rules).
+
+`insert()`, `update()`, `increment()` and `decrement()` accept only column names made of ASCII letters, digits, underscores and `$`, with dots between qualified parts (`notes.body`). Any other name, such as one with spaces, other punctuation or non-ASCII letters, throws, because Knex trims name parts and MySQL folds some letters when it matches a column. For such a column, use plain Knex with an explicit `tenant_id` condition.
 
 Joins (`join()`, `leftJoin()`, `crossJoin()`, `joinRaw()` and the other join forms) and `union()` / `unionAll()` also throw, because the tenant filter covers only the builder's own table. To combine tables, use a tenant-scoped builder as a `whereIn()` subquery, or write the query with plain Knex and a `tenant_id` condition on every table.
 

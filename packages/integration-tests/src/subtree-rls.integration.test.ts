@@ -11,7 +11,8 @@ import {
   withTenantContext,
 } from "@stratum-hq/db-adapters";
 import { runScopedJob, Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, getAdminPool } from "./helpers/db.js";
+import { ROLE_PREFIX, controlRoleName } from "./helpers/role-model.js";
 
 /**
  * Proves the opt-in subtree read scope of migration 031 against real
@@ -260,7 +261,7 @@ describe("subtree read scope (migration 031)", () => {
   });
 
   it("follows the tree at once when moveTenant moves a tenant to another parent", async () => {
-    const stratum = new Stratum({ pool: getPool() });
+    const stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     await stratum.moveTenant(id.b1, id.mspA);
     try {
       const seen = await asApp(async (c) => {
@@ -612,12 +613,37 @@ describe("subtree read scope (migration 031)", () => {
     });
 
     it("refuses a tree column update without the bypass, even for a role that skips RLS", async () => {
+      // A BYPASSRLS role that is not a member of the control role (032). A
+      // superuser counts as a member of every role, so it is not used here.
+      const role = `${ROLE_PREFIX}subtree_bypassrls`;
       const c = await getPool().connect();
       try {
+        await c.query(`DO $$ BEGIN
+          CREATE ROLE "${role}" NOLOGIN NOSUPERUSER BYPASSRLS;
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+        await c.query(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+        await c.query(`GRANT SELECT, UPDATE ON tenants TO "${role}"`);
         await c.query("BEGIN");
+        await c.query(`SET LOCAL ROLE "${role}"`);
         await expect(
           c.query(`UPDATE tenants SET depth = depth + 1 WHERE id = $1`, [id.a1]),
         ).rejects.toThrow(/tree columns/i);
+      } finally {
+        await c.query("ROLLBACK");
+        await c.query(`DROP OWNED BY "${role}"`);
+        await c.query(`DROP ROLE "${role}"`);
+        c.release();
+      }
+    });
+
+    it("lets a member of the control role change tree columns without the bypass", async () => {
+      const control = await controlRoleName(getPool());
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        await c.query(`SET LOCAL ROLE "${control}"`);
+        const res = await c.query(`UPDATE tenants SET depth = depth + 1 WHERE id = $1`, [id.a1]);
+        expect(res.rowCount).toBe(1);
       } finally {
         await c.query("ROLLBACK");
         c.release();
@@ -770,16 +796,21 @@ describe("subtree read scope (migration 031)", () => {
 
     it("counts the tables with the subtree read as isolated in the CLI policy check", async () => {
       const { evaluatePolicies } = (await import(CLI_POLICY_CHECK)) as {
-        evaluatePolicies: (rows: unknown[]) => { isolated: boolean; issue: string | null };
+        evaluatePolicies: (
+          rows: unknown[],
+          functionSchema?: string,
+          controlRole?: string,
+        ) => { isolated: boolean; issue: string | null };
       };
+      const control = await controlRoleName(getPool());
       for (const table of [...tables, "config_entries"]) {
         const res = await getPool().query(
-          `SELECT policyname, permissive, cmd, qual, with_check FROM pg_policies
+          `SELECT policyname, permissive, cmd, qual, with_check, roles::text[] AS roles FROM pg_policies
             WHERE schemaname = current_schema() AND tablename = $1`,
           [table],
         );
         expect(res.rows.map((r) => r.policyname)).toContain("tenant_subtree_read");
-        expect(evaluatePolicies(res.rows)).toEqual({ isolated: true, issue: null });
+        expect(evaluatePolicies(res.rows, undefined, control)).toEqual({ isolated: true, issue: null });
       }
     });
   });

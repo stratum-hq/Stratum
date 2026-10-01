@@ -19,6 +19,8 @@ export interface CascadeConfigEntry {
   source_tenant_id: string;
   inherited: boolean;
   locked: boolean;
+  /** True when a sensitive value inherited from an ancestor was withheld by the API. */
+  masked?: boolean;
 }
 
 export interface CascadeChild {

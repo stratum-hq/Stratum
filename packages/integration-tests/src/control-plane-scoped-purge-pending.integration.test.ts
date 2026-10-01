@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // A tenant whose storage provisioning fails stays pending. The key that created
@@ -59,7 +59,7 @@ function request(method: "POST" | "DELETE", url: string) {
 describe("scoped key cleanup of pending child tenants (integration)", () => {
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     const cpApp: ControlPlaneApp = await import("../../control-plane/dist/app.js");
     cpDb = await import("../../control-plane/dist/db/connection.js");
     app = await cpApp.buildApp();

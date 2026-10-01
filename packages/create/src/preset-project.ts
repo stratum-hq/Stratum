@@ -4,7 +4,13 @@ import crypto from "node:crypto";
 import { execSync } from "child_process";
 import type { StackPreset } from "./matrix.js";
 import { generatePresetDockerCompose } from "./generators/docker-compose.js";
-import { generatePresetInitSql, postgresAppRole, POSTGRES_APP_PASSWORD } from "./generators/init-sql.js";
+import {
+  generatePresetInitSql,
+  postgresAppRole,
+  postgresStratumRole,
+  POSTGRES_APP_PASSWORD,
+  POSTGRES_STRATUM_PASSWORD,
+} from "./generators/init-sql.js";
 import { generateDbSetup } from "./generators/db-setup.js";
 import { generateMiddleware } from "./generators/middleware.js";
 import { generatePresetPackageJson } from "./generators/package-json.js";
@@ -32,7 +38,9 @@ function generatePresetEnv(projectName: string, preset: StackPreset): string {
       // row-level security applies to it. The superuser URL is for bootstrap
       // and migrations only.
       dbUrl = `postgres://${postgresAppRole(dbName)}:${POSTGRES_APP_PASSWORD}@localhost:5432/${dbName}`;
-      adminUrlLine = `\n# Superuser: bootstrap and migrations only. It bypasses row-level security.\nDATABASE_ADMIN_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}\n`;
+      adminUrlLine = `\n# Superuser: bootstrap and migrations only. It bypasses row-level security.\nDATABASE_SUPERUSER_URL=postgres://${dbName}:dev_password@localhost:5432/${dbName}\n` +
+        `\n# Stratum's own login: the library's adminPool, which runs the Stratum migrations (see init.sql).\n` +
+        `STRATUM_ADMIN_DATABASE_URL=postgres://${postgresStratumRole(dbName)}:${POSTGRES_STRATUM_PASSWORD}@localhost:5432/${dbName}\n`;
       break;
     case "mongodb":
       dbUrl = `mongodb://${dbName}:dev_password@localhost:27017/${dbName}?authSource=admin`;

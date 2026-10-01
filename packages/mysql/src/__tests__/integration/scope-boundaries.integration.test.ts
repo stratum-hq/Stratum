@@ -437,6 +437,39 @@ describe("StratumTypeOrmSubscriber updates and deletes", () => {
     expect(await notes()).toEqual([untouched[1]]);
   });
 
+  it("an update or insert cannot write another tenant through a qualified or cased tenant_id key", async () => {
+    const keys = ["notes.tenant_id", `${DB}.notes.tenant_id`, "notes.TENANT_ID", "TENANT_ID"];
+    for (const key of keys) {
+      const values = { [key]: "tenant-b", name: "x" } as unknown as Partial<Note>;
+      await attempt(() =>
+        asTenant("tenant-a", () =>
+          dataSource.createQueryBuilder().update(NoteSchema).set(values).where("id = :id", { id: 1 }).execute(),
+        ),
+      );
+      await attempt(() =>
+        asTenant("tenant-a", () =>
+          dataSource.createQueryBuilder().update("notes").set(values).where("id = :id", { id: 1 }).execute(),
+        ),
+      );
+      await attempt(() => asTenant("tenant-a", () => dataSource.getRepository(NoteSchema).update({ id: 1 }, values)));
+      await attempt(() =>
+        asTenant("tenant-a", () =>
+          dataSource
+            .createQueryBuilder()
+            .insert()
+            .into(NoteSchema)
+            .values({ ...values, id: 5 } as Partial<Note>)
+            .execute(),
+        ),
+      );
+      await pool.query(`DELETE FROM \`${DB}\`.\`notes\` WHERE id = 5 AND tenant_id = 'tenant-a'`);
+    }
+    expect((await notes()).map((n) => [n.id, n.tenant_id])).toEqual([
+      [1, "tenant-a"],
+      [2, "tenant-b"],
+    ]);
+  });
+
   it("refuses an update or delete of a tenant table outside a tenant context", async () => {
     await expect(dataSource.getRepository(NoteSchema).update({ id: 2 }, { name: "changed" })).rejects.toThrow();
     await expect(dataSource.getRepository(NoteSchema).delete({ id: 2 })).rejects.toThrow();

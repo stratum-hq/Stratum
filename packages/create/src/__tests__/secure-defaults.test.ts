@@ -61,13 +61,13 @@ describe("generated tenant resolution does not trust a client-supplied tenant he
 
   it("nextjs preset middleware strips an inbound x-tenant-id before forwarding", () => {
     const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "nextjs" });
-    expect(files["middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
+    expect(files["src/middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
   });
 
   it("nextjs template middleware strips an inbound x-tenant-id and never reads it", () => {
     const files = genTemplate("nextjs");
-    expect(files["middleware.ts"]).not.toMatch(READS_TENANT_HEADER);
-    expect(files["middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
+    expect(files["src/middleware.ts"]).not.toMatch(READS_TENANT_HEADER);
+    expect(files["src/middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
   });
 });
 
@@ -118,6 +118,50 @@ describe("generated postgres projects connect the app as a role that RLS applies
     expect(files["init.sql"]).toMatch(
       new RegExp(`CREATE ROLE ${appUser} WITH LOGIN PASSWORD '[^']+' NOSUPERUSER NOBYPASSRLS`),
     );
+  });
+
+  for (const preset of postgresPresets) {
+    it(`postgres-${preset.strategy} preset gives Stratum its own login and the app no CREATE on public`, () => {
+      const files = genPreset(preset);
+      const superuser = composeValue(files["docker-compose.yml"], "POSTGRES_USER");
+      const appUser = pgUser(envValue(files[".env.example"], "DATABASE_URL"));
+      const stratumUser = pgUser(envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL"));
+      const sql = files["init.sql"];
+      expect(stratumUser).not.toBe(superuser);
+      expect(stratumUser).not.toBe(appUser);
+      expect(sql).toMatch(new RegExp(`CREATE ROLE ${stratumUser} WITH LOGIN PASSWORD '[^']+' NOSUPERUSER NOBYPASSRLS;`));
+      expect(sql).toContain(`GRANT stratum_control TO ${stratumUser} WITH INHERIT TRUE, SET TRUE;`);
+      expect(sql).toContain(`GRANT USAGE ON SCHEMA public TO ${appUser};`);
+      expect(sql).not.toMatch(new RegExp(`GRANT [A-Z, ]*CREATE ON SCHEMA public TO ${appUser}`));
+      // Default privileges only for what the bootstrap superuser creates, never for every creator.
+      for (const line of sql.split("\n").filter((l) => l.startsWith("ALTER DEFAULT PRIVILEGES"))) {
+        expect(line).toContain(`ALTER DEFAULT PRIVILEGES FOR ROLE ${superuser} IN SCHEMA public`);
+      }
+      expect(sql).toContain("REVOKE CREATE ON SCHEMA public FROM PUBLIC;");
+    });
+  }
+
+  it("postgres-schema preset keeps the app's schemas off the search path of the Stratum login and the superuser", () => {
+    const files = genPreset({ database: "postgres", strategy: "schema", orm: "pg", framework: "express" });
+    const stratumUrl = envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL");
+    const stratumUser = pgUser(stratumUrl);
+    const db = new URL(stratumUrl).pathname.slice(1);
+    const sql = files["init.sql"];
+    const grant = sql.indexOf("GRANT CREATE ON DATABASE");
+    expect(grant).toBeGreaterThan(-1);
+    // Set in this database only, not for the whole cluster.
+    for (const role of [stratumUser, "CURRENT_USER"]) {
+      const at = sql.indexOf(`ALTER ROLE ${role} IN DATABASE ${db} SET search_path = public;`);
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(grant);
+    }
+    expect(sql).not.toMatch(/ALTER ROLE \S+ SET search_path/);
+  });
+
+  it("names the superuser URL DATABASE_SUPERUSER_URL, not the admin login's DATABASE_ADMIN_URL", () => {
+    const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "express" });
+    expect(files[".env.example"]).toMatch(/^DATABASE_SUPERUSER_URL=/m);
+    expect(files[".env.example"]).not.toMatch(/DATABASE_ADMIN_URL/);
   });
 
   it("rls preset init.sql tells the reader to FORCE row-level security", () => {

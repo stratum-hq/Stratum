@@ -31,6 +31,7 @@ export const defaultMessages = {
   "configEditor.locked": "Locked",
   "configEditor.inherited": "Inherited",
   "configEditor.own": "Own",
+  "configEditor.masked": "Sensitive value set by an ancestor",
   "configEditor.saveButton": "Save",
   "configEditor.cancelButton": "Cancel",
   "configEditor.editButton": "Edit",

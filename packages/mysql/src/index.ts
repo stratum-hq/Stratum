@@ -1,6 +1,7 @@
 // Types
 export type {
   MysqlConnectionLike,
+  MysqlExecuteValue,
   MysqlPoolLike,
   MysqlAdapter,
   PurgeResult,

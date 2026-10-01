@@ -32,6 +32,7 @@ export type FindingAction =
  * - `pass` resolves an active finding (`open` / `remediating`), and leaves an
  *   `accepted` finding untouched; there is nothing to resolve otherwise.
  * - `na` and `error` never change a finding.
+ * - Any other outcome throws a `TypeError`.
  */
 export function reconcileFinding(
   newOutcome: ControlOutcome,
@@ -57,5 +58,11 @@ export function reconcileFinding(
     case "na":
     case "error":
       return { type: "noop" };
+
+    default:
+      // Unreachable for typed callers; guards untyped input such as parsed JSON.
+      throw new TypeError(
+        `reconcileFinding: unknown control outcome ${JSON.stringify(newOutcome)}; expected one of pass, fail, na, error`,
+      );
   }
 }

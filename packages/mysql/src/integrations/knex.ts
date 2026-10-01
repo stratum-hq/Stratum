@@ -53,8 +53,36 @@ const REFUSED_METHODS = new Map<string, string>([
   ].map((method): [string, string] => [method, NOT_SCOPED]),
 ]);
 
+/**
+ * True when a column key resolves to tenant_id. Knex splits a key on " as "
+ * and on dots, so "notes.tenant_id" and "db.notes.TENANT_ID" name the same
+ * column as "tenant_id" (MySQL column names are case-insensitive).
+ */
 function isTenantColumn(name: string): boolean {
-  return name.toLowerCase() === TENANT_COLUMN;
+  const column = name.split(/\s+as\s+/i)[0].split(".").pop() ?? "";
+  return column.toLowerCase() === TENANT_COLUMN;
+}
+
+/**
+ * Column names that insert, update, increment and decrement accept: ASCII
+ * letters, digits, underscores and $, with dots between qualified parts.
+ * Knex trims each part of a name, and MySQL folds some non-ASCII letters when
+ * it matches a column, so a name outside this set could reach tenant_id
+ * without being spelled that way. Such names are refused rather than
+ * normalized.
+ */
+const COLUMN_NAME = /^[A-Za-z0-9_$]+(?:\.[A-Za-z0-9_$]+)*$/;
+
+function assertColumnNames(method: string, names: string[]): void {
+  for (const name of names) {
+    if (!COLUMN_NAME.test(name)) {
+      throw new Error(
+        `withTenantScope: ${method}() refuses the column name ${JSON.stringify(name)}, ` +
+          "because a tenant-scoped builder accepts only ASCII letters, digits, underscores " +
+          "and $ in column names, with dots between qualified parts",
+      );
+    }
+  }
 }
 
 function withoutTenantColumn(row: Record<string, unknown>): Record<string, unknown> {
@@ -79,7 +107,13 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * you do not need to include it yourself:
  *   await scoped("users").insert({ name: "Alice" });
  *
- * UPDATE never changes tenant_id: the column is dropped from the update data.
+ * UPDATE never changes tenant_id: the column is dropped from the update data,
+ * however the key names it (any letter case, table- or schema-qualified).
+ * INSERT drops such keys too before it adds the tenant's tenant_id.
+ * insert(), update(), increment() and decrement() throw on a column name that
+ * is not made of ASCII letters, digits, underscores and $ (with dots between
+ * qualified parts), because Knex and MySQL can resolve such a name to
+ * tenant_id.
  * onConflict().merge(), upsert() and truncate() throw, because MySQL applies
  * none of them through the WHERE clause. onConflict().ignore() is allowed.
  *
@@ -91,11 +125,16 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * builder's table, not the joined or unioned rows. To combine tenant data, use
  * a tenant-scoped builder as a whereIn subquery, or write the query with an
  * explicit tenant_id condition on every table.
+ *
+ * The returned builder has the builder type of the Knex instance given. For a
+ * real Knex instance, that is Knex's own QueryBuilder, so `orWhere()`, the
+ * three-argument `where()` and the other Knex methods type-check. The methods
+ * that this function refuses also type-check, and throw when they run.
  */
-export function withTenantScope(
-  knex: KnexLike,
+export function withTenantScope<K extends KnexLike>(
+  knex: K,
   tenantId: string,
-): (tableName: string) => KnexQueryBuilderLike {
+): (tableName: string) => ReturnType<K> {
   // Statement objects this module created, so they can be recognized again on
   // clones, which copy the statement array but share the statement objects.
   const tenantStatements = new WeakSet<object>();
@@ -192,19 +231,25 @@ export function withTenantScope(
         return (...args: unknown[]) => {
           if (prop === "insert") {
             const data = args[0] as Record<string, unknown> | Record<string, unknown>[];
-            const inject = (row: Record<string, unknown>) => ({ ...row, tenant_id: tenantId });
+            for (const row of Array.isArray(data) ? data : [data]) {
+              assertColumnNames(prop, Object.keys(row));
+            }
+            const inject = (row: Record<string, unknown>) => ({ ...withoutTenantColumn(row), tenant_id: tenantId });
             args[0] = Array.isArray(data) ? data.map(inject) : inject(data);
           } else if (prop === "update") {
             if (typeof args[0] === "string") {
+              assertColumnNames(prop, [args[0]]);
               if (isTenantColumn(args[0])) {
                 throw new Error(`withTenantScope: update() cannot change ${TENANT_COLUMN}`);
               }
             } else if (args[0] && typeof args[0] === "object") {
+              assertColumnNames(prop, Object.keys(args[0]));
               args[0] = withoutTenantColumn(args[0] as Record<string, unknown>);
             }
           } else if (prop === "increment" || prop === "decrement") {
             const cols =
               typeof args[0] === "string" ? [args[0]] : Object.keys((args[0] ?? {}) as object);
+            assertColumnNames(prop, cols);
             if (cols.some(isTenantColumn)) {
               throw new Error(`withTenantScope: ${prop}() cannot change ${TENANT_COLUMN}`);
             }
@@ -230,5 +275,5 @@ export function withTenantScope(
   }
 
   return (tableName: string) =>
-    scope(knex(tableName) as unknown as KnexBuilderInternals);
+    scope(knex(tableName) as unknown as KnexBuilderInternals) as unknown as ReturnType<K>;
 }

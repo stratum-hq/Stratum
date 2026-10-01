@@ -106,9 +106,9 @@ AS $$
 $$;
 
 DO $pin$ BEGIN
-  EXECUTE format(
+  EXECUTE pg_catalog.format(
     'ALTER FUNCTION stratum_subtree_tenant_ids() SET search_path = pg_catalog, %I, pg_temp',
-    current_schema()
+    pg_catalog.current_schema()
   );
 END $pin$;
 
@@ -255,9 +255,9 @@ END;
 $$ language 'plpgsql';
 
 DO $pin$ BEGIN
-  EXECUTE format(
+  EXECUTE pg_catalog.format(
     'ALTER FUNCTION refuse_tenant_tree_column_change() SET search_path = pg_catalog, %I, pg_temp',
-    current_schema()
+    pg_catalog.current_schema()
   );
 END $pin$;
 
@@ -300,8 +300,8 @@ END;
 $$ language 'plpgsql';
 
 DO $pin$ BEGIN
-  EXECUTE format(
+  EXECUTE pg_catalog.format(
     'ALTER FUNCTION refuse_tenant_parent_cycle() SET search_path = pg_catalog, %I, pg_temp',
-    current_schema()
+    pg_catalog.current_schema()
   );
 END $pin$;

@@ -5,6 +5,8 @@ import { createPglitePool, createRestrictedPool, type PglitePool } from "@stratu
 import { withTenantContext } from "@stratum-hq/db-adapters";
 import { ConfigLockedError, PermissionLockedError, PermissionMode } from "@stratum-hq/core";
 import { Stratum } from "../stratum.js";
+import { bootstrapRolesSql } from "../role-model.js";
+import type { StratumLogger } from "../logger.js";
 
 // This suite runs the library against a real PostgreSQL engine in process
 // (PGlite), unlike the other lib unit tests, which stub the database.
@@ -44,6 +46,14 @@ describe("Stratum on PGlite", () => {
     expect(ancestors.map((t) => t.id)).toEqual([root.id, msp.id]);
     const descendants = await stratum.getDescendants(root.id);
     expect(descendants.map((t) => t.id).sort()).toEqual([msp.id, client.id].sort());
+  });
+
+  it("creates a global API key, with tenant_id null, when tenantId is null", async () => {
+    const created = await stratum.createApiKey(null, { name: "global-service" });
+    expect(created.tenant_id).toBeNull();
+
+    const validated = await stratum.validateApiKey(created.plaintext_key);
+    expect(validated).toMatchObject({ key_id: created.id, tenant_id: null });
   });
 
   it("inherits config down the tree and rejects an override of a locked key", async () => {
@@ -112,3 +122,58 @@ describe("Stratum on PGlite", () => {
     });
   });
 });
+
+describe("Stratum on PGlite with adminPool and a restricted application pool", () => {
+  let adminPool: PglitePool;
+  let appPool: PglitePool;
+  const warnings: string[] = [];
+  const logger: StratumLogger = { info() {}, error() {}, warn: (msg) => warnings.push(msg) };
+
+  beforeAll(async () => {
+    adminPool = await createPglitePool();
+    appPool = await createRestrictedPool(adminPool);
+    await new Stratum({ adminPool, pool: appPool, autoMigrate: true, logger }).initialize();
+  }, 60_000);
+
+  afterAll(async () => {
+    await adminPool.end();
+  });
+
+  it("warns at initialize() while the application role can write the Stratum tables", () => {
+    expect(warnings.join("\n")).toMatch(/app role "stratum_app" can write Stratum tables/);
+  });
+
+  it("passes the strict check once the bootstrap SQL limits the application role and the legacy switch is off", async () => {
+    await adminPool.query(bootstrapRolesSql({ appRole: "stratum_app" }));
+    await adminPool.query("UPDATE stratum_security SET legacy_guc_bypass = false");
+    const strict: string[] = [];
+    await new Stratum({
+      adminPool,
+      pool: appPool,
+      enforceRls: true,
+      logger: { info() {}, error() {}, warn: (msg) => strict.push(msg) },
+    }).initialize();
+    expect(strict).toEqual([]);
+  });
+
+  it("runs the library on adminPool while the application role sees only its tenant", async () => {
+    const stratum = new Stratum({ adminPool, pool: appPool, logger });
+    const root = await stratum.createTenant({ name: "Two pools root", slug: "tp_root" });
+    const a = await stratum.createTenant({ name: "Two pools A", slug: "tp_a", parent_id: root.id });
+    const b = await stratum.createTenant({ name: "Two pools B", slug: "tp_b", parent_id: root.id });
+    await stratum.setConfig(a.id, "only_a", { value: 1 });
+    await stratum.setConfig(b.id, "only_b", { value: 2 });
+    await stratum.moveTenant(b.id, a.id);
+    expect((await stratum.getAncestors(b.id)).map((t) => t.id)).toEqual([root.id, a.id]);
+
+    const seen = await withTenantContext(appPool, a.id, async (c) => {
+      await c.query("SET LOCAL app.bypass_rls = 'on'");
+      return c.query("SELECT key FROM config_entries ORDER BY key");
+    });
+    expect(seen.rows.map((r) => r.key)).toEqual(["only_a"]);
+    await expect(withTenantContext(appPool, a.id, (c) => c.query("SELECT id FROM api_keys"))).rejects.toMatchObject({
+      code: "42501",
+    });
+  });
+});
+

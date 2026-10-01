@@ -5,6 +5,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 
 /**
@@ -23,7 +24,7 @@ describe("getDescendants after slug rename (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

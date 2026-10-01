@@ -96,4 +96,10 @@ describe("reconcileFinding invariants", () => {
       expect(reconcileFinding("error", state)).toEqual({ type: "noop" });
     }
   });
+
+  it("throws a clear error for an unknown outcome instead of returning undefined", () => {
+    expect(() => reconcileFinding("bogus" as ControlOutcome, "open")).toThrow(
+      new TypeError('reconcileFinding: unknown control outcome "bogus"; expected one of pass, fail, na, error'),
+    );
+  });
 });

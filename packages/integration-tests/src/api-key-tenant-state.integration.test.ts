@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum, InvalidTenantStateError } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // API keys are issued only for tenants that can use them. A key for a
@@ -21,7 +21,7 @@ describe("API key issuance and tenant state (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

@@ -105,7 +105,7 @@ describe("createProject", () => {
     createProject("test-project", "nextjs", projectDir, true);
 
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
   });
 
   it("package.json contains @stratum-hq/lib dependency", () => {

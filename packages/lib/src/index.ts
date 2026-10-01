@@ -6,6 +6,21 @@ export {
   type MigrateSchemasResult,
 } from "./migrate-schemas.js";
 export { STRATUM_TABLES } from "./stratum-tables.js";
+export { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
+export { PINNED_SEARCH_PATH, pinnedQuery, schemaOfTable, withPinnedSearchPath } from "./pinned-query.js";
+export {
+  stratumPolicyDrift,
+  STRATUM_RLS_TABLES,
+  type PolicyDriftOptions,
+} from "./stratum-policies.js";
+export {
+  bootstrapRolesSql,
+  inspectRoleModel,
+  APP_READ_TABLES,
+  type BootstrapRolesOptions,
+  type RoleModelReport,
+  type InspectRoleModelOptions,
+} from "./role-model.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
   runScopedJob,
@@ -55,6 +70,7 @@ export {
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
+  DecryptionError,
 } from "@stratum-hq/core";
 
 // Re-export core types for convenience
@@ -70,6 +86,7 @@ export type {
   SetConfigInput,
   BatchSetConfigEntry,
   ResolvedConfigEntry,
+  ResolveConfigOptions,
   ResolvedConfig,
   PermissionPolicy,
   CreatePermissionInput,
@@ -87,7 +104,13 @@ export type {
   RateLimiterOptions,
 } from "./services/rate-limit-service.js";
 
-export type { ApiKeyRecord, CreatedApiKey, ValidatedApiKey, CreateApiKeyOptions } from "./services/api-key-service.js";
+export type {
+  ApiKeyRecord,
+  CreatedApiKey,
+  ValidatedApiKey,
+  CreateApiKeyOptions,
+  ValidateApiKeyOptions,
+} from "./services/api-key-service.js";
 export type { BatchCreateResult } from "./services/tenant-service.js";
 export type { KeyRotationResult, KeyRotationSalts, KeyRotationUnreadableRow } from "./services/key-rotation-service.js";
 export type { DeliveryStats } from "./services/event-service.js";

@@ -1,5 +1,5 @@
 import pg from "pg";
-import { tablePolicyIssues, type PolicyRow } from "./policy-check.js";
+import { tablePolicyIssues, tablePolicyWarnings, type PolicyRow } from "./policy-check.js";
 
 const TENANT_FILTER = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
 
@@ -19,6 +19,12 @@ export interface CreatePolicyOptions {
    * migration 031 of @stratum-hq/lib. Default false.
    */
   subtreeRead?: boolean;
+  /**
+   * The control role of migration 032 (default `stratum_control`). An
+   * existing stratum_control_plane policy is accepted only when it applies to
+   * exactly this role.
+   */
+  controlRole?: string;
 }
 
 /**
@@ -56,27 +62,36 @@ export async function createPolicy(
     await assertSubtreeFunction(client);
   }
   // Read every policy on the table that the name resolves to, in whichever
-  // schema that is. PostgreSQL ORs permissive policies together, so each one
+  // schema that is. The caller's search path stays as it is (this may run in
+  // the caller's transaction), so every comparison here has an exact
+  // pg_catalog operator: the regclass lookups are cast to oid. PostgreSQL ORs permissive policies together, so each one
   // must filter by tenant, and a policy's name proves nothing.
   // Each row also carries the schema of the tenants table, the only schema
   // that may qualify the subtree function (migration 031 creates it there).
   const existing = await client.query<PolicyRow & { tenants_schema: string | null }>(
     `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check, p.roles::text[] AS roles,
             (SELECT tn.nspname FROM pg_class tc JOIN pg_namespace tn ON tn.oid = tc.relnamespace
-              WHERE tc.oid = to_regclass('tenants')) AS tenants_schema
+              WHERE tc.oid = pg_catalog.to_regclass('tenants')::pg_catalog.oid) AS tenants_schema
        FROM pg_policies p
        JOIN pg_class c ON c.relname = p.tablename
        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = p.schemaname
-      WHERE c.oid = to_regclass($1)`,
+      WHERE c.oid = pg_catalog.to_regclass($1::pg_catalog.text)::pg_catalog.oid`,
     [safe],
   );
-  const issues = tablePolicyIssues(existing.rows, existing.rows[0]?.tenants_schema ?? undefined);
+  const issues = tablePolicyIssues(
+    existing.rows,
+    existing.rows[0]?.tenants_schema ?? undefined,
+    options.controlRole,
+  );
   if (issues.length > 0) {
     throw new Error(
       `[stratum] Table ${safe} has row-level security policies that do not isolate it by tenant: ` +
         `${issues.join("; ")} (expected ${TENANT_FILTER}). ` +
         `Drop or correct those policies, then call createPolicy again.`,
     );
+  }
+  for (const warning of tablePolicyWarnings(existing.rows)) {
+    process.emitWarning(`[stratum] Table ${safe}: ${warning}`, { code: "STRATUM_GUC_BYPASS_POLICY" });
   }
   if (!existing.rows.some((p) => p.policyname === "tenant_isolation")) {
     // Cannot use parameterized queries inside DO blocks or for DDL identifiers.
@@ -124,7 +139,7 @@ export async function isRLSEnabled(
   const safe = validateTableName(tableName);
   // The table the name resolves to, in whichever schema that is.
   const res = await client.query<{ relrowsecurity: boolean }>(
-    `SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass($1)`,
+    `SELECT relrowsecurity FROM pg_catalog.pg_class WHERE oid = pg_catalog.to_regclass($1::pg_catalog.text)::pg_catalog.oid`,
     [safe],
   );
   if (res.rows.length === 0) {

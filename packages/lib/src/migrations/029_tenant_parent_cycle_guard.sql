@@ -48,9 +48,9 @@ END;
 $$ language 'plpgsql';
 
 DO $pin$ BEGIN
-  EXECUTE format(
+  EXECUTE pg_catalog.format(
     'ALTER FUNCTION refuse_tenant_parent_cycle() SET search_path = pg_catalog, %I',
-    current_schema()
+    pg_catalog.current_schema()
   );
 END $pin$;
 

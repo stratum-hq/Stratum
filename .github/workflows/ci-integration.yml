@@ -39,3 +39,15 @@ jobs:
       - run: npm run build
       - name: Run integration tests
         run: cd packages/integration-tests && npx vitest run --config vitest.config.ts
+      # The same suites with adminPool on a login that is not a superuser and
+      # reaches the Stratum tables only through the control role (migration
+      # 032). A separate database, so the first run's state does not carry over.
+      - name: Create the admin-mode database
+        run: >-
+          node -e "const pg = require('pg'); const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
+          c.connect().then(() => c.query('CREATE DATABASE stratum_test_admin')).then(() => c.end())"
+      - name: Run integration tests with adminPool
+        env:
+          STRATUM_IT_ADMIN_POOL: "1"
+          DATABASE_URL: postgresql://stratum_test:stratum_test@localhost:5433/stratum_test_admin
+        run: cd packages/integration-tests && npx vitest run --config vitest.config.ts

@@ -22,8 +22,9 @@ export class SequelizeAdapter extends BaseAdapter {
    * connection-pool hops.
    *
    * contextFn should return the current tenant ID (e.g. from AsyncLocalStorage).
-   * When contextFn returns an empty string the original query is forwarded
-   * without wrapping.
+   * When contextFn returns an empty string, `query()` throws instead of
+   * running the query. Use the unwrapped Sequelize instance for system or
+   * admin queries that run without a tenant.
    */
   withTenantScope(sequelize: SequelizeLike, contextFn: () => string): SequelizeLike {
     const original = sequelize;
