@@ -1,20 +1,20 @@
 # Stratum + Next.js
 
-Next.js 15 App Router application with Stratum multi-tenancy.
+Next.js 16 App Router application with Stratum multi-tenancy.
 
-Tenants are resolved in `src/middleware.ts` from either:
+Tenants are resolved in `src/proxy.ts` from either:
 - **Bearer token**: the `tenant_id` claim of an HS256 JWT that verifies with
   `JWT_SECRET` (for API clients and signed-in sessions)
 - **Subdomain**: `acme.app.example.com` → tenant slug `acme`
 
-The middleware forwards the result as a request header, so Server Components
+The proxy forwards the result as a request header, so Server Components
 can read it via `next/headers` without repeating the resolution logic. It
 deletes any client-sent copy of that header first. The header names are in
 `src/lib/tenant-headers.ts`.
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 20.9 or later (Next.js 16 needs it)
 - PostgreSQL 15+
 
 ## Setup
@@ -52,7 +52,7 @@ npm start
 
 ### Bearer token (authenticated requests)
 
-The middleware verifies the token with `jose` and reads the `tenant_id` claim.
+The proxy verifies the token with `jose` and reads the `tenant_id` claim.
 A token that does not verify, or that has no `tenant_id` claim, gets `401`.
 Your identity provider or login route issues the token in a real application.
 For local testing, sign one with the same secret:
@@ -89,7 +89,7 @@ middleware calls this `trustTenantHeader`.
 
 ```
 Request
-  └─ src/middleware.ts         Verify token or read subdomain, set request headers
+  └─ src/proxy.ts              Verify token or read subdomain, set request headers
        └─ src/app/page.tsx     Server Component: read headers, fetch from Stratum
             └─ src/lib/stratum.ts  Singleton Stratum instance (shared across requests)
 ```

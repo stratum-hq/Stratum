@@ -1,7 +1,7 @@
 /**
  * Home page: Server Component
  *
- * Reads the tenant that middleware resolved, looks up the tenant from
+ * Reads the tenant that the proxy resolved, looks up the tenant from
  * Stratum, and renders a simple tenant info card. Works for both a verified
  * bearer token and subdomain routing (acme.app.example.com).
  */
@@ -13,7 +13,7 @@ import { TENANT_ID_HEADER, TENANT_SLUG_HEADER } from "../lib/tenant-headers";
 async function resolveTenantFromRequest() {
   const headerList = await headers();
 
-  // Option 1: tenant ID from the verified token, set by middleware
+  // Option 1: tenant ID from the verified token, set by the proxy
   const tenantId = headerList.get(TENANT_ID_HEADER);
   if (tenantId) {
     return stratum.getTenant(tenantId);

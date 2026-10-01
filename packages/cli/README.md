@@ -101,12 +101,14 @@ Generate framework-specific integration code without the full wizard:
 ```bash
 stratum scaffold express   # SDK middleware + example routes
 stratum scaffold fastify   # SDK plugin
-stratum scaffold nextjs    # JWT-verifying edge middleware + server helpers + layout
+stratum scaffold nextjs    # JWT-verifying proxy.ts on Next.js 16, middleware.ts on 15 + server helpers + layout
 stratum scaffold react     # provider + guards + hooks
 stratum scaffold prisma    # tenant-scoped Prisma client
 stratum scaffold docker    # Docker Compose for Stratum + PostgreSQL
 stratum scaffold env       # .env template with all variables
 ```
+
+For Next.js, `init` and `scaffold nextjs` read the Next.js version from `node_modules/next`, else from `package.json`. Next.js 16 and later get `proxy.ts`. Next.js 15 gets `middleware.ts`. When the version is unknown, they write `middleware.ts`, which Next.js 15 and 16 both run. They never write one of the two files next to the other, because Next.js 16 refuses a project that has both.
 
 `scaffold docker` writes a compose file and `stratum-init-db.sql`, which sets up the role model: the NOLOGIN `stratum_control` role, the admin login `stratum_admin` (a member of it, neither superuser nor `BYPASSRLS`), and the application login `stratum_app`, with no privilege on the Stratum tables until `stratum db roles --apply` grants the read list.
 

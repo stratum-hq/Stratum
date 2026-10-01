@@ -57,7 +57,7 @@ Generates a Fastify server in `src/index.ts` with an `onRequest` hook that resol
 npx @stratum-hq/create my-app --template nextjs
 ```
 
-Generates a Next.js project with edge middleware that resolves the tenant from a verified JWT.
+Generates a Next.js 16 project with a proxy in `src/proxy.ts` that resolves the tenant from a verified JWT. Next.js 16 runs the proxy on the Node.js runtime, and needs Node.js 20.9 or later.
 
 ## Presets
 
@@ -109,7 +109,7 @@ The generated starter code does not create Stratum's tables. To create them, con
 
 ## Tenant resolution
 
-Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js middleware take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js middleware the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
+Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js proxy take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js proxy the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
 
 ## What Gets Generated
 
@@ -122,6 +122,6 @@ my-app/
   tsconfig.json         # Compiles src/ to dist/ (express and fastify)
   src/
     index.ts            # Server with verified-JWT tenant middleware (express and fastify)
-    middleware.ts       # Verified-JWT tenant middleware (nextjs)
+    proxy.ts            # Verified-JWT tenant proxy (nextjs)
   README.md             # Getting started instructions
 ```

@@ -252,10 +252,10 @@ const runNextjs: Runner = async (files, req) => {
       headers: new Headers(),
     }),
   };
-  const { middleware } = load(files["src/middleware.ts"], { "next/server": { NextResponse } }) as {
-    middleware: (request: unknown) => Promise<{ status: number; headers: Headers }>;
+  const { proxy } = load(files["src/proxy.ts"], { "next/server": { NextResponse } }) as {
+    proxy: (request: unknown) => Promise<{ status: number; headers: Headers }>;
   };
-  const res = await middleware({
+  const res = await proxy({
     headers: new Headers({
       host: req.host,
       ...(req.authorization ? { authorization: req.authorization } : {}),

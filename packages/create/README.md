@@ -35,7 +35,7 @@ npx @stratum-hq/create my-app [options]
 
 - **express** (default): Express server in `src/index.ts` with tenant middleware that resolves the tenant from a verified JWT, a tenant-aware `/tenants` route, and TypeScript config.
 - **fastify**: Fastify server in `src/index.ts` with an `onRequest` hook that resolves the tenant from a verified JWT, a tenant-aware `/tenants` route, and TypeScript config.
-- **nextjs**: Next.js project with edge middleware that resolves the tenant from a verified JWT.
+- **nextjs**: Next.js 16 project with a proxy (`src/proxy.ts`, Node.js runtime) that resolves the tenant from a verified JWT. It needs Node.js 20.9 or later.
 
 ## Presets
 
@@ -77,7 +77,7 @@ The generated starter code does not create Stratum's tables. To create them, con
 
 ## Tenant resolution
 
-Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js middleware take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js middleware the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
+Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js proxy take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js proxy the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
 
 ## Links
 

@@ -384,7 +384,7 @@
     lines.push('  src/');
 
     if (framework === 'nextjs') {
-      lines.push('    middleware.ts        # Tenant resolution from host/headers');
+      lines.push('    proxy.ts             # Tenant from a verified JWT');
       lines.push('    app/layout.tsx       # Root layout');
       lines.push('    app/page.tsx         # Landing page');
       lines.push('    lib/stratum.ts       # Stratum client + tenant wrapper');

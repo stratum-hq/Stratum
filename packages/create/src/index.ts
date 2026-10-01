@@ -17,7 +17,7 @@ import {
   expressServer,
   fastifyServer,
   nextjsRootLayout,
-  nextjsTenantMiddleware,
+  nextjsTenantProxy,
 } from "./generators/middleware.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -129,9 +129,10 @@ function generatePackageJson(projectName: string, template: Template): string {
       fastify: "^5.12.5",
     },
     nextjs: {
-      next: "^15.5.16",
-      react: "^19.0.0",
-      "react-dom": "^19.0.0",
+      // Every release before 16.3.0 bundles a postcss with published advisories.
+      next: "^16.3.8",
+      react: "^19.2.0",
+      "react-dom": "^19.2.0",
       "@types/react": "^19.0.0",
       "@types/react-dom": "^19.0.0",
     },
@@ -163,7 +164,8 @@ function generatePackageJson(projectName: string, template: Template): string {
         ...(template === "nextjs" ? {} : { tsx: "^4.19.3", "@types/pg": "^8.11.0" }),
       },
       engines: {
-        node: ">=20.0.0",
+        // Next.js 16 needs Node.js 20.9 or later.
+        node: template === "nextjs" ? ">=20.9.0" : ">=20.0.0",
       },
     },
     null,
@@ -249,7 +251,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>The tenant comes from a verified JWT in <code>src/middleware.ts</code></li>
+        <li>The tenant comes from a verified JWT in <code>src/proxy.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>
@@ -307,7 +309,7 @@ This project uses Stratum for hierarchical multi-tenancy:
 
 ${
     template === "nextjs"
-      ? "- **Tenant resolution**: from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (see `src/middleware.ts`); the subdomain is only a display slug"
+      ? "- **Tenant resolution**: from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (see `src/proxy.ts`); the subdomain is only a display slug"
       : "- **Tenant resolution**: the tenant middleware in `src/index.ts` takes the tenant from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (HS256, using `jose`). A token that does not verify is rejected with 401, and `GET /tenants` answers 401 without a tenant. The hostname and headers such as `x-tenant-id` are never used"
   }
 - **Config inheritance**: settings flow down the tenant tree with override support
@@ -352,7 +354,7 @@ export function createProject(
   } else if (template === "nextjs") {
     writeFile(path.join(targetDir, "src", "app", "layout.tsx"), nextjsRootLayout(projectName));
     writeFile(path.join(targetDir, "src", "app", "page.tsx"), generateNextjsPage(projectName));
-    writeFile(path.join(targetDir, "src", "middleware.ts"), nextjsTenantMiddleware());
+    writeFile(path.join(targetDir, "src", "proxy.ts"), nextjsTenantProxy());
   }
 
   // README

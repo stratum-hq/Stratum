@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import * as log from "../utils/log.js";
 import { databaseEnvLines, secretEnvLines } from "../utils/env-template.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
-import { nextjsAppRoot, nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
+import { nextjsAppRoot, writeNextjsTenantFile } from "../utils/nextjs-middleware-template.js";
 
 function writeFile(filePath: string, content: string, force: boolean): void {
   if (fs.existsSync(filePath) && !force) {
@@ -163,9 +163,9 @@ export { fastifyPlugin };
 }
 
 function scaffoldNextjs(outDir: string, force: boolean): void {
-  // Next.js runs middleware only from the directory that holds the app directory.
+  // Next.js runs the proxy (or middleware) only from the directory that holds the app directory.
   const appRoot = nextjsAppRoot(outDir);
-  writeFile(path.join(appRoot, "middleware.ts"), nextjsMiddleware(), force);
+  const tenantFile = writeNextjsTenantFile(outDir, outDir, force, writeFile);
 
   writeFile(path.join(outDir, "lib/stratum.ts"), `// Stratum helpers for Next.js
 import { StratumClient } from "@stratum-hq/sdk";
@@ -219,7 +219,10 @@ function TenantBoundary({ children }: { children: React.ReactNode }) {
   writeFile(path.join(appRoot, "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
 
   log.info("Install: npm install @stratum-hq/sdk @stratum-hq/react jose");
-  log.info("middleware.ts must sit next to your app directory (src/middleware.ts for src/app). It needs JWT_SECRET set.");
+  if (tenantFile) {
+    const name = path.basename(tenantFile);
+    log.info(`${name} must sit next to your app directory (src/${name} for src/app). It needs JWT_SECRET set.`);
+  }
   log.info("Place lib/stratum.ts in your lib/ directory.");
   log.info("Wrap layouts with <TenantLayout>.");
   log.info("Implement authorize() in app/api/stratum/[...path]/route.ts; it denies every request until you do.");
