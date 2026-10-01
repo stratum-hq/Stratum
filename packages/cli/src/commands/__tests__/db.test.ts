@@ -42,6 +42,13 @@ describe("stratum db", () => {
     expect(firstLines.every((l) => l.startsWith("--"))).toBe(true);
   });
 
+  it("db roles tells a login that is not a superuser to name itself with --admin-role", async () => {
+    await db(["roles"], {});
+    const header = output().split("\n").filter((l) => l.startsWith("--"));
+    expect(header).toContain("-- On managed PostgreSQL, where that login is not a superuser, run it as the admin login");
+    expect(header).toContain("-- A login that is not a superuser can apply it only with --admin-role <that login>.");
+  });
+
   it("db roles grants REFERENCES on tenants(id) to the app login only with --grant-references", async () => {
     await db(["roles"], { "app-role": "acme_app" });
     expect(output()).not.toContain("GRANT REFERENCES");
