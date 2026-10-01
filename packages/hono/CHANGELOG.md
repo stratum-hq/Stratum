@@ -1,5 +1,11 @@
 # @stratum-hq/hono
 
+## 1.3.0
+
+### Minor Changes
+
+- 2930b1a: `stratumMiddleware` now reads the tenant from a URL path parameter only when `trustPathParam: true` is set, and throws at construction otherwise (GHSA-v3rm-2g9r-cgfg).
+
 ## 1.2.0
 
 ### Minor Changes

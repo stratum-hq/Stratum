@@ -1,5 +1,24 @@
 # @stratum-hq/mysql
 
+## 0.6.0
+
+### Minor Changes
+
+- 2930b1a: withMysqlTenantScope scopes Sequelize models to the tenant (GHSA-v3rm-2g9r-cgfg). In 0.5.0 it only set the @stratum_tenant_id session variable, which nothing filters on. Behavior changes inside the callback, for models with a tenant_id attribute:
+
+  - finds, counts and aggregates return only the tenant's rows, and every include of a tenant model is filtered in its join condition, including includes added by default or named scopes, by an included model's default scope, by `include: { all: true }` and by hooks; a scope's own where clause is kept;
+  - bulk update, destroy, restore, increment and decrement change only the tenant's rows; `update()`, `destroy()` and `increment()` without a where clause are refused by Sequelize, as outside the helper;
+  - updates never write tenant_id, whether it is given by attribute name or column name, in any letter case, and it is removed from a `fields` list; increment and decrement of tenant_id are refused;
+  - creates and `bulkCreate()` write the tenant's tenant_id, also when a `fields` list leaves it out;
+  - save, destroy and restore of an instance whose row belongs to another tenant, or of an existing instance of a model without a primary key, throw;
+  - upsert, bulkCreate with updateOnDuplicate, truncate, and `or: true` or `right: true` on an include of a tenant model are refused;
+  - a query that carries a tenant model but bypasses these methods throws, including inside model hooks, and a query whose tenant condition a hook removed (by replacing the where clause or adding includes late) is refused.
+
+  The helper throws when it is not given a Sequelize v6 instance.
+
+- 2930b1a: Enforce TypeORM tenant rules in the query builders (GHSA-v3rm-2g9r-cgfg). Behavior changes on a registered data source: inserts get the current tenant and updates drop tenant_id even with listeners off (`save(…, { listeners: false })`, `.callListeners(false)`); the tenant is written to whichever entity property maps to the tenant_id column, and a relation whose join column is tenant_id cannot set or change it (on insert it is removed, on update it is dropped); an insert whose primary key belongs to another tenant's row throws "insert refused" with or without listeners; INSERT … SELECT (`valuesFromSelect()`) into a tenant entity is refused, and into other tables a tenant-scoped SELECT keeps its tenant parameter; view entities built from a query builder are created by `synchronize()` without the tenant condition, while reads from a view with a tenant_id column stay scoped.
+- 2930b1a: Scope TypeORM reads to the current tenant (GHSA-v3rm-2g9r-cgfg). Behavior changes: on a data source registered with registerStratumSubscriber, reads of entities with a tenant_id column (repository find, findOne, count, exists and aggregates, query builder getMany, getOne, getRawMany, getRawOne, getCount, getManyAndCount, getExists and stream, relation loading, and the row save() loads) now return only the current tenant's rows, joined tenant entities are filtered in the join condition, and such reads are refused outside a tenant context. Background jobs, scripts and workers that read tenant entities through a registered data source must now run inside a tenant context (runWithTenantContext), one tenant at a time. save() with the key of another tenant's row still throws, and an insert() whose primary key belongs to another tenant's row now throws the same Stratum error instead of a duplicate key error. Registration throws if the TypeORM select query builder cannot be scoped.
+
 ## 0.5.0
 
 ### Minor Changes
