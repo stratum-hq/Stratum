@@ -1,0 +1,66 @@
+---
+// Astro writes this page to 404.html. When the build has a top-level 404.html,
+// Cloudflare Pages serves it with a 404 status for every unknown path. Without
+// it, Pages serves the home page with a 200 status for every unknown path.
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/global.css';
+---
+
+<Base title="Page Not Found | Stratum" description="This page does not exist on stratum-hq.org." noindex>
+
+<Nav />
+
+<section class="not-found">
+  <p class="not-found-code">404</p>
+  <h1>Page not <span class="accent">found</span></h1>
+  <p>This page does not exist. It moved, or the link has an error. Try one of these pages:</p>
+  <div class="not-found-links">
+    <a href="/" class="btn-primary">Home</a>
+    <a href="https://docs.stratum-hq.org/" class="btn-secondary">Docs</a>
+    <a href="https://docs.stratum-hq.org/playground/" class="btn-secondary">Playground</a>
+    <a href="/blog/" class="btn-secondary">Blog</a>
+    <a href="/compare/" class="btn-secondary">Compare</a>
+  </div>
+</section>
+
+<Footer />
+
+<style>
+  .not-found {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
+  }
+
+  .not-found-code {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--sandstone);
+    margin-bottom: var(--space-3);
+  }
+
+  .not-found h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+  }
+
+  .not-found p {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-6);
+  }
+
+  .not-found-links {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+  }
+</style>
+
+</Base>

@@ -1,17 +1,26 @@
 {
   "name": "@stratum-hq/db-adapters",
   "version": "1.3.0",
-  "description": "Stratum PostgreSQL adapters for tenant-scoped query isolation",
+  "description": "Multi-tenant PostgreSQL row-level security for pg, Prisma, Drizzle, and Sequelize, plus schema-per-tenant and database-per-tenant isolation",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
     "tenant-isolation",
-    "postgresql",
-    "postgres",
     "row-level-security",
     "rls",
+    "postgresql",
+    "prisma",
+    "drizzle",
+    "drizzle-orm",
+    "sequelize",
+    "pg",
+    "node-postgres",
+    "schema-per-tenant",
+    "database-per-tenant",
+    "postgres",
     "schema-isolation",
     "database",
     "stratum"
@@ -70,7 +79,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/db-adapters#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/db-adapters/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

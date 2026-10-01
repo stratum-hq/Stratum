@@ -41,6 +41,24 @@ const packages = [
 ---
 
 <Base title="Stratum: Multi-Tenancy for Node.js | Tenant Hierarchy, Config Inheritance, Isolation" description="Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies (RLS, schema, database), GDPR compliance. Open source, MIT licensed.">
+  <Fragment slot="head">
+  <script type="application/ld+json" is:inline>
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "@id": "https://stratum-hq.org/#software",
+    "name": "Stratum",
+    "description": "Drop-in multi-tenancy for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR tooling, and ABAC policy engine.",
+    "url": "https://stratum-hq.org/",
+    "codeRepository": "https://github.com/stratum-hq/Stratum",
+    "programmingLanguage": ["TypeScript", "JavaScript"],
+    "runtimePlatform": "Node.js",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": { "@id": "https://stratum-hq.org/#organization" },
+    "publisher": { "@id": "https://stratum-hq.org/#organization" }
+  }
+  </script>
+  </Fragment>
 
 <Nav />
 
@@ -69,7 +87,8 @@ const packages = [
         isolation strategies, and compliance. Start flat, grow deep.
       </p>
       <div class="hero-actions">
-        <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+        <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
+        <a href="https://docs.stratum-hq.org/playground/" class="btn-primary">Try it in your browser</a>
         <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
       </div>
       <div class="install-box">
@@ -273,7 +292,7 @@ const packages = [
 <section class="cta">
   <div class="cta-inner fade-in">
     <h2>Start <span class="accent">building.</span></h2>
-    <a href="https://docs.stratum-hq.org/getting-started/quick-start" class="btn-primary">Get Started</a>
+    <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
   </div>
 </section>
 

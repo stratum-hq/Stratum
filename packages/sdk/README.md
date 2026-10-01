@@ -2,6 +2,8 @@
 
 HTTP client, LRU cache, and Express/Fastify middleware for the [Stratum](https://github.com/stratum-hq/Stratum) control plane. Resolves tenant context from incoming requests and attaches it to the request object.
 
+Read the documentation at [docs.stratum-hq.org/packages/sdk](https://docs.stratum-hq.org/packages/sdk/).
+
 ## Installation
 
 ```bash

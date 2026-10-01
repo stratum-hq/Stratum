@@ -2,6 +2,34 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import { stratumPlayground } from "./src/playground/vite-plugin.mjs";
 
+// Site-wide structured data. The Organization @id is the same one that
+// stratum-hq.org uses, so search engines join the two sites to one publisher.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://stratum-hq.org/#organization",
+      name: "Stratum HQ",
+      url: "https://stratum-hq.org/",
+      logo: "https://stratum-hq.org/icon-512.png",
+      sameAs: [
+        "https://github.com/stratum-hq",
+        "https://www.npmjs.com/org/stratum-hq",
+        "https://docs.stratum-hq.org/",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://docs.stratum-hq.org/#website",
+      name: "Stratum Docs",
+      url: "https://docs.stratum-hq.org/",
+      inLanguage: "en",
+      publisher: { "@id": "https://stratum-hq.org/#organization" },
+    },
+  ],
+};
+
 // Strata type families (documented in DESIGN.md). Loaded non-blocking from
 // the document head rather than via a render-blocking @import in the shared
 // token file, so fonts never gate first paint.
@@ -88,9 +116,16 @@ export default defineConfig({
         { tag: "meta", attrs: { property: "og:image", content: "https://docs.stratum-hq.org/og.png" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
         { tag: "meta", attrs: { name: "twitter:image", content: "https://docs.stratum-hq.org/og.png" } },
+        {
+          tag: "script",
+          attrs: { type: "application/ld+json" },
+          content: JSON.stringify(jsonLd),
+        },
       ],
       sidebar: [
-        { label: 'stratum-hq.org', link: 'https://stratum-hq.org', attrs: { target: '_blank' } },
+        { label: 'stratum-hq.org', link: 'https://stratum-hq.org/', attrs: { target: '_blank' } },
+        { label: 'Blog', link: 'https://stratum-hq.org/blog/', attrs: { target: '_blank' } },
+        { label: 'Compare', link: 'https://stratum-hq.org/compare/', attrs: { target: '_blank' } },
         { label: 'Start Building', link: '/start/' },
         { label: 'Playground', link: '/playground/' },
         {

@@ -111,6 +111,31 @@ a {
 .nav-links a:hover {
   color: var(--text-primary);
 }
+/* The full link row is wider than a phone screen. Below this width the row
+   scrolls sideways inside the bar, so the page itself does not overflow. */
+@media (max-width: 900px) {
+  .nav-inner {
+    gap: var(--space-4);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .nav-logo {
+    flex-shrink: 0;
+  }
+  .nav-links {
+    min-width: 0;
+    gap: var(--space-4);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-links .theme-toggle {
+    flex-shrink: 0;
+  }
+}
 
 /* ===== BUTTONS ===== */
 .btn-primary {
@@ -403,10 +428,6 @@ a {
 @media (max-width: 768px) {
   .feature-diagram-block { grid-template-columns: 1fr; gap: var(--space-6); }
 }
-@media (max-width: 480px) {
-  .isolation-label { min-width: 60px; font-size: 0.6875rem; }
-  .isolation-bar { font-size: 0.625rem; height: 24px; }
-}
 .isolation-diagram {
   display: flex;
   flex-direction: column;
@@ -453,6 +474,19 @@ a {
   border-color: var(--accent);
   background: var(--accent-muted);
   color: var(--accent-text);
+}
+@media (max-width: 480px) {
+  /* This block follows the base rules so that it overrides them. */
+  .isolation-label { min-width: 60px; font-size: 0.6875rem; }
+  /* On one line the longest readout is wider than a phone screen, so it wraps. */
+  .isolation-bar {
+    font-size: 0.625rem;
+    height: auto;
+    min-height: 24px;
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+    white-space: normal;
+  }
 }
 .iso-code {
   margin-top: var(--space-4);

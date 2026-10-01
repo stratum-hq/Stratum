@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
+import mdx from '@astrojs/mdx';
 
 /**
  * Landing-only font handling.
@@ -25,11 +26,14 @@ stripRemoteFontImport.postcss = true;
 
 export default defineConfig({
   site: 'https://stratum-hq.org',
-  integrations: [sitemap()],
+  integrations: [sitemap(), mdx()],
   // Real syntax highlighting. The css-variables theme emits token colors as
   // --astro-code-* custom properties, which global.css maps onto the Strata
   // --syntax-* tokens, so no hex is hardcoded in the highlighted markup.
+  // Smart quotes stay off so the blog posts, which moved from .astro pages to
+  // MDX, keep the straight quotes they were published with.
   markdown: {
+    smartypants: false,
     shikiConfig: { theme: 'css-variables' },
   },
   vite: {

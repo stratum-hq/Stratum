@@ -1,0 +1,241 @@
+---
+title: 'The State of Multi-Tenancy in Node.js: 204 Packages, Zero Standards'
+accent: Node.js
+description: We surveyed 204 npm packages, 6 GitHub repositories, and dozens of community threads. Here is what the Node.js multi-tenancy ecosystem actually looks like.
+intro: We surveyed the ecosystem. Here is what we found.
+pubDate: 2026-03-29
+cta:
+  label: Try the playground
+  href: https://docs.stratum-hq.org/playground/
+---
+import CodeBlock from '../../components/CodeBlock.astro';
+
+## The search that started this
+
+Search "multi tenant nodejs" on Google or npm and you get hundreds of results. Stack Overflow
+answers. Medium posts from 2019. GitHub repos with bold README promises and zero recent
+commits. It looks like a solved problem. It is not.
+
+npm lists 204 packages tagged "multitenant." We went through them. **65% have not been
+published in over 24 months.** The most downloaded "pure" multi-tenancy package,
+[mongo-tenant](https://www.npmjs.com/package/mongo-tenant),
+has not been updated in 68 months.
+
+The Node.js multi-tenancy ecosystem is not a solved problem. It is a graveyard of one-off
+solutions, built to ship a specific product, then left to rot when the team moved on or the
+underlying ORM released a breaking version. There is no dominant library. There is no standard
+approach. There is barely a shared vocabulary.
+
+This post is the survey we wish existed before we started building
+[Stratum](https://github.com/stratum-hq/Stratum).
+
+## What we found on GitHub
+
+We analyzed six representative repositories that come up when you search for Node.js
+multi-tenancy solutions. Here is what we found.
+
+<div class="table-wrapper">
+
+| Repository | Stars | CI/CD | Tests | License | Last commit |
+| --- | --- | --- | --- | --- | --- |
+| [deye9/node-multi-tenant](https://github.com/deye9/node-multi-tenant) | 147 | No | Partial | MIT | 2019 |
+| [AgusRdz/multitenant_demo](https://github.com/AgusRdz/multitenant_demo) | 89 | No | No | None | 2020 |
+| [lanemc/multi-tenant-saas-toolkit](https://github.com/lanemc/multi-tenant-saas-toolkit) | 62 | Yes | Yes | MIT | 2022 |
+| [morka17/multi-tenant-user-role-base-app](https://github.com/morka17/multi-tenant-user-role-base-app) | 34 | No | No | None | 2021 |
+| [AnishLushte07/multi-tenant-application](https://github.com/AnishLushte07/multi-tenant-application) | 28 | No | Partial | None | 2020 |
+| [daniccan/multi-tenant-node-app](https://github.com/daniccan/multi-tenant-node-app) | 11 | No | Yes | None | 2021 |
+
+</div>
+
+A few patterns jump out immediately.
+
+**Only one of six repositories has CI/CD.** Two have real test suites. Four have
+no license at all, which means they are legally unusable in commercial products regardless
+of how good the code is.
+
+**Stars correlate inversely with code quality.** The most-starred repos use
+plain JavaScript, Sequelize v5, and no CI. The most feature-complete repo in our survey
+has 11 stars.
+
+**Every separate-database implementation uses unbounded in-memory connection caching.**
+No pool limits. No eviction strategy. These are demos, not production libraries, but they are
+what developers find when they search for examples.
+
+## What the community is saying
+
+Blog posts and Reddit threads paint a consistent picture. Six pain points come up repeatedly,
+across years of discussion.
+
+**Horizontal scaling breaks in-process connection caches.** The moment you run
+two instances of your app, your per-process tenant connection map is stale on one of them.
+Most demos never acknowledge this. Some blog posts mention it in passing. Nobody shows the
+fix.
+
+**Nobody addresses migrations across N tenant databases.** If you have 200
+tenants on separate databases and you need to run a migration, you now have a distributed
+systems problem. The resources that recommend separate-database isolation treat provisioning
+and migrations as two separate concerns and stop at provisioning.
+
+**Separate-database recommendations never include cost analysis.** Running a
+dedicated RDS instance per tenant is expensive. At 10 tenants it is fine. At 500 it is
+not. None of the blog posts recommending this architecture mention what happens at scale.
+
+**Only one source in our entire survey explicitly tests cross-tenant isolation.**
+This is the most critical correctness property of any multi-tenant system. One test. In six
+repositories, 204 npm packages, and dozens of community posts.
+
+**Async context propagation is the most common source of bugs.** Passing
+tenant ID through every call chain, correctly, without losing it in async callbacks or
+worker threads, is harder than it sounds. AsyncLocalStorage helps, but almost nothing in
+the ecosystem shows how to wire it correctly.
+
+**There is no dominant multi-tenancy library for Node.js.** This is not a
+fringe observation. It is the explicit conclusion of multiple independent blog posts published
+across three years. The ecosystem keeps rediscovering this fact.
+
+One area where community consensus has shifted by 2026: **shared schema with
+PostgreSQL Row-Level Security is now the recommended starting point** for most
+applications. Production benchmarks consistently show tenant resolution under 1ms and
+RLS overhead under 5%. The instinct to reach for separate databases on day one is fading
+as the operational cost becomes better understood.
+
+## The ORM graveyard
+
+Every major ORM ecosystem in Node.js independently built its own multi-tenancy solution.
+Every one of them is now abandoned or nearly so.
+
+<div class="table-wrapper">
+
+| ORM | Packages found | Abandoned | Abandonment rate |
+| --- | --- | --- | --- |
+| Mongoose | 3 | 3 | 100% |
+| Prisma | 3 | 3 | 100% |
+| Sequelize | 3 | 3 | 100% |
+| Knex | 4 | 3 | 75% |
+| TypeORM | 3 | 1 | 33% |
+
+</div>
+
+The pattern is consistent: someone builds a multi-tenancy plugin for their ORM, uses it
+in their own product, then abandons the plugin when they outgrow it or the ORM releases a
+breaking version. The plugin was always a side effect of shipping their real product, not
+the product itself. When their priorities shifted, maintenance stopped.
+
+This is not a criticism of the authors. It is a structural problem. Multi-tenancy plugins
+built inside ORM-specific abstractions are fragile by design. Every major ORM version bump
+is a potential breaking change for the plugin. Maintaining a cross-cutting infrastructure
+concern as a one-person side project is not sustainable.
+
+## Why this keeps happening
+
+Multi-tenancy is deceptively simple at first. Add `tenant_id`. Filter every
+query. Done. It works on day one. Ship it.
+
+The real complexity does not arrive until later. Month six brings the first enterprise
+customer who needs custom config: feature flags, branding overrides, seat limits that
+differ from everyone else's. You hand-roll a config table. No inheritance. No hierarchy.
+One row per setting, queried inline.
+
+Month twelve brings the compliance audit. Tenant-scoped audit logs. A GDPR export
+endpoint. A purge API. You estimated three weeks. It took eight. The work was always
+necessary; it just was not visible on day one.
+
+Month eighteen brings the large financial services customer who requires isolated
+storage. Your entire data layer was built on shared tables. You are looking at a full
+migration.
+
+Most developers build what they need *today* and move on. The generalized solution
+never gets written because the generalized requirements never exist at the same time as
+the motivation to abstract. The result is hundreds of "works for my use case" libraries
+that do not generalize, each one encoding the specific constraints of one team's product
+at one point in time.
+
+## What a complete solution actually needs
+
+After going through this ecosystem, the requirements that are consistently missing are
+not subtle. They are predictable. Every mature B2B product eventually needs all of these.
+
+**Hierarchical tenants, not just flat organizations.** Real B2B structures
+have resellers, sub-accounts, teams within organizations. Flat tenant lists do not model
+this. You end up building a tree structure anyway; you should start with one.
+
+**Config that inherits down the tree.** Set a limit at the reseller level.
+Have it propagate to all clients. Allow overrides. Allow locks that prevent overrides.
+A key-value bag with no inheritance is not config management; it is a spreadsheet
+with a database behind it.
+
+**Multiple isolation strategies, not just one.** Shared schema with RLS for
+most tenants. Dedicated schema for your mid-market tier. Dedicated database for your
+enterprise tier. The right architecture depends on the customer, and that answer changes
+as you grow. Committing to one isolation model on day one means a migration later.
+
+**GDPR compliance as a first-class API.** Data export and purge are not
+optional for any product with European users. They need to be a method call, not a
+migration written at 11pm before a deadline.
+
+**Audit logging built in.** Who changed what, when, on behalf of which tenant.
+Compliance audits ask for this. Enterprise customers expect it. It should not require
+building a separate system.
+
+**Webhooks for event-driven architectures.** Tenant provisioning, config
+changes, data events. Modern stacks are not monoliths; other services need to react to
+tenant lifecycle events.
+
+**Framework integrations beyond Express.** Fastify, NestJS, and Hono are
+all in active production use. A library that only works with Express is already
+incomplete for a large portion of the Node.js ecosystem.
+
+**Real tests, especially cross-tenant isolation tests.** If your library does
+not test that tenant A cannot read tenant B's data, you do not know if your library
+is correct. This is the most important test category in the entire domain, and it is
+almost entirely absent from the ecosystem.
+
+This is what Stratum provides. It is open source, MIT licensed, TypeScript throughout,
+and ships with 330+ tests including explicit cross-tenant isolation coverage. It is not
+a demo or a blog post companion repo. It is a library built to stay maintained.
+
+<CodeBlock filename="stratum-quickstart.ts">
+
+```ts
+import { Pool } from "pg";
+import { Stratum } from "@stratum-hq/lib";
+
+const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+await stratum.initialize();
+
+// Tree-structured tenants: reseller owns multiple clients
+const reseller = await stratum.createOrganization({ name: "Acme Reseller", slug: "acme" });
+const client = await stratum.createOrganization({ name: "Client Co", slug: "client-co", parentId: reseller.id });
+
+// Config set on reseller flows down to client automatically
+await stratum.setConfig(reseller.id, "max_users", { value: 100 });
+const cfg = await stratum.getConfig(client.id, "max_users"); // 100, inherited
+
+// GDPR: export all data for a tenant, then purge it
+const export_ = await stratum.exportTenantData(client.id);
+await stratum.purgeTenant(client.id);
+```
+
+</CodeBlock>
+
+## Where we go from here
+
+The Node.js ecosystem does not need another one-off solution. It needs a standard. A
+library maintained as infrastructure, not as a side effect of someone's SaaS product.
+
+Stratum is that attempt. It is MIT licensed, written in TypeScript, and designed to
+outlive any single team's product needs. The 330+ test suite is not a number to brag
+about; it is a commitment that the library behaves correctly and that regressions are
+caught before they ship.
+
+If you have been building multi-tenancy from scratch, try the
+[browser playground](https://docs.stratum-hq.org/playground/) to see what Stratum
+can do without installing anything. The
+[docs](https://docs.stratum-hq.org/getting-started/quick-start/)
+cover the full API. The
+[repository](https://github.com/stratum-hq/Stratum)
+is open for issues and contributions.
+
+If you have built something in this space and want to contribute, open an issue. The
+ecosystem fragmentation documented here is a solvable problem. A shared standard beats
+204 abandoned packages.
