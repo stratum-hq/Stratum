@@ -661,7 +661,7 @@ interface AppProviderProps {
 
 export function AppStratumProvider({ children }: AppProviderProps) {
   return (
-    // Requests go to a server-side proxy at /api/stratum that holds the
+    // Requests go to the server-side Stratum API route at /api/stratum, which holds the
     // control-plane API key. Never give StratumProvider a key in the browser.
     <StratumProvider controlPlaneUrl="/api/stratum">
       {children}
@@ -829,8 +829,9 @@ export function useIsRootTenant(): boolean {
   // The server-side half: the only place the control-plane API key lives.
   if (info.framework === "nextjs") {
     writeFile(path.join(nextjsAppRoot(outDir), "app/api/stratum/[...path]/route.ts"), nextjsProxyRoute(), force);
+    log.info("Implement authorize() in the generated Stratum API route, app/api/stratum/[...path]/route.ts; it denies every request until you do.");
   } else {
     writeFile(path.join(outDir, "stratum-proxy.ts"), expressProxy(), force);
+    log.info("Implement authorize() in the generated stratum-proxy.ts; it denies every request until you do.");
   }
-  log.info("Implement authorize() in the generated Stratum proxy; it denies every request until you do.");
 }

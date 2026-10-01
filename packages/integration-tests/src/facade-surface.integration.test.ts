@@ -255,10 +255,10 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
         name: "T",
         slug: uniqueSlug("wd"),
       });
-      // createTenant emits tenant.created in the background and does not wait.
-      // That emission can find this hook after createWebhook commits and add a
-      // pending delivery. The hook subscribes to an event this test never emits,
-      // so only the row inserted below can exist.
+      // The hook subscribes to tenant.deleted, which this test never emits, and
+      // a webhook receives only events created after it. So the tenant.created
+      // event that createTenant emits in the background adds no delivery, and
+      // only the row inserted below can exist.
       const hook = await stratum.createWebhook({
         tenant_id: t.id,
         url: "https://example.com/webhook",
