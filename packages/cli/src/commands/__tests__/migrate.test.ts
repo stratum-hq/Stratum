@@ -25,7 +25,7 @@ class ExitError extends Error {
 /**
  * Fake pg pool whose client records every SQL string it is asked to run.
  * The only query that returns a non-empty result is the table-existence
- * check (`pg_tables ... tablename = $1`, i.e. a query with bound params),
+ * check (`to_regclass($1)`, i.e. a query with bound params),
  * so every "add column / enable RLS / create policy / create index" branch
  * in migrateTable fires.
  */
@@ -44,9 +44,9 @@ function makeFakePool(
       if (sql.includes("count(*)")) {
         return Promise.resolve({ rows: [{ n: rowCount }] });
       }
-      if (sql.includes("pg_tables") && params && params.length > 0) {
-        // table-existence check
-        return Promise.resolve({ rows: tableExists ? [{ n: 1 }] : [] });
+      if (sql.includes("to_regclass") && params && params.length > 0) {
+        // table-existence check, through the search path
+        return Promise.resolve({ rows: tableExists ? [{ nsp: "public" }] : [] });
       }
       if (sql.includes("pg_tables") && sql.includes("'tenants'")) {
         return Promise.resolve({ rows: tenantsExists ? [{ n: 1 }] : [] });
