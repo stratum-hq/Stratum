@@ -242,4 +242,4 @@ To move the data to a new HKDF salt, also send `old_salt` and `new_salt` in hex.
 4. **Monitor dormant keys** and revoke keys unused for 90+ days
 5. **Never commit keys** to source control
 6. **Set `JWT_SECRET`** in production (the dev fallback is insecure). The control plane refuses to start in production with a secret shorter than 32 bytes or a published placeholder value
-7. **Set `STRATUM_API_KEY_HMAC_SECRET`** in production for keyed hash storage
+7. **Set `STRATUM_API_KEY_HMAC_SECRET`** in production for keyed hash storage. Outside `development` and `test`, Stratum refuses to start with a secret shorter than 32 bytes
