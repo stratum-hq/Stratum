@@ -1,5 +1,16 @@
 # @stratum-hq/lib
 
+## 1.9.0
+
+### Minor Changes
+
+- 75e877f: An event goes only to the webhooks that existed when Stratum recorded the event. A webhook registered after an event no longer gets a delivery for that event when the background emission runs later.
+
+### Patch Changes
+
+- Updated dependencies [75e877f]
+  - @stratum-hq/db-adapters@1.6.0
+
 ## 1.8.1
 
 ### Patch Changes

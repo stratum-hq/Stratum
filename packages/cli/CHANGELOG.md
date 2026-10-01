@@ -1,5 +1,15 @@
 # @stratum-hq/cli
 
+## 0.11.1
+
+### Patch Changes
+
+- 75e877f: `stratum init` and `stratum scaffold` now call the generated `app/api/stratum/[...path]/route.ts` the "Stratum API route" in their output and in the comments they write. "Proxy" now refers only to the Next.js 16 `proxy.ts` tenant check. `stratum init` names the file in which to implement `authorize()`. Behavior does not change.
+- Updated dependencies [75e877f]
+- Updated dependencies [75e877f]
+  - @stratum-hq/db-adapters@1.6.0
+  - @stratum-hq/lib@1.9.0
+
 ## 0.11.0
 
 ### Minor Changes
