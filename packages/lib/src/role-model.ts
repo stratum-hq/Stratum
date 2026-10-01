@@ -487,7 +487,8 @@ export async function checkRoleModel(options: RoleModelCheckOptions): Promise<vo
   if ((await legacyBypassOn(adminPool)) === true) {
     logger.warn(
       "The legacy app.bypass_rls switch is on. Once every client of this database uses adminPool, " +
-        "turn it off: UPDATE stratum_security SET legacy_guc_bypass = false (as a member of the control role).",
+        "turn it off with `stratum db lock` (or UPDATE stratum_security SET legacy_guc_bypass = false " +
+        "as a member of the control role).",
       { control_role: control },
     );
   }
