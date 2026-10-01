@@ -180,48 +180,48 @@ stratum scaffold env             # .env template with all variables
 
 Generates:
 
-- `stratum-middleware.ts` -- SDK client + `expressMiddleware` setup
-- `tenant-routes.ts` -- example routes using `req.tenant`
+- `stratum-middleware.ts`: SDK client + `expressMiddleware` setup
+- `tenant-routes.ts`: example routes using `req.tenant`
 
 #### scaffold fastify
 
 Generates:
 
-- `stratum-plugin.ts` -- SDK client + `fastifyPlugin` setup
+- `stratum-plugin.ts`: SDK client + `fastifyPlugin` setup
 
 #### scaffold nextjs
 
 Generates:
 
-- `middleware.ts` -- Edge middleware that takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same middleware for Next.js.
-- `lib/stratum.ts` -- server-side helpers for API routes and Server Components
-- `components/tenant-layout.tsx` -- client component with `StratumProvider`
+- `middleware.ts`: Edge middleware that takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same middleware for Next.js.
+- `lib/stratum.ts`: server-side helpers for API routes and Server Components
+- `components/tenant-layout.tsx`: client component with `StratumProvider`
 
 #### scaffold react
 
 Generates:
 
-- `stratum-provider.tsx` -- `AppStratumProvider` wrapper
-- `tenant-guard.tsx` -- `PermissionGuard` and `ConfigGuard` components
-- `use-tenant.ts` -- `usePermission()`, `useConfig()`, `useIsRootTenant()` hooks
+- `stratum-provider.tsx`: `AppStratumProvider` wrapper
+- `tenant-guard.tsx`: `PermissionGuard` and `ConfigGuard` components
+- `use-tenant.ts`: `usePermission()`, `useConfig()`, `useIsRootTenant()` hooks
 
 #### scaffold prisma
 
 Generates:
 
-- `stratum-prisma.ts` -- tenant-scoped Prisma client using `@stratum-hq/db-adapters`
+- `stratum-prisma.ts`: tenant-scoped Prisma client using `@stratum-hq/db-adapters`
 
 #### scaffold docker
 
 Generates:
 
-- `docker-compose.stratum.yml` -- PostgreSQL + control plane services
+- `docker-compose.stratum.yml`: PostgreSQL + control plane services
 
 #### scaffold env
 
 Generates:
 
-- `.env.stratum` -- all Stratum environment variables with defaults and descriptions
+- `.env.stratum`: all Stratum environment variables with defaults and descriptions
 
 ## Global Options
 

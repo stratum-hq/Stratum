@@ -69,7 +69,7 @@ export async function assertIsolation(
     const count = result.rowCount ?? 0;
     if (count !== 0) {
       throw new Error(
-        `Tenant '${tenantA}' was able to read ${count} row(s) from tenant '${tenantB}' data in table '${table}' — RLS policy is not enforcing isolation`,
+        `Tenant '${tenantA}' was able to read ${count} row(s) from tenant '${tenantB}' data in table '${table}'. RLS policy is not enforcing isolation`,
       );
     }
   } finally {
@@ -133,7 +133,7 @@ export async function assertConfigInheritance(
     const inherited = (await stratum.resolveConfig(childId))[key];
     if (inherited?.value !== parentValue) {
       throw new Error(
-        `Child tenant '${childId}' did not inherit config key '${key}' from parent '${parentId}' — expected '${parentValue}', got '${inherited === undefined ? "no value" : String(inherited.value)}'`,
+        `Child tenant '${childId}' did not inherit config key '${key}' from parent '${parentId}'. Expected '${parentValue}', got '${inherited === undefined ? "no value" : String(inherited.value)}'`,
       );
     }
 
@@ -143,7 +143,7 @@ export async function assertConfigInheritance(
     const overridden = (await stratum.resolveConfig(childId))[key];
     if (overridden?.value !== childOverride) {
       throw new Error(
-        `Child tenant '${childId}' override for key '${key}' did not take precedence — expected '${childOverride}', got '${overridden === undefined ? "no value" : String(overridden.value)}'`,
+        `Child tenant '${childId}' override for key '${key}' did not take precedence. Expected '${childOverride}', got '${overridden === undefined ? "no value" : String(overridden.value)}'`,
       );
     }
 
@@ -164,7 +164,7 @@ export async function assertConfigInheritance(
     const resolved = (await stratum.resolveConfig(childId))[key];
     if (!rejectedByLock || resolved?.value !== parentValue) {
       throw new Error(
-        `Child tenant '${childId}' was able to override locked config key '${key}' from parent '${parentId}' — lock is not enforced`,
+        `Child tenant '${childId}' was able to override locked config key '${key}' from parent '${parentId}'. The lock is not enforced`,
       );
     }
   } finally {

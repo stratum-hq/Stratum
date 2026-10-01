@@ -41,7 +41,7 @@ export function createTenantRoutes(stratum: Stratum) {
     // Tenant-scoped keys can only access their own tenant subtree
     declareTenantScope(app, fromParamId);
     declareRequiredScope(app, { read: "read", write: "write" });
-    // GET /api/v1/tenants — List tenants (with cursor pagination)
+    // GET /api/v1/tenants: List tenants (with cursor pagination)
     app.get("/", async (request, reply) => {
       const scopedTenantId = request.apiKey?.tenant_id;
       if (scopedTenantId) {
@@ -59,7 +59,7 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(result);
     });
 
-    // POST /api/v1/tenants — Create tenant
+    // POST /api/v1/tenants: Create tenant
     app.post("/", { preHandler: createScopeGuard }, async (request, reply) => {
       const parsed = CreateTenantInputSchema.safeParse(request.body);
       if (!parsed.success) {
@@ -135,7 +135,7 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(201).send(tenant);
     });
 
-    // POST /api/v1/tenants/batch — Create multiple tenants atomically
+    // POST /api/v1/tenants/batch: Create multiple tenants atomically
     app.post("/batch", { preHandler: batchCreateScopeGuard }, async (request, reply) => {
       const body = request.body as { tenants?: unknown[] };
       if (!Array.isArray(body?.tenants) || body.tenants.length === 0) {
@@ -163,20 +163,20 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(201).send(result);
     });
 
-    // GET /api/v1/tenants/:id — Get tenant
+    // GET /api/v1/tenants/:id: Get tenant
     app.get<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const tenant = await stratum.getTenant(request.params.id);
       reply.status(200).send(tenant);
     });
 
-    // PATCH /api/v1/tenants/:id — Update tenant
+    // PATCH /api/v1/tenants/:id: Update tenant
     app.patch<{ Params: { id: string } }>("/:id", async (request, reply) => {
       const patch = UpdateTenantInputSchema.parse(request.body);
       const tenant = await stratum.updateTenant(request.params.id, patch, buildAuditContext(request));
       reply.status(200).send(tenant);
     });
 
-    // DELETE /api/v1/tenants/:id — Soft-delete (archive) tenant
+    // DELETE /api/v1/tenants/:id: Soft-delete (archive) tenant
     // A scoped key reaches its own pending child here, so it gets the state
     // error that archive gives a pending tenant, not a scope error.
     app.delete<{ Params: { id: string } }>("/:id", { config: { tenantScopeIncludesPending: true } }, async (request, reply) => {
@@ -184,14 +184,14 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(204).send();
     });
 
-    // POST /api/v1/tenants/:id/move — Move tenant
+    // POST /api/v1/tenants/:id/move: Move tenant
     app.post<{ Params: { id: string } }>("/:id/move", { preHandler: destinationScopeGuard }, async (request, reply) => {
       const input = MoveTenantInputSchema.parse(request.body);
       const tenant = await stratum.moveTenant(request.params.id, input.new_parent_id, buildAuditContext(request));
       reply.status(200).send(tenant);
     });
 
-    // POST /api/v1/tenants/:id/reorder — Reorder tenant among siblings
+    // POST /api/v1/tenants/:id/reorder: Reorder tenant among siblings
     app.post<{ Params: { id: string } }>("/:id/reorder", async (request, reply) => {
       const body = request.body as { position: number };
       const position = typeof body?.position === "number" ? body.position : 0;
@@ -199,7 +199,7 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(tenant);
     });
 
-    // GET /api/v1/tenants/:id/ancestors — Get ancestors
+    // GET /api/v1/tenants/:id/ancestors: Get ancestors
     app.get<{ Params: { id: string } }>("/:id/ancestors", async (request, reply) => {
       const ancestors = await stratum.getAncestors(request.params.id);
       // A tenant-scoped caller gets full rows only for ancestors inside its own
@@ -218,26 +218,26 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(200).send(ancestors);
     });
 
-    // GET /api/v1/tenants/:id/descendants — Get descendants
+    // GET /api/v1/tenants/:id/descendants: Get descendants
     app.get<{ Params: { id: string } }>("/:id/descendants", async (request, reply) => {
       const descendants = await stratum.getDescendants(request.params.id);
       reply.status(200).send(descendants);
     });
 
-    // GET /api/v1/tenants/:id/children — Get direct children
+    // GET /api/v1/tenants/:id/children: Get direct children
     app.get<{ Params: { id: string } }>("/:id/children", async (request, reply) => {
       const children = await stratum.getChildren(request.params.id);
       reply.status(200).send(children);
     });
 
-    // POST /api/v1/tenants/:id/migrate-region — Migrate tenant to a new region
+    // POST /api/v1/tenants/:id/migrate-region: Migrate tenant to a new region
     app.post<{ Params: { id: string } }>("/:id/migrate-region", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const { region_id } = MigrateRegionInputSchema.parse(request.body);
       await stratum.migrateRegion(request.params.id, region_id, buildAuditContext(request));
       reply.status(200).send({ success: true });
     });
 
-    // POST /api/v1/tenants/:id/purge — GDPR Article 17: hard-delete all tenant data
+    // POST /api/v1/tenants/:id/purge: GDPR Article 17: hard-delete all tenant data
     // A scoped key may purge its own pending child, for example after a failed
     // storage provisioning.
     app.post<{ Params: { id: string } }>("/:id/purge", { config: { tenantScopeIncludesPending: true, requiredScope: "admin" } }, async (request, reply) => {
@@ -245,13 +245,13 @@ export function createTenantRoutes(stratum: Stratum) {
       reply.status(204).send();
     });
 
-    // GET /api/v1/tenants/:id/export — GDPR Article 20: export all tenant data
+    // GET /api/v1/tenants/:id/export: GDPR Article 20: export all tenant data
     app.get<{ Params: { id: string } }>("/:id/export", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const data = await stratum.exportTenantData(request.params.id);
       reply.status(200).send(data);
     });
 
-    // GET /api/v1/tenants/:id/context — Resolve the flat ResolvedTenantContext (admin scope)
+    // GET /api/v1/tenants/:id/context: Resolve the flat ResolvedTenantContext (admin scope)
     app.get<{ Params: { id: string } }>("/:id/context", { config: { requiredScope: "admin" } }, async (request, reply) => {
       const { tenant, config, permissions } = await stratum.getTenantContext(request.params.id);
       const context: ResolvedTenantContext = {

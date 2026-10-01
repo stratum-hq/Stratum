@@ -403,7 +403,7 @@ StratumError`) instead of matching the human-readable message. The class is
 - 3fa212b: Fix moveTenant leaving the moved node's direct children with a stale
   ancestry_path, depth, and ancestry_ltree. The descendant rewrite matched only
   paths with a segment after the moved tenant (a `LIKE 'prefix/%'`), so immediate
-  children — whose ancestry_path equals the prefix exactly — were skipped, leaving
+  children (whose ancestry_path equals the prefix exactly) were skipped, leaving
   the subtree inconsistent and hiding those children from getDescendants (which
   queries the ltree). The rewrite now also matches the exact prefix. Surfaced by a
   new real-database integration test; the existing unit tests mock the pool and
@@ -486,7 +486,7 @@ StratumError`) instead of matching the human-readable message. The class is
 
 ### Patch Changes
 
-- c55da6e: Fix `getAncestors` returning an empty or incomplete ancestor chain. `getAncestorIds` assumed ancestry paths include the tenant's own id and sliced off the last element — but paths store only the ancestor chain, so every depth-1 tenant reported zero ancestors and deeper tenants lost their direct parent. `getSelfId` docs corrected to reflect that the last path element is the direct parent.
+- c55da6e: Fix `getAncestors` returning an empty or incomplete ancestor chain. `getAncestorIds` assumed ancestry paths include the tenant's own id and sliced off the last element, but paths store only the ancestor chain, so every depth-1 tenant reported zero ancestors and deeper tenants lost their direct parent. `getSelfId` docs corrected to reflect that the last path element is the direct parent.
 - Updated dependencies [c55da6e]
   - @stratum-hq/core@0.3.1
 

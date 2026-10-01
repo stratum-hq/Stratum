@@ -1,5 +1,5 @@
 /**
- * Home page — Server Component
+ * Home page: Server Component
  *
  * Reads the tenant that middleware resolved, looks up the tenant from
  * Stratum, and renders a simple tenant info card. Works for both a verified

@@ -123,7 +123,7 @@ async function evalScript(
       return (await redis.evalsha(sha, 1, key, String(ttlSec), String(now))) as number;
     }
   } catch {
-    // NOSCRIPT or other error — fall through to EVAL
+    // NOSCRIPT or other error: fall through to EVAL
   }
   return (await redis.eval(SLIDING_WINDOW_LUA, 1, key, String(ttlSec), String(now))) as number;
 }

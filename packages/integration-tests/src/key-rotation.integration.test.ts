@@ -60,7 +60,7 @@ describe("Encryption & Key Rotation (integration)", () => {
       sensitive: true,
     });
 
-    // Read raw value from DB — should be encrypted, not plaintext
+    // Read raw value from DB; it should be encrypted, not plaintext
     const pool = getPool();
     const raw = await pool.query(
       "SELECT value FROM config_entries WHERE tenant_id = $1 AND key = $2",

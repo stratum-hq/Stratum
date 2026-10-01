@@ -345,7 +345,7 @@ describe("deleteTenant", () => {
     mockQuery.mockResolvedValueOnce({ rows: [tenant] });
     // Query 3: COUNT children
     mockQuery.mockResolvedValueOnce({ rows: [{ count: "0" }] });
-    // Query 4: UPDATE to archived (RETURNING * — deleteTenant now delegates to
+    // Query 4: UPDATE to archived (RETURNING *; deleteTenant now delegates to
     // archiveTenant, which reads the updated row back)
     mockQuery.mockResolvedValueOnce({ rows: [{ ...tenant, status: "archived" }], rowCount: 1 });
 
@@ -409,7 +409,7 @@ describe("getAncestors", () => {
     const mockQuery = vi.fn();
 
     // Real ancestry paths EXCLUDE the tenant's own id (createTenant appends
-    // the PARENT's id to the parent's path) — regression guard for the bug
+    // the PARENT's id to the parent's path). Regression guard for the bug
     // where getAncestorIds sliced off the nearest ancestor.
     const leaf = makeTenant({
       id: "leaf-id",
@@ -440,7 +440,7 @@ describe("getAncestors", () => {
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe("root-id");
     expect(result[1].id).toBe("mid-id");
-    // The ancestor query must include BOTH path ids — the direct parent too
+    // The ancestor query must include BOTH path ids, the direct parent too
     expect(mockQuery.mock.calls[1][1]).toEqual([["root-id", "mid-id"]]);
   });
 
@@ -606,7 +606,7 @@ describe("getDescendants", () => {
 
     // The subtree query (3rd call) filters to active rows only. deleteTenant
     // sets status='archived' alongside deleted_at, so this one predicate drops
-    // both archived and soft-deleted descendants — matching getChildren.
+    // both archived and soft-deleted descendants, matching getChildren.
     const subtreeSql = mockQuery.mock.calls[2][0] as string;
     expect(subtreeSql).toContain("status = 'active'");
   });

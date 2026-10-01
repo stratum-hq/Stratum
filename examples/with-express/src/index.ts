@@ -21,7 +21,7 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL ?? "postgres://localhost:5432/stratum_dev",
 });
 
-// Stratum lib instance — used for admin operations (create/list tenants, set config)
+// Stratum lib instance, used for admin operations (create/list tenants, set config)
 const stratumLib = new Stratum({ pool, autoMigrate: true });
 await stratumLib.initialize();
 
@@ -39,7 +39,7 @@ if (!apiKey) {
   throw new Error("STRATUM_API_KEY is required: the SDK authenticates to the control plane with it.");
 }
 
-// Stratum SDK — wires Express middleware that resolves the tenant per request
+// Stratum SDK: wires Express middleware that resolves the tenant per request
 // and makes the tenant context available as req.tenant
 const sdk = stratumSdk({
   controlPlaneUrl: process.env.STRATUM_CONTROL_PLANE_URL ?? "http://localhost:3001",
@@ -119,7 +119,7 @@ app.post("/api/tenants", async (req, res) => {
 
 /**
  * GET /health
- * Simple health check — does not require a token.
+ * Simple health check; does not require a token.
  */
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

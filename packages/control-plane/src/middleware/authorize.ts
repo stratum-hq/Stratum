@@ -74,7 +74,7 @@ export function createAuthorizeMiddleware() {
       return;
     }
 
-    // If no apiKey, auth middleware should have rejected — fail closed
+    // If no apiKey, auth middleware should have rejected, so fail closed
     if (!request.apiKey) {
       throw new UnauthorizedError("Authentication required");
     }

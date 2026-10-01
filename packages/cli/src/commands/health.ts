@@ -34,18 +34,18 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     if (extensions.uuid_ossp) {
       log.success("Extension: uuid-ossp");
     } else {
-      log.fail("Extension: uuid-ossp (missing — run: CREATE EXTENSION \"uuid-ossp\")");
+      log.fail("Extension: uuid-ossp (missing; run: CREATE EXTENSION \"uuid-ossp\")");
     }
     if (extensions.ltree) {
       log.success("Extension: ltree");
     } else {
-      log.fail("Extension: ltree (missing — run: CREATE EXTENSION ltree)");
+      log.fail("Extension: ltree (missing; run: CREATE EXTENSION ltree)");
     }
 
     // 4. BYPASSRLS check
     const hasBypass = await checkBypassRLS(pool);
     if (hasBypass) {
-      log.fail("Current role has BYPASSRLS — this bypasses all RLS policies!");
+      log.fail("Current role has BYPASSRLS; this bypasses all RLS policies!");
       log.info("Fix: ALTER ROLE <your_role> NOBYPASSRLS;");
     } else {
       log.success("Current role does NOT have BYPASSRLS");
@@ -56,7 +56,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     if (hasStratumTables) {
       log.success("Stratum schema tables found (tenants, config_entries, permission_policies, api_keys)");
     } else {
-      log.warn("Stratum schema not found — run the control plane to auto-migrate, or apply 001_init.sql manually");
+      log.warn("Stratum schema not found. Run the control plane to auto-migrate, or apply 001_init.sql manually");
     }
 
     // 6. User tables RLS scan
@@ -66,10 +66,10 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
       const header = ["Table", "tenant_id", "RLS", "FORCE", "Policy"];
       const rows = tables.map((t) => [
         t.table_name,
-        t.has_tenant_id ? "yes" : "—",
-        t.rls_enabled ? "yes" : "—",
-        t.rls_forced ? "yes" : "—",
-        t.has_policy ? "yes" : t.policy_issue ? "no filter" : "—",
+        t.has_tenant_id ? "yes" : "no",
+        t.rls_enabled ? "yes" : "no",
+        t.rls_forced ? "yes" : "no",
+        t.has_policy ? "yes" : t.policy_issue ? "no filter" : "no",
       ]);
       log.table([header, ...rows]);
 
@@ -77,7 +77,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
       if (withPolicyIssue.length > 0) {
         console.log();
         log.warn(`${withPolicyIssue.length} table(s) have policies that do not isolate tenants:`);
-        withPolicyIssue.forEach((t) => log.dim(`  ${t.table_name} — ${t.policy_issue}`));
+        withPolicyIssue.forEach((t) => log.dim(`  ${t.table_name}: ${t.policy_issue}`));
       }
 
       const unmigrated = tables.filter((t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy);

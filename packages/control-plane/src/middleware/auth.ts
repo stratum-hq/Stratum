@@ -69,7 +69,7 @@ export function createAuthMiddleware(stratum: Stratum) {
           ...(config.jwtIssuer ? { issuer: config.jwtIssuer } : {}),
         }) as jwt.JwtPayload;
 
-        // JWT must contain a tenant_id claim — JWTs without one are not allowed
+        // JWT must contain a tenant_id claim; JWTs without one are not allowed
         // global access (only API keys may have null tenant_id).
         if (!payload.tenant_id || typeof payload.tenant_id !== "string") {
           throw new UnauthorizedError("JWT must contain a valid tenant_id claim");

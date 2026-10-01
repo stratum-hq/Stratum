@@ -150,7 +150,7 @@
     align-items: center;
   }
 
-  /* Shared button base -- nuke Starlight defaults */
+  /* Shared button base: nuke Starlight defaults */
   .run-btn,
   .reset-btn {
     all: unset;
@@ -925,7 +925,7 @@ function createEditor(parent, initialCode) {
       setStatus(msg, 'running');
     });
     stratum = createStratumHelpers(db);
-    setStatus('Ready -- Postgres running in your browser', 'ready');
+    setStatus('Ready: Postgres running in your browser', 'ready');
     if (runBtn) runBtn.disabled = false;
   } catch (err) {
     setStatus('Failed to initialize Postgres: ' + err.message, 'error');

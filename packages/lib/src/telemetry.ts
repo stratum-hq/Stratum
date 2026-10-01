@@ -1,7 +1,7 @@
 /**
  * OpenTelemetry instrumentation helpers for Stratum.
  *
- * All telemetry is optional — if @opentelemetry/api is not installed the
+ * All telemetry is optional. If @opentelemetry/api is not installed the
  * `traced()` helper simply executes the callback without creating spans.
  *
  * IMPORTANT: This file must NOT import @opentelemetry/api at the type level
@@ -9,7 +9,7 @@
  * are represented as `any` at compile time.
  */
 
-// Lazy-loaded OTel API — stays `null` when the package is absent.
+// Lazy-loaded OTel API; stays `null` when the package is absent.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let otel: any = null;
 
@@ -17,7 +17,7 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   otel = require("@opentelemetry/api");
 } catch {
-  // @opentelemetry/api is not installed — telemetry is a no-op.
+  // @opentelemetry/api is not installed, so telemetry is a no-op.
 }
 
 const TRACER_NAME = "@stratum-hq/lib";
@@ -56,7 +56,7 @@ export function isTracingEnabled(): boolean {
  * Execute `fn` inside an OpenTelemetry span.
  *
  * When @opentelemetry/api is not installed the function is invoked directly
- * without any overhead — the span parameter is a no-op stub.
+ * without any overhead; the span parameter is a no-op stub.
  */
 export async function traced<T>(
   name: string,

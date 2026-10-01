@@ -3,9 +3,9 @@
 MongoDB tenant isolation adapters for Stratum.
 
 Three isolation strategies:
-- **Shared collection** — tenant_id field injection via Collection Proxy
-- **Collection-per-tenant** — `{collection}_{slug}` naming convention. Pass `baseCollections` (every base collection name) to `MongoCollectionAdapter`; `scopedCollection` and `purgeTenantData` require it, and `purgeTenantData` purges exactly `{base}_{slug}` for each entry
-- **Database-per-tenant** — dedicated database with MongoPoolManager LRU cache
+- **Shared collection:** tenant_id field injection via Collection Proxy
+- **Collection-per-tenant:** `{collection}_{slug}` naming convention. Pass `baseCollections` (every base collection name) to `MongoCollectionAdapter`; `scopedCollection` and `purgeTenantData` require it, and `purgeTenantData` purges exactly `{base}_{slug}` for each entry
+- **Database-per-tenant:** dedicated database with MongoPoolManager LRU cache
 
 ## Mongoose plugin scope
 

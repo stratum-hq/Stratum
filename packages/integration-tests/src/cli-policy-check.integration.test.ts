@@ -84,7 +84,7 @@ function expectReportedNotIsolated(): void {
     const { out } = runCli(["scan"]);
     expect(out).not.toContain("All tables are properly isolated");
     expect(out).not.toMatch(/✓ cli_orders\b/);
-    expect(out).toMatch(/cli_orders — .*does not filter by tenant/);
+    expect(out).toMatch(/cli_orders: .*does not filter by tenant/);
   });
 
   it("migrate --scan lists the table as needing work", () => {

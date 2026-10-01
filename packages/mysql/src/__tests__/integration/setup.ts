@@ -1,4 +1,4 @@
-// Integration test setup — connects to real MySQL
+// Integration test setup: connects to real MySQL
 // Requires MYSQL_URL environment variable (set by CI or local docker)
 import { createPool } from "mysql2/promise";
 

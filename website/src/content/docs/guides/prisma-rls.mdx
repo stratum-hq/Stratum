@@ -14,7 +14,7 @@ Stratum's `prismaWithTenant()` wrapper takes a different approach. Instead of fi
 A typical Prisma multi-tenancy guide will suggest middleware like this:
 
 ```typescript
-// The fragile way -- Prisma middleware
+// The fragile way: Prisma middleware
 prisma.$use(async (params, next) => {
   if (params.action === 'findMany') {
     params.args.where = { ...params.args.where, tenantId: currentTenantId };
@@ -232,7 +232,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes -- no manual WHERE clauses needed
+// Routes: no manual WHERE clauses needed
 app.get("/orders", async (req, res) => {
   const orders = await req.tenantPrisma.order.findMany({
     orderBy: { createdAt: "desc" },
@@ -299,10 +299,10 @@ curl http://localhost:3000/orders -X POST \
   -H "Content-Type: application/json" \
   -d '{"product": "Gadget", "quantity": 2, "total": 29.90}'
 
-# Query as Tenant A -- only sees Widget
+# Query as Tenant A: only sees Widget
 curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_A"
 
-# Query as Tenant B -- only sees Gadget
+# Query as Tenant B: only sees Gadget
 curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_B"
 ```
 

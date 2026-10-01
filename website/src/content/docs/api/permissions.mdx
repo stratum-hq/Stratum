@@ -100,7 +100,7 @@ POST /api/v1/tenants/:id/permissions
 | `SOFT` | Deletes only from this tenant; children keep copies |
 | `PERMANENT` | Cannot be deleted (returns 403) |
 
-**Response:** `201 Created` -- returns the permission policy.
+**Response:** `201 Created`. Returns the permission policy.
 
 ---
 
@@ -120,7 +120,7 @@ PATCH /api/v1/tenants/:id/permissions/:policyId
 }
 ```
 
-**Response:** `200 OK` -- returns the updated policy.
+**Response:** `200 OK`. Returns the updated policy.
 
 ---
 
@@ -132,9 +132,9 @@ DELETE /api/v1/tenants/:id/permissions/:policyId
 
 Behavior depends on the policy's revocation mode:
 
-- **CASCADE** -- deletes from this tenant and all descendants
-- **SOFT** -- deletes only from this tenant
-- **PERMANENT** -- returns `403 PERMISSION_REVOCATION_DENIED`
+- **CASCADE**: deletes from this tenant and all descendants
+- **SOFT**: deletes only from this tenant
+- **PERMANENT**: returns `403 PERMISSION_REVOCATION_DENIED`
 
 **Response:** `204 No Content`
 

@@ -14,7 +14,7 @@ Stratum's `drizzleWithTenant()` wrapper for Drizzle takes a different approach. 
 A typical Drizzle multi-tenancy setup looks like this:
 
 ```typescript
-// The manual way -- must remember for every query
+// The manual way: must remember for every query
 const orders = await db
   .select()
   .from(ordersTable)
@@ -25,7 +25,7 @@ const stats = await db
   .from(ordersTable)
   .where(eq(ordersTable.tenantId, currentTenantId)); // easy to forget
 
-// Joins are worse -- both tables need filtering
+// Joins are worse: both tables need filtering
 const result = await db
   .select()
   .from(ordersTable)
@@ -55,7 +55,7 @@ const db = drizzle(pool);
 // Wrap the Drizzle instance for tenant-scoped queries
 const tenantDb = drizzleWithTenant(db, () => currentTenantId, pool);
 
-// No .where() needed -- RLS handles isolation
+// No .where() needed; RLS handles isolation
 const orders = await tenantDb.execute(
   db.select().from(ordersTable)
 );
@@ -308,9 +308,9 @@ curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_B"
 
 The Drizzle adapter wraps two methods on the Drizzle instance:
 
-**`execute(query)`** -- Wraps the call in a `transaction()` that sets the tenant context first, then runs the query. This guarantees the `set_config` and your statement execute on the same connection.
+**`execute(query)`**: Wraps the call in a `transaction()` that sets the tenant context first, then runs the query. This guarantees the `set_config` and your statement execute on the same connection.
 
-**`transaction(fn)`** -- Injects a `set_config` call before running your callback. The tenant context applies to all operations within the transaction.
+**`transaction(fn)`**: Injects a `set_config` call before running your callback. The tenant context applies to all operations within the transaction.
 
 When `contextFn` returns an empty string, the adapter throws an error rather than silently running without tenant scope. Use the unwrapped Drizzle instance for admin or system operations that intentionally bypass tenant isolation.
 

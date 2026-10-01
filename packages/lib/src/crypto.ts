@@ -106,7 +106,7 @@ export function decrypt(encrypted: string): string {
       try {
         return decryptWithKey(encrypted, deriveKey(previousKey || getEncryptionKeyMaterial(), previousSalt));
       } catch {
-        // Both pairs failed — throw the original error
+        // Both pairs failed: throw the original error
       }
     }
     throw err;

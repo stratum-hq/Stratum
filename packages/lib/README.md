@@ -1,6 +1,6 @@
 # @stratum-hq/lib
 
-Framework-agnostic library for embedding [Stratum](https://github.com/stratum-hq/Stratum) directly in your Node.js app. Talks straight to PostgreSQL with no HTTP server in between — maximum performance for tenant operations.
+Framework-agnostic library for embedding [Stratum](https://github.com/stratum-hq/Stratum) directly in your Node.js app. Talks straight to PostgreSQL with no HTTP server in between, for maximum performance for tenant operations.
 
 ## Installation
 
@@ -26,7 +26,7 @@ const customer = await stratum.createTenant({
   isolation_strategy: "SHARED_RLS",
 });
 
-// Config flows root → leaf — children inherit automatically
+// Config flows root → leaf; children inherit automatically
 await stratum.setConfig(msp.id, "max_seats", { value: 500, locked: true });
 const config = await stratum.resolveConfig(customer.id);
 // → { max_seats: { value: 500, inherited: true, locked: true } }
@@ -34,19 +34,19 @@ const config = await stratum.resolveConfig(customer.id);
 const permissions = await stratum.resolvePermissions(customer.id);
 ```
 
-The `pool` is **borrowed, not owned** — Stratum never creates or closes it. With `autoMigrate: true`, `initialize()` runs the schema migrations on first start; leave it off and manage migrations yourself via `migrate`.
+The `pool` is **borrowed, not owned**: Stratum never creates or closes it. With `autoMigrate: true`, `initialize()` runs the schema migrations on first start; leave it off and manage migrations yourself via `migrate`.
 
 ## API Summary
 
 The `Stratum` instance covers the full tenant lifecycle:
 
-- **Tenants** — `createTenant`, `getTenant`, `listTenants`, `updateTenant`, `moveTenant`, `getAncestors`, `getDescendants`, `batchCreateTenants`
-- **Config** — `resolveConfig`, `setConfig`, `deleteConfig`, `batchSetConfig`, `diffConfig`
-- **Permissions & ABAC** — `resolvePermissions`, `createPermission`, `createAbacPolicy`, `evaluateAbac`
-- **API keys & roles** — `createApiKey`, `validateApiKey`, `rotateApiKey`, `createRole`, `assignRoleToKey`
-- **Webhooks & audit** — `createWebhook`, `testWebhook`, `queryAuditLogs`, `listFailedDeliveries`
-- **GDPR & regions** — `exportTenantData`, `purgeTenant`, `grantConsent`, `createRegion`, `migrateRegion`
-- **Usage metering** — `recordUsage`, `aggregateUsage` (see [docs/usage-metering.md](../../docs/usage-metering.md))
+- **Tenants**: `createTenant`, `getTenant`, `listTenants`, `updateTenant`, `moveTenant`, `getAncestors`, `getDescendants`, `batchCreateTenants`
+- **Config**: `resolveConfig`, `setConfig`, `deleteConfig`, `batchSetConfig`, `diffConfig`
+- **Permissions & ABAC**: `resolvePermissions`, `createPermission`, `createAbacPolicy`, `evaluateAbac`
+- **API keys & roles**: `createApiKey`, `validateApiKey`, `rotateApiKey`, `createRole`, `assignRoleToKey`
+- **Webhooks & audit**: `createWebhook`, `testWebhook`, `queryAuditLogs`, `listFailedDeliveries`
+- **GDPR & regions**: `exportTenantData`, `purgeTenant`, `grantConsent`, `createRegion`, `migrateRegion`
+- **Usage metering**: `recordUsage`, `aggregateUsage` (see [docs/usage-metering.md](../../docs/usage-metering.md))
 
 Low-level pool helpers are also exported:
 
@@ -64,11 +64,11 @@ await withTransaction(pool, async (client) => {
 establishes the tenant context in two layers for the whole duration of the job
 and tears both down when the job settles:
 
-- **AsyncLocalStorage** — the tenant is placed in the SDK's ALS store, so code
+- **AsyncLocalStorage**: the tenant is placed in the SDK's ALS store, so code
   inside the job reads it through `Stratum.currentTenantId()` /
   `Stratum.currentTenantContext()` exactly as a request handler would. Each job
   gets its own store, so concurrent jobs cannot observe each other's tenant.
-- **Postgres row-level security** — the job runs through the data-plane
+- **Postgres row-level security**: the job runs through the data-plane
   `withTenantContext` (`@stratum-hq/db-adapters`), which opens a transaction and
   issues `SET LOCAL app.current_tenant_id`. Every query the job makes on the
   provided client is confined to that tenant by RLS, so it cannot read or write
@@ -82,7 +82,7 @@ import { runScopedJob } from "@stratum-hq/lib";
 // `pool` must connect as a NON-superuser, NON-BYPASSRLS role, or RLS is a no-op.
 await runScopedJob(pool, tenantId, async (client) => {
   Stratum.currentTenantId(); // === tenantId
-  // Confined to `tenantId` by RLS — no app-layer WHERE filter needed.
+  // Confined to `tenantId` by RLS; no app-layer WHERE filter needed.
   await client.query("SELECT * FROM invoices WHERE status = 'pending'");
 });
 ```
@@ -96,7 +96,7 @@ ADR 0001 (`docs/adr/0001-postgres-rls-defense-in-depth.md`).
 
 ## Rate Limiting
 
-`RateLimiter` is a standalone, storage-agnostic per-tenant rate-limiting primitive. It is not part of the `Stratum` facade (which is bound to a single `pg.Pool`) — the point is that its storage is pluggable. It ships with a process-local in-memory store and a documented `RateLimitStore` contract you can implement over Redis, Postgres, or anything else.
+`RateLimiter` is a standalone, storage-agnostic per-tenant rate-limiting primitive. It is not part of the `Stratum` facade (which is bound to a single `pg.Pool`). The point is that its storage is pluggable. It ships with a process-local in-memory store and a documented `RateLimitStore` contract you can implement over Redis, Postgres, or anything else.
 
 > This is distinct from the HTTP-layer rate limiting in `@stratum-hq/control-plane`. Use this to embed per-tenant limits directly in an application.
 
@@ -115,7 +115,7 @@ const limiter = new RateLimiter({
 // one tenant's usage never affects another's.
 const res = await limiter.checkLimit(tenantId, "api");
 if (!res.allowed) {
-  throw new Error(`rate limited — retry in ${res.retryAfter}s`);
+  throw new Error(`rate limited, retry in ${res.retryAfter}s`);
 }
 // res: { allowed, limit, remaining, resetAt, retryAfter }
 ```
@@ -130,7 +130,7 @@ For each tenant the limit is resolved in order:
 2. the static `limits[tenantId]` override,
 3. `defaultLimit`.
 
-`resolveLimit` is the seam for **config inheritance** — back it with `stratum.resolveConfig` to drive limits from the tenant config tree:
+`resolveLimit` is the seam for **config inheritance**: back it with `stratum.resolveConfig` to drive limits from the tenant config tree:
 
 ```typescript
 const limiter = new RateLimiter({
@@ -162,9 +162,9 @@ interface RateLimitStore {
 
 Implementation notes:
 
-- **Redis** — `INCR key`, then on a reply of `1`, `PEXPIRE key windowMs`; derive `resetAt` from `now + PTTL`. A short Lua script keeps it atomic and returns count + TTL in one round trip.
-- **Postgres** — `INSERT ... ON CONFLICT (key) DO UPDATE` returning the new count, resetting the row when `reset_at` has passed.
-- **In-memory** — `MemoryRateLimitStore`; single-process only, holds one entry per distinct `tenantId:key` pair. For high key cardinality or multi-process deployments, use a store with native TTL eviction.
+- **Redis**: `INCR key`, then on a reply of `1`, `PEXPIRE key windowMs`; derive `resetAt` from `now + PTTL`. A short Lua script keeps it atomic and returns count + TTL in one round trip.
+- **Postgres**: `INSERT ... ON CONFLICT (key) DO UPDATE` returning the new count, resetting the row when `reset_at` has passed.
+- **In-memory**: `MemoryRateLimitStore`; single-process only, holds one entry per distinct `tenantId:key` pair. For high key cardinality or multi-process deployments, use a store with native TTL eviction.
 
 ## Error Handling
 
@@ -177,7 +177,7 @@ try {
   await stratum.setConfig(childId, "max_seats", { value: 999 });
 } catch (err) {
   if (err instanceof ConfigLockedError) {
-    // A parent locked this key — child cannot override
+    // A parent locked this key, so the child cannot override
   }
 }
 ```

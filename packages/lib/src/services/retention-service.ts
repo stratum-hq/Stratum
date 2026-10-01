@@ -75,7 +75,7 @@ function ownsStorage(tenant: TenantStorage | undefined, strategy: TenantNode["is
 }
 
 /**
- * GDPR Article 17 — Right to Erasure.
+ * GDPR Article 17: Right to Erasure.
  * Hard-delete ALL data belonging to a specific tenant, in correct FK order,
  * including its own schema (SCHEMA_PER_TENANT) or database (DB_PER_TENANT).
  *
@@ -150,7 +150,7 @@ export async function purgeTenant(
 }
 
 /**
- * GDPR Article 20 — Right to Data Portability.
+ * GDPR Article 20: Right to Data Portability.
  * Export all tenant data as a structured JSON object.
  */
 export async function exportTenantData(

@@ -203,7 +203,7 @@ describe("validateProjectName", () => {
 
 describe("directory existence check", () => {
   it("errors when directory exists without --force", () => {
-    // parseArgs doesn't control this — main() does the fs.existsSync check.
+    // parseArgs doesn't control this; main() does the fs.existsSync check.
     // We verify that parseArgs returns force=false by default, which triggers the error.
     const result = parseArgs(["existing-dir"]);
     expect(result.force).toBe(false);

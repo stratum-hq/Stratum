@@ -85,7 +85,7 @@ describe("CLI RLS status: a table with RLS enabled but not forced", () => {
     const { out } = runCli(["scan"], scratchUrl);
     expect(out).not.toContain("All tables are properly isolated");
     expect(out).not.toMatch(/✓ cli_orders\b/);
-    expect(out).toMatch(/cli_orders — .*not forced/);
+    expect(out).toMatch(/cli_orders: .*not forced/);
   });
 
   it("scan --generate emits FORCE ROW LEVEL SECURITY for the table", () => {

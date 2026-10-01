@@ -13,8 +13,8 @@ import { uniqueSlug } from "./helpers/fixtures.js";
  * The app-facing audit-write API (stratum.recordAuditEvent) against real
  * Postgres: a consumer-recorded event is queryable via queryAuditLogs, its
  * before/after JSONB and INET source_ip round-trip, defaults land as expected,
- * the actor_type CHECK and INET column reject bad input, and — since the row is
- * stamped for one tenant only — a non-superuser data-plane reader under a tenant
+ * the actor_type CHECK and INET column reject bad input, and (since the row is
+ * stamped for one tenant only) a non-superuser data-plane reader under a tenant
  * context sees its own tenant's event but never another tenant's.
  */
 describe("audit-write API against real Postgres (integration)", () => {

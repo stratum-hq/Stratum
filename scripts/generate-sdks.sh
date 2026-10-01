@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# generate-sdks.sh — Generate Python and Go SDKs from the Stratum OpenAPI spec.
+# generate-sdks.sh: Generate Python and Go SDKs from the Stratum OpenAPI spec.
 #
 # Prerequisites:
 #   - Java 11+ (required by openapi-generator-cli)
@@ -17,7 +17,7 @@
 #   ./scripts/generate-sdks.sh go           # Generate only Go SDK
 #   ./scripts/generate-sdks.sh --live       # Extract spec from running control plane first
 #
-# The script is idempotent — output directories are cleaned before each generation.
+# The script is idempotent; output directories are cleaned before each generation.
 #
 
 set -euo pipefail
@@ -213,7 +213,7 @@ main() {
     spec_mtime=$(stat -c %Y "${SPEC_FILE}" 2>/dev/null || stat -f %m "${SPEC_FILE}" 2>/dev/null || echo 0)
     newest_source=$(find "${CP_SRC_DIR}" -name '*.ts' -newer "${SPEC_FILE}" 2>/dev/null | head -1)
     if [[ -n "${newest_source}" ]]; then
-      warn "OpenAPI spec may be stale — control plane source has been modified since spec was generated."
+      warn "OpenAPI spec may be stale; control plane source has been modified since spec was generated."
       warn "Run with --live to regenerate from the running control plane, or update the spec manually."
     fi
   fi

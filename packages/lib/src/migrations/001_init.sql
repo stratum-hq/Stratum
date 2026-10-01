@@ -2,13 +2,13 @@
 DO $$ BEGIN
   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 EXCEPTION WHEN insufficient_privilege THEN
-  RAISE WARNING 'Cannot create uuid-ossp extension — insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";';
+  RAISE WARNING 'Cannot create uuid-ossp extension: insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";';
 END $$;
 
 DO $$ BEGIN
   CREATE EXTENSION IF NOT EXISTS "ltree";
 EXCEPTION WHEN insufficient_privilege THEN
-  RAISE WARNING 'Cannot create ltree extension — insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "ltree";';
+  RAISE WARNING 'Cannot create ltree extension: insufficient privileges. Ask a database administrator to run: CREATE EXTENSION IF NOT EXISTS "ltree";';
 END $$;
 
 -- Warn if application role has BYPASSRLS privilege.
@@ -127,7 +127,7 @@ CREATE TRIGGER update_config_entries_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Config entries uses ON DELETE CASCADE (unlike permission_policies which uses RESTRICT)
--- because config values are safe to delete with a tenant — they carry no semantic guarantees
+-- because config values are safe to delete with a tenant; they carry no semantic guarantees
 -- like PERMANENT revocation mode. If soft-delete is used (v1 default), CASCADE never fires.
 
 -- API keys table (for control plane auth)

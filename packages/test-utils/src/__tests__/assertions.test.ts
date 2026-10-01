@@ -85,7 +85,7 @@ describe("assertIsolation", () => {
     await expect(
       assertIsolation(pool, "tenant-a", "tenant-b", "users"),
     ).rejects.toThrow(
-      "Tenant 'tenant-a' was able to read 3 row(s) from tenant 'tenant-b' data in table 'users' — RLS policy is not enforcing isolation",
+      "Tenant 'tenant-a' was able to read 3 row(s) from tenant 'tenant-b' data in table 'users'. RLS policy is not enforcing isolation",
     );
   });
 

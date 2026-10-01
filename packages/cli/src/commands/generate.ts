@@ -48,7 +48,7 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     console.log();
     console.log(`  \x1b[1m\x1b[33mKey: ${plaintextKey}\x1b[0m`);
     console.log();
-    log.warn("Save this key now — it will never be shown again.");
+    log.warn("Save this key now. It will never be shown again.");
     console.log();
   } finally {
     await pool.end();

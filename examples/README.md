@@ -9,7 +9,7 @@ Each example is self-contained. Install dependencies and run from inside its dir
 | Example | Description |
 |---------|-------------|
 | [`quickstart.ts`](./quickstart.ts) | Minimal script: create a Pool, initialize Stratum with `autoMigrate`, build a tenant hierarchy, set and resolve config |
-| [`flat-tenancy.ts`](./flat-tenancy.ts) | SaaS flat-tenancy with `createOrganization` / `listOrganizations` — no parent/child hierarchy |
+| [`flat-tenancy.ts`](./flat-tenancy.ts) | SaaS flat-tenancy with `createOrganization` / `listOrganizations`, with no parent/child hierarchy |
 | [`with-express/`](./with-express/) | Express API with `@stratum-hq/sdk` middleware; tenant context resolved per request from a verified JWT claim |
 | [`with-hono/`](./with-hono/) | Hono API with Hono's JWT middleware and `@stratum-hq/hono`; tenant resolved from a verified JWT claim |
 | [`with-nextjs/`](./with-nextjs/) | Next.js 15 App Router; Middleware resolves tenants from a verified JWT or the subdomain, Server Components call Stratum directly |
@@ -74,11 +74,11 @@ The `with-nextjs` example also reads:
 
 Stratum supports two patterns:
 
-- **Hierarchy** (`createTenant` with `parent_id`) — MSPs, agencies, or any product
+- **Hierarchy** (`createTenant` with `parent_id`): MSPs, agencies, or any product
   where tenants contain sub-tenants. Config values set on a parent are inherited
   by all descendants.
 
-- **Flat** (`createOrganization`) — standard SaaS where every customer is a
+- **Flat** (`createOrganization`): standard SaaS where every customer is a
   top-level organization with no parent. Config is set directly per-org.
 
 ### Config inheritance

@@ -48,12 +48,12 @@ export interface RateLimitState {
  *
  * A conforming store must provide an atomic-per-key increment. Implementations:
  *
- *  - **Redis** — `INCR key` then, when the reply is `1`, `PEXPIRE key windowMs`;
+ *  - **Redis**: `INCR key` then, when the reply is `1`, `PEXPIRE key windowMs`;
  *    derive `resetAt` from `now + PTTL`. A short Lua script keeps it atomic and
  *    returns both count and TTL in one round trip.
- *  - **Postgres** — `INSERT ... ON CONFLICT (key) DO UPDATE SET count = ... `
+ *  - **Postgres**: `INSERT ... ON CONFLICT (key) DO UPDATE SET count = ... `
  *    returning the new count, resetting the row when `reset_at` has passed.
- *  - **In-memory** — see {@link MemoryRateLimitStore}.
+ *  - **In-memory**: see {@link MemoryRateLimitStore}.
  */
 export interface RateLimitStore {
   /**

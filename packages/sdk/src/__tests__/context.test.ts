@@ -24,9 +24,9 @@ describe("tenant context utilities", () => {
       // (assuming no prior enterWith in this test fiber)
       expect(() => {
         // Run in a fresh async context via tenantStorage.run to ensure isolation,
-        // then call getTenantContext outside any store — we verify the error type.
+        // then call getTenantContext outside any store; we verify the error type.
         const outside = () => {
-          // Deliberately do NOT set up a context — just call getTenantContext
+          // Deliberately do NOT set up a context, just call getTenantContext
           // We can't guarantee the outer scope has no context, so use a nested
           // storage run with undefined to simulate absence.
           return tenantStorage.run(undefined as unknown as ResolvedTenantContext, () =>
@@ -57,7 +57,7 @@ describe("tenant context utilities", () => {
       });
 
       // After the synchronous callback, we are back in the outer scope.
-      // The outer scope has its own store value — either undefined or a prior context.
+      // The outer scope has its own store value: either undefined or a prior context.
       // We verify by running a fresh undefined context.
       const outsideCtx = tenantStorage.run(
         undefined as unknown as ResolvedTenantContext,
@@ -134,7 +134,7 @@ describe("tenant context utilities", () => {
     it("sets context accessible via getTenantContext in the same execution context", () => {
       const ctx = makeContext("entered-tenant");
 
-      // setTenantContext uses enterWith — affects the current async context.
+      // setTenantContext uses enterWith, which affects the current async context.
       // We isolate this via tenantStorage.run to avoid polluting other tests.
       tenantStorage.run(undefined as unknown as ResolvedTenantContext, () => {
         setTenantContext(ctx);

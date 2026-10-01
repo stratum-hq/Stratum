@@ -1,5 +1,5 @@
 /**
- * DraggableTenantTree — TenantTree with drag-and-drop support.
+ * DraggableTenantTree: TenantTree with drag-and-drop support.
  *
  * Supports two operations:
  * - **Reparenting**: drag a tenant onto a different parent → calls moveTenant API
@@ -95,7 +95,7 @@ function DraggableTreeNode({
           opacity: isDragging ? 0.4 : 1,
         }}
       >
-        {/* Drag handle — only this initiates drag */}
+        {/* Drag handle: only this initiates drag */}
         <span
           ref={setDragRef}
           {...attributes}
@@ -270,7 +270,7 @@ export function DraggableTenantTree({
 
     try {
       if (sameParent) {
-        // Sibling reorder — find target's position and place dragged there
+        // Sibling reorder: find target's position and place dragged there
         const siblings = findSiblings(targetNode.parent_id);
         const targetIndex = siblings.findIndex((s) => s.id === targetId);
         const position = Math.max(0, targetIndex);
@@ -283,7 +283,7 @@ export function DraggableTenantTree({
         toast.success(`Reordered "${draggedNode.name}"`);
         onReorder?.(draggedId, position);
       } else {
-        // Reparent — move to target as new parent
+        // Reparent: move to target as new parent
         await apiCall(`/api/v1/tenants/${encodeURIComponent(draggedId)}/move`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

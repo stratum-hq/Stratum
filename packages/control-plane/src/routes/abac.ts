@@ -11,7 +11,7 @@ export function createAbacRoutes(stratum: Stratum) {
     declareTenantScope(app, fromParamTenantId);
     declareRequiredScope(app, { read: "read", write: "write" });
 
-    // POST /api/v1/tenants/:tenantId/abac-policies — Create ABAC policy
+    // POST /api/v1/tenants/:tenantId/abac-policies: Create ABAC policy
     app.post<{ Params: { tenantId: string } }>("/", async (request, reply) => {
       const input = CreateAbacPolicyInputSchema.parse(request.body) as CreateAbacPolicyInput;
       const policy = await stratum.createAbacPolicy(
@@ -22,13 +22,13 @@ export function createAbacRoutes(stratum: Stratum) {
       reply.status(201).send(policy);
     });
 
-    // GET /api/v1/tenants/:tenantId/abac-policies — List own ABAC policies
+    // GET /api/v1/tenants/:tenantId/abac-policies: List own ABAC policies
     app.get<{ Params: { tenantId: string } }>("/", async (request, reply) => {
       const policies = await stratum.getAbacPolicies(request.params.tenantId);
       reply.status(200).send(policies);
     });
 
-    // POST /api/v1/tenants/:tenantId/abac/evaluate — Evaluate an ABAC request
+    // POST /api/v1/tenants/:tenantId/abac/evaluate: Evaluate an ABAC request
     app.post<{ Params: { tenantId: string } }>("/evaluate", async (request, reply) => {
       const evalRequest = AbacEvaluationRequestSchema.parse(request.body) as AbacEvaluationRequest;
       const result = await stratum.evaluateAbac(
@@ -38,7 +38,7 @@ export function createAbacRoutes(stratum: Stratum) {
       reply.status(200).send(result);
     });
 
-    // DELETE /api/v1/tenants/:tenantId/abac-policies/:policyId — Delete ABAC policy
+    // DELETE /api/v1/tenants/:tenantId/abac-policies/:policyId: Delete ABAC policy
     app.delete<{ Params: { tenantId: string; policyId: string } }>(
       "/:policyId",
       async (request, reply) => {

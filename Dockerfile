@@ -42,7 +42,7 @@ COPY --from=builder /app/packages/db-adapters/package.json ./packages/db-adapter
 COPY --from=builder /app/packages/sdk/package.json ./packages/sdk/
 COPY --from=builder /app/packages/control-plane/package.json ./packages/control-plane/
 
-# Fresh production install — npm handles hoisting and symlinks correctly
+# Fresh production install; npm handles hoisting and symlinks correctly
 RUN node -e " \
   require('fs').writeFileSync('package.json', JSON.stringify({ \
     name: 'stratum', private: true, \

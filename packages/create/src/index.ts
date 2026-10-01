@@ -296,7 +296,7 @@ fastify.listen({ port, host: "0.0.0.0" }, (err) => {
 }
 
 function generateNextjsPage(projectName: string): string {
-  return `// app/page.tsx — ${projectName} root page
+  return `// app/page.tsx: ${projectName} root page
 export default function Home() {
   return (
     <main style={{ padding: "2rem", fontFamily: "sans-serif" }}>
@@ -330,7 +330,7 @@ docker compose up -d
 
 \`\`\`bash
 cp .env.example .env
-# Edit .env — update DATABASE_URL, JWT_SECRET, and STRATUM_API_KEY
+# Edit .env: update DATABASE_URL, JWT_SECRET, and STRATUM_API_KEY
 \`\`\`
 
 ### 3. Install dependencies
@@ -360,9 +360,9 @@ ${template === "nextjs" ? "" : "├── tsconfig.json\n"}└── package.jso
 
 This project uses Stratum for hierarchical multi-tenancy:
 
-- **Tenant resolution** — from the \`tenant_id\` claim of a bearer token verified with \`JWT_SECRET\` (see \`middleware.ts\`); the subdomain is only a display slug
-- **Config inheritance** — settings flow down the tenant tree with override support
-- **Permission ABAC** — role-based permissions with tenant-scoped enforcement
+- **Tenant resolution**: from the \`tenant_id\` claim of a bearer token verified with \`JWT_SECRET\` (see \`middleware.ts\`); the subdomain is only a display slug
+- **Config inheritance**: settings flow down the tenant tree with override support
+- **Permission ABAC**: role-based permissions with tenant-scoped enforcement
 
 See the [Stratum docs](https://github.com/stratum-hq/Stratum) for full reference.
 `;

@@ -17,7 +17,7 @@ import { uniqueSlug } from "./helpers/fixtures.js";
  * the dual materialized path (ancestry_path of IDs maintained in app code, and
  * ancestry_ltree of slugs maintained by the migration 001 trigger) must both be
  * rewritten for the moved node AND its whole subtree, depth must be recomputed,
- * and getDescendants — which queries the ltree with `<@` — must reflect the new
+ * and getDescendants (which queries the ltree with `<@`) must reflect the new
  * location. The descendant rewrite fires the ltree trigger only because
  * moveTenant sets `slug = slug`; this test is what proves that actually works.
  */

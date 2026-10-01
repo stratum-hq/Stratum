@@ -10,7 +10,7 @@ import {
   UnauthorizedError,
 } from "@stratum-hq/core";
 
-// Mock runWithTenantContext from SDK — execute the callback so downstream handlers run.
+// Mock runWithTenantContext from SDK; execute the callback so downstream handlers run.
 // The tenant error mapping stays real, so the tests check the shared mapping.
 vi.mock("@stratum-hq/sdk", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@stratum-hq/sdk")>()),

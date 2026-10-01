@@ -36,7 +36,7 @@ if (process.env.NODE_ENV !== "production") {
   globalForStratum._stratumInstance = stratumInstance;
 }
 
-// Initialize once — subsequent calls are no-ops.
+// Initialize once; subsequent calls are no-ops.
 await stratumInstance.initialize();
 
 export { stratumInstance as stratum, pool };

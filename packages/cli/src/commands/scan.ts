@@ -1,5 +1,5 @@
 /**
- * stratum scan — Migration scanner.
+ * stratum scan: migration scanner.
  *
  * Scans an existing database, identifies tables that need tenant isolation,
  * and generates migration SQL to add tenant_id columns + RLS policies.
@@ -74,7 +74,7 @@ function tablesNeedingWork(result: ScanResult): TableInfo[] {
 
 function generateMigrationSQL(result: ScanResult): string {
   const lines: string[] = [
-    "-- Stratum Migration Scanner — auto-generated",
+    "-- Stratum Migration Scanner (auto-generated)",
     "-- Review carefully before running in production",
     "",
     "BEGIN;",
@@ -200,7 +200,7 @@ export async function scan(
     if (result.needsTenantId.length > 0) {
       log.warn(`  ${result.needsTenantId.length} need tenant_id column:`);
       for (const t of result.needsTenantId) {
-        log.dim(`    ✗ ${t.table_name} — no tenant_id column`);
+        log.dim(`    ✗ ${t.table_name}: no tenant_id column`);
       }
       console.log();
     }
@@ -208,7 +208,7 @@ export async function scan(
     if (result.needsRLS.length > 0) {
       log.warn(`  ${result.needsRLS.length} have tenant_id but no RLS:`);
       for (const t of result.needsRLS) {
-        log.dim(`    ⚠ ${t.table_name} — has tenant_id, RLS not enabled`);
+        log.dim(`    ⚠ ${t.table_name}: has tenant_id, RLS not enabled`);
       }
       console.log();
     }
@@ -216,7 +216,7 @@ export async function scan(
     if (result.needsPolicy.length > 0) {
       log.warn(`  ${result.needsPolicy.length} have RLS enabled but no policy:`);
       for (const t of result.needsPolicy) {
-        log.dim(`    ⚠ ${t.table_name} — RLS enabled, no tenant_isolation policy`);
+        log.dim(`    ⚠ ${t.table_name}: RLS enabled, no tenant_isolation policy`);
       }
       console.log();
     }
@@ -224,7 +224,7 @@ export async function scan(
     if (result.badPolicy.length > 0) {
       log.warn(`  ${result.badPolicy.length} have policies that do not isolate tenants:`);
       for (const t of result.badPolicy) {
-        log.dim(`    ⚠ ${t.table_name} — ${t.policy_issue}`);
+        log.dim(`    ⚠ ${t.table_name}: ${t.policy_issue}`);
       }
       console.log();
     }
@@ -232,7 +232,7 @@ export async function scan(
     if (result.needsForce.length > 0) {
       log.warn(`  ${result.needsForce.length} have RLS enabled but not forced:`);
       for (const t of result.needsForce) {
-        log.dim(`    ⚠ ${t.table_name} — RLS enabled, not forced (the table owner bypasses it)`);
+        log.dim(`    ⚠ ${t.table_name}: RLS enabled, not forced (the table owner bypasses it)`);
       }
       console.log();
     }

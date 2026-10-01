@@ -35,7 +35,7 @@ import { prismaWithTenant } from "@stratum-hq/db-adapters";        // Prisma
 import { drizzleWithTenant } from "@stratum-hq/db-adapters";  // Drizzle
 import { SequelizeAdapter, sequelizeWithTenantScope } from "@stratum-hq/db-adapters"; // Sequelize
 
-// Prisma — all queries scoped to the current tenant
+// Prisma: all queries scoped to the current tenant
 const tenantPrisma = prismaWithTenant(prisma, () => getTenantContext().tenant_id, pool);
 const orders = await tenantPrisma.order.findMany();
 ```
@@ -106,7 +106,7 @@ Concurrent first requests for one tenant share one pool.
 ## Security
 
 - All DDL validates table names against `/^[a-zA-Z_][a-zA-Z0-9_]*$/`.
-- Tenant ID is always set via `set_config($1, true)` — fully parameterized.
+- Tenant ID is always set via `set_config($1, true)`, fully parameterized.
 - `enableRLS()` always applies `FORCE ROW LEVEL SECURITY`, preventing bypass by table owners.
 - Always reset the tenant context when returning connections to the pool; `createTenantPool` handles this for you.
 

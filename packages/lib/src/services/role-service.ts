@@ -150,7 +150,7 @@ export async function removeRoleFromKey(pool: pg.Pool, keyId: string): Promise<b
 }
 
 /**
- * Resolve the effective scopes for an API key — the single source of truth for
+ * Resolve the effective scopes for an API key: the single source of truth for
  * what a key is authorized to do. When a role is assigned to the key, the role's
  * scopes govern; otherwise the key's own column scopes apply; a key with neither
  * (or no such key) defaults to ["read"].

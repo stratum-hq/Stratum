@@ -104,7 +104,7 @@ describe("retention + consent (integration)", () => {
       await stratum.getActiveConsent(t.id, "subj-1", "marketing"),
     ).not.toBeNull();
 
-    // Re-granting the same (subject, purpose) upserts — one row, not two.
+    // Re-granting the same (subject, purpose) upserts: one row, not two.
     await stratum.grantConsent(t.id, {
       subject_id: "subj-1",
       purpose: "marketing",

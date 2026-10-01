@@ -1,4 +1,4 @@
-/* Stratum Design System — @stratum-hq/react-ui */
+/* Stratum Design System: @stratum-hq/react-ui */
 
 /* ============================================================
    Font Imports
@@ -6,11 +6,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ============================================================
-   Design Tokens — Dark Mode (Primary / Default)
+   Design Tokens: Dark Mode (Primary / Default)
    Palette: Strata (earth-toned, one live mineral accent: ember).
    ============================================================ */
 :root {
-  /* --- Surfaces — peat and loam, not pure black --- */
+  /* --- Surfaces: peat and loam, not pure black --- */
   --surface-0: #12100C;
   --surface-1: #1C1813;
   --surface-2: #241F19;
@@ -21,12 +21,12 @@
   --text-secondary: #A79880;
   --text-tertiary: #7A6C58;
 
-  /* --- Accent — ember, a copper patina (used sparingly) --- */
+  /* --- Accent: ember, a copper patina (used sparingly) --- */
   --accent: #C9793F;
   --accent-hover: #D89060;
   --accent-muted: #C9793F26;
 
-  /* --- Warm neutrals — sand --- */
+  /* --- Warm neutrals: sand --- */
   --sandstone: #C9B08A;
   --sandstone-muted: #C9B08A33;
 
@@ -84,11 +84,11 @@
   --color-border-strong: var(--border-hover);
   --color-border-input: var(--border-hover);
 
-  /* --- Badge: Inherited — sand --- */
+  /* --- Badge: Inherited (sand) --- */
   --color-badge-inherited-bg: var(--sandstone-muted);
   --color-badge-inherited-text: var(--sandstone);
 
-  /* --- Badge: Locked — warning ochre --- */
+  /* --- Badge: Locked (warning ochre) --- */
   --color-badge-locked-bg: var(--warning-bg);
   --color-badge-locked-text: var(--warning);
 
@@ -115,7 +115,7 @@
   --font-size-3xl: 2rem;       /* 32px */
   --font-size-4xl: 2.5rem;     /* 40px */
 
-  /* --- Spacing — 8px base scale --- */
+  /* --- Spacing: 8px base scale --- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -138,13 +138,13 @@
   --space-3xl: var(--space-12);
   --space-4xl: var(--space-16);
 
-  /* --- Border Radius — hierarchy, not uniform --- */
+  /* --- Border Radius: hierarchy, not uniform --- */
   --radius-sm: 4px;    /* buttons, inputs, tags */
   --radius-md: 8px;    /* cards, containers */
   --radius-lg: 12px;   /* modals, large surfaces */
   --radius-full: 9999px;
 
-  /* --- Shadows — warm-toned --- */
+  /* --- Shadows: warm-toned --- */
   --shadow-sm: 0 1px 2px rgba(18, 16, 12, 0.4);
   --shadow-md: 0 2px 8px rgba(18, 16, 12, 0.5), 0 1px 2px rgba(18, 16, 12, 0.3);
   --shadow-lg: 0 4px 16px rgba(18, 16, 12, 0.6), 0 2px 4px rgba(18, 16, 12, 0.3);
@@ -169,7 +169,7 @@
 }
 
 /* ============================================================
-   Light Mode — for docs only
+   Light Mode (for docs only)
    ============================================================ */
 [data-theme="light"] {
   --surface-0: #F4EFE4;
@@ -258,7 +258,7 @@
 }
 
 /* ============================================================
-   Dark Mode — Auto-detect (when no data-theme is set, prefer dark)
+   Dark Mode: Auto-detect (when no data-theme is set, prefer dark)
    ============================================================ */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) {
@@ -348,7 +348,7 @@
 }
 
 /* ============================================================
-   Accessibility — Focus Visible
+   Accessibility: Focus Visible
    ============================================================ */
 .stratum-tenant-switcher button:focus-visible,
 .stratum-tenant-switcher input:focus-visible,
@@ -365,7 +365,7 @@
 }
 
 /* ============================================================
-   Accessibility — Reduced Motion
+   Accessibility: Reduced Motion
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -777,7 +777,7 @@
   100% { opacity: 0.4; }
 }
 
-/* Table Skeleton — matches ConfigEditor/PermissionEditor table styling */
+/* Table Skeleton: matches ConfigEditor/PermissionEditor table styling */
 .stratum-table-skeleton__table {
   width: 100%;
   border-collapse: collapse;

@@ -22,7 +22,7 @@ import { createAbacRoutes } from "../routes/abac.js";
 import { createMockStratum } from "./test-helpers.js";
 
 /**
- * Cross-tenant deny matrix — an executable proof of the Stratum tenant boundary.
+ * Cross-tenant deny matrix: an executable proof of the Stratum tenant boundary.
  *
  * This is not a collection of ad-hoc regressions. It is a single data-driven
  * matrix over the real control-plane authorization chain (auth -> authorize ->

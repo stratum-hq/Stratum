@@ -24,7 +24,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
     declareTenantScope(app, fromBodyTenantId);
     declareRequiredScope(app, "admin");
 
-    // POST /api/v1/api-keys — Create a new API key (plaintext returned once)
+    // POST /api/v1/api-keys: Create a new API key (plaintext returned once)
     app.post<{ Body: { tenant_id: string; name?: string } }>(
       "/",
       async (request, reply) => {
@@ -53,7 +53,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       },
     );
 
-    // GET /api/v1/api-keys — List API keys (optional ?tenant_id=)
+    // GET /api/v1/api-keys: List API keys (optional ?tenant_id=)
     app.get<{ Querystring: { tenant_id?: string } }>("/", async (request, reply) => {
       // Scoped keys can only list keys for their own tenant
       const tenantId = request.apiKey?.tenant_id ?? request.query.tenant_id;
@@ -61,7 +61,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       reply.status(200).send(keys);
     });
 
-    // GET /api/v1/api-keys/dormant — List dormant API keys (must be before /:id)
+    // GET /api/v1/api-keys/dormant: List dormant API keys (must be before /:id)
     app.get<{ Querystring: { days?: string } }>("/dormant", async (request, reply) => {
       const raw = request.query.days ? parseInt(request.query.days, 10) : 90;
       const days = Number.isNaN(raw) || raw < 1 ? 90 : Math.min(raw, 365);
@@ -76,7 +76,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       reply.status(200).send(keys);
     });
 
-    // POST /api/v1/api-keys/:id/rotate — Rotate an API key
+    // POST /api/v1/api-keys/:id/rotate: Rotate an API key
     app.post<{ Params: { id: string } }>("/:id/rotate", async (request, reply) => {
       // Verify caller has access to this key's tenant
       if (request.apiKey?.tenant_id) {
@@ -92,7 +92,7 @@ export function createApiKeyRoutes(stratum: Stratum) {
       reply.status(201).send(result);
     });
 
-    // DELETE /api/v1/api-keys/:id — Revoke an API key
+    // DELETE /api/v1/api-keys/:id: Revoke an API key
     app.delete<{ Params: { id: string } }>("/:id", async (request, reply) => {
       // Verify caller has access to this key's tenant
       if (request.apiKey?.tenant_id) {

@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 `@stratum-hq/mysql` adds multi-tenant row isolation for applications using MySQL. Stratum supports PostgreSQL, MongoDB, and MySQL in the same project.
 
-**How it fits together:** The control plane -- tenant hierarchy, config inheritance, audit log, and GDPR operations -- always lives in PostgreSQL via `@stratum-hq/lib`. MySQL carries your application data. The two databases are complementary, not competing.
+**How it fits together:** The control plane (tenant hierarchy, config inheritance, audit log, and GDPR operations) always lives in PostgreSQL via `@stratum-hq/lib`. MySQL carries your application data. The two databases are complementary, not competing.
 
 ## Choosing a Strategy
 
@@ -27,7 +27,7 @@ All tenants share the same MySQL tables. A `tenant_id` column on every table sco
 
 ### Table-per-Tenant
 
-Each tenant gets its own set of tables, named `{table}_{tenantSlug}`. This provides namespace separation but not security isolation -- both tenants' tables still live in the same database and are accessible to the same connection.
+Each tenant gets its own set of tables, named `{table}_{tenantSlug}`. This provides namespace separation but not security isolation: both tenants' tables still live in the same database and are accessible to the same connection.
 
 **Tradeoff:** Good for applications that need different indexes per tenant. Does not prevent a misconfigured query from reading another tenant's table.
 
@@ -250,7 +250,7 @@ MySQL does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is
 **What this means in practice:**
 
 - For `SHARED_TABLE` and `TABLE_PER_TENANT`: if a query is executed without using the adapter's structured methods, it will see all tenants' data.
-- For `DATABASE_PER_TENANT`: isolation is at the connection level -- a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MySQL offers.
+- For `DATABASE_PER_TENANT`: isolation is at the connection level: a connection opened to tenantA's database cannot see tenantB's data. This is the strongest isolation MySQL offers.
 
 **Recommendations:**
 

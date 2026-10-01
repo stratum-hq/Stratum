@@ -142,7 +142,7 @@ export async function resolveAbacPolicies(
         const existing = resolvedMap.get(compositeKey) ?? [];
 
         if (existing.some((r) => r.locked && r.source_tenant_id !== currentTenantId)) {
-          // Locked by an ancestor — descendants cannot override it
+          // Locked by an ancestor; descendants cannot override it
           continue;
         }
 

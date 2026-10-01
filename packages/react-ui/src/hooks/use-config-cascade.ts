@@ -1,5 +1,5 @@
 /**
- * useConfigCascade — fetches resolved config for a tenant and its children,
+ * useConfigCascade: fetches resolved config for a tenant and its children,
  * enabling a visual comparison of how config values flow down the hierarchy.
  *
  * ┌──────────────────┐       ┌──────────────────┐

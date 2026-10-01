@@ -19,7 +19,7 @@ export function createConfigDiffRoutes(stratum: Stratum) {
     declareTenantScope(app, fromQueryTenantA);
     declareRequiredScope(app, { read: "read", write: "write" });
 
-    // GET /api/v1/config/diff?tenant_a=UUID&tenant_b=UUID — Compare resolved config between two tenants
+    // GET /api/v1/config/diff?tenant_a=UUID&tenant_b=UUID: Compare resolved config between two tenants
     app.get<{ Querystring: { tenant_a: string; tenant_b: string } }>(
       "/diff",
       { preHandler: secondOperandGuard },

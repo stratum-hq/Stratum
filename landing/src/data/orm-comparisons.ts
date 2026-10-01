@@ -187,7 +187,7 @@ export const mongodb: ORMComparison = {
   slug: "mongodb",
   name: "MongoDB",
   tagline: "Document database with flexible schema",
-  description: `MongoDB is the most widely used document database in Node.js applications. @stratum-hq/mongodb is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB -- giving teams running Mongoose or the native driver first-class tenant isolation. The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MongoDB carries your application documents, scoped per tenant through a Mongoose plugin or adapter.`,
+  description: `MongoDB is the most widely used document database in Node.js applications. @stratum-hq/mongodb is the only Node.js multi-tenancy library that supports both PostgreSQL and MongoDB, giving teams running Mongoose or the native driver first-class tenant isolation. The control plane (tenant hierarchy, config inheritance, audit log) remains in PostgreSQL via @stratum-hq/lib. MongoDB carries your application documents, scoped per tenant through a Mongoose plugin or adapter.`,
   features: [
     { capability: "Isolation strategies", orm: "Manual where: { tenantId } on every query", stratum: "3 strategies: shared collection, collection-per-tenant, database-per-tenant", verdict: "good" },
     { capability: "Tenant scoping", orm: "Application-level only, no RLS equivalent", stratum: "Mongoose plugin auto-scopes all queries", verdict: "good" },
@@ -225,10 +225,10 @@ export const mongodb: ORMComparison = {
 <span class="kw">await</span> orders.<span class="fn">find</span>({}); <span class="cm">// only returns this tenant's documents</span>`,
   },
   gotchas: [
-    "MongoDB has no Row-Level Security equivalent -- isolation is enforced at the application layer. Use database-per-tenant for sensitive data requiring physical separation.",
+    "MongoDB has no Row-Level Security equivalent; isolation is enforced at the application layer. Use database-per-tenant for sensitive data requiring physical separation.",
     "The control plane (tenant hierarchy, config, audit log) always requires PostgreSQL via @stratum-hq/lib. MongoDB carries application documents only.",
     "For shared-collection strategy, add a compound index on { tenant_id, ...queryFields } to prevent full-collection scans.",
-    "Database-per-tenant requires a connection pool per tenant -- configure pool limits to avoid exhausting MongoDB connections.",
+    "Database-per-tenant requires a connection pool per tenant, so configure pool limits to avoid exhausting MongoDB connections.",
   ],
 };
 

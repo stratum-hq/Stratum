@@ -179,7 +179,7 @@ function logPolicyIssues(tables: TableInfo[]): void {
     `${withIssue.length} table(s) have policies that do not isolate tenants. ` +
       "Correct or drop those policies by hand; stratum migrate does not replace them:",
   );
-  withIssue.forEach((t) => log.dim(`  ${t.table_name} — ${t.policy_issue}`));
+  withIssue.forEach((t) => log.dim(`  ${t.table_name}: ${t.policy_issue}`));
 }
 
 export async function migrate(
@@ -205,10 +205,10 @@ export async function migrate(
         const ready = t.has_tenant_id && t.rls_enabled && t.rls_forced && t.has_policy;
         return [
           t.table_name,
-          t.has_tenant_id ? "yes" : "—",
-          t.rls_enabled ? "yes" : "—",
-          t.rls_forced ? "yes" : "—",
-          t.has_policy ? "yes" : t.policy_issue ? "no filter" : "—",
+          t.has_tenant_id ? "yes" : "no",
+          t.rls_enabled ? "yes" : "no",
+          t.rls_forced ? "yes" : "no",
+          t.has_policy ? "yes" : t.policy_issue ? "no filter" : "no",
           ready ? "\x1b[32mready\x1b[0m" : "\x1b[33mneeds migration\x1b[0m",
         ];
       });

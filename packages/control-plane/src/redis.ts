@@ -30,7 +30,7 @@ export function createRedisClient(): Redis | null {
   });
 
   client.on("connect", () => {
-    console.info("[stratum] Redis connected — using Redis-backed rate limiting.");
+    console.info("[stratum] Redis connected; using Redis-backed rate limiting.");
   });
 
   // Attempt to connect; failures are non-fatal

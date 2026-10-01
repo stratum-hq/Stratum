@@ -57,7 +57,7 @@ RUN node -e " \
   fs.writeFileSync('packages/demo/package.json', JSON.stringify(demo, null, 2)); \
   fs.unlinkSync('packages/demo/tmp.json');"
 
-# Fresh production install — npm handles hoisting and symlinks correctly
+# Fresh production install; npm handles hoisting and symlinks correctly
 RUN node -e " \
   require('fs').writeFileSync('package.json', JSON.stringify({ \
     name: 'stratum', private: true, \

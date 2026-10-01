@@ -13,7 +13,7 @@ import { assertTenantId } from "../utils.js";
  * Collection-per-tenant adapter: each tenant gets its own set of collections
  * named `{baseCollectionName}_{tenantSlug}`.
  *
- * No filter injection needed — isolation is structural.
+ * No filter injection needed; isolation is structural.
  */
 export class MongoCollectionAdapter implements MongoAdapter {
   private readonly db: DatabaseLike;

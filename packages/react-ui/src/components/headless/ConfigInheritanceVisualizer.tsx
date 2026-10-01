@@ -1,5 +1,5 @@
 /**
- * HeadlessConfigInheritanceVisualizer — render-prop version of the
+ * HeadlessConfigInheritanceVisualizer: render-prop version of the
  * config cascade visualizer. Provides data + state, you provide the UI.
  */
 

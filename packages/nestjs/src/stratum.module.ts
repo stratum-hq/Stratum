@@ -13,7 +13,7 @@ export interface StratumModuleOptions {
   jwtClaimPath?: string;
   /** HMAC secret used to verify JWT signatures before extracting tenant claims. */
   jwtSecret?: string;
-  /** Custom JWT verify function — takes priority over jwtSecret. */
+  /** Custom JWT verify function; takes priority over jwtSecret. */
   jwtVerify?: (token: string) => Record<string, unknown> | null;
   /** When set, a verified token is accepted only if its `aud` claim equals (or, for an array, includes) this value. */
   jwtAudience?: string;

@@ -17,7 +17,7 @@ describe("Demo section types", () => {
       "api-keys",
       "webhooks",
     ];
-    // Type check — if this compiles, all tabs are valid
+    // Type check: if this compiles, all tabs are valid
     expect(tabs).toHaveLength(7);
   });
 

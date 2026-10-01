@@ -30,7 +30,7 @@ function makePolicy(overrides: Partial<AbacPolicy> = {}): AbacPolicy {
 }
 
 // ---------------------------------------------------------------------------
-// evaluateCondition — operator tests
+// evaluateCondition: operator tests
 // ---------------------------------------------------------------------------
 describe("evaluateCondition", () => {
   it("eq: matches when values are equal", () => {

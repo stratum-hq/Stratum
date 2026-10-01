@@ -14,7 +14,7 @@ import {
  * write implies read. This drives the REAL authorize middleware end to end.
  *
  * Keys here carry a SINGLE, non-cumulative scope (["admin"] only, ["write"]
- * only, ["read"] only) — the exact shape a flat `scopes.includes(required)`
+ * only, ["read"] only), the exact shape a flat `scopes.includes(required)`
  * check gets wrong. Every cell tagged FLIP is denied (403) by the old flat code
  * and allowed by the hierarchical contract; the deny cells are unchanged
  * controls (a lower scope never satisfies a higher requirement).

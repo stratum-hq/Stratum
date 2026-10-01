@@ -91,7 +91,7 @@ export function getAncestorIds(path: string): string[] {
 }
 
 /**
- * Get the last ID in an ancestry path — the tenant's direct parent
+ * Get the last ID in an ancestry path: the tenant's direct parent
  * (ancestry paths exclude self). Returns null for a root tenant ("/").
  */
 export function getSelfId(path: string): string | null {
