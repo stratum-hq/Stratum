@@ -54,6 +54,28 @@ Each entry tells you:
 | `source_tenant_id` | Which tenant set this value |
 | `inherited` | `true` if the value came from an ancestor |
 | `locked` | `true` if no descendant can override this key |
+| `sensitive` | Present and `true` when the value was set with `sensitive: true` |
+| `masked` | Present and `true` when an inherited sensitive value was withheld; `value` is then `null` |
+
+### Sensitive values
+
+A sensitive value set on an ancestor is inherited, but the API does not return it in a descendant's config. It comes back masked:
+
+```json
+{
+  "api_secret": {
+    "key": "api_secret",
+    "value": null,
+    "source_tenant_id": "msp-uuid",
+    "inherited": true,
+    "locked": false,
+    "sensitive": true,
+    "masked": true
+  }
+}
+```
+
+The value is returned only when the caller's key belongs to the tenant that set it (`source_tenant_id`). A global key is not that tenant, so it also gets the masked entry; it can read the value from the owning tenant's own config. A tenant's own sensitive values are returned decrypted to any key that may read that tenant. The same rule applies to `/config/inheritance`, `/api/v1/config/diff` and `/api/v1/tenants/:id/context`.
 
 ---
 
@@ -79,7 +101,7 @@ PUT /api/v1/tenants/:id/config/:key
 | `locked` | boolean | `false` | Prevent descendants from overriding |
 | `sensitive` | boolean | `false` | Encrypt at rest with AES-256-GCM |
 
-Returns `409 CONFIG_LOCKED` if the key is locked by an ancestor.
+Returns `403 CONFIG_LOCKED` if the key is locked by an ancestor.
 
 **Response:** `200 OK`. Returns the config entry.
 
@@ -103,7 +125,7 @@ Removes the tenant's override for this key. If an ancestor has set the key, the 
 PUT /api/v1/tenants/:id/config/batch
 ```
 
-Sets up to 200 config keys in a single atomic transaction. If any key is locked by an ancestor, the entire batch rolls back.
+Sets up to 200 config keys in a single atomic transaction. If any key is locked by an ancestor or any entry is invalid, the entire batch rolls back and nothing is written.
 
 **Body:**
 
@@ -124,7 +146,42 @@ Each entry in the `entries` array supports the same fields as the single `PUT` e
 - Maximum 200 entries per batch
 - Empty arrays return `400 VALIDATION_ERROR`
 
-**Response:** `200 OK`. Returns an array of config entries.
+**Response:** `200 OK` when every entry was written:
+
+```json
+{
+  "results": [
+    { "key": "max_users", "status": "ok", "entry": { "key": "max_users", "value": 500, "locked": false } },
+    { "key": "theme", "status": "ok", "entry": { "key": "theme", "value": "dark", "locked": true } }
+  ],
+  "succeeded": 2,
+  "failed": 0,
+  "rolled_back": false
+}
+```
+
+When the batch is rolled back, the response is an error, and `error.details` holds the per-key result with `rolled_back: true`, `succeeded: 0`, and status `error` for every key. The keys that caused the rollback carry their own reason; the others say they were not applied.
+
+- `403 CONFIG_LOCKED` when a key is locked by an ancestor, the same status as a single locked write.
+- `400 VALIDATION_ERROR` when an entry is invalid, for example an empty `key` or a missing `value`. `error.details.issues` names each bad field, such as `["entries", 1, "key"]`.
+
+```json
+{
+  "error": {
+    "code": "CONFIG_LOCKED",
+    "message": "The batch was rolled back and nothing was written: 'max_users' locked by an ancestor",
+    "details": {
+      "results": [
+        { "key": "max_users", "status": "error", "error": "Config 'max_users' is locked by tenant root-uuid and cannot be overridden" },
+        { "key": "theme", "status": "error", "error": "Not applied: the batch was rolled back because 'max_users' failed" }
+      ],
+      "succeeded": 0,
+      "failed": 2,
+      "rolled_back": true
+    }
+  }
+}
+```
 
 ---
 
@@ -144,15 +201,15 @@ Returns the full config with inheritance metadata, showing which level set each 
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `CONFIG_LOCKED` | 409 | Key is locked by an ancestor |
+| `CONFIG_LOCKED` | 403 | Key is locked by an ancestor |
 | `TENANT_NOT_FOUND` | 404 | Tenant ID does not exist |
-| `VALIDATION_ERROR` | 400 | Invalid request body or empty batch |
+| `VALIDATION_ERROR` | 400 | Invalid request body, invalid batch entry, empty batch, or a tenant id that is not a UUID |
 
 ```json
 {
   "error": {
     "code": "CONFIG_LOCKED",
-    "message": "Config key \"max_users\" is locked by ancestor tenant-uuid"
+    "message": "Config 'max_users' is locked by tenant root-uuid and cannot be overridden"
   }
 }
 ```

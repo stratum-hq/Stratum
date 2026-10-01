@@ -32,6 +32,19 @@ export interface CreatedApiKey {
 const HASH_V1_SHA256 = 1;
 const HASH_V2_HMAC = 2;
 
+// The shortest STRATUM_API_KEY_HMAC_SECRET accepted outside development and
+// test (an unset NODE_ENV counts as development), checked when the module
+// loads, like STRATUM_ENCRYPTION_KEY in crypto.ts.
+const MIN_HMAC_SECRET_BYTES = 32;
+(() => {
+  const nodeEnv = process.env.NODE_ENV || "development";
+  if (nodeEnv === "development" || nodeEnv === "test") return;
+  const secret = process.env.STRATUM_API_KEY_HMAC_SECRET;
+  if (secret && Buffer.byteLength(secret, "utf8") < MIN_HMAC_SECRET_BYTES) {
+    throw new Error(`STRATUM_API_KEY_HMAC_SECRET must be at least ${MIN_HMAC_SECRET_BYTES} bytes in ${nodeEnv}`);
+  }
+})();
+
 function getHmacSecret(): string | undefined {
   return process.env.STRATUM_API_KEY_HMAC_SECRET;
 }
@@ -97,7 +110,7 @@ async function assertTenantAcceptsKeys(
 export async function createApiKey(
   pool: pg.Pool,
   keyPrefix: string,
-  tenantId: string,
+  tenantId: string | null,
   nameOrOptions?: string | CreateApiKeyOptions,
   expiresAt?: Date,
 ): Promise<CreatedApiKey> {
@@ -108,7 +121,10 @@ export async function createApiKey(
   const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
 
   return withClient(pool, async (client) => {
-    await assertTenantAcceptsKeys(client, tenantId, "create an API key for");
+    // A global key (tenantId null) has no tenant whose state could block it.
+    if (tenantId !== null) {
+      await assertTenantAcceptsKeys(client, tenantId, "create an API key for");
+    }
     const res = await client.query<ApiKeyRecord>(
       `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window, hash_version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -149,18 +165,36 @@ const STAMP_INTERVAL_SECONDS = 60;
  */
 const STAMP_TIMEOUT_MS = 1000;
 
+export interface ValidateApiKeyOptions {
+  /**
+   * Accept a key stored with the unkeyed SHA-256 hash (version 1) while
+   * STRATUM_API_KEY_HMAC_SECRET is set, and re-hash it with HMAC when it
+   * authenticates. Default true in 1.x; the default becomes false in 2.0.
+   */
+  allowLegacyHashes?: boolean;
+  /** Called when a version 1 hash authenticated while the HMAC secret is set. */
+  onLegacyHash?: () => void;
+}
+
 export async function validateApiKey(
   pool: pg.Pool,
   key: string,
+  options: ValidateApiKeyOptions = {},
 ): Promise<ValidatedApiKey | null> {
   const hmacSecret = getHmacSecret();
 
-  // Build candidate hashes: try HMAC first (if secret is set), then SHA-256 fallback
+  // Candidate hashes. With an HMAC secret, HMAC hashes (version 2) come
+  // first, because they depend on a secret only the server holds. The legacy
+  // SHA-256 hashes (version 1) are tried too unless the caller turned
+  // allowLegacyHashes off. 1.x accepts them by default and re-hashes each
+  // on use; 2.0 will not. Without a secret, SHA-256 is the only hash there is.
   const candidates: Array<{ hash: string; version: number }> = [];
   if (hmacSecret) {
     candidates.push({ hash: hmacHash(key, hmacSecret), version: HASH_V2_HMAC });
   }
-  candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
+  if (!hmacSecret || options.allowLegacyHashes !== false) {
+    candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
+  }
 
   // Everything below runs on one pooled connection: nothing here may acquire a
   // second connection while this one is held.
@@ -173,7 +207,7 @@ export async function validateApiKey(
                 (ak.last_used_at IS NULL OR ak.last_used_at < now() - make_interval(secs => $2)) AS stamp_due
          FROM api_keys ak
          LEFT JOIN tenants t ON t.id = ak.tenant_id
-         WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
+         WHERE ak.key_hash = $1 AND ak.hash_version = $3 AND ak.revoked_at IS NULL AND (ak.expires_at IS NULL OR ak.expires_at > now())
            AND (ak.tenant_id IS NULL OR (
              t.status = 'active'
              AND NOT EXISTS (
@@ -182,7 +216,7 @@ export async function validateApiKey(
                  AND anc.status <> 'active'
              )
            ))`,
-        [candidate.hash, STAMP_INTERVAL_SECONDS],
+        [candidate.hash, STAMP_INTERVAL_SECONDS, candidate.version],
       );
 
       if (res.rows.length === 0) continue;
@@ -213,17 +247,18 @@ export async function validateApiKey(
   // When a stamp is due, we await it so that a read made after validateApiKey
   // resolves sees the new last_used_at. Without the await, listDormantKeys can
   // report a just-used key.
-  // Transparent upgrade: if we matched via legacy SHA-256 but HMAC secret is
-  // available, re-hash with HMAC and update the stored hash in-place.
+  // Transparent upgrade: if we matched via legacy SHA-256 and the HMAC secret
+  // is set, re-hash with HMAC and update the stored hash in place.
   const { row } = found;
   const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
+  if (upgrade) options.onLegacyHash?.();
   if (!upgrade && !row.stamp_due) return found.validated;
   await withClient(pool, async (client) => {
     // SET LOCAL ends with this transaction, so the pooled connection keeps its own timeout.
     await client.query(`SET LOCAL statement_timeout = ${STAMP_TIMEOUT_MS}`);
     return upgrade
       ? client.query(
-          `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
+          `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3 AND hash_version = 1`,
           [hmacHash(key, hmacSecret), HASH_V2_HMAC, row.id],
         )
       : // The condition repeats the check, so a concurrent request that stamped first wins.

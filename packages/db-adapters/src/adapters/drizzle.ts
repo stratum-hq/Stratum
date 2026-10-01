@@ -27,8 +27,9 @@ export class DrizzleAdapter extends BaseAdapter {
    * on the same connection.
    *
    * contextFn should return the current tenant ID (e.g. from AsyncLocalStorage).
-   * When contextFn returns an empty string the original methods are forwarded
-   * without wrapping.
+   * When contextFn returns an empty string, `transaction()` and `execute()`
+   * throw instead of running. Use the unwrapped Drizzle instance for system or
+   * admin queries that run without a tenant.
    */
   withTenant<D extends DrizzleLike>(
     db: D,

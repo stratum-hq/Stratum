@@ -50,14 +50,14 @@ const TABLE = "gen_orders";
 let admin: pg.Client;
 let scratch: pg.Client;
 
-function runCli(args: string[]): { code: number | null; out: string } {
+function runCli(args: string[]): { code: number | null; out: string; stdout: string } {
   const res = spawnSync(process.execPath, [CLI, ...args, "--database-url", scratchUrl], {
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },
     input: "y\n",
     timeout: 30000,
   });
-  return { code: res.status, out: `${res.stdout}${res.stderr}` };
+  return { code: res.status, out: `${res.stdout}${res.stderr}`, stdout: res.stdout };
 }
 
 /**
@@ -179,11 +179,11 @@ describe("generated tenant_isolation policies after the tenant context ends", ()
   });
 
   it("stratum scan --generate SQL returns no rows and raises no error", async () => {
-    const { code, out } = runCli(["scan", "--generate"]);
+    const { code, out, stdout } = runCli(["scan", "--generate"]);
     expect(code, out).toBe(0);
-    const start = out.indexOf("-- Stratum Migration Scanner");
-    expect(start, out).toBeGreaterThanOrEqual(0);
-    await scratch.query(out.slice(start));
+    // stdout carries only the SQL; the report goes to stderr.
+    expect(stdout.trimStart().startsWith("-- Stratum Migration Scanner"), out).toBe(true);
+    await scratch.query(stdout);
     await grantAndSeed();
 
     expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
@@ -316,6 +316,30 @@ describe("db-adapters createPolicy with other policies on the table", () => {
     await grantAndSeed();
 
     expect(await readBeforeAndAfterContext()).toEqual({ inside: 1, after: 0 });
+  });
+});
+
+describe("db-adapters subtree read policy without migration 031", () => {
+  it("createPolicy refuses the subtree read and creates no policy", async () => {
+    await withScratchClient(async (c) => {
+      await enableRLS(c, TABLE);
+      await expect(createPolicy(c, TABLE, { subtreeRead: true })).rejects.toThrow(
+        /stratum_subtree_tenant_ids/,
+      );
+    });
+    const res = await scratch.query(`SELECT policyname FROM pg_policies WHERE tablename = $1`, [TABLE]);
+    expect(res.rows).toEqual([]);
+  });
+
+  it("createIsolationPolicy refuses the subtree read and creates no policy", async () => {
+    await withScratchClient(async (c) => {
+      await enableRLSForMigration(c, TABLE);
+      await expect(createIsolationPolicy(c, TABLE, { subtreeRead: true })).rejects.toThrow(
+        /stratum_subtree_tenant_ids/,
+      );
+    });
+    const res = await scratch.query(`SELECT policyname FROM pg_policies WHERE tablename = $1`, [TABLE]);
+    expect(res.rows).toEqual([]);
   });
 });
 

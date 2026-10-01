@@ -29,6 +29,7 @@ import type {
   BatchSetConfigEntry,
   ResolvedConfig,
   ResolvedConfigEntry,
+  ResolveConfigOptions,
   BatchSetConfigResult,
   PermissionPolicy,
   CreatePermissionInput,
@@ -70,21 +71,59 @@ import type {
   UsageAggregateQuery,
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
-import { migrate } from "./migrate.js";
+import { assertRoleSubjectToRls, migrate } from "./migrate.js";
+import { markAdminPool } from "./pool-helpers.js";
+import { assertRoleName } from "./migration-sql.js";
+import { checkRoleModel, currentLogin, warnLegacyKeyHash, warnNoAdminPool } from "./role-model.js";
 import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
+  /**
+   * The application's pool. With `adminPool`, the library runs no query of
+   * its own on it; initialize() only checks its role. Without `adminPool`,
+   * the library runs every query on it through the legacy app.bypass_rls path.
+   */
   pool: pg.Pool;
+  /**
+   * The library's own pool: a login that is a member of the control role
+   * (migration 032). Every library query and autoMigrate run on it. Optional
+   * in 1.x, with a deprecation warning when absent; required in 2.0.
+   */
+  adminPool?: pg.Pool;
+  /**
+   * The control role. Default: the role the database's policies name, else
+   * `stratum_control`. autoMigrate passes it to migrate().
+   */
+  controlRole?: string;
+  /**
+   * Accept API keys stored with the legacy unkeyed SHA-256 hash (version 1)
+   * while STRATUM_API_KEY_HMAC_SECRET is set, and re-hash each one with HMAC
+   * when it authenticates (a warning is logged once per process when that
+   * happens). Default true in 1.x; the default becomes false in 2.0. Set it
+   * to false to accept only HMAC hashes once the secret is set. Without the
+   * secret, SHA-256 is the only hash and this option has no effect.
+   */
+  allowLegacyKeyHashes?: boolean;
   keyPrefix?: string;
   logger?: StratumLogger;
   /** Run migrations automatically on initialize(). Defaults to false. */
   autoMigrate?: boolean;
-  /** When true, migrations hard-fail if the PG role has BYPASSRLS. Use in production. */
+  /**
+   * When true, initialize() (and migrations) hard-fail if the PG role has
+   * BYPASSRLS. Checked on every initialize, whether or not a migration runs.
+   * With adminPool, initialize() also fails when the login of pool does not
+   * fit the role model, including when it can create objects in the schema
+   * of the Stratum tables. Use in production.
+   */
   enforceRls?: boolean;
 }
 
 export class Stratum {
   private readonly pool: pg.Pool;
+  private readonly appPool: pg.Pool;
+  private readonly hasAdminPool: boolean;
+  private readonly controlRole: string | undefined;
+  private readonly allowLegacyKeyHashes: boolean;
   private readonly keyPrefix: string;
   private readonly logger: StratumLogger;
   private readonly autoMigrate: boolean;
@@ -92,11 +131,19 @@ export class Stratum {
   private initPromise: Promise<void> | null = null;
 
   constructor(options: StratumOptions) {
-    this.pool = options.pool;
+    // Every library query runs on this.pool: the admin pool when there is one.
+    this.pool = options.adminPool ?? options.pool;
+    this.appPool = options.pool;
+    this.hasAdminPool = options.adminPool !== undefined;
+    if (options.controlRole !== undefined) assertRoleName(options.controlRole, "control role");
+    this.controlRole = options.controlRole;
+    this.allowLegacyKeyHashes = options.allowLegacyKeyHashes ?? true;
     this.keyPrefix = options.keyPrefix ?? "sk_live_";
     this.logger = options.logger ?? defaultLogger;
     this.autoMigrate = options.autoMigrate ?? false;
     this.enforceRls = options.enforceRls ?? false;
+    if (options.adminPool) markAdminPool(options.adminPool);
+    else warnNoAdminPool(this.logger);
   }
 
   /**
@@ -122,10 +169,38 @@ export class Stratum {
           "Set enforceRls: true for every deployment other than development and test.",
         );
       }
+      if (this.hasAdminPool) {
+        // autoMigrate grants the control role to the login of adminPool, so
+        // that login must not be the application's.
+        const admin = await currentLogin(this.pool);
+        if (admin === (await currentLogin(this.appPool))) {
+          throw new Error(
+            `[stratum] adminPool and pool log in as the same role "${admin}". adminPool must be a separate ` +
+              "login: autoMigrate makes it a member of the control role, which passes every Stratum policy.",
+          );
+        }
+      }
       this.logger.info("running auto-migration");
-      await migrate({ pool: this.pool, enforceRls: this.enforceRls });
+      // With adminPool, enforceRls is about the application login, which
+      // checkRoleModel checks below; the admin login may have BYPASSRLS.
+      await migrate({
+        pool: this.pool,
+        enforceRls: this.enforceRls && !this.hasAdminPool,
+        controlRole: this.controlRole,
+        // Only the admin login may be granted the control role.
+        applyControlRole: this.hasAdminPool,
+      });
       this.logger.info("auto-migration complete");
+    } else if (this.enforceRls) {
+      await assertRoleSubjectToRls(this.appPool);
     }
+    await checkRoleModel({
+      adminPool: this.hasAdminPool ? this.pool : undefined,
+      appPool: this.appPool,
+      controlRole: this.controlRole,
+      strict: this.enforceRls,
+      logger: this.logger,
+    });
   }
 
   // --- Flat-tenancy convenience API ---
@@ -372,10 +447,10 @@ export class Stratum {
   }
 
   // Tenant impersonation context
-  async getTenantContext(tenantId: string): Promise<TenantContext> {
+  async getTenantContext(tenantId: string, options?: ResolveConfigOptions): Promise<TenantContext> {
     const [tenant, config, permissions, ancestors] = await Promise.all([
       this.getTenant(tenantId),
-      this.resolveConfig(tenantId),
+      this.resolveConfig(tenantId, options),
       this.resolvePermissions(tenantId),
       this.getAncestors(tenantId),
     ]);
@@ -383,9 +458,15 @@ export class Stratum {
   }
 
   // Config operations
-  resolveConfig(tenantId: string): Promise<ResolvedConfig> {
+  /**
+   * Resolve a tenant's effective config. Sensitive values inherited from an
+   * ancestor come back masked (`value: null`, `masked: true`) unless
+   * `options.revealSensitive` is set, or `options.viewerTenantId` is the
+   * tenant that set them.
+   */
+  resolveConfig(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
     return traced("config.resolve", { tenant_id: tenantId }, async () => {
-      return configService.resolveConfig(this.pool, tenantId);
+      return configService.resolveConfig(this.pool, tenantId, options);
     });
   }
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
@@ -411,17 +492,17 @@ export class Stratum {
       );
     }
   }
-  getConfigWithInheritance(tenantId: string): Promise<ResolvedConfig> {
-    return configService.getConfigWithInheritance(this.pool, tenantId);
+  getConfigWithInheritance(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
+    return configService.getConfigWithInheritance(this.pool, tenantId, options);
   }
 
   // Config diff
-  async diffConfig(tenantIdA: string, tenantIdB: string): Promise<ConfigDiff> {
+  async diffConfig(tenantIdA: string, tenantIdB: string, options?: ResolveConfigOptions): Promise<ConfigDiff> {
     const [tenantA, tenantB, configA, configB] = await Promise.all([
       this.getTenant(tenantIdA),
       this.getTenant(tenantIdB),
-      this.resolveConfig(tenantIdA),
-      this.resolveConfig(tenantIdB),
+      this.resolveConfig(tenantIdA, options),
+      this.resolveConfig(tenantIdB, options),
     ]);
 
     const allKeys = new Set<string>([
@@ -442,6 +523,7 @@ export class Stratum {
         value: entry.value,
         status,
         source: entry.source_tenant_id,
+        ...(entry.masked ? { masked: true } : {}),
       };
     };
 
@@ -488,7 +570,9 @@ export class Stratum {
           missing++;
         } else if (parentEntry !== null && childEntry !== null) {
           const sameValue = JSON.stringify(parentEntry.value) === JSON.stringify(childEntry.value);
-          const childIsInherited = childEntry.status === "inherited";
+          // A masked entry is always inherited; its value is withheld, so it
+          // cannot be compared with the parent's.
+          const childIsInherited = childEntry.status === "inherited" || childEntry.masked === true;
 
           if (sameValue || childIsInherited) {
             // Child inherits or has the same value
@@ -596,8 +680,12 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
-    return traced("api_key.create", { tenant_id: tenantId }, async () => {
+  /**
+   * Creates an API key and returns its plaintext once.
+   * Pass `null` as tenantId to create a global key, which is not limited to one tenant.
+   */
+  createApiKey(tenantId: string | null, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
+    return traced("api_key.create", { tenant_id: tenantId ?? undefined }, async () => {
       const created = await apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
       if (audit) {
         await auditService.createAuditEntry(
@@ -610,7 +698,10 @@ export class Stratum {
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
     return traced("api_key.validate", {}, async () => {
-      return apiKeyService.validateApiKey(this.pool, key);
+      return apiKeyService.validateApiKey(this.pool, key, {
+        allowLegacyHashes: this.allowLegacyKeyHashes,
+        onLegacyHash: () => warnLegacyKeyHash(this.logger),
+      });
     });
   }
   revokeApiKey(keyId: string, audit?: AuditContext): Promise<boolean> {

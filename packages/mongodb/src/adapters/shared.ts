@@ -5,6 +5,7 @@ import type {
   AdapterStats,
   DatabaseLike,
   CollectionLike,
+  MongoIndexDirection,
 } from "../types.js";
 import { ALLOWED_PROXY_METHODS } from "../types.js";
 import {
@@ -13,13 +14,16 @@ import {
   stripTenantIdFromUpdate,
   assertSafeAggregatePipeline,
   scopeBulkWriteOperations,
+  scopeFilter,
+  assertBulkWriteFilterTenant,
 } from "../utils.js";
 
 /**
  * Creates a Proxy over a CollectionLike that injects tenant_id into every operation.
  *
  * - Read queries (find, findOne, countDocuments, distinct, deleteOne, deleteMany, updateOne, updateMany):
- *   tenant_id is merged into the filter argument.
+ *   tenant_id is merged into the filter argument. A filter whose own tenant_id
+ *   condition is anything but the current tenant's ID throws (see assertFilterTenant).
  * - Write operations (insertOne, insertMany): tenant_id is added to each document.
  * - Aggregate: a $match stage for tenant_id is prepended.
  * - bulkWrite: tenant_id is injected into each operation's filter/document.
@@ -60,12 +64,12 @@ export function createTenantScopedCollection(
       switch (prop) {
         case "find":
           return (filter?: Record<string, unknown>, options?: unknown) => {
-            return guardFindCursor(target.find({ ...filter, tenant_id: tenantId }, options), tenantId);
+            return guardFindCursor(target.find(scopeFilter(filter, tenantId), options), tenantId);
           };
 
         case "findOne":
           return (filter?: Record<string, unknown>) => {
-            return target.findOne({ ...filter, tenant_id: tenantId });
+            return target.findOne(scopeFilter(filter, tenantId));
           };
 
         case "insertOne":
@@ -82,22 +86,22 @@ export function createTenantScopedCollection(
 
         case "updateOne":
           return (filter: Record<string, unknown>, update: Record<string, unknown>, options?: unknown) => {
-            return target.updateOne({ ...filter, tenant_id: tenantId }, stripTenantIdFromUpdate(update), options);
+            return target.updateOne(scopeFilter(filter, tenantId), stripTenantIdFromUpdate(update), options);
           };
 
         case "updateMany":
           return (filter: Record<string, unknown>, update: Record<string, unknown>, options?: unknown) => {
-            return target.updateMany({ ...filter, tenant_id: tenantId }, stripTenantIdFromUpdate(update), options);
+            return target.updateMany(scopeFilter(filter, tenantId), stripTenantIdFromUpdate(update), options);
           };
 
         case "deleteOne":
           return (filter: Record<string, unknown>) => {
-            return target.deleteOne({ ...filter, tenant_id: tenantId });
+            return target.deleteOne(scopeFilter(filter, tenantId));
           };
 
         case "deleteMany":
           return (filter: Record<string, unknown>) => {
-            return target.deleteMany({ ...filter, tenant_id: tenantId });
+            return target.deleteMany(scopeFilter(filter, tenantId));
           };
 
         case "aggregate":
@@ -115,22 +119,23 @@ export function createTenantScopedCollection(
 
         case "countDocuments":
           return (filter?: Record<string, unknown>) => {
-            return target.countDocuments({ ...filter, tenant_id: tenantId });
+            return target.countDocuments(scopeFilter(filter, tenantId));
           };
 
         case "distinct":
           return (field: string, filter?: Record<string, unknown>) => {
-            return target.distinct(field, { ...filter, tenant_id: tenantId });
+            return target.distinct(field, scopeFilter(filter, tenantId));
           };
 
         case "bulkWrite":
           return (operations: unknown[]) => {
+            assertBulkWriteFilterTenant(operations, tenantId);
             const scoped = scopeBulkWriteOperations(operations, tenantId);
             return target.bulkWrite(scoped);
           };
 
         case "createIndex":
-          return (spec: Record<string, unknown>, options?: unknown) => {
+          return (spec: Record<string, MongoIndexDirection>, options?: unknown) => {
             return target.createIndex(spec, options);
           };
 
@@ -159,7 +164,7 @@ function overrideCursorMethod(
 
 /**
  * Keeps a find cursor scoped after it is returned: any later replacement of the
- * cursor's filter (e.g. via `.filter()`) still carries tenant_id, reading the
+ * cursor's filter (e.g. via `.filter()`) is checked and still carries tenant_id, reading the
  * filter returns a copy (so editing it in place has no effect), and clones are
  * guarded the same way.
  */
@@ -173,7 +178,7 @@ function guardFindCursor<T>(cursor: T, tenantId: string): T {
       enumerable: true,
       get: () => ({ ...current, tenant_id: tenantId }),
       set: (value: Record<string, unknown>) => {
-        current = { ...value, tenant_id: tenantId };
+        current = scopeFilter(value, tenantId);
       },
     });
   }

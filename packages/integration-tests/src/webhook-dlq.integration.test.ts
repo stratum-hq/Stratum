@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
@@ -18,7 +18,7 @@ describe("webhook persistence + DLQ (integration)", () => {
   beforeAll(async () => {
     process.env.STRATUM_ENCRYPTION_KEY = "test-encryption-key-32chars-long!";
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

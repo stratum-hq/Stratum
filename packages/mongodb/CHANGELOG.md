@@ -1,5 +1,42 @@
 # @stratum-hq/mongodb
 
+## 0.7.0
+
+### Minor Changes
+
+- e1b2249: A `MongoClient` of the mongodb driver is assignable to `MongoClientLike`, so the adapters accept it without `as unknown as MongoClientLike`. `CollectionLike.bulkWrite()` takes a readonly array, `CollectionLike.createIndex()` takes a `Record<string, MongoIndexDirection>`, and `DatabaseLike.dropDatabase()` resolves to `unknown`.
+- e1b2249: Fix `stratumPlugin` document writes and support Mongoose 9.
+
+  - `Model.create()` and `new Model().save()` in a tenant context now work. The plugin sets `tenant_id` in a `pre('validate')` hook, because Mongoose validates the required field before the `pre('save')` hooks run.
+  - The plugin hooks now work on Mongoose 9, which calls pre hooks without a `next` callback. Before, `insertMany()`, `save()` and `bulkWrite()` threw on Mongoose 9.
+  - `package.json` now declares the supported Mongoose versions as an optional peer dependency: `"mongoose": "^8.0.0 || ^9.0.0"`. npm warns when an application installs a different major version.
+
+  This is a minor release because the new peer range adds Mongoose 9 support.
+
+- 99437c5: `stratumPlugin`: `save()` of an existing document now includes the current tenant in its update filter. A save that does not match a document of the current tenant fails with a `DocumentNotFoundError` and changes nothing. (GHSA-mg93-96h7-h9fq)
+
+### Patch Changes
+
+- 99437c5: The shared-collection proxy of `MongoSharedAdapter` now throws when a filter names a tenant other than the current one, instead of quietly returning the current tenant's documents for `find({ tenant_id: other })` and nothing for `find({ $and: [{ tenant_id: other }] })`. Any condition on `tenant_id` other than the current tenant's ID (as a value or `{ $eq: id }`) is refused, at the top level or inside `$and`, `$or` or `$nor`, for every filter method, `bulkWrite` filters and a find cursor's `filter()`. (#477)
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/core@1.6.0
+  - @stratum-hq/sdk@1.4.0
+
+## 0.6.1
+
+### Patch Changes
+
+- b737034: Improve the npm metadata so that npm search finds the packages. Each `description` now starts with the problem the package solves. Each package carries the same multi-tenancy keywords, including `multitenancy`. The `homepage` field now points at the package's page on https://docs.stratum-hq.org instead of a GitHub folder. The first lines of each README link the documentation. No code changes.
+- a1bd9aa: Replace em dashes in user-visible text with ordinary punctuation. This touches READMEs, package descriptions, CLI output, control plane startup log messages, the text that `@stratum-hq/create` writes into generated projects, and the assertion messages in `@stratum-hq/test-utils`. The CLI `health` and `migrate` tables now print `no` instead of a dash for an unset flag. No behavior changes.
+- Updated dependencies [b737034]
+- Updated dependencies [a1bd9aa]
+  - @stratum-hq/core@1.5.1
+  - @stratum-hq/sdk@1.3.1
+
 ## 0.6.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // A caller must be able to tell a region conflict from a server fault, so the
@@ -35,7 +35,7 @@ function send(method: "DELETE" | "POST", url: string, payload?: Record<string, u
 describe("control-plane region conflict (integration)", () => {
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     const cpApp: ControlPlaneApp = await import("../../control-plane/dist/app.js");
     cpDb = await import("../../control-plane/dist/db/connection.js");
     app = await cpApp.buildApp();

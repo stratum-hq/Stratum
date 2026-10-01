@@ -42,9 +42,27 @@ if (!jwtAudienceEnv && enforceSecretHygiene) {
   console.warn("[stratum] JWT_AUDIENCE not set. Bearer tokens are not bound to the control plane. Set JWT_AUDIENCE (for example stratum-control-plane).");
 }
 
+/**
+ * STRATUM_ALLOW_LEGACY_KEY_HASHES: whether API keys stored with the legacy
+ * SHA-256 hash still authenticate while STRATUM_API_KEY_HMAC_SECRET is set.
+ * Unset keeps the library default (true in 1.x).
+ */
+function parseAllowLegacyKeyHashes(raw: string | undefined): boolean | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  if (raw === "true" || raw === "1") return true;
+  if (raw === "false" || raw === "0") return false;
+  throw new Error(`FATAL: STRATUM_ALLOW_LEGACY_KEY_HASHES must be true or false, got "${raw}". Refusing to start.`);
+}
+
 export const config = {
   port: parseInt(process.env.PORT || "3001"),
   databaseUrl: process.env.DATABASE_URL || "postgres://stratum:stratum_dev@localhost:5432/stratum",
+  // The admin login (member of the control role of lib migration 032). Unset
+  // keeps the single-pool behavior of earlier releases.
+  databaseAdminUrl: process.env.DATABASE_ADMIN_URL || undefined,
+  // The control role of migration 032. Unset: the database's, else stratum_control.
+  controlRole: process.env.STRATUM_CONTROL_ROLE || undefined,
+  allowLegacyKeyHashes: parseAllowLegacyKeyHashes(process.env.STRATUM_ALLOW_LEGACY_KEY_HASHES),
   nodeEnv,
   jwtSecret: jwtSecretEnv || crypto.randomBytes(32).toString("hex"),
   jwtAudience: jwtAudienceEnv,

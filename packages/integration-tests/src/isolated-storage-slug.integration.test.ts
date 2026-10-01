@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
 import { createSchema, dropSchema, tenantSchemaName } from "@stratum-hq/db-adapters";
-import { getPool, closePool, runMigrations } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 /**
@@ -17,7 +17,7 @@ const schemasToDrop: string[] = [];
 
 beforeAll(async () => {
   await runMigrations();
-  stratum = new Stratum({ pool: getPool() });
+  stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
 });
 
 afterAll(async () => {

@@ -1,5 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
+import { stratumPlayground } from "./src/playground/vite-plugin.mjs";
 
 // Site-wide structured data. The Organization @id is the same one that
 // stratum-hq.org uses, so search engines join the two sites to one publisher.
@@ -37,6 +38,22 @@ const fontsHref =
 
 export default defineConfig({
   site: "https://docs.stratum-hq.org",
+  vite: {
+    plugins: [stratumPlayground()],
+    resolve: {
+      // The PGlite adapter lives in packages/, so its import of PGlite would
+      // otherwise resolve from the repository root instead of this site.
+      // package.json pins PGlite 0.4.2: later 0.4.x releases read
+      // process.exitCode behind a globalThis.process?.env check, and the
+      // Vite client build replaces that check with {}, so they fail in a browser.
+      dedupe: ["@electric-sql/pglite"],
+    },
+    // PGlite loads its WebAssembly relative to its own module, which breaks
+    // when the dev server pre-bundles it.
+    optimizeDeps: { exclude: ["@electric-sql/pglite"] },
+    // The Playground imports the library source and migrations from packages/.
+    server: { fs: { allow: [".."] } },
+  },
   integrations: [
     starlight({
       title: "Stratum",
@@ -45,7 +62,7 @@ export default defineConfig({
         dark: "./src/assets/stratum-mark-dark.svg",
         alt: "Stratum",
       },
-      favicon: "/favicon.svg",
+      favicon: "/favicon.svg?v=strata",
       description:
         "Drop-in multi-tenancy for Node.js and TypeScript.",
       customCss: ["./src/styles/custom.css"],
@@ -93,8 +110,8 @@ export default defineConfig({
             src: "https://plausible.io/js/script.js",
           },
         },
-        { tag: "link", attrs: { rel: "icon", href: "/favicon.ico", sizes: "32x32" } },
-        { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png" } },
+        { tag: "link", attrs: { rel: "icon", href: "/favicon.ico?v=strata", sizes: "32x32" } },
+        { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=strata" } },
         { tag: "link", attrs: { rel: "manifest", href: "/site.webmanifest" } },
         { tag: "meta", attrs: { property: "og:image", content: "https://docs.stratum-hq.org/og.png" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },

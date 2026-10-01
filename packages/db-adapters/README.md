@@ -42,6 +42,8 @@ const tenantPrisma = prismaWithTenant(prisma, () => getTenantContext().tenant_id
 const orders = await tenantPrisma.order.findMany();
 ```
 
+The Sequelize wrapper scopes its `query()` method only. Model methods such as `Order.findAll()` do not go through it and run without a tenant.
+
 ## RLS & Migration Helpers
 
 ```typescript
@@ -64,7 +66,9 @@ try {
 - Restrictive policies can only narrow access, so they may check anything.
 - An existing `tenant_isolation` policy must be permissive, apply to all commands, and apply to `PUBLIC` (no `TO` clause), like the one `createPolicy` generates and every policy Stratum ships.
 
-The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass. A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
+The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass, directly or through `stratum_legacy_bypass()` (migration 032). A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
+
+A permissive policy named `stratum_control_plane` is accepted only when it applies to exactly the control role of migration 032 (`stratum_control` by default; pass `{ controlRole }` to `createPolicy` for another name). A policy that checks `app.bypass_rls` directly still passes in 1.x, but `createPolicy` emits a `STRATUM_GUC_BYPASS_POLICY` process warning for it: the control role, which PostgreSQL role membership decides, replaces it. 2.0 refuses such policies.
 
 `isRLSEnabled` reports on the table that the name resolves to through the `search_path`, not on a table with the same name in another schema.
 
@@ -104,6 +108,56 @@ try {
 When the pool count reaches `maxPools`, the manager ends the least recently used pool that no caller holds. If every pool is held, the count goes above `maxPools` until a caller releases one. A pool that you never release stays open until `closePool` or `closeAll`. `DatabaseRawAdapter` releases its pool after each call.
 
 Concurrent first requests for one tenant share one pool.
+
+## PGlite
+
+`@stratum-hq/db-adapters/pglite` runs `@stratum-hq/lib` on [PGlite](https://pglite.dev), which is PostgreSQL compiled to WebAssembly. It works in Node and in the browser, and it needs no database server. Use it for fast local tests and for demos.
+
+Install PGlite. It is an optional peer dependency, so npm does not install it for you.
+
+```bash
+npm install @electric-sql/pglite
+```
+
+```typescript
+import { Stratum, bootstrapRolesSql } from "@stratum-hq/lib";
+import { withTenantContext } from "@stratum-hq/db-adapters";
+import { createPglitePool, createRestrictedPool } from "@stratum-hq/db-adapters/pglite";
+
+// In-memory database. Pass PGlite options, such as { dataDir: "idb://my-db" }, to keep data.
+// The library runs on adminPool (the PGlite superuser). Row-level security applies
+// only to a role that is not a superuser, so the application uses a restricted pool.
+const adminPool = await createPglitePool();
+const appPool = await createRestrictedPool(adminPool);
+const stratum = new Stratum({ adminPool, pool: appPool, autoMigrate: true });
+await stratum.initialize();
+
+// Limit the application role to reading the Stratum tables, as in production,
+// and close the legacy app.bypass_rls path (migration 032).
+await adminPool.query(bootstrapRolesSql({ appRole: "stratum_app" }));
+await adminPool.query("UPDATE stratum_security SET legacy_guc_bypass = false");
+
+const acme = await stratum.createTenant({ name: "Acme", slug: "acme" });
+await withTenantContext(appPool, acme.id, (client) => client.query("SELECT * FROM config_entries"));
+```
+
+`createPglitePool(source?)` returns a `pg.Pool`-compatible object:
+
+- `source` is a PGlite instance or PGlite options. When you pass options, the pool creates the instance and loads the `ltree` and `uuid_ossp` extensions. `pool.end()` then closes the instance.
+- When you pass your own instance, load `ltree` and `uuid_ossp` yourself. `pool.end()` does not close your instance.
+- `pool.pglite` is the PGlite instance.
+
+`createRestrictedPool(pool, { role? })` creates the role `stratum_app` (or the name you give) with `NOSUPERUSER NOBYPASSRLS`. It grants the role read and write access to every table and sequence in the `public` schema. Default privileges extend the grants to tables that the superuser creates later. The returned pool runs every query as that role. `bootstrapRolesSql({ appRole })` from `@stratum-hq/lib` narrows those grants on the Stratum tables to the recommended read-only set; `Stratum.initialize()` warns about the wider grants until you run it.
+
+The restricted role is a test and demo convenience, not a security boundary: any query can leave it with `RESET ROLE`.
+
+Limits:
+
+- **One connection.** A client from `connect()` holds the only connection until `release()`. Other callers wait in order. If you hold a client and call `pool.query()`, the call waits forever. `release()` rolls back a transaction the client left open and resets the session settings and the role, so the next client starts clean.
+- **No concurrency.** Queries run one at a time. Do not use this adapter to test race conditions or lock contention.
+- **Superuser by default.** PGlite connects as the superuser `postgres`, and a superuser bypasses row-level security. Use `createRestrictedPool` when a test must prove isolation.
+- **Only part of `pg.Pool`.** The pool supports `query`, `connect`, `end` and `on`. Callbacks, cursors, `totalCount` and the other pool counters do not exist.
+- PGlite `^0.4.2` is the supported version.
 
 ## Security
 

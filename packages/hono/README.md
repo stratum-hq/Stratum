@@ -18,9 +18,16 @@ Read the tenant from a claim of a verified JWT:
 import { Hono } from "hono";
 import { jwt } from "hono/jwt";
 import { stratumMiddleware } from "@stratum-hq/hono";
-import { getTenantContext } from "@stratum-hq/sdk";
+import { StratumClient, getTenantContext } from "@stratum-hq/sdk";
 
 const app = new Hono();
+
+// A client for the control plane, used by `resolve` below. A `read` key is
+// enough to resolve tenant contexts.
+const sdkClient = new StratumClient({
+  controlPlaneUrl: process.env.STRATUM_URL ?? "http://localhost:3001",
+  apiKey: process.env.STRATUM_API_KEY!,
+});
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {

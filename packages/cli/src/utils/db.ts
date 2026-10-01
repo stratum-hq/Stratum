@@ -1,6 +1,10 @@
 import pg from "pg";
-import { STRATUM_TABLES } from "@stratum-hq/lib";
-import { evaluatePolicies, type PolicyRow } from "./policy-check.js";
+import { PINNED_SEARCH_PATH, STRATUM_TABLES, pinnedQuery, schemaOfTable } from "@stratum-hq/lib";
+import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "./policy-check.js";
+import * as log from "./log.js";
+
+/** The connection string used when neither --database-url nor DATABASE_URL is given. */
+export const DEFAULT_DATABASE_URL = "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
 
 export function getConnectionString(flags: Record<string, string | boolean>): string {
   const explicit = flags["database-url"] || flags["d"];
@@ -9,7 +13,7 @@ export function getConnectionString(flags: Record<string, string | boolean>): st
   const env = process.env.DATABASE_URL;
   if (env) return env;
 
-  return "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
+  return DEFAULT_DATABASE_URL;
 }
 
 export async function connectDb(flags: Record<string, string | boolean>): Promise<pg.Pool> {
@@ -23,6 +27,151 @@ export async function connectDb(flags: Record<string, string | boolean>): Promis
   return pool;
 }
 
+/**
+ * The connection string of the admin login: the `--admin-database-url` flag,
+ * else DATABASE_ADMIN_URL, else undefined. The admin login is the one behind
+ * the library's adminPool: a member of the control role of migration 032.
+ */
+export function getAdminConnectionString(flags: Record<string, string | boolean>): string | undefined {
+  const explicit = flags["admin-database-url"];
+  if (typeof explicit === "string") return explicit;
+  return process.env.DATABASE_ADMIN_URL || undefined;
+}
+
+/** Connects to the admin login, or returns undefined when none is configured. */
+export async function connectAdminDb(flags: Record<string, string | boolean>): Promise<pg.Pool | undefined> {
+  const connectionString = getAdminConnectionString(flags);
+  if (connectionString === undefined) return undefined;
+  const pool = new pg.Pool({ connectionString, max: 3 });
+  try {
+    const client = await pool.connect();
+    client.release();
+  } catch (err) {
+    await pool.end().catch(() => undefined);
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Admin database connection failed: ${msg}`);
+  }
+  return pool;
+}
+
+const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/;
+
+/**
+ * The value of a role-name flag such as `--control-role`, or undefined when
+ * the flag is absent. Throws when it has no value or is not a plain
+ * lowercase identifier, the names Stratum accepts for its roles.
+ */
+export function roleFlag(flags: Record<string, string | boolean>, name: string): string | undefined {
+  const value = flags[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") throw new Error(`--${name} needs a value: --${name} <role>`);
+  if (!ROLE_NAME.test(value)) {
+    throw new Error(`Invalid --${name} "${value}": use lowercase letters, digits and underscores`);
+  }
+  return value;
+}
+
+/**
+ * The control role of migration 032 that the policy checks accept: the
+ * `--control-role` flag, else the connection's stratum.control_role setting
+ * (ALTER DATABASE ... SET), else stratum_control. Returns undefined for the
+ * setting and default, which the queries read themselves.
+ */
+export function controlRoleFlag(flags: Record<string, string | boolean>): string | undefined {
+  return roleFlag(flags, "control-role");
+}
+
+/**
+ * Runs `fn` in a transaction on `pool`, with the search path pinned to
+ * pg_catalog (see PINNED_SEARCH_PATH in @stratum-hq/lib): the CLI often runs
+ * as a superuser or the admin login, and its queries must not resolve
+ * functions or operators that other roles created in a schema on the search
+ * path. `fn` names Stratum's tables with `schema`.
+ */
+async function inTransaction<T>(pool: pg.Pool, fn: CrossTenantFn<T>): Promise<T> {
+  const schema = quoteIdent((await schemaOfTable(pool)) ?? "public");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
+    const result = await fn(client, schema);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * A function that reads or writes Stratum's tables across tenants. It runs
+ * with the search path pinned to pg_catalog, and names those tables with
+ * `schema`, the quoted schema of the tenants table.
+ */
+export type CrossTenantFn<T> = (client: pg.PoolClient, schema: string) => Promise<T>;
+
+/** Runs a function across tenants on Stratum's tables. */
+export type CrossTenantRunner = <T>(fn: CrossTenantFn<T>) => Promise<T>;
+
+/**
+ * Whether `pool`'s login reaches every row of the Stratum tables without the
+ * legacy setting: a superuser, a BYPASSRLS login, or a member (with INHERIT)
+ * of the role that the stratum_control_plane policy on tenants names, which
+ * exists once migration 032 has applied the control role. With
+ * `controlRole`, only that role counts.
+ */
+async function actsAsControlPlane(pool: pg.Pool, controlRole: string | undefined): Promise<boolean> {
+  const res = await pinnedQuery<{ ok: boolean }>(
+    pool,
+    `WITH ctl AS (
+       SELECT r2::text AS role FROM pg_policies p, unnest(p.roles) r2
+        WHERE p.schemaname = 'public' AND p.tablename = 'tenants' AND p.policyname = 'stratum_control_plane'
+     )
+     SELECT r.rolsuper OR r.rolbypassrls OR EXISTS (
+              SELECT 1 FROM ctl JOIN pg_roles c ON c.rolname = ctl.role
+               WHERE ($1::text IS NULL OR ctl.role = $1::text)
+                 AND pg_has_role(current_user, c.oid, 'USAGE')
+            ) AS ok
+       FROM pg_roles r WHERE r.rolname = current_user`,
+    [controlRole ?? null],
+  );
+  return res.rows[0]?.ok === true;
+}
+
+/**
+ * Returns how a command reads or writes Stratum's own tables across tenants.
+ *
+ * The command runs on the admin connection (`--admin-database-url` or
+ * DATABASE_ADMIN_URL), else on the database connection, whichever login
+ * PostgreSQL admits by its role: a member of the control role, a superuser,
+ * or a BYPASSRLS login. It then sets nothing.
+ *
+ * Otherwise the command falls back to the legacy app.bypass_rls setting, on
+ * the admin connection when there is one, else on the database connection,
+ * and prints a warning. That path works only while the legacy switch of
+ * migration 032 is on; once `stratum db lock` turns it off, the runner
+ * throws instead of returning rows the command never saw.
+ */
+export async function crossTenantRunner(
+  pool: pg.Pool,
+  adminPool: pg.Pool | undefined,
+  controlRole?: string,
+): Promise<CrossTenantRunner> {
+  for (const candidate of adminPool ? [adminPool, pool] : [pool]) {
+    if (await actsAsControlPlane(candidate, controlRole)) {
+      return (fn) => inTransaction(candidate, fn);
+    }
+  }
+  log.warn(
+    adminPool
+      ? "The admin login is not a member of the control role; using the legacy app.bypass_rls path."
+      : "No --admin-database-url (DATABASE_ADMIN_URL); using the legacy app.bypass_rls path, which 2.0 removes.",
+  );
+  return (fn) => withRlsBypass(adminPool ?? pool, fn);
+}
+
 /** Quote a SQL identifier (table, index or policy name) for use in generated SQL. */
 export function quoteIdent(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
@@ -34,15 +183,15 @@ export function quoteIdent(name: string): string {
  * policies admit rows only under a tenant context or this bypass, so an
  * administrative command that reads or writes them across tenants needs it.
  */
-export async function withRlsBypass<T>(
-  pool: pg.Pool,
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withRlsBypass<T>(pool: pg.Pool, fn: CrossTenantFn<T>): Promise<T> {
+  const schema = quoteIdent((await schemaOfTable(pool)) ?? "public");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query(`SET LOCAL search_path = ${PINNED_SEARCH_PATH}`);
     await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
-    const result = await fn(client);
+    await assertLegacyBypassOpen(client);
+    const result = await fn(client, schema);
     await client.query("COMMIT");
     return result;
   } catch (err) {
@@ -50,6 +199,24 @@ export async function withRlsBypass<T>(
     throw err;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * Throws when the session set app.bypass_rls but the legacy switch of
+ * migration 032 is off, so the setting admits nothing. Before 032 the
+ * setting always works.
+ */
+async function assertLegacyBypassOpen(client: pg.PoolClient): Promise<void> {
+  const res = await client.query<{ open: boolean }>(
+    `SELECT CASE WHEN to_regprocedure('public.stratum_legacy_bypass()') IS NULL THEN true
+                 ELSE public.stratum_legacy_bypass() END AS open`,
+  );
+  if (res.rows[0]?.open !== true) {
+    throw new Error(
+      "The legacy app.bypass_rls path is closed (stratum db lock). " +
+        "Pass --admin-database-url or set DATABASE_ADMIN_URL to a member of the control role.",
+    );
   }
 }
 
@@ -74,10 +241,14 @@ export interface TableInfo {
  * of them have no `tenant_id` column by design. The list comes from
  * `@stratum-hq/lib`, so it follows the migrations that lib ships.
  */
-export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
-  const result = await pool.query(`
+export async function scanTables(pool: pg.Pool, controlRole?: string): Promise<TableInfo[]> {
+  // A policy counts only for what its expression does, not for its name.
+  type Row = Omit<TableInfo, "has_policy" | "policy_issue"> & { control_role: string | null; policies: PolicyRow[] };
+  const result = await pinnedQuery<Row>(pool, `
     SELECT
       t.tablename AS table_name,
+      -- The control role of migration 032 (see doctor checkRLSPolicies).
+      COALESCE($2::text, NULLIF(current_setting('stratum.control_role', true), '')) AS control_role,
       EXISTS (
         SELECT 1 FROM information_schema.columns c
         WHERE c.table_schema = 'public'
@@ -92,7 +263,8 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
           'permissive', p.permissive,
           'cmd', p.cmd,
           'qual', p.qual,
-          'with_check', p.with_check
+          'with_check', p.with_check,
+          'roles', p.roles
         ))
         FROM pg_policies p
         WHERE p.tablename = t.tablename
@@ -109,18 +281,17 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
       -- sends an escaped underscore so only literal-underscore names are skipped.
       AND t.tablename NOT LIKE '\\_%'
     ORDER BY t.tablename;
-  `, [STRATUM_TABLES]);
+  `, [STRATUM_TABLES, controlRole ?? null]);
 
-  // A policy counts only for what its expression does, not for its name.
-  return result.rows.map((row: Omit<TableInfo, "has_policy" | "policy_issue"> & { policies: PolicyRow[] }) => {
-    const { policies, ...rest } = row;
-    const verdict = evaluatePolicies(policies);
+  return result.rows.map((row) => {
+    const { policies, control_role, ...rest } = row;
+    const verdict = evaluatePolicies(policies, "public", control_role ?? DEFAULT_CONTROL_ROLE);
     return { ...rest, has_policy: verdict.isolated, policy_issue: verdict.issue };
   });
 }
 
 export async function checkExtensions(pool: pg.Pool): Promise<{ uuid_ossp: boolean; ltree: boolean }> {
-  const result = await pool.query(`
+  const result = await pinnedQuery<{ extname: string }>(pool, `
     SELECT extname FROM pg_extension
     WHERE extname IN ('uuid-ossp', 'ltree');
   `);
@@ -132,14 +303,14 @@ export async function checkExtensions(pool: pg.Pool): Promise<{ uuid_ossp: boole
 }
 
 export async function checkBypassRLS(pool: pg.Pool): Promise<boolean> {
-  const result = await pool.query(`
+  const result = await pinnedQuery(pool, `
     SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user;
   `);
   return result.rows[0]?.rolbypassrls === true;
 }
 
 export async function checkStratumTables(pool: pg.Pool): Promise<boolean> {
-  const result = await pool.query(`
+  const result = await pinnedQuery(pool, `
     SELECT COUNT(*) AS cnt FROM pg_tables
     WHERE schemaname = 'public'
       AND tablename IN ('tenants', 'config_entries', 'permission_policies', 'api_keys');

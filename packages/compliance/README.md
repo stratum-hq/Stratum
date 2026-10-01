@@ -2,7 +2,7 @@
 
 A content-free compliance **kernel** for [Stratum](https://github.com/stratum-hq/Stratum): the pure mechanics and type shapes any compliance product needs, with none of the content. Zero runtime dependencies, no database, no network, no provider, and no built-in catalog.
 
-Read the documentation at [docs.stratum-hq.org](https://docs.stratum-hq.org/).
+Read the documentation at [docs.stratum-hq.org/packages/compliance](https://docs.stratum-hq.org/packages/compliance/).
 
 It gives you three things:
 
@@ -76,6 +76,7 @@ The rules:
 - `fail` **opens** a finding, unless one is already active (`open` / `remediating`) or the risk was formally `accepted`.
 - `pass` **resolves** an active finding (`open` / `remediating`), and leaves an `accepted` finding untouched; otherwise there is nothing to resolve.
 - `na` and `error` are always no-ops.
+- Any other outcome throws a `TypeError`.
 
 Map `{ type: "open" }` and `{ type: "resolve" }` onto your own inserts and updates. The state machine has no opinion about storage.
 
@@ -100,6 +101,7 @@ Everything here is a pure function or a type. No side effects, no IO, no global 
 
 ## Links
 
+- Documentation: https://docs.stratum-hq.org/packages/compliance/
 - GitHub: https://github.com/stratum-hq/Stratum
 
 ## License

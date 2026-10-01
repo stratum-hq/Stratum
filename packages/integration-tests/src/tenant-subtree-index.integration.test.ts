@@ -7,6 +7,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 
 const SUBTREE_INDEX = "idx_tenant_ancestry_path_prefix";
@@ -33,7 +34,7 @@ describe("subtree queries on ancestry_path (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {
@@ -85,7 +86,8 @@ describe("subtree queries on ancestry_path (integration)", () => {
   async function recordQueries(
     work: () => Promise<unknown>,
   ): Promise<RecordedQuery[]> {
-    const pool = getPool();
+    // In admin mode the library runs its SQL on the admin pool.
+    const pool = getAdminPool() ?? getPool();
     const seen: RecordedQuery[] = [];
     const originalConnect = pool.connect;
     const connectClient = originalConnect.bind(pool) as () => Promise<pg.PoolClient>;

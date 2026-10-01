@@ -165,6 +165,27 @@ describe("OpenAPI error responses", () => {
     expect(responses["409"].description).toMatch(/REGION_IN_USE/);
   });
 
+  it("describes the batch config result with the fields of core's BatchSetConfigResult", () => {
+    for (const name of ["BatchSetConfigResult", "BatchSetConfigKeyResult"]) {
+      const fields = interfaceFields("packages/core/src/types/config.ts", name);
+      const schema = schemas[name];
+      expect(Object.keys(schema.properties).sort()).toEqual(Object.keys(fields).sort());
+      const required = Object.keys(fields).filter((field) => !fields[field]);
+      expect([...schema.required].sort()).toEqual(required.sort());
+    }
+    const put = spec.paths["/api/v1/tenants/{id}/config/batch"].put;
+    expect(resolveRef(put.responses["200"].content["application/json"].schema)).toBe(schemas.BatchSetConfigResult);
+  });
+
+  it("documents 403 CONFIG_LOCKED and 400 VALIDATION_ERROR on the config writes", () => {
+    const batch = spec.paths["/api/v1/tenants/{id}/config/batch"].put.responses;
+    expect(batch["403"].description).toMatch(/CONFIG_LOCKED/);
+    expect(batch["400"].description).toMatch(/VALIDATION_ERROR/);
+    expect(batch["409"]).toBeUndefined();
+    const single = spec.paths["/api/v1/tenants/{id}/config/{key}"].put.responses;
+    expect(single["403"].description).toMatch(/CONFIG_LOCKED/);
+  });
+
   it("documents 409 REGION_NOT_ACTIVE and 404 REGION_NOT_FOUND on migrate-region", () => {
     const responses = spec.paths["/api/v1/tenants/{id}/migrate-region"].post.responses;
     expect(responses["409"].description).toMatch(/REGION_NOT_ACTIVE/);
@@ -210,6 +231,20 @@ describe("error code tables in the website API docs", () => {
     // Zero rows means that the pattern no longer matches the tables, not that the tables are correct.
     expect(rows).toBeGreaterThan(0);
     expect(unknown).toEqual([]);
+  });
+
+  it("gives CONFIG_LOCKED the status of core's ConfigLockedError everywhere in the docs", () => {
+    const core = readFileSync(join(ROOT, "packages/core/src/utils/errors.ts"), "utf8");
+    const status = core.match(/class ConfigLockedError[\s\S]*?ErrorCode\.CONFIG_LOCKED,[\s\S]*?,\s*(\d{3}),/)?.[1];
+    expect(status).toBe("403");
+    const mentions = [];
+    for (const { name, text } of docs) {
+      for (const match of text.matchAll(/\| `CONFIG_LOCKED` \| (\d{3}) \||\b(\d{3}) CONFIG_LOCKED\b|HTTP (\d{3}) from the API/g)) {
+        mentions.push(`${name}:${lineOf(text, match.index)} ${match[1] ?? match[2] ?? match[3]}`);
+      }
+    }
+    expect(mentions.length).toBeGreaterThanOrEqual(4);
+    expect(mentions.filter((m) => !m.endsWith(` ${status}`))).toEqual([]);
   });
 });
 

@@ -5,7 +5,8 @@ import rateLimit from "@fastify/rate-limit";
 import helmet from "@fastify/helmet";
 import { Stratum } from "@stratum-hq/lib";
 import { registerOpenApi } from "./openapi.js";
-import { errorHandler } from "./middleware/error-handler.js";
+import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
+import { registerUuidPathParams, rejectInvalidPathParams, rejectInvalidQueryTenantIds } from "./middleware/path-params.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createAuthorizeMiddleware } from "./middleware/authorize.js";
 import { createTenantScopeEnforcer } from "./middleware/tenant-scope.js";
@@ -27,7 +28,7 @@ import { createConfigDiffRoutes } from "./routes/config-diff.js";
 import { createAbacRoutes } from "./routes/abac.js";
 import { registerTelemetryHooks } from "./middleware/telemetry.js";
 import { config } from "./config.js";
-import { getPool } from "./db/connection.js";
+import { getAdminPool, getPool } from "./db/connection.js";
 
 /** Parse a duration string like "1 minute" into milliseconds. */
 function parseWindowForApp(window: string): number {
@@ -52,10 +53,29 @@ export async function buildApp(): Promise<FastifyInstance> {
     genReqId: () => crypto.randomUUID(),
   });
 
+  // With DATABASE_ADMIN_URL the library runs on the admin login, as the
+  // control role of migration 032, and sets no app.bypass_rls. Without it,
+  // everything runs on DATABASE_URL as in earlier releases.
+  const adminPool = getAdminPool();
   const stratum = new Stratum({
     pool: getPool(),
+    adminPool,
+    controlRole: config.controlRole,
+    allowLegacyKeyHashes: config.allowLegacyKeyHashes,
     keyPrefix: config.nodeEnv === "production" ? "sk_live_" : "sk_test_",
   });
+  // Checks the logins against the role model and logs each problem: both
+  // logins with DATABASE_ADMIN_URL, else whether the DATABASE_URL login is a
+  // member of the control role. Migrations run separately (db/migrate.ts).
+  if (adminPool) {
+    await stratum.initialize();
+  } else {
+    // As before 1.8, the server starts without the admin login even when
+    // the check cannot read the database yet.
+    await stratum.initialize().catch((err: unknown) => {
+      app.log.warn(`Could not check the database role model: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  }
 
   await app.register(helmet, {
     contentSecurityPolicy: {
@@ -82,6 +102,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerOpenApi(app);
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  // A path id or a query-string tenant id that is not a UUID gets 400, after
+  // authentication and before any lookup by that id.
+  registerUuidPathParams(app);
+  app.addHook("preHandler", rejectInvalidPathParams);
+  app.addHook("preHandler", rejectInvalidQueryTenantIds);
   // Default-deny: a route that declares no tenant scope is refused.
   app.addHook("preHandler", createTenantScopeEnforcer(stratum));
 
@@ -103,6 +128,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   }
 
   app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler(notFoundHandler);
 
   await app.register(healthRoutes(checkRedisHealth));
   await app.register(createTenantRoutes(stratum), { prefix: "/api/v1/tenants" });

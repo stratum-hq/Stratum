@@ -17,7 +17,7 @@ npm install @stratum-hq/mysql mysql2
 import mysql from "mysql2/promise";
 import { MysqlSharedAdapter } from "@stratum-hq/mysql";
 
-const pool = mysql.createPool(process.env.MYSQL_URL);
+const pool = mysql.createPool(process.env.MYSQL_URL!);
 const adapter = new MysqlSharedAdapter({ pool, databaseName: "myapp" });
 
 // Structured methods auto-inject tenant_id

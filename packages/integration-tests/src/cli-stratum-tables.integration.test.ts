@@ -31,7 +31,7 @@ const scratchUrl = (() => {
   return u.toString();
 })();
 
-function runCli(args: string[]): { code: number | null; out: string } {
+function runCli(args: string[]): { code: number | null; out: string; stdout: string } {
   const res = spawnSync(process.execPath, [CLI, ...args, "--database-url", scratchUrl], {
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },
@@ -40,10 +40,10 @@ function runCli(args: string[]): { code: number | null; out: string } {
   });
   // eslint-disable-next-line no-control-regex
   const out = `${res.stdout}${res.stderr}`.replace(/\x1b\[[0-9;]*m/g, "");
-  return { code: res.status, out };
+  return { code: res.status, out, stdout: res.stdout };
 }
 
-/** The SQL block `scan --generate` prints after its report. */
+/** The SQL block `scan --generate` prints to stdout (the report goes to stderr). */
 function generatedSql(out: string): string {
   const start = out.indexOf("-- Stratum Migration Scanner");
   expect(start).toBeGreaterThanOrEqual(0);
@@ -119,14 +119,14 @@ describe("CLI scan --generate on a fully migrated Stratum database", () => {
   });
 
   it("emits CREATE POLICY only for a table that has no tenant_isolation policy", () => {
-    const sql = generatedSql(runCli(["scan", "--generate"]).out);
+    const sql = generatedSql(runCli(["scan", "--generate"]).stdout);
     expect(sql).toContain(`CREATE POLICY tenant_isolation ON "cli_orders"`);
     expect(sql).not.toContain(`CREATE POLICY tenant_isolation ON "cli_notes"`);
     expect(sql).not.toContain("principal_roles");
   });
 
   it("emits SQL that applies without error and leaves Stratum tables unchanged", async () => {
-    const sql = generatedSql(runCli(["scan", "--generate"]).out);
+    const sql = generatedSql(runCli(["scan", "--generate"]).stdout);
     await scratch.query(sql);
 
     const res = await scratch.query(`

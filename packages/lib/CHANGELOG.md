@@ -1,5 +1,92 @@
 # @stratum-hq/lib
 
+## 1.8.0
+
+### Minor Changes
+
+- 99437c5: Outside `development` and `test`, `@stratum-hq/lib` now refuses to start when `STRATUM_API_KEY_HMAC_SECRET` is set to fewer than 32 bytes, the same minimum as `STRATUM_ENCRYPTION_KEY`. An unset secret is still accepted and keeps SHA-256 key hashing. A deployment with a shorter secret must set a longer one; existing HMAC-hashed keys then no longer match and must be reissued. (GHSA-mg93-96h7-h9fq)
+- 99437c5: `batchSetConfig` is now atomic, as the config inheritance guide documents. Every entry is checked before anything is written. If any key is locked by an active ancestor or is invalid (an empty key, or a value that cannot be stored as JSON), nothing is written and the result has `rolled_back: true`, `succeeded: 0`, and `failed` equal to the number of entries. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the others say they were not applied and name those keys. Previously the unlocked keys of a batch were written and only the locked ones failed. `BatchSetConfigResult` in `@stratum-hq/core` gains the optional `rolled_back` field. (#471)
+- 99437c5: Opt-in hardening of the control-plane path (GHSA-mg93-96h7-h9fq).
+
+  - New migration 032 adds a NOLOGIN control role (`stratum_control` by default, configurable per database through `controlRole` or the `stratum.control_role` setting) with a `stratum_control_plane` policy on every Stratum table. The SECURITY DEFINER helpers are owned by that role and no longer set `app.bypass_rls`.
+  - 032 never stops an upgrade: when the migrating role can neither create nor join the control role, it applies the rest, skips the control role with a warning that prints the bootstrap SQL, and the database keeps its previous behavior. `initialize()` reports the hardening as not active until an administrator runs that SQL, which calls the new idempotent `stratum_apply_control_role()` function.
+  - A fresh install no longer needs a superuser. For a migrating role that is not a superuser, `migrate()` drops the `SET app.*` clause lines of the migration 029 and 031 helper functions, which PostgreSQL accepts only from a superuser; 032 re-creates both functions without them.
+  - `regions` now has row-level security like the other Stratum tables.
+  - `new Stratum({ adminPool, pool })`: the library runs its own queries and `autoMigrate` on `adminPool`, a login that is a member of the control role, and `initialize()` checks both logins against the recommended role model (warns; throws for the application login with `enforceRls`). `adminPool` is optional in 1.x, with a one-time deprecation warning when absent.
+  - New exports: `STRATUM_CONTROL_ROLE`, `bootstrapRolesSql()`, `APP_READ_TABLES`.
+  - The legacy `app.bypass_rls` path stays available behind the `stratum_security.legacy_guc_bypass` switch, on by default in 1.8. Turn it off once every client uses `adminPool`.
+  - New option `allowLegacyKeyHashes` (default true in 1.x). While `STRATUM_API_KEY_HMAC_SECRET` is set, API keys with a legacy SHA-256 hash still authenticate and are re-hashed with HMAC on use, with a one-time warning. Set it to false to accept only HMAC hashes.
+
+  2.0 will require `adminPool`, remove the legacy switch, and default `allowLegacyKeyHashes` to false.
+
+- 99437c5: Migration 032 grants the control role to the migrating login only with `migrate({ applyControlRole: true })` (set by `autoMigrate` with `adminPool`), or when that login is a superuser or already a member, and the control-role functions and bootstrap SQL are hardened. See GHSA-mg93-96h7-h9fq.
+- 99437c5: `enforceRls: true` now checks the connecting role every time: `initialize()` (with or without `autoMigrate`), `migrate()` and `migrateAllSchemas()` throw when the role has `BYPASSRLS`. Previously the check ran only inside migration 001, so a database that was already migrated accepted a `BYPASSRLS` role. Upgrade note: a deployment with `enforceRls` on (the control plane turns it on outside development and test) that connects as a `BYPASSRLS` role now refuses to start; connect as a role without `BYPASSRLS`. See GHSA-mg93-96h7-h9fq.
+- 99437c5: Role model follow-ups (GHSA-mg93-96h7-h9fq).
+
+  - `bootstrapRolesSql()` first checks that the Stratum tables carry only what the Stratum migrations created (no rules, no triggers, defaults, constraints, indexes or policies that use other functions or operators, no other column types, unchanged Stratum functions) and stops with a list of what it found. `stratum_apply_control_role()` is now one of the Stratum functions it moves to the admin login.
+  - The application-login check of `initialize()` also reports a login that owns the schema of the Stratum tables (directly or as the database owner) or is a member of the role that owns them.
+  - New `inspectRoleModel()` returns the role-model checks as data, for logins or named roles, without logging. The CLI's `doctor`, `health` and `db roles` use it.
+  - `stratum_apply_control_role()` (migration 032, run by the migration and by the bootstrap SQL) now resets row-level security on every Stratum table: it drops all their policies, enables and forces RLS, and re-creates the canonical policies of migrations 019, 020, 031 and 032. Applying it restores policies that an owner of the tables changed, dropped or added.
+  - New `stratumPolicyDrift()` and `STRATUM_RLS_TABLES`: compare the RLS flags and policies of the Stratum tables with the canonical set.
+
+- 99437c5: Hardened role-model checks (GHSA-mg93-96h7-h9fq): the catalog queries of the checks, migration 032, `migrate()` and `migrateAllSchemas()` are hardened, with new `pinnedQuery()`, `withPinnedSearchPath()` and `schemaOfTable()`; the control-role opt-in counts only when the migrating session sets it; migration 032 checks the Stratum tables before it applies the control role and warns instead when they carry foreign objects; applying the control role takes over every Stratum function; `initialize()` reports an application login that can create objects in the Stratum schema, and fails on it with `adminPool` and `enforceRls`; `autoMigrate` refuses an `adminPool` that logs in as the same role as `pool`; with `adminPool`, `initialize()` and `inspectRoleModel()` (new `searchPathIssue`) report an application login that can create schemas in the database while the admin login's `search_path` contains `"$user"`.
+- 99437c5: Stricter key material checks. Outside `development` and `test` (an unset `NODE_ENV` counts as `development`), the library now refuses to load unless `STRATUM_ENCRYPTION_KEY` is set, is at least 32 bytes, and is not the built-in development key, and `STRATUM_HKDF_SALT` is set and is not the built-in development salt. Previously a missing key failed only on the first sensitive operation. In every environment, a `STRATUM_HKDF_SALT` that is set must be a non-empty, even-length hex string; any other value used to become a shorter or empty salt without warning. The legacy `WEBHOOK_ENCRYPTION_KEY` variable is now read only in development and test.
+
+  Upgrade note: a deployment whose key is shorter than 32 bytes, or whose salt is not valid hex, now refuses to start. Rotate to a new key and salt with `rotateEncryptionKey`, keeping the old values readable through `STRATUM_ENCRYPTION_KEY_PREVIOUS` and `STRATUM_HKDF_SALT_PREVIOUS`, which are not subject to these checks. As the old salt in hex, give the leading hex pairs of the old value, which are the bytes Node used, or `00` when the old value starts with a character that is not hex (an empty salt and `00` derive the same key). A deployment that set only `WEBHOOK_ENCRYPTION_KEY` must set `STRATUM_ENCRYPTION_KEY` to the same value. See GHSA-mg93-96h7-h9fq.
+
+- 99437c5: Sensitive config values are still inherited, but reads of a descendant's config now return them masked: `value: null`, `sensitive: true` and `masked: true`, with `source_tenant_id` naming the tenant that set the value. A tenant's own sensitive values are unchanged.
+
+  - `@stratum-hq/lib`: `resolveConfig`, `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take an optional `ResolveConfigOptions`. Pass `{ revealSensitive: true }` in trusted server code that needs an inherited secret, or `{ viewerTenantId }` to reveal only the values that tenant set.
+  - `@stratum-hq/control-plane`: the config, inheritance, diff and context routes reveal an inherited sensitive value only to a key of the tenant that set it. Global keys get the masked entry and can read the value from the owning tenant's own config.
+  - `@stratum-hq/react`: `ConfigEditor` and `ConfigInheritanceVisualizer` show a masked value as "Sensitive value set by an ancestor" and never pre-fill it into the edit field.
+  - `@stratum-hq/core`: `ResolvedConfigEntry` and `ConfigDiffEntry` gain optional `sensitive` and `masked` fields, and `ResolveConfigOptions` is exported.
+
+  (GHSA-mg93-96h7-h9fq)
+
+### Patch Changes
+
+- 99437c5: The transparent re-hash of a version 1 (SHA-256) API key to HMAC now updates the row only while it is still version 1. (GHSA-mg93-96h7-h9fq)
+- 99437c5: New migration 033 adds an index on `api_keys.tenant_id`, so `stratum doctor` no longer warns about a missing `tenant_id` index on a fresh install. The migration is idempotent and also runs in each tenant schema under `migrateAllSchemas`. (#477)
+- 99437c5: Reading an encrypted value under the wrong `STRATUM_ENCRYPTION_KEY` or `STRATUM_HKDF_SALT` now throws a `DecryptionError` (code `DECRYPTION_FAILED`) that says which settings to check, instead of Node's "Unsupported state or unable to authenticate data". The original error is kept as `cause`. A value that is not in the encrypted format also throws `DecryptionError`, and its message still contains "Invalid encrypted value format". `@stratum-hq/core` exports the new error class and code, and `@stratum-hq/lib` re-exports it. Key material validation at startup is unchanged. (#477)
+- 99437c5: README corrections (#476). lib: the usage metering link works on npm. control-plane: how to start it from an npm install, the health check at `/api/v1/health`, the OpenAPI URLs, and how to create the first admin key. db-adapters: the Sequelize wrapper scopes `query()` only. hono: the quick start defines `sdkClient`. mysql: the TypeORM subscriber reads the tenant from the `@stratum-hq/sdk` context, set with `runWithTenantContext` outside the SDK middleware. compliance: links to its new documentation page.
+- e1b2249: `createApiKey()` accepts `null` as the tenant ID, to create a global key. The runtime already stored a global key with `tenant_id` null; the type rejected the call.
+- 99437c5: `suspendTenant` on a tenant with active children now reports "Cannot suspend tenant ...", not "Cannot archive tenant ...". `TenantHasChildrenError` takes an optional action (`"archive"` by default, or `"suspend"`) that names the blocked transition. (#477)
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/db-adapters@1.5.0
+  - @stratum-hq/core@1.6.0
+  - @stratum-hq/sdk@1.4.0
+
+## 1.7.0
+
+### Minor Changes
+
+- 0c2ef75: Add an opt-in subtree read scope to row-level security. A tenant context in the subtree scope reads the rows of its tenant and of every descendant. Writes stay limited to the exact tenant. The default scope does not change.
+
+  - `@stratum-hq/lib`: migration 031 adds the function `stratum_subtree_tenant_ids()` and a `tenant_subtree_read` policy, for `SELECT` only, to exactly these tables: `config_entries` (rows with `sensitive = false` only), `permission_policies`, `abac_policies`, `roles`, `principal_roles`, `audit_logs`, `usage_events`, `consent_records`, `webhook_events`, `webhook_deliveries` and `tenants`. Credential-bearing rows stay exact-tenant: `api_keys`, `webhooks` and sensitive `config_entries` rows get no subtree read. `SELECT ... FOR UPDATE` and `FOR SHARE` in the subtree scope return the exact tenant's rows only. The function runs once per policy reference in a statement and its cost grows with the subtree, so each table needs an index on `tenant_id`. Migration 031 also refuses a change to the tree columns of `tenants` (`parent_id`, `ancestry_path`, `depth`, `ancestry_ltree`) unless the session has the RLS bypass, which the library's tree operations use, so a move through `moveTenant` changes the subtree at once and a tenant context cannot move itself. It pins the `search_path` of its functions, and of the parent cycle guard of migration 029, with `pg_temp` last. `runScopedJob` takes `{ scope: "subtree" }`.
+  - `@stratum-hq/db-adapters`: `setTenantContext` and `withTenantContext` take `{ scope: "exact" | "subtree" }`. `createPolicy` and `createIsolationPolicy` take `{ subtreeRead: true }`. `dropPolicy` also drops `tenant_subtree_read`. The policy check accepts the subtree policy form when the function is unqualified or qualified with the schema of the `tenants` table.
+  - `@stratum-hq/cli`: the policy check that `doctor`, `scan`, `migrate` and `health` use counts a table with the subtree policy as isolated when the function is unqualified or qualified with `public`, the schema the check reads.
+
+### Patch Changes
+
+- b737034: Improve the npm metadata so that npm search finds the packages. Each `description` now starts with the problem the package solves. Each package carries the same multi-tenancy keywords, including `multitenancy`. The `homepage` field now points at the package's page on https://docs.stratum-hq.org instead of a GitHub folder. The first lines of each README link the documentation. No code changes.
+- a1bd9aa: Replace em dashes in user-visible text with ordinary punctuation. This touches READMEs, package descriptions, CLI output, control plane startup log messages, the text that `@stratum-hq/create` writes into generated projects, and the assertion messages in `@stratum-hq/test-utils`. The CLI `health` and `migrate` tables now print `no` instead of a dash for an unset flag. No behavior changes.
+- Updated dependencies [b737034]
+- Updated dependencies [0c2ef75]
+- Updated dependencies [a1bd9aa]
+- Updated dependencies [0c2ef75]
+  - @stratum-hq/core@1.5.1
+  - @stratum-hq/sdk@1.3.1
+  - @stratum-hq/db-adapters@1.4.0
+
 ## 1.6.0
 
 ### Minor Changes

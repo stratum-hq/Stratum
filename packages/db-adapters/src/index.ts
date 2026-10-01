@@ -19,6 +19,15 @@ export {
   disableRLS,
   isRLSEnabled,
 } from "./rls/manager.js";
+export type { CreatePolicyOptions } from "./rls/manager.js";
+export {
+  tablePolicyIssues,
+  tablePolicyWarnings,
+  permissivePolicyIssue,
+  isControlPlanePolicy,
+  DEFAULT_CONTROL_ROLE,
+} from "./rls/policy-check.js";
+export type { PolicyRow } from "./rls/policy-check.js";
 
 export {
   setTenantContext,
@@ -27,6 +36,7 @@ export {
   withRlsBypass,
   getCurrentTenantId,
 } from "./rls/session.js";
+export type { TenantScope, TenantContextOptions } from "./rls/session.js";
 
 export {
   createSchema,

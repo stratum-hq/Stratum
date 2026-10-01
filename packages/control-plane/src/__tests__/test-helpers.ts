@@ -1,7 +1,8 @@
 import Fastify, { FastifyInstance } from "fastify";
 import { vi } from "vitest";
 import jwt from "jsonwebtoken";
-import { errorHandler } from "../middleware/error-handler.js";
+import { errorHandler, notFoundHandler } from "../middleware/error-handler.js";
+import { registerUuidPathParams, rejectInvalidPathParams, rejectInvalidQueryTenantIds } from "../middleware/path-params.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { createAuthorizeMiddleware } from "../middleware/authorize.js";
 import { createTenantScopeEnforcer } from "../middleware/tenant-scope.js";
@@ -82,8 +83,12 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   // Wire up the same middleware chain as the real app
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
+  registerUuidPathParams(app);
+  app.addHook("preHandler", rejectInvalidPathParams);
+  app.addHook("preHandler", rejectInvalidQueryTenantIds);
   app.addHook("preHandler", createTenantScopeEnforcer(stratum));
   app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler(notFoundHandler);
 
   // Register routes (pass a stub Redis health checker; Redis is not used in tests)
   const noopRedisHealth = async () => "not_configured" as const;

@@ -181,10 +181,12 @@
         "type": "object",
         "properties": {
           "key": { "type": "string" },
-          "value": {},
+          "value": { "description": "The value, or null when masked is true." },
           "source_tenant_id": { "type": "string", "format": "uuid" },
           "inherited": { "type": "boolean" },
-          "locked": { "type": "boolean" }
+          "locked": { "type": "boolean" },
+          "sensitive": { "type": "boolean", "description": "Present and true when the value was set with sensitive: true." },
+          "masked": { "type": "boolean", "description": "Present and true when a sensitive value inherited from an ancestor was withheld; value is then null. Only a key of the tenant that set it (source_tenant_id) receives the value." }
         },
         "required": ["key", "value", "source_tenant_id", "inherited", "locked"]
       },
@@ -254,6 +256,27 @@
           }
         },
         "required": ["entries"]
+      },
+      "BatchSetConfigKeyResult": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "error"] },
+          "entry": { "$ref": "#/components/schemas/ConfigEntry" },
+          "error": { "type": "string", "description": "Why the key was not written. Present when status is error." }
+        },
+        "required": ["key", "status"]
+      },
+      "BatchSetConfigResult": {
+        "type": "object",
+        "description": "The per-key result of a batch config write. A rolled-back batch is answered with an error, and this result is its error.details.",
+        "properties": {
+          "results": { "type": "array", "items": { "$ref": "#/components/schemas/BatchSetConfigKeyResult" } },
+          "succeeded": { "type": "integer" },
+          "failed": { "type": "integer" },
+          "rolled_back": { "type": "boolean", "description": "True when the batch was rolled back and nothing was written." }
+        },
+        "required": ["results", "succeeded", "failed"]
       },
       "ConfigInheritanceView": {
         "type": "object",
@@ -925,7 +948,7 @@
       "get": {
         "tags": ["Tenants"],
         "summary": "Resolve tenant context",
-        "description": "Resolve the full tenant context including inherited config and permissions.",
+        "description": "Resolve the full tenant context including inherited config and permissions. Requires the read scope; a tenant-scoped key reaches its own tenant and its descendants. Sensitive config values inherited from an ancestor are masked unless the key belongs to the tenant that set them.",
         "operationId": "resolveTenantContext",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
@@ -1105,6 +1128,14 @@
               }
             }
           },
+          "403": {
+            "description": "CONFIG_LOCKED: the key is locked by an ancestor",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
           "404": {
             "description": "Tenant not found",
             "content": {
@@ -1141,7 +1172,7 @@
       "put": {
         "tags": ["Config"],
         "summary": "Batch set config",
-        "description": "Set multiple configuration keys atomically. Limited to 200 entries per request.",
+        "description": "Set multiple configuration keys atomically. Limited to 200 entries per request. When any entry is locked or invalid, nothing is written and the request fails with the per-key result in error.details.",
         "operationId": "batchSetConfig",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
@@ -1156,18 +1187,23 @@
         },
         "responses": {
           "200": {
-            "description": "Batch set result",
+            "description": "Every entry was written",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/ConfigEntry" }
-                }
+                "schema": { "$ref": "#/components/schemas/BatchSetConfigResult" }
               }
             }
           },
           "400": {
-            "description": "Validation error",
+            "description": "VALIDATION_ERROR: an entry is invalid. Nothing was written; error.details holds the BatchSetConfigResult and the issues.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "403": {
+            "description": "CONFIG_LOCKED: a key is locked by an ancestor. Nothing was written; error.details holds the BatchSetConfigResult.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }

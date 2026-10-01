@@ -1,5 +1,47 @@
 # @stratum-hq/db-adapters
 
+## 1.5.0
+
+### Minor Changes
+
+- 99437c5: Support for the control role of `@stratum-hq/lib` migration 032 (GHSA-mg93-96h7-h9fq).
+
+  - `createPolicy` accepts a `stratum_control_plane` policy only when it applies to exactly the control role (`controlRole` option, default `stratum_control`), recognizes the migration 032 legacy form, and emits a `STRATUM_GUC_BYPASS_POLICY` process warning for a policy that checks `app.bypass_rls` directly.
+  - `withRlsBypass` is deprecated and emits a one-time deprecation warning. It will be removed in 2.0.
+  - The PGlite guide shows `adminPool` with a restricted application pool.
+
+- 99437c5: Exports the policy checks that `createPolicy` uses: `tablePolicyIssues`, `tablePolicyWarnings`, `permissivePolicyIssue`, `isControlPlanePolicy`, `DEFAULT_CONTROL_ROLE` and the `PolicyRow` type. `@stratum-hq/cli` now uses them, so both apply the same rules (GHSA-mg93-96h7-h9fq).
+
+### Patch Changes
+
+- 99437c5: Correct the doc comments of the Sequelize and Drizzle tenant-scope wrappers: with an empty tenant ID they throw, they do not forward the query unwrapped. Behavior is unchanged. (#477)
+- 99437c5: `createPolicy()`, `isRLSEnabled()` and `listTenantSchemas()` harden their catalog lookups (GHSA-mg93-96h7-h9fq).
+- 99437c5: README corrections (#476). lib: the usage metering link works on npm. control-plane: how to start it from an npm install, the health check at `/api/v1/health`, the OpenAPI URLs, and how to create the first admin key. db-adapters: the Sequelize wrapper scopes `query()` only. hono: the quick start defines `sdkClient`. mysql: the TypeORM subscriber reads the tenant from the `@stratum-hq/sdk` context, set with `runWithTenantContext` outside the SDK middleware. compliance: links to its new documentation page.
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/core@1.6.0
+
+## 1.4.0
+
+### Minor Changes
+
+- 0c2ef75: Add a PGlite adapter at `@stratum-hq/db-adapters/pglite`. `createPglitePool()` returns a `pg.Pool`-compatible object over one PGlite instance, so `@stratum-hq/lib` runs in Node or in the browser without a database server. `createRestrictedPool()` runs queries as a role that is not a superuser, so row-level security applies. The restricted role is a test and demo convenience, not a security boundary: any query can leave it with `RESET ROLE`. `@electric-sql/pglite` is an optional peer dependency. The adapter has one connection and runs queries one at a time. Releasing a client rolls back a transaction it left open and resets the session settings and the role.
+- 0c2ef75: Add an opt-in subtree read scope to row-level security. A tenant context in the subtree scope reads the rows of its tenant and of every descendant. Writes stay limited to the exact tenant. The default scope does not change.
+
+  - `@stratum-hq/lib`: migration 031 adds the function `stratum_subtree_tenant_ids()` and a `tenant_subtree_read` policy, for `SELECT` only, to exactly these tables: `config_entries` (rows with `sensitive = false` only), `permission_policies`, `abac_policies`, `roles`, `principal_roles`, `audit_logs`, `usage_events`, `consent_records`, `webhook_events`, `webhook_deliveries` and `tenants`. Credential-bearing rows stay exact-tenant: `api_keys`, `webhooks` and sensitive `config_entries` rows get no subtree read. `SELECT ... FOR UPDATE` and `FOR SHARE` in the subtree scope return the exact tenant's rows only. The function runs once per policy reference in a statement and its cost grows with the subtree, so each table needs an index on `tenant_id`. Migration 031 also refuses a change to the tree columns of `tenants` (`parent_id`, `ancestry_path`, `depth`, `ancestry_ltree`) unless the session has the RLS bypass, which the library's tree operations use, so a move through `moveTenant` changes the subtree at once and a tenant context cannot move itself. It pins the `search_path` of its functions, and of the parent cycle guard of migration 029, with `pg_temp` last. `runScopedJob` takes `{ scope: "subtree" }`.
+  - `@stratum-hq/db-adapters`: `setTenantContext` and `withTenantContext` take `{ scope: "exact" | "subtree" }`. `createPolicy` and `createIsolationPolicy` take `{ subtreeRead: true }`. `dropPolicy` also drops `tenant_subtree_read`. The policy check accepts the subtree policy form when the function is unqualified or qualified with the schema of the `tenants` table.
+  - `@stratum-hq/cli`: the policy check that `doctor`, `scan`, `migrate` and `health` use counts a table with the subtree policy as isolated when the function is unqualified or qualified with `public`, the schema the check reads.
+
+### Patch Changes
+
+- b737034: Improve the npm metadata so that npm search finds the packages. Each `description` now starts with the problem the package solves. Each package carries the same multi-tenancy keywords, including `multitenancy`. The `homepage` field now points at the package's page on https://docs.stratum-hq.org instead of a GitHub folder. The first lines of each README link the documentation. No code changes.
+- a1bd9aa: Replace em dashes in user-visible text with ordinary punctuation. This touches READMEs, package descriptions, CLI output, control plane startup log messages, the text that `@stratum-hq/create` writes into generated projects, and the assertion messages in `@stratum-hq/test-utils`. The CLI `health` and `migrate` tables now print `no` instead of a dash for an unset flag. No behavior changes.
+- Updated dependencies [b737034]
+- Updated dependencies [a1bd9aa]
+  - @stratum-hq/core@1.5.1
+
 ## 1.3.0
 
 ### Minor Changes

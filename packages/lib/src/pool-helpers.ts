@@ -15,8 +15,22 @@ import pg from "pg";
 //
 // This is the single chokepoint for all lib database access: every service goes
 // through withClient / withTransaction, so no service function needs to change.
+//
+// A pool given to Stratum as `adminPool` logs in as a member of the control
+// role (migration 032), whose stratum_control_plane policies admit every row.
+// Such a pool needs no bypass setting, so the helpers do not set it there. A
+// misconfigured admin login then fails closed instead of falling back on the
+// legacy setting.
 
-async function enterBypass(client: pg.PoolClient): Promise<void> {
+const adminPools = new WeakSet<pg.Pool>();
+
+/** Marks `pool` as an admin pool: the helpers do not set app.bypass_rls on it. */
+export function markAdminPool(pool: pg.Pool): void {
+  adminPools.add(pool);
+}
+
+async function enterBypass(pool: pg.Pool, client: pg.PoolClient): Promise<void> {
+  if (adminPools.has(pool)) return;
   // SET LOCAL (not session SET) so the flag is transaction scoped and cannot
   // leak across pooled connections. Equivalent to
   // set_config('app.bypass_rls', 'on', true).
@@ -45,7 +59,7 @@ export async function withClient<T>(
   let rollbackErr: Error | undefined;
   try {
     await client.query("BEGIN");
-    await enterBypass(client);
+    await enterBypass(pool, client);
     const result = await fn(client);
     await client.query("COMMIT");
     return result;
@@ -65,7 +79,7 @@ export async function withTransaction<T>(
   let rollbackErr: Error | undefined;
   try {
     await client.query("BEGIN");
-    await enterBypass(client);
+    await enterBypass(pool, client);
     const result = await fn(client);
     await client.query("COMMIT");
     return result;

@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 const execFileAsync = promisify(execFile);
@@ -67,7 +67,7 @@ describe("Key rotation to a new HKDF salt (integration)", () => {
     delete process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
     delete process.env.STRATUM_HKDF_SALT_PREVIOUS;
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

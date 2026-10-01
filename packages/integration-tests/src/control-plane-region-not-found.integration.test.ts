@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { Stratum } from "@stratum-hq/lib";
-import { getPool, closePool, runMigrations, cleanTestData } from "./helpers/db.js";
+import { getPool, closePool, runMigrations, cleanTestData, getAdminPool } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
 // A caller must be able to tell a missing region from a server fault, so the
@@ -37,7 +37,7 @@ function send(method: "GET" | "PATCH" | "DELETE" | "POST", url: string, payload?
 describe("control-plane region not found (integration)", () => {
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
     const cpApp: ControlPlaneApp = await import("../../control-plane/dist/app.js");
     cpDb = await import("../../control-plane/dist/db/connection.js");
     app = await cpApp.buildApp();

@@ -67,4 +67,16 @@ describe("parseArgs", () => {
     expect(result.flags["a"]).toBe(true);
     expect(result.flags["b"]).toBe(true);
   });
+
+  it("does not consume a following short flag as a long flag's value", () => {
+    const result = parseArgs(["scan", "--generate", "-d", "postgres://z"]);
+    expect(result.flags["generate"]).toBe(true);
+    expect(result.flags["d"]).toBe("postgres://z");
+    expect(result.args).toEqual([]);
+  });
+
+  it("still takes a negative number as a long flag's value", () => {
+    const result = parseArgs(["doctor", "--depth-warning", "-1"]);
+    expect(result.flags["depth-warning"]).toBe("-1");
+  });
 });

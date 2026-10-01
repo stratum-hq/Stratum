@@ -1,5 +1,27 @@
 # @stratum-hq/create
 
+## 0.6.0
+
+### Minor Changes
+
+- 99437c5: The Next.js template and every Next.js preset now write the tenant middleware to `src/middleware.ts`, next to the `src/app` directory, so Next.js runs it. Previously it was written to the project root, where Next.js ignores it when the app lives in `src/app`, so the tenant JWT was not verified and a client-supplied `x-tenant-id` header reached server code. The generated app also gets the root layout (`src/app/layout.tsx`) that `next build` requires, and the Next.js presets get a `tsconfig.json` that `next build` accepts (bundler module resolution, no `rootDir`). If you generated a Next.js project with an earlier version, move `middleware.ts` to `src/middleware.ts`. See GHSA-mg93-96h7-h9fq.
+- 99437c5: Generated PostgreSQL projects follow the hardened role model (GHSA-mg93-96h7-h9fq): `init.sql` creates the control role and a separate login for Stratum (`STRATUM_ADMIN_DATABASE_URL`, the library's `adminPool`), gives the application role no `CREATE` on `public`, and limits its default privileges to the tables the bootstrap superuser creates. Run the Stratum migrations as the Stratum login.
+- 99437c5: Generated PostgreSQL projects name the bootstrap superuser URL `DATABASE_SUPERUSER_URL` (was `DATABASE_ADMIN_URL`, which the library uses for its admin login), and schema-per-tenant projects keep the schemas the app creates off the search path of the Stratum login and the superuser (GHSA-mg93-96h7-h9fq).
+- 99437c5: The `express` and `fastify` templates now generate the tenant middleware the docs describe: the tenant comes from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (HS256, using `jose`, now a dependency of every template), and `GET /tenants` answers 401 without one. The servers are the same as the express and fastify presets write. The generated README no longer points these templates at a `src/middleware.ts` that does not exist.
+
+  The Drizzle presets now pin `drizzle-orm ^0.45.3` and `drizzle-kit ^0.31.11`, override the esbuild that drizzle-kit pulls in through `@esbuild-kit/core-utils` to `^0.25.4`, and generate the `src/schema.ts` that `drizzle.config.ts` points at. On PostgreSQL, `drizzle.config.ts` connects with `DATABASE_ADMIN_URL` when it is set.
+
+  Generated dependency ranges now start past published advisories: `fastify ^5.12.5` (was `^4.26.0`, a major upgrade), `express ^4.22.3`, `hono ^4.13.7`, `@hono/node-server ^1.19.15`, `@nestjs/core`, `@nestjs/common` and `@nestjs/platform-express ^11.1.18`, `mongoose ^8.24.1`, `mysql2 ^3.23.1`, and `tsx ^4.19.3`.
+
+  An invalid `--preset` now exits before anything is written, so it no longer leaves an empty project directory, and with `--force` it no longer removes the existing one.
+
+## 0.5.1
+
+### Patch Changes
+
+- b737034: Improve the npm metadata so that npm search finds the packages. Each `description` now starts with the problem the package solves. Each package carries the same multi-tenancy keywords, including `multitenancy`. The `homepage` field now points at the package's page on https://docs.stratum-hq.org instead of a GitHub folder. The first lines of each README link the documentation. No code changes.
+- a1bd9aa: Replace em dashes in user-visible text with ordinary punctuation. This touches READMEs, package descriptions, CLI output, control plane startup log messages, the text that `@stratum-hq/create` writes into generated projects, and the assertion messages in `@stratum-hq/test-utils`. The CLI `health` and `migrate` tables now print `no` instead of a dash for an unset flag. No behavior changes.
+
 ## 0.5.0
 
 ### Minor Changes

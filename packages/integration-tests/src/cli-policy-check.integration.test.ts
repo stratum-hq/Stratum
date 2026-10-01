@@ -29,7 +29,7 @@ const scratchUrl = (() => {
   return u.toString();
 })();
 
-function runCli(args: string[]): { code: number | null; out: string } {
+function runCli(args: string[]): { code: number | null; out: string; stdout: string } {
   const res = spawnSync(process.execPath, [CLI, ...args, "--database-url", scratchUrl], {
     encoding: "utf8",
     env: { ...process.env, NO_COLOR: "1" },
@@ -38,10 +38,10 @@ function runCli(args: string[]): { code: number | null; out: string } {
   });
   // eslint-disable-next-line no-control-regex
   const out = `${res.stdout}${res.stderr}`.replace(/\x1b\[[0-9;]*m/g, "");
-  return { code: res.status, out };
+  return { code: res.status, out, stdout: res.stdout };
 }
 
-/** The SQL block `scan --generate` prints after its report. */
+/** The SQL block `scan --generate` prints to stdout (the report goes to stderr). */
 function generatedSql(out: string): string {
   const start = out.indexOf("-- Stratum Migration Scanner");
   expect(start).toBeGreaterThanOrEqual(0);
@@ -209,14 +209,14 @@ describe("CLI isolation checks: SQL from scan --generate passes the check it cam
       CREATE TABLE tenants (id UUID PRIMARY KEY);
       CREATE TABLE cli_invoices (id UUID PRIMARY KEY);
     `);
-    await scratch.query(generatedSql(runCli(["scan", "--generate"]).out));
+    await scratch.query(generatedSql(runCli(["scan", "--generate"]).stdout));
     const { out } = runCli(["scan"]);
     expect(out).toContain("All tables are properly isolated");
   });
 
   it("does not emit a second CREATE POLICY for a table whose tenant_isolation policy is wrong", async () => {
     await resetWithOrders(`CREATE POLICY tenant_isolation ON cli_orders USING (true);`);
-    const sql = generatedSql(runCli(["scan", "--generate"]).out);
+    const sql = generatedSql(runCli(["scan", "--generate"]).stdout);
     expect(sql).not.toContain(`CREATE POLICY tenant_isolation ON "cli_orders"`);
     // The script must still apply cleanly.
     await scratch.query(sql);

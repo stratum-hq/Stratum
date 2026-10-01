@@ -1,5 +1,69 @@
 # @stratum-hq/control-plane
 
+## 1.5.0
+
+### Minor Changes
+
+- 99437c5: `GET /api/v1/tenants/:id/context` now requires the `read` scope instead of `admin`. The SDK middleware, the NestJS guard and the Hono resolver call this route, so an app server needs only a `read` key: a tenant-scoped key resolves its own tenant and its descendants, and a global key resolves any tenant. Admin keys keep working. A scope refusal now names the scope the route requires. The SDK documentation states the scope its middleware needs. (GHSA-mg93-96h7-h9fq)
+- 99437c5: Optional admin login for the opt-in role model of `@stratum-hq/lib` migration 032 (GHSA-mg93-96h7-h9fq).
+
+  - `DATABASE_ADMIN_URL`: when set, the migrations, the library (as `adminPool`) and tenant schema and database provisioning run on the admin login, both logins are checked against the role model at startup, and `/api/v1/health` reports `admin_db`. When unset, the control plane behaves as before.
+  - `STRATUM_CONTROL_ROLE` names the control role, and `STRATUM_ALLOW_LEGACY_KEY_HASHES` (`true` or `false`) sets the library's `allowLegacyKeyHashes`.
+
+- 99437c5: Make the control plane's error responses match its docs. (#472)
+
+  - **Breaking for clients of `PUT /api/v1/tenants/:id/config/batch`:** a batch that is rolled back is no longer answered with `200 OK`. A key locked by an ancestor gets `403 CONFIG_LOCKED`, the status of a single locked write, and an invalid entry gets `400 VALIDATION_ERROR`. Nothing is written in either case, and `error.details` holds the per-key result (`results`, `succeeded`, `failed`, `rolled_back: true`). A batch that is written in full still gets `200 OK` with the same result.
+  - A path id that is not a UUID, on any route, gets `400 VALIDATION_ERROR` instead of `500`. A caller without credentials still gets `401` first.
+  - A path that matches no route gets the documented `{ "error": { "code": "NOT_FOUND", ... } }` body. It is still `401` before authentication.
+  - A 5xx response is logged through the Fastify logger, with the request id, in every environment, not only when `NODE_ENV` is `development`. The client still gets no detail of the cause.
+  - Startup prints "Running migrations..." once.
+  - The docs now give `CONFIG_LOCKED` its real status, 403, which is unchanged.
+
+- 99437c5: Sensitive config values are still inherited, but reads of a descendant's config now return them masked: `value: null`, `sensitive: true` and `masked: true`, with `source_tenant_id` naming the tenant that set the value. A tenant's own sensitive values are unchanged.
+
+  - `@stratum-hq/lib`: `resolveConfig`, `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take an optional `ResolveConfigOptions`. Pass `{ revealSensitive: true }` in trusted server code that needs an inherited secret, or `{ viewerTenantId }` to reveal only the values that tenant set.
+  - `@stratum-hq/control-plane`: the config, inheritance, diff and context routes reveal an inherited sensitive value only to a key of the tenant that set it. Global keys get the masked entry and can read the value from the owning tenant's own config.
+  - `@stratum-hq/react`: `ConfigEditor` and `ConfigInheritanceVisualizer` show a masked value as "Sensitive value set by an ancestor" and never pre-fill it into the edit field.
+  - `@stratum-hq/core`: `ResolvedConfigEntry` and `ConfigDiffEntry` gain optional `sensitive` and `masked` fields, and `ResolveConfigOptions` is exported.
+
+  (GHSA-mg93-96h7-h9fq)
+
+### Patch Changes
+
+- 99437c5: With `DATABASE_ADMIN_URL`, migrations run with the control-role opt-in, so migration 032 may grant the control role to the admin login (GHSA-mg93-96h7-h9fq).
+- 99437c5: A query-string tenant id (`tenant_id`, `tenant_a`, `tenant_b`) that is not a UUID now gets 400 `VALIDATION_ERROR` instead of a 500, after authentication and before any lookup. The error lists one issue per bad parameter, with the path `["query", "<name>"]`. This covers `GET /api/v1/webhooks`, `GET /api/v1/api-keys`, `GET /api/v1/roles`, `GET /api/v1/audit-logs` and `GET /api/v1/config/diff`. (GHSA-mg93-96h7-h9fq)
+- 99437c5: The control plane checks the role model at startup also without `DATABASE_ADMIN_URL`, and its migrations refuse a `DATABASE_ADMIN_URL` that logs in as the same role as `DATABASE_URL` (GHSA-mg93-96h7-h9fq).
+- 99437c5: README corrections (#476). lib: the usage metering link works on npm. control-plane: how to start it from an npm install, the health check at `/api/v1/health`, the OpenAPI URLs, and how to create the first admin key. db-adapters: the Sequelize wrapper scopes `query()` only. hono: the quick start defines `sdkClient`. mysql: the TypeORM subscriber reads the tenant from the `@stratum-hq/sdk` context, set with `runWithTenantContext` outside the SDK middleware. compliance: links to its new documentation page.
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [e1b2249]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+- Updated dependencies [99437c5]
+  - @stratum-hq/lib@1.8.0
+  - @stratum-hq/core@1.6.0
+
+## 1.4.1
+
+### Patch Changes
+
+- b737034: Improve the npm metadata so that npm search finds the packages. Each `description` now starts with the problem the package solves. Each package carries the same multi-tenancy keywords, including `multitenancy`. The `homepage` field now points at the package's page on https://docs.stratum-hq.org instead of a GitHub folder. The first lines of each README link the documentation. No code changes.
+- a1bd9aa: Replace em dashes in user-visible text with ordinary punctuation. This touches READMEs, package descriptions, CLI output, control plane startup log messages, the text that `@stratum-hq/create` writes into generated projects, and the assertion messages in `@stratum-hq/test-utils`. The CLI `health` and `migrate` tables now print `no` instead of a dash for an unset flag. No behavior changes.
+- Updated dependencies [b737034]
+- Updated dependencies [a1bd9aa]
+- Updated dependencies [0c2ef75]
+  - @stratum-hq/lib@1.7.0
+  - @stratum-hq/core@1.5.1
+
 ## 1.4.0
 
 ### Minor Changes

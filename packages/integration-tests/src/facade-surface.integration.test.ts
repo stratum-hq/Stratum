@@ -7,6 +7,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 import { uniqueSlug } from "./helpers/fixtures.js";
 
@@ -24,7 +25,7 @@ describe("Stratum facade completeness against real Postgres (integration)", () =
   beforeAll(async () => {
     process.env.STRATUM_ENCRYPTION_KEY = "test-encryption-key-32chars-long!";
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

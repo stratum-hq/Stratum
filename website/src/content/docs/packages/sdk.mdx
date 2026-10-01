@@ -41,6 +41,12 @@ app.use(s.middleware({ jwtSecret }));
 app.register(s.plugin({ jwtSecret }));
 ```
 
+### API key scope
+
+The middleware resolves each tenant with `GET /api/v1/tenants/:id/context`, which needs only the `read` scope. Use a `read` key scoped to the tenant the server serves: it resolves that tenant and its descendants. A global `read` key resolves any tenant. See [API Keys](/guides/api-keys/#scope-for-app-servers).
+
+In `resolved_config`, a sensitive value inherited from an ancestor arrives masked (`value: null`, `masked: true`) unless the key belongs to the tenant that set it. To use such a secret on the server, read it with `@stratum-hq/lib` and `resolveConfig(id, { revealSensitive: true })`, or with a key of the tenant that set it.
+
 ## StratumClient
 
 The HTTP client for the control plane API with built-in LRU caching:
@@ -64,7 +70,7 @@ const client = new StratumClient({
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `resolveTenant(id)` | `TenantContext` | Resolve full context (cached) |
+| `resolveTenant(id)` | `TenantContext` | Resolve full context (cached, `read` scope) |
 | `getTenantTree(rootId?)` | `TenantNode[]` | List tenants or subtree |
 | `createTenant(input)` | `TenantNode` | Create tenant |
 | `getTenant(id)` | `TenantNode` | Get single tenant |
@@ -205,12 +211,16 @@ interface MiddlewareOptions {
   jwtClaimPath?: string;         // JWT claim path for tenant ID
   jwtSecret?: string;            // JWT verification secret (HS256)
   jwtVerify?: (token: string) => Record<string, unknown> | null;
+  jwtAudience?: string;          // Require this `aud` claim (with jwtSecret or jwtVerify)
+  jwtIssuer?: string;            // Require this `iss` claim (with jwtSecret or jwtVerify)
   headerName?: string;           // Default: "X-Tenant-ID"
   trustTenantHeader?: boolean;   // Read the header when JWT is configured. Default: false
   resolvers?: TenantResolver[];  // Custom resolution functions
   onError?: (err: Error, req: unknown) => void;
 }
 ```
+
+A verified token whose `aud` or `iss` claim does not match `jwtAudience` or `jwtIssuer` is rejected with `401 INVALID_TOKEN`.
 
 ## Tenant Resolution Order
 

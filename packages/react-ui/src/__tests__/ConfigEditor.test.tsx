@@ -122,3 +122,47 @@ describe("ConfigEditor", () => {
     expect(addButton).not.toBeDisabled();
   });
 });
+
+describe("ConfigEditor with a masked sensitive value", () => {
+  const maskedResponse = {
+    api_secret: {
+      key: "api_secret",
+      value: null,
+      source_tenant_id: "tenant-parent-1",
+      inherited: true,
+      locked: false,
+      sensitive: true,
+      masked: true,
+    },
+  };
+
+  function renderMasked() {
+    const apiCall = vi.fn().mockResolvedValue(maskedResponse);
+    return render(
+      <StratumContext.Provider value={{ ...mockContextValue, apiCall }}>
+        <ConfigEditor />
+      </StratumContext.Provider>,
+    );
+  }
+
+  it("shows an inherited sensitive value as masked instead of its value", async () => {
+    const { container } = renderMasked();
+    await waitFor(() => {
+      expect(within(container).getByText("api_secret")).toBeInTheDocument();
+    });
+    const row = within(container).getByText("api_secret").closest("tr")!;
+    expect(row.textContent).toContain("Sensitive value set by an ancestor");
+    expect(row.querySelector("code")).toBeNull();
+    expect(row.textContent).not.toContain("null");
+  });
+
+  it("does not pre-fill the edit field when overriding a masked value", async () => {
+    const { container } = renderMasked();
+    await waitFor(() => {
+      expect(within(container).getByText("api_secret")).toBeInTheDocument();
+    });
+    fireEvent.click(within(container).getByRole("button", { name: "Edit" }));
+    const input = within(container).getByRole("textbox", { name: "Edit api_secret" }) as HTMLInputElement;
+    expect(input.value).toBe("");
+  });
+});

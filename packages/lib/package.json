@@ -1,6 +1,6 @@
 {
   "name": "@stratum-hq/lib",
-  "version": "1.6.0",
+  "version": "1.8.0",
   "description": "Multi-tenancy for Node.js and PostgreSQL: tenant hierarchy, config inheritance, row-level security, ABAC, audit log, and GDPR tooling",
   "keywords": [
     "multi-tenancy",
@@ -43,7 +43,7 @@
   "scripts": {
     "build": "tsc && node ../../scripts/copy-dir.mjs src/migrations dist/migrations",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.types.json",
     "lint": "eslint .",
     "clean": "rm -rf dist"
   },
@@ -52,10 +52,10 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "@stratum-hq/core": "^1.5.0",
-    "@stratum-hq/db-adapters": "^1.3.0",
-    "@stratum-hq/sdk": "^1.3.0",
+    "@opentelemetry/api": "^1.0.0",
+    "@stratum-hq/core": "^1.6.0",
+    "@stratum-hq/db-adapters": "^1.5.0",
+    "@stratum-hq/sdk": "^1.4.0",
     "pg": "^8.11.0"
   },
   "peerDependencies": {
@@ -67,6 +67,7 @@
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.4.6",
     "@types/pg": "^8.11.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.11"

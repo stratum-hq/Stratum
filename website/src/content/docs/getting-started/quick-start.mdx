@@ -90,8 +90,16 @@ That's it. `autoMigrate: true` handles schema setup automatically, no CLI
 or migration step required to get started.
 
 <Aside type="tip">
-  Remove `autoMigrate: true` before going to production and run migrations
-  explicitly with `npx @stratum-hq/cli migrate`.
+  For production, remove `autoMigrate: true` and run Stratum's migrations as a
+  deploy step with `migrate({ pool: adminPool })` from `@stratum-hq/lib`. Give
+  Stratum its own admin login as `adminPool` and connect your application with a
+  login that row-level security applies to: `new Stratum({ adminPool, pool })`.
+  [Hardening: separate admin and app roles](/guides/hardening-roles/) sets this
+  up. This example connects as the Docker superuser with `pool` only, so Stratum
+  logs a one-time warning that `adminPool` is missing.
+
+  `npx @stratum-hq/cli migrate` is a different command. It adds `tenant_id` and
+  row-level security to your own tables, and it does not create Stratum's tables.
 </Aside>
 
 ## What's next

@@ -28,8 +28,11 @@ describe("unmatched routes", () => {
 
   it("returns 404 for an unknown path with an authenticated admin key", async () => {
     setupAdminApiKey(stratum);
-    const res = await app.inject({ method: "GET", url: "/api/v1/does-not-exist", headers: authHeaders() });
+    const res = await app.inject({ method: "GET", url: "/api/v1/does-not-exist?x=1", headers: authHeaders() });
     expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({
+      error: { code: "NOT_FOUND", message: "Route GET /api/v1/does-not-exist not found" },
+    });
   });
 
   it("returns 404 for an unknown path with an authenticated read-only key", async () => {
@@ -37,11 +40,13 @@ describe("unmatched routes", () => {
     for (const method of ["GET", "POST", "DELETE"] as const) {
       const res = await app.inject({ method, url: "/api/v1/tenants/x/nothing-here", headers: authHeaders() });
       expect(res.statusCode).toBe(404);
+      expect(res.json().error.code).toBe("NOT_FOUND");
     }
   });
 
   it("returns 401 for an unknown path without credentials", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/does-not-exist" });
     expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("UNAUTHORIZED");
   });
 });

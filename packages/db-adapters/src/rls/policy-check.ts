@@ -22,6 +22,21 @@
  * either order, with casts, inside an AND with other conditions, and ORed with
  * Stratum's administrative bypass. Anything else is reported as not filtering
  * by tenant, so an unusual but correct policy is refused, never accepted.
+ *
+ * It recognises the legacy bypass of migration 032, `(SELECT
+ * stratum_legacy_bypass()) OR <tenant match>`, like the older direct check of
+ * app.bypass_rls. A policy named stratum_control_plane counts as isolating
+ * only when it applies to exactly the control role (default stratum_control):
+ * that role is the library's own, and a session cannot join it by setting
+ * anything. tablePolicyWarnings flags every policy that still checks
+ * app.bypass_rls directly; 2.0 will refuse those.
+ *
+ * It also recognises the subtree read of migration 031: the
+ * stratum_subtree_tenant_ids() match ANDed with the app.tenant_scope =
+ * 'subtree' check. That form counts only in the USING clause of a SELECT
+ * policy. In any other policy, the same clause would let UPDATE or DELETE
+ * reach a descendant's rows, and in WITH CHECK it would let a write name a
+ * descendant.
  */
 
 /** One row of pg_policies. */
@@ -41,6 +56,16 @@ export interface PolicyRow {
 const TENANT_SETTING = "app.current_tenant_id";
 /** The setting Stratum's own policies admit for administrative access. */
 const BYPASS_SETTING = "app.bypass_rls";
+/** The setting that opts a session in to the subtree read scope (migration 031). */
+const SCOPE_SETTING = "app.tenant_scope";
+/** The function that returns the current tenant and its descendants (migration 031). */
+const SUBTREE_FUNCTION = "stratum_subtree_tenant_ids";
+/** The function of migration 032 that gates the legacy bypass behind stratum_security. */
+const LEGACY_FUNCTION = "stratum_legacy_bypass";
+/** The policy of migration 032 that admits the control role. */
+const CONTROL_POLICY = "stratum_control_plane";
+/** The default control role of migration 032. */
+export const DEFAULT_CONTROL_ROLE = "stratum_control";
 
 /** Drops whitespace and casts, lower-cases, and keeps string literals intact. */
 function normalize(expr: string): string {
@@ -129,23 +154,71 @@ const TENANT_MATCH = new RegExp(`^(?:tenant_id=${CURRENT_TENANT}|${CURRENT_TENAN
 const BYPASS_MATCH = new RegExp(
   `^current_setting'${BYPASS_SETTING.replace(".", "\\.")}'(?:,(?:true|false))?='on'$`,
 );
+const SCOPE_MATCH = new RegExp(
+  `^current_setting'${SCOPE_SETTING.replace(".", "\\.")}'(?:,(?:true|false))?='subtree'$`,
+);
+/**
+ * tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]) after
+ * normalize and flatten. PostgreSQL qualifies the function with its schema
+ * when that schema is not on the search path of the reading session. Only the
+ * schema that holds Stratum's tenants table, where migration 031 creates the
+ * function, may qualify it: a function of the same name in another schema
+ * could return any ids.
+ */
+function subtreeMatch(functionSchema: string | undefined): RegExp {
+  const qualifier =
+    functionSchema === undefined ? "" : `(?:${escapeRegExp(quoteIdent(functionSchema).toLowerCase())}\\.)?`;
+  return new RegExp(`^tenant_id=anyselect${qualifier}${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`);
+}
 
-/** True when the normalized expression only admits rows of the current tenant. */
-function filtersByTenant(expr: string): boolean {
+/**
+ * (SELECT stratum_legacy_bypass()) after normalize and flatten, with the same
+ * rule for a schema qualifier as the subtree function.
+ */
+function legacyMatch(functionSchema: string | undefined): RegExp {
+  const qualifier =
+    functionSchema === undefined ? "" : `(?:${escapeRegExp(quoteIdent(functionSchema).toLowerCase())}\\.)?`;
+  return new RegExp(`^select${qualifier}${LEGACY_FUNCTION}(?:as${LEGACY_FUNCTION})?$`);
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The identifier as PostgreSQL prints it: quoted unless it is a plain lowercase name. */
+function quoteIdent(name: string): string {
+  return /^[a-z_][a-z0-9_$]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+}
+
+/**
+ * True when the normalized expression only admits rows of the current tenant.
+ * `subtree` matches the subtree function call that may appear in the
+ * expression, or is null where the subtree read is not allowed.
+ */
+function filtersByTenant(expr: string, subtree: RegExp | null, legacy: RegExp): boolean {
   const e = stripOuterParens(expr);
 
   const disjuncts = splitTopLevel(e, "or");
   if (disjuncts.length > 1) {
-    // Every branch must be safe; Stratum's administrative bypass is one of them.
+    // Every branch must be safe; Stratum's administrative bypass, direct or
+    // through the legacy function of migration 032, is one of them.
+    const isBypass = (d: string) => BYPASS_MATCH.test(flatten(d)) || legacy.test(flatten(d));
     return (
-      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d)) &&
-      disjuncts.some((d) => !BYPASS_MATCH.test(flatten(d)))
+      disjuncts.every((d) => isBypass(d) || filtersByTenant(d, subtree, legacy)) &&
+      disjuncts.some((d) => !isBypass(d))
     );
   }
 
   const conjuncts = splitTopLevel(e, "and");
   if (conjuncts.length > 1) {
-    return conjuncts.some((c) => filtersByTenant(c));
+    if (conjuncts.some((c) => filtersByTenant(c, subtree, legacy))) return true;
+    // The subtree read of migration 031: the descendants of the current
+    // tenant, only when the session opted in with app.tenant_scope.
+    return (
+      subtree !== null &&
+      conjuncts.some((c) => SCOPE_MATCH.test(flatten(c))) &&
+      conjuncts.some((c) => subtree.test(flatten(c)))
+    );
   }
 
   return TENANT_MATCH.test(flatten(e));
@@ -157,21 +230,58 @@ function oneLine(expr: string | null): string {
 }
 
 /** Why one permissive policy lets rows of other tenants through, or null. */
-function permissiveIssue(p: PolicyRow): string | null {
+function permissiveIssue(
+  p: Pick<PolicyRow, "policyname" | "cmd" | "qual" | "with_check">,
+  subtree: RegExp,
+  legacy: RegExp,
+): string | null {
   const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
   // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
   // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
   if (p.cmd !== "INSERT") {
-    if (p.qual === null || !filtersByTenant(normalize(p.qual))) {
+    // Only a SELECT policy may widen to the subtree: in any other policy the
+    // same USING clause would let UPDATE or DELETE reach a descendant's rows.
+    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT" ? subtree : null, legacy)) {
       return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
     }
   }
   if (p.cmd === "INSERT" || p.with_check !== null) {
-    if (p.with_check === null || !filtersByTenant(normalize(p.with_check))) {
+    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), null, legacy)) {
       return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
     }
   }
   return null;
+}
+
+/**
+ * Why one permissive policy lets rows of other tenants through, or null when
+ * it filters by tenant for every command it covers. Shared with the policy
+ * checks of `@stratum-hq/cli`, so both apply the same expression rules.
+ *
+ * @param functionSchema - As for {@link tablePolicyIssues}.
+ */
+export function permissivePolicyIssue(
+  p: Pick<PolicyRow, "policyname" | "cmd" | "qual" | "with_check">,
+  functionSchema?: string,
+): string | null {
+  return permissiveIssue(p, subtreeMatch(functionSchema), legacyMatch(functionSchema));
+}
+
+/**
+ * True for the stratum_control_plane policy of migration 032 when it is
+ * permissive and applies to exactly `controlRole`. Only that role's members
+ * can use it, whatever it admits.
+ */
+export function isControlPlanePolicy(
+  p: Pick<PolicyRow, "policyname" | "permissive"> & { roles?: string[] },
+  controlRole: string = DEFAULT_CONTROL_ROLE,
+): boolean {
+  return (
+    p.policyname === CONTROL_POLICY &&
+    p.permissive === "PERMISSIVE" &&
+    p.roles?.length === 1 &&
+    p.roles[0] === controlRole
+  );
 }
 
 /** Why the tenant_isolation policy is not the shape createPolicy generates, or null. */
@@ -192,10 +302,27 @@ function tenantIsolationShapeIssue(p: PolicyRow): string | null {
 /**
  * Every reason the table's policies do not isolate it by tenant. Empty when
  * they do, or when the table has no policies.
+ *
+ * @param functionSchema - The schema of Stratum's tenants table, the only
+ *   schema that may qualify stratum_subtree_tenant_ids() and
+ *   stratum_legacy_bypass(). When it is undefined, only the unqualified
+ *   functions count.
+ * @param controlRole - The control role of migration 032. A policy named
+ *   stratum_control_plane that applies to exactly this role is accepted.
  */
-export function tablePolicyIssues(policies: PolicyRow[]): string[] {
+export function tablePolicyIssues(
+  policies: PolicyRow[],
+  functionSchema?: string,
+  controlRole: string = DEFAULT_CONTROL_ROLE,
+): string[] {
+  const subtree = subtreeMatch(functionSchema);
+  const legacy = legacyMatch(functionSchema);
   const issues: string[] = [];
   for (const p of policies) {
+    if (isControlPlanePolicy(p, controlRole)) {
+      // Only the library's own role can use it, whatever it admits.
+      continue;
+    }
     if (p.policyname === "tenant_isolation") {
       const shape = tenantIsolationShapeIssue(p);
       if (shape !== null) {
@@ -204,9 +331,34 @@ export function tablePolicyIssues(policies: PolicyRow[]): string[] {
       }
     }
     if (p.permissive === "PERMISSIVE") {
-      const issue = permissiveIssue(p);
+      const issue = permissiveIssue(p, subtree, legacy);
       if (issue !== null) issues.push(issue);
     }
   }
   return issues;
 }
+
+const DIRECT_BYPASS = `current_setting'${BYPASS_SETTING.replace(".", "\\.")}'`;
+
+/**
+ * The policies that admit the app.bypass_rls setting directly. A session that
+ * can run SQL can set it, so such a policy holds only against a client that
+ * never sets it. The legacy form of migration 032 is not flagged: it admits
+ * the setting only while the stratum_security switch is on, which only the
+ * control role can change.
+ */
+export function tablePolicyWarnings(policies: PolicyRow[]): string[] {
+  const direct = new RegExp(DIRECT_BYPASS);
+  const warnings: string[] = [];
+  for (const p of policies) {
+    const exprs = [p.qual, p.with_check].filter((e): e is string => e !== null);
+    if (exprs.some((e) => direct.test(flatten(normalize(e))))) {
+      warnings.push(
+        `policy "${oneLine(p.policyname)}" admits app.bypass_rls directly. ` +
+          `Use the control role of migration 032, which PostgreSQL role membership decides, instead.`,
+      );
+    }
+  }
+  return warnings;
+}
+
