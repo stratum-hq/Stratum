@@ -68,6 +68,20 @@ describe("DatabasePoolManager against a real PostgreSQL server", () => {
     expect(r.rows[0].db).toBe(`stratum_tenant_${slugA}`);
   });
 
+  it("connects each tenant to its own database when the base config is a connection string", async () => {
+    manager = new DatabasePoolManager({ baseConnectionConfig: { connectionString: url.toString(), max: 2 } });
+    const seen: string[] = [];
+    for (const slug of [slugA, slugB]) {
+      const pool = await manager.getPool(slug);
+      try {
+        seen.push((await pool.query<{ db: string }>("SELECT current_database() AS db")).rows[0].db);
+      } finally {
+        manager.releasePool(slug);
+      }
+    }
+    expect(seen).toEqual([`stratum_tenant_${slugA}`, `stratum_tenant_${slugB}`]);
+  });
+
   it("keeps a held pool usable when another tenant needs the only slot", async () => {
     manager = new DatabasePoolManager({ baseConnectionConfig, maxPools: 1 });
     const held = await manager.getPool(slugA);

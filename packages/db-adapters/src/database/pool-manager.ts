@@ -2,7 +2,11 @@ import pg from "pg";
 import { getDatabaseName } from "./manager.js";
 
 export interface DatabasePoolManagerOptions {
-  /** Template connection config (host, port, user, password, ssl, etc.). The database name is overridden per tenant. */
+  /**
+   * Template connection config (host, port, user, password, ssl, etc.). The
+   * database name is overridden per tenant, also in a `connectionString`. A
+   * `connectionString` that is not a URL or a socket path is refused.
+   */
   baseConnectionConfig: pg.PoolConfig;
   /** Maximum number of tenant pools to keep open simultaneously. Default: 50. */
   maxPools?: number;
@@ -40,6 +44,11 @@ export class DatabasePoolManager {
 
   constructor(options: DatabasePoolManagerOptions) {
     this.baseConfig = options.baseConnectionConfig;
+    // Refuse a connection string the manager cannot set a database name in
+    // now, not on a tenant's first request.
+    if (this.baseConfig.connectionString !== undefined) {
+      withDatabase(this.baseConfig.connectionString, "postgres");
+    }
     this.maxPools = options.maxPools ?? 50;
     this.idleTimeoutMs = options.idleTimeoutMs ?? 30_000;
   }
@@ -65,6 +74,9 @@ export class DatabasePoolManager {
       entry = {
         pool: new pg.Pool({
           ...this.baseConfig,
+          ...(this.baseConfig.connectionString !== undefined && {
+            connectionString: withDatabase(this.baseConfig.connectionString, dbName),
+          }),
           database: dbName,
           idleTimeoutMillis: this.idleTimeoutMs,
         }),
@@ -198,4 +210,32 @@ export class DatabasePoolManager {
     this.pools.delete(oldestKey);
     return entry.pool;
   }
+}
+
+/**
+ * Returns the connection string with its database name replaced. pg reads the
+ * database name from a connection string before the `database` option, so
+ * without this every tenant would reach the database of the base string.
+ * Accepts the forms pg reads a database name from: a URL, a `socket:` URL
+ * (its `db` parameter), and a socket path followed by a database name.
+ */
+function withDatabase(connectionString: string, database: string): string {
+  if (connectionString.startsWith("/")) {
+    return `${connectionString.split(" ")[0]} ${database}`;
+  }
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error(
+      "DatabasePoolManager: baseConnectionConfig.connectionString must be a URL or a socket path, " +
+        "so that the manager can set each tenant's database name in it",
+    );
+  }
+  if (url.protocol === "socket:") {
+    url.searchParams.set("db", database);
+  } else {
+    url.pathname = `/${database}`;
+  }
+  return url.toString();
 }
