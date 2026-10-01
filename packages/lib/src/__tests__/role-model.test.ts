@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { bootstrapRolesSql, APP_READ_TABLES } from "../role-model.js";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { bootstrapRolesSql, APP_READ_TABLES, STRATUM_FUNCTION_BODY_MD5 } from "../role-model.js";
 import { migrationSql, STRATUM_CONTROL_ROLE } from "../migration-sql.js";
 import * as lib from "../index.js";
 
@@ -40,6 +43,38 @@ describe("bootstrapRolesSql", () => {
   it("is exported from the package entry point with the control role constant", () => {
     expect(lib.bootstrapRolesSql).toBe(bootstrapRolesSql);
     expect(lib.STRATUM_CONTROL_ROLE).toBe("stratum_control");
+  });
+});
+
+/** The body of the last plain `CREATE OR REPLACE FUNCTION <name>(` in the migrations, in file order. */
+function lastBody(name: string): string {
+  const dir = path.resolve(__dirname, "../migrations");
+  let body: string | undefined;
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+    const sql = fs.readFileSync(path.join(dir, file), "utf8");
+    for (const match of sql.matchAll(new RegExp(`CREATE OR REPLACE FUNCTION ${name}\\(`, "g"))) {
+      const rest = sql.slice(match.index);
+      const tag = rest.match(/\$(\w*)\$/);
+      if (!tag || tag.index === undefined) continue;
+      const start = tag.index + tag[0].length;
+      body = rest.slice(start, rest.indexOf(tag[0], start));
+    }
+  }
+  if (body === undefined) throw new Error(`no definition of ${name} in the migrations`);
+  return body;
+}
+
+describe("the integrity check of bootstrapRolesSql", () => {
+  it.each(Object.keys(STRATUM_FUNCTION_BODY_MD5))("pins the body of %s that the migrations define last", (name) => {
+    expect(crypto.createHash("md5").update(lastBody(name)).digest("hex")).toBe(STRATUM_FUNCTION_BODY_MD5[name]);
+  });
+
+  it("runs before every other statement of the bootstrap SQL", () => {
+    const sql = bootstrapRolesSql({ adminRole: "acme_admin", appRole: "acme_app" });
+    const check = sql.indexOf("carry objects the Stratum migrations did not create");
+    expect(check).toBeGreaterThan(-1);
+    expect(check).toBeLessThan(sql.indexOf("CREATE ROLE"));
+    expect(check).toBeLessThan(sql.indexOf("stratum_apply_control_role('"));
   });
 });
 

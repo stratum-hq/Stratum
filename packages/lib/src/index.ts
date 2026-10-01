@@ -7,7 +7,14 @@ export {
 } from "./migrate-schemas.js";
 export { STRATUM_TABLES } from "./stratum-tables.js";
 export { STRATUM_CONTROL_ROLE } from "./migration-sql.js";
-export { bootstrapRolesSql, APP_READ_TABLES, type BootstrapRolesOptions } from "./role-model.js";
+export {
+  bootstrapRolesSql,
+  inspectRoleModel,
+  APP_READ_TABLES,
+  type BootstrapRolesOptions,
+  type RoleModelReport,
+  type InspectRoleModelOptions,
+} from "./role-model.js";
 export { withClient, withTransaction } from "./pool-helpers.js";
 export {
   runScopedJob,
