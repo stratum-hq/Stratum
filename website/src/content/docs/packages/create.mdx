@@ -83,6 +83,14 @@ Every combination in the table works with every framework: `express`, `fastify`,
 
 A preset generates the ORM setup with Stratum's adapter for that database, a Docker Compose file for the database, and the framework's server with the same verified-JWT tenant resolution as the templates. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
 
+The Prisma presets use Prisma 7, which needs Node.js 20.19, 22.12, or 24 and later:
+
+- `prisma/schema.prisma` uses the `prisma-client` generator. `npx prisma generate` writes the client to `src/generated/prisma`, and the app imports it from there.
+- `prisma.config.ts` holds the connection URL, which it reads from `DATABASE_URL`. The Prisma CLI does not read `.env`. The generated `db:push` and `tenant:provision` scripts set `DATABASE_URL` to the superuser in `DATABASE_SUPERUSER_URL` before they run `prisma db push`.
+- Each Prisma client connects through `PrismaPg` from `@prisma/adapter-pg`. The schema and database presets give `SchemaPrismaAdapter` and `DatabasePrismaAdapter` the option `{ driverAdapter: PrismaPg }`, because Prisma 7 ignores a `schema` parameter in the connection URL.
+
+A project that an earlier release generated keeps its Prisma version. To move it to Prisma 7, follow the [Prisma 7 upgrade guide](https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7).
+
 An invalid preset, or a combination the table does not allow, exits with an error before anything is written, so no project directory is left behind.
 
 ### Tenant isolation on PostgreSQL

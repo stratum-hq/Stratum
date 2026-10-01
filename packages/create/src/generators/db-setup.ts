@@ -34,30 +34,36 @@ function generatePrismaSetup(preset: StackPreset): DbSetupFile[] {
     {
       filename: "prisma/schema.prisma",
       content: `// Prisma schema for Stratum multi-tenancy
+// prisma generate writes the client to src/generated/prisma. The app imports
+// it from there, not from @prisma/client.
 generator client {
-  provider = "prisma-client-js"${ownSchema ? `
-  previewFeatures = ["multiSchema"]` : ""}
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
+// The connection URL is in prisma.config.ts.
 datasource db {
-  provider = "${provider}"
-  url      = env("DATABASE_URL")${ownSchema ? `
+  provider = "${provider}"${ownSchema ? `
   schemas  = ["${PRISMA_APP_SCHEMA}"]` : ""}
 }
 
 ${isolated ? prismaIsolatedModels(preset.strategy) : prismaSharedModels(ownSchema)}`,
     },
+    { filename: "prisma.config.ts", content: PRISMA_CONFIG },
   ];
 
   if (preset.database !== "postgres" || preset.strategy === "rls") {
     files.push({
       filename: "src/stratum-prisma.ts",
       content: `// Prisma client with Stratum tenant-scoped queries
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { prismaWithTenant } from "@stratum-hq/db-adapters";
+import { PrismaClient } from "./generated/prisma/client.js";
 
-const prisma = new PrismaClient();
+// Prisma 7 connects through a driver adapter. The models name their schema
+// with @@schema, so the driver adapter needs no schema option.
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -141,6 +147,27 @@ function isIsolatedPostgres(preset: StackPreset): boolean {
   return preset.database === "postgres" && (preset.strategy === "schema" || preset.strategy === "database");
 }
 
+/**
+ * prisma.config.ts: Prisma 7 reads the connection URL from this file, not
+ * from prisma/schema.prisma.
+ */
+const PRISMA_CONFIG = `// Settings of the Prisma CLI. Prisma 7 reads the connection URL here, not
+// from prisma/schema.prisma.
+//
+// The Prisma CLI does not read .env. The npm scripts set DATABASE_URL to the
+// superuser in DATABASE_SUPERUSER_URL before they run prisma db push. If you
+// run prisma db push yourself, set DATABASE_URL to that superuser first.
+import { defineConfig } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  datasource: {
+    // prisma generate needs no database, so DATABASE_URL can be unset for it.
+    url: process.env.DATABASE_URL,
+  },
+});
+`;
+
 const PRISMA_RLS_SQL = `-- Row-level security for the tenant-scoped tables of prisma/schema.prisma.
 -- npm run db:push applies this file as the superuser after prisma db push.
 -- Add the same statements for every tenant-scoped table you add: a table
@@ -166,7 +193,7 @@ import pg from "pg";
 const superuserUrl = process.env.DATABASE_SUPERUSER_URL;
 if (!superuserUrl) throw new Error("DATABASE_SUPERUSER_URL must be set (see .env.example)");
 
-execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
+execFileSync("npx", ["prisma", "db", "push"], {
   stdio: "inherit",
   env: { ...process.env, DATABASE_URL: superuserUrl },
 });
@@ -235,13 +262,16 @@ function prismaIsolatedClient(strategy: string): string {
     return `// Prisma with Stratum schema-per-tenant isolation: each tenant's tables are in
 // its own schema, tenant_{slug}, and each tenant gets a Prisma client bound to
 // that schema.
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { SchemaPrismaAdapter } from "@stratum-hq/db-adapters";
+import { PrismaClient } from "./generated/prisma/client.js";
 import { tenantSlug } from "./stratum-tenant.js";
 
 // Connects as the app role in DATABASE_URL. Prisma schema-qualifies every
-// table, so the adapter sets the schema in each tenant's datasource URL.
-export const adapter = new SchemaPrismaAdapter(PrismaClient, process.env.DATABASE_URL!);
+// table, so the adapter gives each tenant's PrismaPg driver adapter the
+// tenant's schema. Prisma 7 ignores a schema parameter in the URL, so
+// without the driver adapter every tenant would use the same schema.
+export const adapter = new SchemaPrismaAdapter(PrismaClient, process.env.DATABASE_URL!, { driverAdapter: PrismaPg });
 
 /** The Prisma client of the tenant's schema. Pass the tenant ID of a verified token. */
 export async function getTenantPrisma(tenantId: string): Promise<PrismaClient> {
@@ -256,14 +286,17 @@ export async function getTenantPrisma(tenantId: string): Promise<PrismaClient> {
   return `// Prisma with Stratum database-per-tenant isolation: each tenant's tables are
 // in its own database, stratum_tenant_{slug}, and each tenant gets a Prisma
 // client bound to that database.
-import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { DatabasePoolManager, DatabasePrismaAdapter } from "@stratum-hq/db-adapters";
+import { PrismaClient } from "./generated/prisma/client.js";
 import { tenantSlug } from "./stratum-tenant.js";
 
 ${DATABASE_POOL_MANAGER}
 
 // Connects as the app role in DATABASE_URL, with the tenant's database name.
-export const adapter = new DatabasePrismaAdapter(poolManager, PrismaClient, process.env.DATABASE_URL!);
+// Prisma 7 connects through a driver adapter, so the adapter gives each
+// tenant client a PrismaPg driver adapter with the tenant's database URL.
+export const adapter = new DatabasePrismaAdapter(poolManager, PrismaClient, process.env.DATABASE_URL!, { driverAdapter: PrismaPg });
 
 /** The Prisma client of the tenant's database. Pass the tenant ID of a verified token. */
 export async function getTenantPrisma(tenantId: string): Promise<PrismaClient> {
@@ -378,7 +411,8 @@ ${indent}await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT
 ${indent}await client.query(\`ALTER DEFAULT PRIVILEGES IN SCHEMA ${target} GRANT USAGE, SELECT ON SEQUENCES TO \${appRole}\`);`;
 
   const pushPrisma = (urlVar: string, indent: string) => `${indent}// Push prisma/schema.prisma as the superuser, which then owns the tables.
-${indent}execFileSync("npx", ["prisma", "db", "push", "--skip-generate"], {
+${indent}// prisma.config.ts reads the URL from DATABASE_URL.
+${indent}execFileSync("npx", ["prisma", "db", "push"], {
 ${indent}  stdio: "inherit",
 ${indent}  env: { ...process.env, DATABASE_URL: ${urlVar} },
 ${indent}});`;
@@ -403,6 +437,8 @@ ${grants("${schema}", "  ")}${
   throw err;
 }
 
+// prisma db push creates the tables in the schema that this URL parameter
+// names. The Prisma 7 client ignores the parameter, but the Prisma CLI does not.
 const schemaUrl = new URL(superuserUrl);
 schemaUrl.searchParams.set("schema", schema);
 try {

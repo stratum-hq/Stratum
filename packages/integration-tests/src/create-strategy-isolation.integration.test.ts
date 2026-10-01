@@ -258,7 +258,7 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
         // the superuser that runs migrations.
         tenants = [FIXED_A, FIXED_B];
         if (orm === "prisma") {
-          run("npx", ["prisma", "db", "push", "--skip-generate"], dir, { ...CHILD_ENV, DATABASE_URL: urls.boot });
+          run("npx", ["prisma", "db", "push"], dir, { ...CHILD_ENV, DATABASE_URL: urls.boot });
         } else {
           const c = new pg.Client({ connectionString: urls.boot });
           await c.connect();

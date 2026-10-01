@@ -80,6 +80,8 @@ npx prisma generate
 npm run db:push
 \`\`\`
 
+\`npx prisma generate\` writes the Prisma 7 client to \`src/generated/prisma\`, which \`src/stratum-prisma.ts\` imports. Run it again after each change to \`prisma/schema.prisma\`. The Prisma CLI reads the connection URL from \`prisma.config.ts\`, which reads \`DATABASE_URL\`. The CLI does not read \`.env\`.
+
 \`npm run db:push\` runs \`prisma db push\` as the superuser in \`DATABASE_SUPERUSER_URL\`, then applies \`prisma/rls.sql\`, the row-level security policy of each tenant-scoped table. The app role cannot create tables, and because it does not own them, their policies apply to it. Add a policy to \`prisma/rls.sql\` for every tenant-scoped model you add: a table without one is not filtered by tenant.
 `;
     }
@@ -128,13 +130,13 @@ function getProvisioningNote(preset: StackPreset): string {
         schema
           ? "`DATABASE_SUPERUSER_URL` plus `?schema=tenant_{slug}`"
           : "`DATABASE_SUPERUSER_URL` with the database name `stratum_tenant_{slug}`"
-      }: \`npx prisma db push --skip-generate\`.`
+      }: \`npx prisma db push\`. \`prisma.config.ts\` reads the URL from \`DATABASE_URL\`, and the Prisma CLI does not read \`.env\`.`
     : `After you change \`sql/tenant.sql\`, apply the change to each tenant's ${where} as the superuser.`;
   const helper = prisma
     ? "`getTenantPrisma(tenantId)` in `src/stratum-prisma.ts` returns the Prisma client of the tenant's own " + where
     : "`tenantQuery(tenantId, sql, params)` and `withTenantTransaction(tenantId, fn)` in `src/stratum-db.ts` run queries in the tenant's own " + where;
 
-  return `${prisma ? "\n### 3b. Generate the Prisma client\n\n```bash\nnpx prisma generate\n```\n" : ""}
+  return `${prisma ? "\n### 3b. Generate the Prisma client\n\n```bash\nnpx prisma generate\n```\n\n`npx prisma generate` writes the Prisma 7 client to `src/generated/prisma`, which `src/stratum-prisma.ts` imports. Run it again after each change to `prisma/schema.prisma`. The Prisma CLI reads the connection URL from `prisma.config.ts`.\n" : ""}
 ### ${prisma ? "3c" : "3b"}. Provision each tenant
 
 Each tenant's tables are in its own ${place}. Tenants share no table, so the tables need no tenant column and use no row-level security.

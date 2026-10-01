@@ -59,6 +59,8 @@ npx @stratum-hq/create my-app --preset mysql-shared-knex-express
 
 Every combination in the table works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none`. An invalid preset exits with an error before anything is written. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
 
+The Prisma presets use Prisma 7, which needs Node.js 20.19, 22.12, or 24 and later. `npx prisma generate` writes the client to `src/generated/prisma`. `prisma.config.ts` reads the connection URL from `DATABASE_URL`. Each client connects through `PrismaPg` from `@prisma/adapter-pg`, and the schema and database presets pass `{ driverAdapter: PrismaPg }` to their adapter. A project that an earlier release generated keeps its Prisma version: see the [Prisma 7 upgrade guide](https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7).
+
 ### Tenant isolation on PostgreSQL
 
 - **rls**: all tenants share the tables. Every tenant-scoped table has a `tenant_id` column and a `tenant_isolation` row-level security policy, and the generated helper sets `app.current_tenant_id` for each tenant query. A table without a policy is not filtered by tenant. The preset creates an example table, `notes`, with its policy: in `init.sql` (pg, Knex, Sequelize), in `src/schema.ts` (Drizzle), or in `prisma/rls.sql`, which `npm run db:push` applies after `prisma db push` (Prisma). The Prisma models are in their own schema, `app`, so `prisma db push` never drops or alters Stratum's tables in `public`.
