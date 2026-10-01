@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { init } from "../init.js";
 import { select, confirm } from "../../utils/prompt.js";
+import { expectEnvSecrets } from "./env-assertions.js";
 
 vi.mock("../../utils/prompt.js", () => ({
   select: vi.fn(),
@@ -121,4 +122,30 @@ describe("init", () => {
     expect(output()).toContain("Cancelled");
     expect(fs.readdirSync(outDir)).toHaveLength(0);
   });
+
+  it("offers a default for each choice, which Enter accepts", async () => {
+    (select as Mock).mockImplementation((_q: string, _opts: string[], def?: number) => Promise.resolve(def));
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    for (const call of (select as Mock).mock.calls) {
+      expect(typeof call[2]).toBe("number");
+    }
+    expect((select as Mock).mock.calls).toHaveLength(3);
+    // Defaults: framework Other / None, direct library, pg.
+    expect(read("stratum.config.ts")).toContain('integration: "lib"');
+    expect(exists("stratum-setup.ts")).toBe(true);
+    expect(exists("stratum-db.ts")).toBe(true);
+  });
+
+  it("writes the encryption, salt and HMAC secrets and the admin login to .env.stratum", async () => {
+    (select as Mock).mockResolvedValueOnce(0).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    expectEnvSecrets(read(".env.stratum"));
+  });
 });
+

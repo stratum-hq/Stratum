@@ -279,6 +279,32 @@ describe("migrate", () => {
     expect(pool.end).toHaveBeenCalledTimes(1);
   });
 
+  it("--scan suggests stratum migrate only for tables that migrate accepts", async () => {
+    const { pool } = makeFakePool();
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([
+      { table_name: "orders", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+      {
+        table_name: "invoices",
+        has_tenant_id: true,
+        rls_enabled: true,
+        rls_forced: true,
+        has_policy: false,
+        policy_issue: 'policy "open" (ALL) USING (true) does not filter by tenant',
+      },
+      { table_name: "Order Lines", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+    ] satisfies TableInfo[]);
+
+    await migrate([], { scan: true });
+
+    const out = logSpy.mock.calls.flat().join("\n");
+    expect(out).toContain("stratum migrate orders");
+    expect(out).not.toContain("stratum migrate invoices");
+    expect(out).not.toContain("stratum migrate Order Lines");
+    expect(out).toContain("stratum scan --generate");
+    expect(out).toMatch(/Order Lines/);
+  });
+
   it("--all short-circuits when every table is already migrated", async () => {
     const { pool, client } = makeFakePool();
     (connectDb as Mock).mockResolvedValue(pool);
@@ -313,6 +339,22 @@ describe("migrate", () => {
     expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
     expect(queries.join("\n")).not.toMatch(/ON invoices/);
     expect(pool.end).toHaveBeenCalledTimes(1);
+  });
+
+  it("--all skips, and names, tables whose names migrate does not take", async () => {
+    const { pool, queries } = makeFakePool();
+    (connectDb as Mock).mockResolvedValue(pool);
+    (confirm as Mock).mockResolvedValue(true);
+    (scanTables as Mock).mockResolvedValue([
+      { table_name: "orders", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+      { table_name: "Order Lines", has_tenant_id: false, rls_enabled: false, rls_forced: false, has_policy: false },
+    ] satisfies TableInfo[]);
+
+    await migrate([], { all: true });
+
+    expect(queries.join("\n")).toMatch(/CREATE POLICY tenant_isolation ON orders/);
+    expect(queries.join("\n")).not.toMatch(/Order Lines/);
+    expect(logSpy.mock.calls.flat().join("\n")).toMatch(/Order Lines/);
   });
 
   it("prints usage and exits 1 when given neither a table nor a mode flag", async () => {

@@ -3,6 +3,7 @@ import * as path from "path";
 import crypto from "node:crypto";
 import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
+import { databaseEnvLines, secretEnvLines } from "../utils/env-template.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
 import { nextjsAppRoot, nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
 
@@ -54,11 +55,14 @@ function detectReact(cwd: string): boolean {
   }
 }
 
+// The default framework answer when none is detected: the generic setup.
+const OTHER_FRAMEWORK = 5;
+
 export async function init(flags: Record<string, string | boolean>): Promise<void> {
   const cwd = process.cwd();
 
   log.heading("Stratum Init");
-  log.info("Setting up Stratum in your existing project.\n");
+  log.info("Setting up Stratum in your existing project. Press Enter to accept a default.\n");
 
   // 1. Detect or ask framework
   const detected = detectFramework(cwd);
@@ -71,13 +75,13 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
     } else {
       const idx = await select("Select your framework:", [
         "Express", "Fastify", "Next.js", "Hono", "Koa", "Other / None",
-      ]);
+      ], OTHER_FRAMEWORK);
       framework = ["express", "fastify", "nextjs", "hono", "koa", "other"][idx];
     }
   } else {
     const idx = await select("Select your framework:", [
       "Express", "Fastify", "Next.js", "Hono", "Koa", "Other / None",
-    ]);
+    ], OTHER_FRAMEWORK);
     framework = ["express", "fastify", "nextjs", "hono", "koa", "other"][idx];
   }
 
@@ -85,7 +89,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
   const pathIdx = await select("Integration path:", [
     "Direct library (@stratum-hq/lib): in-process, max performance",
     "HTTP API + SDK (@stratum-hq/sdk): service separation, polyglot",
-  ]);
+  ], 0);
   const integrationPath: "lib" | "sdk" = pathIdx === 0 ? "lib" : "sdk";
 
   // 3. Database / ORM
@@ -100,7 +104,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
       "Prisma",
       "Drizzle",
       "Other",
-    ]);
+    ], 0);
     orm = ["pg", "prisma", "drizzle", "other"][ormIdx];
   }
 
@@ -200,10 +204,12 @@ function generateEnvFile(outDir: string, _info: ProjectInfo, force: boolean): vo
   void _info;
   const jwtSecret = crypto.randomBytes(32).toString("base64url");
   const content = `# Stratum Configuration
-# Application role (NOSUPERUSER NOBYPASSRLS), so row-level security applies.
-DATABASE_URL=postgres://stratum_app:stratum_dev@localhost:5432/stratum
+# Holds secrets: keep this file out of version control.
+${databaseEnvLines()}
 JWT_SECRET=${jwtSecret}
 NODE_ENV=development
+
+${secretEnvLines()}
 
 # Control Plane (if using @stratum-hq/sdk)
 STRATUM_URL=http://localhost:3001

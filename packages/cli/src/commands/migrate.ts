@@ -10,9 +10,16 @@ import {
 import { confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 
+// The SQL below uses table names unquoted, which PostgreSQL folds to lower
+// case, so only lowercase names name the table they came from.
+const TABLE_NAME = /^[a-z_][a-z0-9_]*$/;
+
 function validateTableName(name: string): string {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-    throw new Error(`Invalid table name: "${name}". Only letters, digits, and underscores allowed.`);
+  if (!TABLE_NAME.test(name)) {
+    throw new Error(
+      `Invalid table name: "${name}". Only lowercase letters, digits, and underscores allowed; ` +
+        `"stratum scan --generate" writes SQL for other names.`,
+    );
   }
   return name;
 }
@@ -245,7 +252,9 @@ export async function migrate(
           t.rls_enabled ? "yes" : "no",
           t.rls_forced ? "yes" : "no",
           t.has_policy ? "yes" : t.policy_issue ? "no filter" : "no",
-          ready ? "\x1b[32mready\x1b[0m" : "\x1b[33mneeds migration\x1b[0m",
+          ready
+            ? `${log.ansi("\x1b[32m")}ready${log.ansi("\x1b[0m")}`
+            : `${log.ansi("\x1b[33m")}needs migration${log.ansi("\x1b[0m")}`,
         ];
       });
       log.table([header, ...rows]);
@@ -255,9 +264,20 @@ export async function migrate(
         (t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy,
       );
       if (unmigrated.length > 0) {
+        // Suggest the command only where it runs: not for a table whose
+        // policy needs fixing by hand, nor for a name it does not take.
+        const migratable = unmigrated.filter((t) => !t.policy_issue && TABLE_NAME.test(t.table_name));
+        const otherNames = unmigrated.filter((t) => !t.policy_issue && !TABLE_NAME.test(t.table_name));
         console.log();
         log.info(`${unmigrated.length} table(s) need migration:`);
-        unmigrated.forEach((t) => log.dim(`  stratum migrate ${t.table_name}`));
+        migratable.forEach((t) => log.dim(`  stratum migrate ${t.table_name}`));
+        if (otherNames.length > 0) {
+          log.info(
+            `${otherNames.length} table(s) have names that stratum migrate does not take; ` +
+              "stratum scan --generate writes SQL for them:",
+          );
+          otherNames.forEach((t) => log.dim(`  ${t.table_name}`));
+        }
       } else {
         console.log();
         log.success("All tables are fully migrated!");
@@ -277,8 +297,16 @@ export async function migrate(
 
       // Adding a policy cannot fix these: PostgreSQL ORs permissive policies.
       logPolicyIssues(unmigrated);
-      const migratable = unmigrated.filter((t) => !t.policy_issue);
-      const leftWithIssue = unmigrated.length - migratable.length;
+      const otherNames = unmigrated.filter((t) => !t.policy_issue && !TABLE_NAME.test(t.table_name));
+      if (otherNames.length > 0) {
+        log.warn(
+          `Skipping ${otherNames.length} table(s) whose names stratum migrate does not take; ` +
+            "stratum scan --generate writes SQL for them:",
+        );
+        otherNames.forEach((t) => log.dim(`  ${t.table_name}`));
+      }
+      const migratable = unmigrated.filter((t) => !t.policy_issue && TABLE_NAME.test(t.table_name));
+      const leftWithIssue = unmigrated.filter((t) => t.policy_issue).length;
       // Exit non-zero while any table keeps a policy that does not filter by tenant.
       const failIfLeft = (): void => {
         if (leftWithIssue > 0) {

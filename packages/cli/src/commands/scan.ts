@@ -6,7 +6,7 @@
  *
  * Usage:
  *   stratum scan                           # scan and show report
- *   stratum scan --generate                # generate migration SQL
+ *   stratum scan --generate                # generate migration SQL (stdout: SQL only, stderr: report)
  *   stratum scan --database-url <url>      # custom database URL
  *   stratum scan --exclude users,sessions  # exclude specific tables
  */
@@ -72,7 +72,7 @@ function tablesNeedingWork(result: ScanResult): TableInfo[] {
   ];
 }
 
-function generateMigrationSQL(result: ScanResult): string {
+function generateMigrationSQL(result: ScanResult, hasTenantsTable: boolean): string {
   const lines: string[] = [
     "-- Stratum Migration Scanner (auto-generated)",
     "-- Review carefully before running in production",
@@ -84,8 +84,12 @@ function generateMigrationSQL(result: ScanResult): string {
   // Step 1: Add tenant_id columns
   if (result.needsTenantId.length > 0) {
     lines.push("-- Step 1: Add tenant_id column to tables that need it");
+    if (!hasTenantsTable) {
+      lines.push("-- No public.tenants table was found, so tenant_id gets no foreign key.");
+    }
+    const reference = hasTenantsTable ? " REFERENCES tenants(id)" : "";
     for (const table of result.needsTenantId) {
-      lines.push(`ALTER TABLE ${quoteIdent(table.table_name)} ADD COLUMN tenant_id UUID REFERENCES tenants(id);`);
+      lines.push(`ALTER TABLE ${quoteIdent(table.table_name)} ADD COLUMN tenant_id UUID${reference};`);
     }
     lines.push("");
   }
@@ -171,6 +175,10 @@ export async function scan(
 
   const controlRole = controlRoleFlag(flags);
 
+  // With --generate, stdout carries only the SQL, so that
+  // `stratum scan --generate > migration.sql` writes a runnable file.
+  log.setStream(generate ? "stderr" : "stdout");
+
   log.info("Scanning database for tables needing tenant isolation...\n");
 
   const pool = await connectDb(flags);
@@ -196,7 +204,7 @@ export async function scan(
       for (const t of result.alreadyIsolated) {
         log.dim(`    ✓ ${t.table_name}`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.needsTenantId.length > 0) {
@@ -204,7 +212,7 @@ export async function scan(
       for (const t of result.needsTenantId) {
         log.dim(`    ✗ ${t.table_name}: no tenant_id column`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.needsRLS.length > 0) {
@@ -212,7 +220,7 @@ export async function scan(
       for (const t of result.needsRLS) {
         log.dim(`    ⚠ ${t.table_name}: has tenant_id, RLS not enabled`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.needsPolicy.length > 0) {
@@ -220,7 +228,7 @@ export async function scan(
       for (const t of result.needsPolicy) {
         log.dim(`    ⚠ ${t.table_name}: RLS enabled, no tenant_isolation policy`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.badPolicy.length > 0) {
@@ -228,7 +236,7 @@ export async function scan(
       for (const t of result.badPolicy) {
         log.dim(`    ⚠ ${t.table_name}: ${t.policy_issue}`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.needsForce.length > 0) {
@@ -236,12 +244,12 @@ export async function scan(
       for (const t of result.needsForce) {
         log.dim(`    ⚠ ${t.table_name}: RLS enabled, not forced (the table owner bypasses it)`);
       }
-      console.log();
+      log.blank();
     }
 
     if (result.skipped.length > 0) {
       log.dim(`  Skipped (excluded): ${result.skipped.join(", ")}`);
-      console.log();
+      log.blank();
     }
 
     if (actionNeeded === 0) {
@@ -253,7 +261,10 @@ export async function scan(
     log.info(`  Summary: ${actionNeeded} table(s) need migration, ${isolated} already done.\n`);
 
     if (generate) {
-      console.log("\n" + generateMigrationSQL(result));
+      const tenants = await pool.query<{ ok: boolean }>(
+        "SELECT to_regclass('public.tenants') IS NOT NULL AS ok",
+      );
+      console.log(generateMigrationSQL(result, tenants.rows[0]?.ok === true));
     } else {
       log.info('  Run with --generate to output migration SQL.\n');
       log.dim('  Example: stratum scan --generate > migration.sql\n');

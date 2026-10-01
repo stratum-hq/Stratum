@@ -9,9 +9,12 @@ export function printHelp(): void {
     migrate --scan                Scan database and show RLS status for all tables
     migrate --all                 Migrate all unmigrated tables interactively
     health                        Check database connection, extensions, and RLS setup
+                                  (exits 1 when a check fails)
     doctor                        Deep diagnostic: RLS, indexes, stale keys, tree depth
+                                  (exits 1 when a check fails)
     scan                          Scan database for tables needing tenant isolation
-    scan --generate               Output migration SQL for unmigrated tables
+    scan --generate               Write migration SQL for unmigrated tables to stdout
+                                  (the report goes to stderr)
     generate api-key              Generate a new API key
     db roles                      Print the SQL that sets up the admin, app and control roles
     db roles --apply              Run that SQL (as a superuser, via --database-url)
@@ -19,6 +22,7 @@ export function printHelp(): void {
     db unlock                     Turn the legacy app.bypass_rls path back on
     scaffold <template>           Generate framework integration boilerplate
     playground                    Start control plane + demo app locally
+                                  (from a clone of the Stratum repository)
 
   Scaffold Templates:
 
@@ -54,8 +58,18 @@ export function printHelp(): void {
     --exclude <tables>            Comma-separated tables to skip (scan command)
     --depth-warning <n>           Tree depth above which doctor warns (doctor command;
                                   default: STRATUM_DOCTOR_DEPTH_WARNING env or 20)
+    --cp-port <port>              Control plane port (playground command; default: 3001)
     --help, -h                    Show this help message
     --version, -v                 Show version
+
+  Environment:
+
+    DATABASE_URL                  Default for --database-url
+    DATABASE_ADMIN_URL            Default for --admin-database-url
+    NO_COLOR                      Set to any non-empty value to turn off colors
+
+  Prompts take the default shown in brackets on Enter. A command exits 1 when
+  stdin closes before a prompt is answered.
 
   Examples:
 

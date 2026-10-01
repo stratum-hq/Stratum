@@ -68,7 +68,7 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     log.info(`Created: ${created_at}`);
     log.info(`Hash:    ${hashVersion === 2 ? "HMAC-SHA256" : "SHA-256 (set STRATUM_API_KEY_HMAC_SECRET for HMAC)"}`);
     console.log();
-    console.log(`  \x1b[1m\x1b[33mKey: ${plaintextKey}\x1b[0m`);
+    console.log(`  ${log.ansi("\x1b[1m\x1b[33m")}Key: ${plaintextKey}${log.ansi("\x1b[0m")}`);
     console.log();
     log.warn("Save this key now. It will never be shown again.");
     console.log();
