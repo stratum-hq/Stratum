@@ -61,6 +61,8 @@ stream.on("error", (err) => console.error(err));
 npm install @stratum-hq/mongodb mongodb
 ```
 
+To use `stratumPlugin`, also install `mongoose`. The plugin supports Mongoose 8 and Mongoose 9 (peer range `^8.0.0 || ^9.0.0`).
+
 ## Database-per-tenant clients
 
 `MongoDatabaseAdapter` keeps one `MongoClient` for each tenant, through `MongoPoolManager`. Each `getDatabase(slug)` call holds the tenant's client until you call `releaseDatabase(slug)`. The manager never closes a held client. Thus an operation in progress cannot lose its client.
