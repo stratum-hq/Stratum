@@ -43,7 +43,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://docs.stratum-hq.org/",
+  "homepage": "https://docs.stratum-hq.org/packages/compliance/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

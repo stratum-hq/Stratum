@@ -1,0 +1,114 @@
+---
+title: "@stratum-hq/compliance"
+description: A content-free compliance kernel with coverage scoring, a finding state machine and control types.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`@stratum-hq/compliance` is a content-free compliance kernel: the mechanics and type shapes that a compliance product needs, with none of the content. It has no runtime dependencies, no database, no network access, no provider and no built-in catalog.
+
+It gives you three things:
+
+1. **Coverage scoring.** Compare a declared baseline with a resolved state, and get a result for each control plus a score from 0 to 100.
+2. **A finding state machine.** A pure decision on whether a new evaluation outcome opens a finding, resolves it, or leaves it alone.
+3. **A control type vocabulary.** Structural interfaces that describe a catalog of controls.
+
+<Aside type="note">
+  This is not a complete compliance solution. It ships no frameworks, no
+  controls, no provider mappings and no thresholds. You supply the catalog and
+  the storage. The package supplies the arithmetic and the shapes.
+</Aside>
+
+## Installation
+
+```bash
+npm install @stratum-hq/compliance
+```
+
+## Coverage scoring
+
+`scoreCoverage(baseline, resolved, options?)` compares a `baseline`, the value each control is expected to have, with a `resolved` map of `{ value }` entries, the value each control has. Only the keys of the baseline are scored. Extra keys in `resolved` are ignored.
+
+```typescript
+import { scoreCoverage } from "@stratum-hq/compliance";
+
+const baseline = { mfaRequired: true, passwordMinLength: 12 };
+const resolved = {
+  mfaRequired: { value: "true" }, // resolved config often arrives as strings
+  passwordMinLength: { value: 8 },
+};
+
+const result = scoreCoverage(baseline, resolved);
+// {
+//   total: 2, compliant: 1, drift: 1, missing: 0, score: 50,
+//   details: [
+//     { key: "mfaRequired",       expected: true, actual: "true", status: "compliant" },
+//     { key: "passwordMinLength", expected: 12,   actual: 8,      status: "drift" },
+//   ],
+// }
+```
+
+- `status` is `"compliant"` when the value matches, `"drift"` when it is present but different, and `"missing"` when `resolved` has no own entry for the key.
+- `score` is `round(compliant / total * 100)`. An empty baseline scores 100, because nothing is required.
+
+The `resolved` shape matches the output of `resolveConfig` from `@stratum-hq/lib`, so you can score a tenant's resolved config directly. An inherited sensitive value resolves masked, as `null`, so it scores as drift unless you resolve with `{ revealSensitive: true }`.
+
+### Equality
+
+The default comparator is `looseEqual`. Booleans, numbers and strings compare by their text form, so `true` equals `"true"` and `5` equals `"5"`. Objects and arrays compare by their JSON form, which depends on key order. Pass `equals` for a strict or domain-specific comparison:
+
+```typescript
+import { scoreCoverage, looseEqual } from "@stratum-hq/compliance";
+
+scoreCoverage(baseline, resolved, { equals: (e, a) => e === a }); // strict
+looseEqual(true, "true"); // true
+```
+
+## Finding state machine
+
+`reconcileFinding(newOutcome, currentState)` decides what happens to a control's finding when a new evaluation outcome arrives. It only decides; you store the result.
+
+```typescript
+import { reconcileFinding } from "@stratum-hq/compliance";
+
+reconcileFinding("fail", "none");     // { type: "open" }    a new gap
+reconcileFinding("fail", "open");     // { type: "noop" }    already tracked
+reconcileFinding("pass", "open");     // { type: "resolve" } the gap is closed
+reconcileFinding("pass", "accepted"); // { type: "noop" }    an accepted risk stays as it is
+reconcileFinding("na", "open");       // { type: "noop" }    na and error never change a finding
+```
+
+The outcomes are `"pass"`, `"fail"`, `"na"` and `"error"`. The states are `"none"`, `"open"`, `"remediating"`, `"resolved"` and `"accepted"`. The rules:
+
+- `fail` opens a finding, unless one is already active (`open` or `remediating`) or the risk was `accepted`.
+- `pass` resolves an active finding (`open` or `remediating`). Otherwise there is nothing to resolve.
+- `na` and `error` never change anything.
+- Any other outcome throws a `TypeError`.
+
+Map `{ type: "open" }` and `{ type: "resolve" }` to your own inserts and updates.
+
+## Type vocabulary
+
+Structural interfaces for describing a catalog. They hold no data and no provider mapping. Fill them with your own content.
+
+```typescript
+import type {
+  FieldType,      // "boolean" | "number" | "enum"
+  Verification,   // "verified" | "attestation" | "declared"
+  CatalogField,
+  CatalogGroup,
+  ManualControl,
+  ControlDef,
+  ControlOutcome, // "pass" | "fail" | "na" | "error"
+  FindingState,   // "open" | "remediating" | "resolved" | "accepted" | "none"
+  FindingAction,
+  CoverageResult,
+  ScoredControl,
+  ControlStatus,
+  ScoreOptions,
+} from "@stratum-hq/compliance";
+```
+
+## Design
+
+Everything in the package is a pure function or a type: no side effects, no I/O, no global state and nothing to configure. The reusable part of compliance is the arithmetic and the vocabulary. The product-specific parts (which controls, mapped to which settings, for which framework, loaded and stored how) stay on your side.
