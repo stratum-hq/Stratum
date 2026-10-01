@@ -13,10 +13,17 @@ interface ColumnLike {
 }
 
 /** The part of a TypeORM entity's metadata that tenant scoping uses. */
+/** The part of a TypeORM relation's metadata that tenant scoping uses. */
+interface RelationLike {
+  propertyName: string;
+  joinColumns?: { databaseName: string }[];
+}
+
 interface EntityMetadataLike {
   tablePath: string;
   columns: ColumnLike[];
   primaryColumns: ColumnLike[];
+  relations?: RelationLike[];
 }
 
 interface QueryRunnerLike {
@@ -36,7 +43,7 @@ export interface UpdateEvent {
   entity?: Record<string, unknown> | null;
   /** The row as loaded from the database, when TypeORM has it (save()). */
   databaseEntity?: Record<string, unknown> | null;
-  metadata?: { columns: { propertyName: string; databaseName: string }[] };
+  metadata?: { columns: { propertyName: string; databaseName: string }[]; relations?: RelationLike[] };
 }
 
 export interface BeforeQueryEvent {
@@ -74,7 +81,7 @@ interface WriteQueryBuilderLike {
     mainAlias?: {
       name: string;
       hasMetadata: boolean;
-      metadata: { columns: ColumnLike[] };
+      metadata: { columns: ColumnLike[]; relations?: RelationLike[] };
     };
     queryType?: string;
     valuesSet?: unknown;
@@ -252,6 +259,10 @@ export class StratumTypeOrmSubscriber implements EntitySubscriberInterface {
         tenantProps.add(column.propertyName);
       }
     }
+    // A relation whose join column is tenant_id writes that column too.
+    for (const prop of tenantRelationProps(event.metadata)) {
+      if (prop in entity) tenantProps.add(prop);
+    }
 
     for (const prop of tenantProps) {
       const loaded = event.databaseEntity;
@@ -352,13 +363,13 @@ function addTenantCondition(builder: WriteQueryBuilderLike): void {
 function stripTenantFromUpdateValues(builder: WriteQueryBuilderLike): void {
   const map = builder.expressionMap;
   const values = map.valuesSet;
-  if (map.queryType !== "update" || !values || typeof values !== "object" || Array.isArray(values)) return;
+  if (map.queryType !== "update" || !values || typeof values !== "object") return;
   const alias = map.mainAlias;
-  const tenantProps = new Set(
-    (alias?.hasMetadata ? alias.metadata.columns : [])
-      .filter((c) => c.databaseName.toLowerCase() === "tenant_id")
-      .map((c) => c.propertyName),
-  );
+  const metadata = alias?.hasMetadata ? alias.metadata : undefined;
+  const tenantProps = new Set([
+    ...(metadata?.columns ?? []).filter((c) => c.databaseName.toLowerCase() === "tenant_id").map((c) => c.propertyName),
+    ...tenantRelationProps(metadata),
+  ]);
   const keys = Object.keys(values);
   const isTenantKey = (key: string) => key.toLowerCase() === "tenant_id" || tenantProps.has(key);
   if (!keys.some(isTenantKey)) return;
@@ -392,8 +403,20 @@ function tenantColumnIn(metadata: { columns: ColumnLike[] } | undefined): Column
   return metadata?.columns.find((c) => c.databaseName.toLowerCase() === "tenant_id");
 }
 
-/** Writes the tenant into the property mapped to the tenant_id column. */
+/** Returns the properties of relations whose join columns include tenant_id. */
+function tenantRelationProps(metadata: { relations?: RelationLike[] } | undefined): string[] {
+  return (metadata?.relations ?? [])
+    .filter((r) => (r.joinColumns ?? []).some((c) => c.databaseName.toLowerCase() === "tenant_id"))
+    .map((r) => r.propertyName);
+}
+
+/**
+ * Writes the tenant into the property mapped to the tenant_id column, and
+ * removes any relation whose join column is tenant_id, because TypeORM reads
+ * the column's value from such a relation first.
+ */
 function setTenant(entity: Record<string, unknown>, metadata: EntityMetadataLike | undefined, tenantId: string): void {
+  for (const prop of tenantRelationProps(metadata)) delete entity[prop];
   const column = tenantColumnIn(metadata);
   if (!column) {
     entity["tenant_id"] = tenantId;

@@ -60,6 +60,37 @@ const TagSchema = new EntitySchema<Tag>({
   },
 });
 
+interface TenantRow {
+  id: string;
+}
+
+const TenantSchema = new EntitySchema<TenantRow>({
+  name: "Q2BTenant",
+  tableName: "tenants",
+  columns: { id: { type: String, primary: true } },
+});
+
+interface Ticket {
+  id: number;
+  tenantId: string;
+  name: string;
+  tenant?: { id: string };
+}
+
+// The tenant_id column is also the join column of a relation to the tenant.
+const TicketSchema = new EntitySchema<Ticket>({
+  name: "Q2BTicket",
+  tableName: "tickets",
+  columns: {
+    id: { type: Number, primary: true },
+    tenantId: { type: String, name: "tenant_id" },
+    name: { type: String },
+  },
+  relations: {
+    tenant: { type: "many-to-one", target: "Q2BTenant", joinColumn: { name: "tenant_id" } },
+  },
+});
+
 let pool: Pool;
 let dataSource: DataSource;
 
@@ -90,10 +121,15 @@ beforeAll(async () => {
     `CREATE TABLE \`${DB}\`.\`memos\` (id INT PRIMARY KEY, tenant_id VARCHAR(255) NOT NULL, name VARCHAR(255))`,
   );
   await pool.query(`CREATE TABLE \`${DB}\`.\`tags\` (id INT PRIMARY KEY, name VARCHAR(255))`);
+  await pool.query(`CREATE TABLE \`${DB}\`.\`tenants\` (id VARCHAR(255) PRIMARY KEY)`);
+  await pool.query(
+    `CREATE TABLE \`${DB}\`.\`tickets\` (id INT PRIMARY KEY, tenant_id VARCHAR(255) NOT NULL, name VARCHAR(255))`,
+  );
+  await pool.query(`INSERT INTO \`${DB}\`.\`tenants\` VALUES ('tenant-a'), ('tenant-b')`);
   dataSource = new DataSource({
     type: "mysql",
     url: `${MYSQL_URL}/${DB}`,
-    entities: [NoteSchema, MemoSchema, TagSchema],
+    entities: [NoteSchema, MemoSchema, TagSchema, TenantSchema, TicketSchema],
     synchronize: false,
   });
   await dataSource.initialize();
@@ -108,11 +144,12 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  for (const table of ["notes", "memos", "tags"]) {
+  for (const table of ["notes", "memos", "tags", "tickets"]) {
     await pool.query(`DELETE FROM \`${DB}\`.\`${table}\``);
   }
   await pool.query(`INSERT INTO \`${DB}\`.\`notes\` VALUES (1, 'tenant-a', 'a-note'), (2, 'tenant-b', 'b-note')`);
   await pool.query(`INSERT INTO \`${DB}\`.\`memos\` VALUES (2, 'tenant-b', 'b-memo')`);
+  await pool.query(`INSERT INTO \`${DB}\`.\`tickets\` VALUES (1, 'tenant-a', 'a-ticket')`);
 });
 
 describe("StratumTypeOrmSubscriber writes without listeners", () => {
@@ -329,5 +366,51 @@ describe("StratumTypeOrmSubscriber upserts and nested saves", () => {
     } finally {
       await nested.destroy();
     }
+  });
+});
+
+describe("StratumTypeOrmSubscriber relation on the tenant_id column", () => {
+  const tickets = () => rows<{ id: number; tenant_id: string }>(`SELECT id, tenant_id FROM \`${DB}\`.\`tickets\` ORDER BY id`);
+
+  it("an insert cannot set another tenant through the tenant relation", async () => {
+    await asA(() =>
+      dataSource
+        .createQueryBuilder()
+        .insert()
+        .into(TicketSchema)
+        .values({ id: 5, name: "t", tenant: { id: "tenant-b" } })
+        .execute(),
+    );
+    await asA(() => dataSource.getRepository(TicketSchema).save({ id: 6, name: "t", tenant: { id: "tenant-b" } }));
+    expect(await tickets()).toEqual([
+      { id: 1, tenant_id: "tenant-a" },
+      { id: 5, tenant_id: "tenant-a" },
+      { id: 6, tenant_id: "tenant-a" },
+    ]);
+  });
+
+  it("an update builder cannot move a row through the tenant relation", async () => {
+    await asA(() =>
+      dataSource
+        .createQueryBuilder()
+        .update(TicketSchema)
+        .set({ name: "u", tenant: { id: "tenant-b" } })
+        .where("id = 1")
+        .execute(),
+    ).catch(() => undefined);
+    await asA(() => dataSource.getRepository(TicketSchema).update({ id: 1 }, { tenant: { id: "tenant-b" } })).catch(
+      () => undefined,
+    );
+    expect(await tickets()).toEqual([{ id: 1, tenant_id: "tenant-a" }]);
+  });
+
+  it("save() cannot move a loaded row through the tenant relation", async () => {
+    await asA(async () => {
+      const repo = dataSource.getRepository(TicketSchema);
+      const ticket = (await repo.findOneByOrFail({ id: 1 })) as Ticket;
+      ticket.tenant = { id: "tenant-b" };
+      await repo.save(ticket);
+    }).catch(() => undefined);
+    expect(await tickets()).toEqual([{ id: 1, tenant_id: "tenant-a" }]);
   });
 });
