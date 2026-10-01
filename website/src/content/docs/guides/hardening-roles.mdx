@@ -75,7 +75,7 @@ Then print the setup SQL and read it:
 stratum db roles --admin-role stratum_admin --app-role stratum_app
 ```
 
-When it looks right, apply it as a superuser, or as a login with `CREATEROLE` that owns the Stratum tables:
+When it looks right, apply it as a superuser, or as the admin login itself when it has `CREATEROLE` and owns the Stratum tables. Applying makes the login that runs it a member of the control role, so `--apply` refuses any other login that is not a superuser; name the admin login with `--admin-role`:
 
 ```bash
 stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \
@@ -90,6 +90,8 @@ The SQL is the output of `bootstrapRolesSql()` from `@stratum-hq/lib`, so you ca
 - revokes `CREATE` on the schema of the Stratum tables from `PUBLIC` and from the application login, so that only logins you grant it to by name can add objects there;
 - applies the control role through `stratum_apply_control_role()`, which migration 032 installs. This also resets row-level security on every Stratum table: it drops every policy on them, enables and forces RLS, and creates the canonical Stratum policies again, so a policy that a former owner changed, dropped or added is restored;
 - removes the application login from the control role, revokes its privileges on the Stratum tables, and grants `SELECT` on the read list.
+
+Migration 032 runs the same integrity check before it applies the control role. When the check finds something, the migration still succeeds, but it warns with the list and leaves the control role unapplied until `stratum db roles --apply` runs on a clean schema.
 
 `--apply` then reports the resulting role model. Policies of your own on Stratum's tables do not survive the reset; keep your policies on your own tables. Run it again after an upgrade whose migrations add a Stratum table. For a `migrateAllSchemas` install, run it once per tenant schema with `--schema <name>`.
 
@@ -123,7 +125,7 @@ Policies are not part of the refusal, because the bootstrap re-creates all of th
 
 ### Your application's own tables
 
-The application login must not be able to create objects in the schema of the Stratum tables, because Stratum's functions and queries resolve names there. `stratum doctor` and `initialize()` report an application login that can. Give your application's tables another schema instead. The least disruptive setup, which `docker/init-db.sql` and `stratum scaffold docker` use, is a schema named after the application login and owned by it:
+The application login must not be able to create objects in the schema of the Stratum tables, because Stratum's functions and queries resolve names there. `stratum doctor` and `initialize()` report an application login that can, in every mode. With `adminPool` and `enforceRls: true`, `initialize()` fails instead, also while the control role is not applied yet. Give your application's tables another schema instead. The least disruptive setup, which `docker/init-db.sql` and `stratum scaffold docker` use, is a schema named after the application login and owned by it:
 
 ```sql
 GRANT USAGE ON SCHEMA public TO stratum_app;
@@ -131,7 +133,7 @@ CREATE SCHEMA stratum_app AUTHORIZATION stratum_app;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ```
 
-The default search path is `"$user", public`, so the application login creates its unqualified tables in its own schema and still finds the Stratum tables in `public` by their plain names. If another login creates your application's tables (as in projects from `@stratum-hq/create`, where the bootstrap superuser runs your migrations and Stratum's own login, in `STRATUM_ADMIN_DATABASE_URL`, runs Stratum's), give the application login default privileges only on what that login creates (`ALTER DEFAULT PRIVILEGES FOR ROLE <creator> ...`), and run the Stratum migrations as Stratum's login, never as that creator. If they did run as the creator, `stratum db roles --apply --app-role <app login>` removes the privileges the application login received on the Stratum tables.
+The default search path is `"$user", public`, so the application login creates its unqualified tables in its own schema and still finds the Stratum tables in `public` by their plain names. If another login creates your application's tables (as in projects from `@stratum-hq/create`, where the bootstrap superuser, in `DATABASE_SUPERUSER_URL`, runs your migrations and Stratum's own login, in `STRATUM_ADMIN_DATABASE_URL`, runs Stratum's), give the application login default privileges only on what that login creates (`ALTER DEFAULT PRIVILEGES FOR ROLE <creator> ...`), and run the Stratum migrations as Stratum's login, never as that creator. If they did run as the creator, `stratum db roles --apply --app-role <app login>` removes the privileges the application login received on the Stratum tables.
 
 ### Managed PostgreSQL
 
@@ -143,7 +145,7 @@ Managed services usually give you an administrative login that is not a full sup
 
 ### Fresh installs with a CREATEROLE migrator
 
-A new database does not need a superuser for the migrations. Create the extensions, then let the admin login migrate through `autoMigrate` with `adminPool` (or `migrate({ pool: adminPool, applyControlRole: true })`): with `CREATEROLE` (or with the control role created for it in advance, as `docker/init-db.sql` does) migration 032 creates or joins the control role and applies it in the same run. Set `applyControlRole` only for the admin login: it makes the migrating login a member of the control role. Migrations 029 and 031 contain function settings that PostgreSQL accepts only from a superuser; for any other migrating login the runner leaves those lines out, and 032 re-creates both functions without them.
+A new database does not need a superuser for the migrations. Create the extensions, then let the admin login migrate through `autoMigrate` with `adminPool` (or `migrate({ pool: adminPool, applyControlRole: true })`): with `CREATEROLE` (or with the control role created for it in advance, as `docker/init-db.sql` does) migration 032 creates or joins the control role and applies it in the same run. Set `applyControlRole` only for the admin login: it makes the migrating login a member of the control role. The opt-in counts only when the migrating session sets it, as `migrate()` does; a value from `ALTER DATABASE ... SET`, `ALTER ROLE ... SET` or the connection options is ignored. `autoMigrate` also refuses an `adminPool` that logs in as the same role as `pool`. Migrations 029 and 031 contain function settings that PostgreSQL accepts only from a superuser; for any other migrating login the runner leaves those lines out, and 032 re-creates both functions without them.
 
 ```typescript
 const stratum = new Stratum({ adminPool, pool, autoMigrate: true, enforceRls: true });
