@@ -24,6 +24,7 @@ import { buildAuditContext } from "./audit-logs.js";
 import { validationErrorBody } from "../middleware/error-handler.js";
 import { createTenantScopeGuard, createTenantCreateGuard, createTenantBatchCreateGuard, declareTenantScope, fromParamId, fromBodyNewParentId } from "../middleware/tenant-scope.js";
 import { declareRequiredScope } from "../middleware/authorize.js";
+import { configReadOptions } from "./config.js";
 
 export function createTenantRoutes(stratum: Stratum) {
   // A move must authorize BOTH ends. The plugin-level guard below only covers
@@ -255,7 +256,10 @@ export function createTenantRoutes(stratum: Stratum) {
     // Read scope: the SDK middleware calls this on every request, so an app
     // server needs only a read key for the tenants its key scope reaches.
     app.get<{ Params: { id: string } }>("/:id/context", { config: { requiredScope: "read" } }, async (request, reply) => {
-      const { tenant, config, permissions } = await stratum.getTenantContext(request.params.id);
+      const { tenant, config, permissions } = await stratum.getTenantContext(
+        request.params.id,
+        configReadOptions(request),
+      );
       const context: ResolvedTenantContext = {
         tenant_id: tenant.id,
         ancestry_path: tenant.ancestry_path,

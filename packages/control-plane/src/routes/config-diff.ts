@@ -7,6 +7,7 @@ import {
   fromQueryTenantB,
 } from "../middleware/tenant-scope.js";
 import { declareRequiredScope } from "../middleware/authorize.js";
+import { configReadOptions } from "./config.js";
 
 export function createConfigDiffRoutes(stratum: Stratum) {
   // The diff compares two tenants read from the query string, so both operands
@@ -46,7 +47,7 @@ export function createConfigDiffRoutes(stratum: Stratum) {
           return;
         }
 
-        const diff = await stratum.diffConfig(tenant_a, tenant_b);
+        const diff = await stratum.diffConfig(tenant_a, tenant_b, configReadOptions(request));
         reply.status(200).send(diff);
       },
     );

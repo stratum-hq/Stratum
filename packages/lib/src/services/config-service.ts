@@ -6,6 +6,7 @@ import {
   type BatchSetConfigEntry,
   type ResolvedConfigEntry,
   type ResolvedConfig,
+  type ResolveConfigOptions,
   type BatchSetConfigResult,
   type BatchSetConfigKeyResult,
   ConfigLockedError,
@@ -18,10 +19,54 @@ import { encrypt, decrypt } from "../crypto.js";
 import { loadActiveTenant } from "./tenant-service.js";
 
 /**
+ * Build the resolved entry for a stored `entry` read at `tenantId`.
+ *
+ * A sensitive value set on another tenant (an ancestor) is masked: `value` is
+ * null and `masked` is true, and it is never decrypted. `options` reveals it
+ * to trusted server code (`revealSensitive`) or to the tenant that set it
+ * (`viewerTenantId`). A tenant's own sensitive values are always decrypted.
+ */
+function toResolvedEntry(
+  entry: ConfigEntry,
+  tenantId: string,
+  inherited: boolean,
+  locked: boolean,
+  options: ResolveConfigOptions,
+): ResolvedConfigEntry {
+  const resolved: ResolvedConfigEntry = {
+    key: entry.key,
+    value: entry.value,
+    source_tenant_id: entry.source_tenant_id,
+    inherited,
+    locked,
+  };
+  if (!entry.sensitive) return resolved;
+  resolved.sensitive = true;
+  const reveal =
+    entry.tenant_id === tenantId ||
+    options.revealSensitive === true ||
+    (options.viewerTenantId !== undefined && options.viewerTenantId === entry.source_tenant_id);
+  if (reveal) {
+    resolved.value = JSON.parse(decrypt(entry.value as string));
+  } else {
+    resolved.value = null;
+    resolved.masked = true;
+  }
+  return resolved;
+}
+
+/**
  * Resolve the effective config for a tenant by batch-loading ancestor configs
  * in a single query and walking root→leaf.
+ *
+ * Sensitive values inherited from an ancestor come back masked unless
+ * `options` reveals them (see {@link ResolveConfigOptions}).
  */
-export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<ResolvedConfig> {
+export async function resolveConfig(
+  pool: pg.Pool,
+  tenantId: string,
+  options: ResolveConfigOptions = {},
+): Promise<ResolvedConfig> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
       `SELECT ancestry_path FROM tenants WHERE id = $1 AND status != 'archived'`,
@@ -79,16 +124,10 @@ export async function resolveConfig(pool: pg.Pool, tenantId: string): Promise<Re
         }
 
         const isCurrentTenant = currentTenantId === tenantId;
-        const resolvedValue = entry.sensitive
-          ? JSON.parse(decrypt(entry.value as string))
-          : entry.value;
-        resolved.set(entry.key, {
-          key: entry.key,
-          value: resolvedValue,
-          source_tenant_id: entry.source_tenant_id,
-          inherited: !isCurrentTenant,
-          locked: entry.locked,
-        });
+        resolved.set(
+          entry.key,
+          toResolvedEntry(entry, tenantId, !isCurrentTenant, entry.locked, options),
+        );
       }
     }
 
@@ -251,10 +290,13 @@ export async function deleteConfig(
 /**
  * Return all config entries for a tenant showing inheritance status:
  * inherited (from ancestor), overridden (tenant has own value), or locked.
+ *
+ * Inherited sensitive values are masked as in {@link resolveConfig}.
  */
 export async function getConfigWithInheritance(
   pool: pg.Pool,
   tenantId: string,
+  options: ResolveConfigOptions = {},
 ): Promise<ResolvedConfig> {
   return withClient(pool, async (client) => {
     const tenantRes = await client.query<{ ancestry_path: string }>(
@@ -322,11 +364,6 @@ export async function getConfigWithInheritance(
       }
     }
 
-    const decryptEntryValue = (entry: ConfigEntry): unknown =>
-      entry.sensitive
-        ? JSON.parse(decrypt(entry.value as string))
-        : entry.value;
-
     const result: ResolvedConfig = {};
 
     for (const [key, rec] of byKey) {
@@ -336,31 +373,13 @@ export async function getConfigWithInheritance(
 
       if (lockedEntry) {
         // Key is locked: show ancestor's locked value regardless of tenant override
-        result[key] = {
-          key,
-          value: decryptEntryValue(lockedEntry),
-          source_tenant_id: lockedEntry.source_tenant_id,
-          inherited: true,
-          locked: true,
-        };
+        result[key] = toResolvedEntry(lockedEntry, tenantId, true, true, options);
       } else if (tenantEntry) {
         // Tenant has its own value (override or own entry)
-        result[key] = {
-          key,
-          value: decryptEntryValue(tenantEntry),
-          source_tenant_id: tenantEntry.source_tenant_id,
-          inherited: false,
-          locked: tenantEntry.locked,
-        };
+        result[key] = toResolvedEntry(tenantEntry, tenantId, false, tenantEntry.locked, options);
       } else if (ancestorEntry) {
         // Inherited from ancestor
-        result[key] = {
-          key,
-          value: decryptEntryValue(ancestorEntry),
-          source_tenant_id: ancestorEntry.source_tenant_id,
-          inherited: true,
-          locked: ancestorEntry.locked,
-        };
+        result[key] = toResolvedEntry(ancestorEntry, tenantId, true, ancestorEntry.locked, options);
       }
     }
 

@@ -832,7 +832,7 @@ const MATRIX: Cell[] = [
     url: `/api/v1/config/diff?tenant_a=${A}&tenant_b=${B}`,
     expect: "allow",
     guarded: "diffConfig",
-    guardedWith: [A, B],
+    guardedWith: [A, B, {}],
   },
   {
     id: "allow-global-route",

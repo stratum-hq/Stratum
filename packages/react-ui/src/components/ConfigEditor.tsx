@@ -94,6 +94,8 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                     onKeyDown={(e) => e.key === "Enter" && handleSave(entry.key)}
                     aria-label={t("configEditor.editLabel", { key: entry.key })}
                   />
+                ) : entry.masked ? (
+                  <span className="stratum-config-editor__masked">{t("configEditor.masked")}</span>
                 ) : (
                   <code>{JSON.stringify(entry.value)}</code>
                 )}
@@ -124,7 +126,7 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                           type="button"
                           onClick={() => {
                             setEditingKey(entry.key);
-                            setEditValue(JSON.stringify(entry.value));
+                            setEditValue(entry.masked ? "" : JSON.stringify(entry.value));
                           }}
                         >
                           {t("configEditor.editButton")}

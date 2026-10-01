@@ -73,7 +73,11 @@ function ConfigTable({
             >
               <td className="stratum-cascade-key">{entry.key}</td>
               <td className="stratum-cascade-value">
-                <code>{JSON.stringify(entry.value)}</code>
+                {entry.masked ? (
+                  <span className="stratum-cascade-masked">Sensitive value set by an ancestor</span>
+                ) : (
+                  <code>{JSON.stringify(entry.value)}</code>
+                )}
               </td>
               <td>
                 <Badge type={getBadgeType(entry)} />

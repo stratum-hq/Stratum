@@ -56,7 +56,7 @@ describe("Config Routes", () => {
       const body = response.json();
       expect(body["feature.dark_mode"].value).toBe(true);
       expect(body["limits.max_users"].value).toBe(100);
-      expect(stratum.resolveConfig).toHaveBeenCalledWith(tenantId);
+      expect(stratum.resolveConfig).toHaveBeenCalledWith(tenantId, {});
     });
 
     it("returns empty object when tenant has no config", async () => {
@@ -278,7 +278,7 @@ describe("Config Routes", () => {
       expect(body.diff[0].tenant_a.status).toBe("own");
       expect(body.diff[0].tenant_b.status).toBe("inherited");
       expect(body.diff[1].tenant_b).toBeNull();
-      expect(stratum.diffConfig).toHaveBeenCalledWith(SAMPLE_TENANT.id, SAMPLE_CHILD_TENANT.id);
+      expect(stratum.diffConfig).toHaveBeenCalledWith(SAMPLE_TENANT.id, SAMPLE_CHILD_TENANT.id, {});
     });
 
     it("returns 400 when tenant_a is missing", async () => {
