@@ -15,6 +15,7 @@ This creates a `my-app/` directory containing:
 - `package.json` with `@stratum-hq/lib`, `pg`, `jose`, and your chosen framework
 - `docker-compose.yml` with PostgreSQL 16 and the `ltree` + `uuid-ossp` extensions pre-loaded
 - `.env.example` with `DATABASE_URL` and other defaults
+- `.gitignore` that ignores `node_modules`, `.env` and `.env.*`, build output and logs, and keeps `.env.example`
 - A starter server with tenant middleware that takes the tenant from a verified JWT
 - `README.md` with getting-started instructions
 

@@ -12,6 +12,7 @@ import {
   POSTGRES_STRATUM_PASSWORD,
 } from "./generators/init-sql.js";
 import { generateDbSetup } from "./generators/db-setup.js";
+import { generateGitignore } from "./generators/gitignore.js";
 import { generateMiddleware } from "./generators/middleware.js";
 import { generatePresetPackageJson } from "./generators/package-json.js";
 import { generatePresetReadme } from "./generators/readme.js";
@@ -111,6 +112,9 @@ export function createPresetProject(
     path.join(targetDir, ".env.example"),
     generatePresetEnv(projectName, preset),
   );
+
+  // .gitignore: keeps the .env file that the README asks for out of git.
+  writeFile(path.join(targetDir, ".gitignore"), generateGitignore(preset.orm === "prisma"));
 
   // Database setup files (ORM config, tenant helpers)
   const dbFiles = generateDbSetup(preset);

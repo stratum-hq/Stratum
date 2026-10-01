@@ -308,6 +308,21 @@ function isolationSuite(strategy: "rls" | "schema" | "database", orm: "prisma" |
       }
     });
 
+    it("keeps .env, node_modules and the generated Prisma client out of git, and .env.example in it", () => {
+      run("git", ["init", "-q"], dir);
+      const ignored = (file: string) =>
+        spawnSync("git", ["check-ignore", "-q", file], { cwd: dir, env: CHILD_ENV }).status === 0;
+      expect(fs.existsSync(path.join(dir, ".env"))).toBe(true);
+      expect(ignored(".env")).toBe(true);
+      expect(ignored("node_modules")).toBe(true);
+      expect(ignored(".env.example")).toBe(false);
+      expect(ignored("src/stratum-tenant.ts")).toBe(false);
+      if (orm === "prisma") {
+        expect(fs.existsSync(path.join(dir, "src/generated/prisma/client.ts"))).toBe(true);
+        expect(ignored("src/generated/prisma/client.ts")).toBe(true);
+      }
+    });
+
     it("type-checks", () => {
       run("npx", ["tsc", "--noEmit", "-p", "."], dir);
     }, 120_000);

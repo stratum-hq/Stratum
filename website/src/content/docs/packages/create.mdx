@@ -147,6 +147,7 @@ my-app/
   docker-compose.yml    # PostgreSQL 16 with extensions
   init.sql              # CREATE EXTENSION uuid-ossp, ltree
   .env.example          # DATABASE_URL, JWT_SECRET
+  .gitignore            # Ignores node_modules, .env and .env.*, build output and logs; keeps .env.example
   tsconfig.json         # Compiles src/ to dist/ (express and fastify)
   src/
     index.ts            # Server with verified-JWT tenant middleware (express and fastify)
