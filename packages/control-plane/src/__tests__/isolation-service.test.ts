@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const release = vi.fn();
 vi.mock("../db/connection.js", () => ({
   getPool: () => ({ connect: async () => ({ release }) }),
+  getStratumPool: () => ({ connect: async () => ({ release }) }),
 }));
 
 vi.mock("@stratum-hq/db-adapters", () => ({

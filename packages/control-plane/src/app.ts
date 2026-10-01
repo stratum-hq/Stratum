@@ -27,7 +27,7 @@ import { createConfigDiffRoutes } from "./routes/config-diff.js";
 import { createAbacRoutes } from "./routes/abac.js";
 import { registerTelemetryHooks } from "./middleware/telemetry.js";
 import { config } from "./config.js";
-import { getPool } from "./db/connection.js";
+import { getAdminPool, getPool } from "./db/connection.js";
 
 /** Parse a duration string like "1 minute" into milliseconds. */
 function parseWindowForApp(window: string): number {
@@ -52,10 +52,21 @@ export async function buildApp(): Promise<FastifyInstance> {
     genReqId: () => crypto.randomUUID(),
   });
 
+  // With DATABASE_ADMIN_URL the library runs on the admin login, as the
+  // control role of migration 032, and sets no app.bypass_rls. Without it,
+  // everything runs on DATABASE_URL as in earlier releases.
+  const adminPool = getAdminPool();
   const stratum = new Stratum({
     pool: getPool(),
+    adminPool,
+    controlRole: config.controlRole,
+    allowLegacyKeyHashes: config.allowLegacyKeyHashes,
     keyPrefix: config.nodeEnv === "production" ? "sk_live_" : "sk_test_",
   });
+  if (adminPool) {
+    // Checks both logins against the role model and logs each problem.
+    await stratum.initialize();
+  }
 
   await app.register(helmet, {
     contentSecurityPolicy: {
