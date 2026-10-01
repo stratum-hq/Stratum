@@ -15,6 +15,7 @@ This creates a `my-app/` directory containing:
 - `package.json` with `@stratum-hq/lib`, `pg`, `jose`, and your chosen framework
 - `docker-compose.yml` with PostgreSQL 16 and the `ltree` + `uuid-ossp` extensions pre-loaded
 - `.env.example` with `DATABASE_URL` and other defaults
+- `.gitignore` that ignores `node_modules`, `.env` and `.env.*`, build output and logs, and keeps `.env.example`
 - A starter server with tenant middleware that takes the tenant from a verified JWT
 - `README.md` with getting-started instructions
 
@@ -58,6 +59,8 @@ npx @stratum-hq/create my-app --preset mysql-shared-knex-express
 | `mysql` | `shared` | `pg` (the `mysql2` driver), `knex`, `sequelize` |
 
 Every combination in the table works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none`. An invalid preset exits with an error before anything is written. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
+
+The Prisma presets use Prisma 7, which needs Node.js 20.19, 22.12, or 24 and later. `npx prisma generate` writes the client to `src/generated/prisma`. `prisma.config.ts` reads the connection URL from `DATABASE_URL`. Each client connects through `PrismaPg` from `@prisma/adapter-pg`, and the schema and database presets pass `{ driverAdapter: PrismaPg }` to their adapter. A project that an earlier release generated keeps its Prisma version: see the [Prisma 7 upgrade guide](https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7).
 
 ### Tenant isolation on PostgreSQL
 

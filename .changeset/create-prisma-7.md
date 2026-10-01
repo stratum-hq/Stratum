@@ -1,0 +1,7 @@
+---
+"@stratum-hq/create": minor
+---
+
+The Prisma presets now generate Prisma 7 projects. A generated project depends on `prisma`, `@prisma/client` and `@prisma/adapter-pg` 7.10 and needs Node.js 20.19, 22.12, or 24 and later. The schema uses the `prisma-client` generator, which writes the client to `src/generated/prisma`. The connection URL moves from `prisma/schema.prisma` to a new `prisma.config.ts`, which reads `DATABASE_URL`. Every Prisma client connects through `PrismaPg`. The schema and database presets give `SchemaPrismaAdapter` and `DatabasePrismaAdapter` the option `{ driverAdapter: PrismaPg }`, because Prisma 7 ignores a `schema` parameter in the connection URL. The `db:push` and `tenant:provision` scripts run `prisma db push` without the `--skip-generate` option, which Prisma 7 removed. The generated `package.json` overrides `mysql2` and `deepmerge-ts`, two dependencies of the Prisma 7.10 CLI, with releases that have no published advisory. Projects that an earlier release generated do not change. To move one to Prisma 7, follow the Prisma 7 upgrade guide: https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
+
+Every template and preset now writes a `.gitignore`. It ignores `node_modules`, `.env` and `.env.*`, build output (`dist`, `.next`, `out`), logs and `.DS_Store`, and keeps `.env.example` tracked. The Prisma presets also ignore the generated client in `src/generated/prisma`. Before, a generated project had no `.gitignore`, so git did not ignore the `.env` file that the README asks you to create.

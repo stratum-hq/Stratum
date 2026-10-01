@@ -12,6 +12,21 @@ const DRIZZLE_KIT_OVERRIDES = {
   "@esbuild-kit/core-utils": { esbuild: "^0.25.4" },
 };
 
+/**
+ * prisma 7.10.0 pins mysql2 3.15.3 (GHSA-3f6p-5ww8-9rcr, GHSA-rgwj-5xj2-c3m3)
+ * and, through @prisma/config, deepmerge-ts 7.1.5 (GHSA-ggr8-5vv4-36mx). Both
+ * have published advisories. The overrides move them to fixed releases.
+ * @prisma/config calls only the deepmerge function of deepmerge-ts. Version 8
+ * changes how that function merges Map values, and a Prisma config holds no Map.
+ */
+const PRISMA_OVERRIDES = {
+  mysql2: "^3.23.1",
+  "deepmerge-ts": "^8.0.2",
+};
+
+/** The Prisma release line of the Prisma presets. */
+const PRISMA_VERSION = "^7.10.0";
+
 export function generatePresetPackageJson(projectName: string, preset: StackPreset): string {
   const deps: Record<string, string> = {
     "@stratum-hq/lib": STRATUM_RANGES["@stratum-hq/lib"],
@@ -51,14 +66,19 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
       dependencies: sortKeys(deps),
       devDependencies: sortKeys(devDeps),
       ...(preset.orm === "drizzle" ? { overrides: DRIZZLE_KIT_OVERRIDES } : {}),
-      engines: {
-        // Next.js 16 needs Node.js 20.9 or later.
-        node: preset.framework === "nextjs" ? ">=20.9.0" : ">=20.0.0",
-      },
+      ...(preset.orm === "prisma" ? { overrides: PRISMA_OVERRIDES } : {}),
+      engines: { node: nodeEngine(preset) },
     },
     null,
     2,
   );
+}
+
+function nodeEngine(preset: StackPreset): string {
+  // Prisma 7 supports these Node.js releases. They are all later than 20.9.
+  if (preset.orm === "prisma") return "^20.19.0 || ^22.12.0 || >=24.0.0";
+  // Next.js 16 needs Node.js 20.9 or later.
+  return preset.framework === "nextjs" ? ">=20.9.0" : ">=20.0.0";
 }
 
 function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, string>, preset: StackPreset): void {
@@ -97,9 +117,13 @@ function addDatabaseDeps(deps: Record<string, string>, devDeps: Record<string, s
 function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string>, preset: StackPreset): void {
   switch (preset.orm) {
     case "prisma":
-      deps["@prisma/client"] = "^5.10.0";
-      devDeps["prisma"] = "^5.10.0";
+      deps["@prisma/client"] = PRISMA_VERSION;
+      devDeps["prisma"] = PRISMA_VERSION;
+      // Prisma 7 needs TypeScript 5.4 or later.
+      devDeps["typescript"] = "^5.4.0";
       if (preset.database === "postgres") {
+        // A Prisma 7 client connects to PostgreSQL through this driver adapter.
+        deps["@prisma/adapter-pg"] = PRISMA_VERSION;
         deps["pg"] = "^8.11.0";
       }
       break;

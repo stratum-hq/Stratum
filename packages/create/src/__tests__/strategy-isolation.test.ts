@@ -233,7 +233,6 @@ describe("PostgreSQL rls Prisma presets", () => {
       const files = generatedFiles(preset);
       const schema = files.get("prisma/schema.prisma")!;
       expect(schema).toMatch(/^\s*schemas\s*=\s*\["app"\]/m);
-      expect(schema).toContain('previewFeatures = ["multiSchema"]');
       for (const model of schema.split(/^model /m).slice(1)) {
         expect(model).toContain('@@schema("app")');
       }

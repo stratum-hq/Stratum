@@ -16,8 +16,9 @@ import { useWorkspaceStratumPackages } from "./helpers/workspace-tarballs.js";
  * and built, and drizzle-kit generates a migration, with the row-level
  * security policy, from the schema file its config points at. A Prisma
  * Next.js preset is installed, its client is generated, and `next build`
- * type-checks the generated Prisma setup against the real PrismaClient.
- * Every project installs the workspace builds of the Stratum packages, so
+ * type-checks the generated Prisma setup against the real PrismaClient. The
+ * install of the Prisma preset has no package with a high or critical
+ * advisory. Every project installs the workspace builds of the Stratum packages, so
  * the tests check the code under test even before it is on npm. Installs
  * run one at a time and need network access to the npm registry for
  * third-party packages.
@@ -189,4 +190,17 @@ describe(`@stratum-hq/create ${PRISMA_PRESET}, installed and built`, () => {
     run("npm", ["run", "build"], dir);
     expect(fs.existsSync(path.join(dir, ".next/BUILD_ID"))).toBe(true);
   }, 300_000);
+
+  it("installs no package with a high or critical advisory", () => {
+    // npm audit exits non-zero when it finds anything, so read its JSON report.
+    const res = spawnSync("npm", ["audit", "--json"], { cwd: dir, encoding: "utf8" });
+    const report = JSON.parse(res.stdout) as {
+      vulnerabilities?: Record<string, { severity: string }>;
+    };
+    expect(report.vulnerabilities).toBeDefined();
+    const severe = Object.entries(report.vulnerabilities ?? {})
+      .filter(([, v]) => v.severity === "high" || v.severity === "critical")
+      .map(([name, v]) => `${name} (${v.severity})`);
+    expect(severe).toEqual([]);
+  }, 120_000);
 });

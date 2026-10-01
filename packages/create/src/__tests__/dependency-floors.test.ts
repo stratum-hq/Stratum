@@ -125,8 +125,8 @@ describe("the drizzle presets", () => {
     }
   });
 
-  it("are the only presets with overrides", () => {
-    for (const p of allPresets().filter((x) => x.orm !== "drizzle")) {
+  it("are, with the prisma presets, the only presets with overrides", () => {
+    for (const p of allPresets().filter((x) => x.orm !== "drizzle" && x.orm !== "prisma")) {
       expect(JSON.parse(generatePresetPackageJson("app", p)).overrides).toBeUndefined();
     }
   });

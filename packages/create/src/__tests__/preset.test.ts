@@ -219,7 +219,8 @@ describe("createPresetProject", () => {
     expect(pkg.dependencies["next"]).toBe("^16.3.8");
     expect(pkg.dependencies["react"]).toBe("^19.2.0");
     expect(pkg.dependencies["react-dom"]).toBe("^19.2.0");
-    expect(pkg.engines.node).toBe(">=20.9.0");
+    // The Prisma 7 floor, which is later than the Next.js 16 floor of 20.9.
+    expect(pkg.engines.node).toBe("^20.19.0 || ^22.12.0 || >=24.0.0");
     expect(pkg.scripts.dev).toBe("next dev");
   });
 

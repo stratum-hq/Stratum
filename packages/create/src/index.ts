@@ -13,6 +13,7 @@ import {
   POSTGRES_STRATUM_PASSWORD,
 } from "./generators/init-sql.js";
 import { generateTsconfig } from "./generators/tsconfig.js";
+import { generateGitignore } from "./generators/gitignore.js";
 import {
   expressServer,
   fastifyServer,
@@ -343,6 +344,9 @@ export function createProject(
 
   // .env.example
   writeFile(path.join(targetDir, ".env.example"), generateEnv(projectName));
+
+  // .gitignore: keeps the .env file that the README asks for out of git.
+  writeFile(path.join(targetDir, ".gitignore"), generateGitignore(false));
 
   // Server starter file
   if (template === "express") {
