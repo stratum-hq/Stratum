@@ -17,36 +17,38 @@ declare global {
 
 const appStyles = `
 .stratum-app {
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--bg-page, var(--color-50, #F4EFE4));
-  color: var(--text-primary, var(--color-900));
+  background: var(--surface-0);
+  color: var(--text-primary);
 }
 
 .stratum-app-header {
-  background: var(--color-900, #1C1813);
-  color: white;
+  background: var(--surface-1);
+  color: var(--text-primary);
   padding: var(--space-sm, 8px) var(--space-xl, 24px);
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--color-800, #241F19);
+  border-bottom: 1px solid var(--border);
   gap: var(--space-md, 12px);
   min-height: 44px;
 }
 
 .stratum-app-brand {
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-family: var(--font-display, 'Libre Franklin', sans-serif);
+  font-size: 1.375rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-family: var(--font-display);
 }
 
 .stratum-app-subtitle {
   font-size: 0.8125rem;
-  color: var(--color-400, #A79880);
+  color: var(--text-secondary);
   margin-left: var(--space-sm, 8px);
 }
 
@@ -59,14 +61,14 @@ const appStyles = `
 
 .stratum-app-hierarchy-label {
   font-size: 0.75rem;
-  color: var(--color-600, #4E4636);
+  color: var(--text-secondary);
 }
 
 .stratum-hamburger {
   display: none;
   background: transparent;
   border: none;
-  color: var(--color-400, #A79880);
+  color: var(--text-secondary);
   font-size: 1.25rem;
   cursor: pointer;
   padding: var(--space-xs, 4px) var(--space-sm, 8px);
@@ -133,7 +135,7 @@ const appStyles = `
     position: fixed;
     inset: 0;
     z-index: 90;
-    background: rgba(18, 16, 12, 0.5);
+    background: color-mix(in srgb, var(--peat) 50%, transparent);
     opacity: 0;
     pointer-events: none;
     transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -219,7 +221,7 @@ export function App() {
               onClick={handleToggleSidebar}
               aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
-              &#9776;
+              {"\u2630"}
             </button>
           )}
           <div>
