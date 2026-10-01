@@ -8,9 +8,16 @@ export interface MongoClientLike {
 export interface DatabaseLike {
   collection(name: string): CollectionLike;
   collections(): Promise<CollectionLike[]>;
-  dropDatabase(): Promise<void>;
+  dropDatabase(): Promise<unknown>;
   listCollections(): { toArray(): Promise<Array<{ name: string }>> };
 }
+
+/**
+ * An index key direction or index type, as the mongodb driver's
+ * `IndexDirection` declares it. A wider value type here would make a driver
+ * collection unassignable to CollectionLike.
+ */
+export type MongoIndexDirection = number | "2d" | "2dsphere" | "text" | "geoHaystack" | "hashed";
 
 export interface CollectionLike {
   collectionName?: string;
@@ -25,8 +32,8 @@ export interface CollectionLike {
   aggregate(pipeline: Record<string, unknown>[]): { toArray(): Promise<unknown[]> };
   countDocuments(filter?: Record<string, unknown>): Promise<number>;
   distinct(field: string, filter?: Record<string, unknown>): Promise<unknown[]>;
-  bulkWrite(operations: unknown[]): Promise<unknown>;
-  createIndex(spec: Record<string, unknown>, options?: unknown): Promise<string>;
+  bulkWrite(operations: readonly unknown[]): Promise<unknown>;
+  createIndex(spec: Record<string, MongoIndexDirection>, options?: unknown): Promise<string>;
 }
 
 // ─── Adapter interface ───

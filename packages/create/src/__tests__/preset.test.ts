@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { parseArgs, createProject } from "../index.js";
 import { createPresetProject } from "../preset-project.js";
-import type { StackPreset } from "../matrix.js";
+import { VALID_COMBINATIONS, type Database, type StackPreset } from "../matrix.js";
 
 // ─── parseArgs --preset tests ────────────────────────────────────────────────
 
@@ -61,7 +61,7 @@ describe("regression: --template path unchanged", () => {
   it("--template nextjs still generates correct files", () => {
     createProject("test-project", "nextjs", projectDir, true);
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
   });
 });
 
@@ -204,7 +204,7 @@ describe("createPresetProject", () => {
     const preset: StackPreset = { database: "postgres", strategy: "rls", orm: "prisma", framework: "nextjs" };
     createPresetProject("test-project", preset, projectDir, true);
 
-    expect(fs.existsSync(path.join(projectDir, "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
     expect(fs.existsSync(path.join(projectDir, "prisma", "schema.prisma"))).toBe(true);
 
@@ -263,4 +263,35 @@ describe("createPresetProject", () => {
     const tsconfig = JSON.parse(fs.readFileSync(path.join(projectDir, "tsconfig.json"), "utf8"));
     expect(tsconfig.compilerOptions.jsx).toBe("preserve");
   });
+});
+
+// ─── Next.js file layout for every preset ────────────────────────────────────
+
+describe("Next.js presets", () => {
+  // Next.js runs middleware only from the directory that holds the app
+  // directory, and next build needs a root layout.
+  const presets: StackPreset[] = (Object.keys(VALID_COMBINATIONS) as Database[]).flatMap((database) =>
+    VALID_COMBINATIONS[database].strategies.flatMap((strategy) =>
+      VALID_COMBINATIONS[database].orms.map((orm) => ({ database, strategy, orm, framework: "nextjs" as const })),
+    ),
+  );
+
+  for (const preset of presets) {
+    const label = `${preset.database}-${preset.strategy}-${preset.orm}-nextjs`;
+    it(`${label} writes src/middleware.ts next to src/app, a root layout, and a tsconfig next build accepts`, () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "stratum-next-preset-"));
+      try {
+        createPresetProject("test-project", preset, dir, true);
+        expect(fs.existsSync(path.join(dir, "src", "app", "page.tsx"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "src", "app", "layout.tsx"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "src", "middleware.ts"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, "middleware.ts"))).toBe(false);
+        const { compilerOptions } = JSON.parse(fs.readFileSync(path.join(dir, "tsconfig.json"), "utf8"));
+        expect(compilerOptions.rootDir).toBeUndefined();
+        expect(compilerOptions.moduleResolution).toBe("Bundler");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  }
 });

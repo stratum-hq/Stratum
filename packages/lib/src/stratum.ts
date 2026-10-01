@@ -29,6 +29,7 @@ import type {
   BatchSetConfigEntry,
   ResolvedConfig,
   ResolvedConfigEntry,
+  ResolveConfigOptions,
   BatchSetConfigResult,
   PermissionPolicy,
   CreatePermissionInput,
@@ -70,7 +71,7 @@ import type {
   UsageAggregateQuery,
 } from "@stratum-hq/core";
 import { StratumError, TenantEvent } from "@stratum-hq/core";
-import { migrate } from "./migrate.js";
+import { assertRoleSubjectToRls, migrate } from "./migrate.js";
 import { markAdminPool } from "./pool-helpers.js";
 import { assertRoleName } from "./migration-sql.js";
 import { checkRoleModel, warnNoAdminPool } from "./role-model.js";
@@ -106,7 +107,11 @@ export interface StratumOptions {
   logger?: StratumLogger;
   /** Run migrations automatically on initialize(). Defaults to false. */
   autoMigrate?: boolean;
-  /** When true, migrations hard-fail if the PG role has BYPASSRLS. Use in production. */
+  /**
+   * When true, initialize() (and migrations) hard-fail if the PG role has
+   * BYPASSRLS. Checked on every initialize, whether or not a migration runs.
+   * Use in production.
+   */
   enforceRls?: boolean;
 }
 
@@ -168,8 +173,16 @@ export class Stratum {
         );
       }
       this.logger.info("running auto-migration");
-      await migrate({ pool: this.pool, enforceRls: this.enforceRls, controlRole: this.controlRole });
+      // With adminPool, enforceRls is about the application login, which
+      // checkRoleModel checks below; the admin login may have BYPASSRLS.
+      await migrate({
+        pool: this.pool,
+        enforceRls: this.enforceRls && !this.hasAdminPool,
+        controlRole: this.controlRole,
+      });
       this.logger.info("auto-migration complete");
+    } else if (this.enforceRls) {
+      await assertRoleSubjectToRls(this.appPool);
     }
     if (this.hasAdminPool) {
       await checkRoleModel({
@@ -426,10 +439,10 @@ export class Stratum {
   }
 
   // Tenant impersonation context
-  async getTenantContext(tenantId: string): Promise<TenantContext> {
+  async getTenantContext(tenantId: string, options?: ResolveConfigOptions): Promise<TenantContext> {
     const [tenant, config, permissions, ancestors] = await Promise.all([
       this.getTenant(tenantId),
-      this.resolveConfig(tenantId),
+      this.resolveConfig(tenantId, options),
       this.resolvePermissions(tenantId),
       this.getAncestors(tenantId),
     ]);
@@ -437,9 +450,15 @@ export class Stratum {
   }
 
   // Config operations
-  resolveConfig(tenantId: string): Promise<ResolvedConfig> {
+  /**
+   * Resolve a tenant's effective config. Sensitive values inherited from an
+   * ancestor come back masked (`value: null`, `masked: true`) unless
+   * `options.revealSensitive` is set, or `options.viewerTenantId` is the
+   * tenant that set them.
+   */
+  resolveConfig(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
     return traced("config.resolve", { tenant_id: tenantId }, async () => {
-      return configService.resolveConfig(this.pool, tenantId);
+      return configService.resolveConfig(this.pool, tenantId, options);
     });
   }
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
@@ -465,17 +484,17 @@ export class Stratum {
       );
     }
   }
-  getConfigWithInheritance(tenantId: string): Promise<ResolvedConfig> {
-    return configService.getConfigWithInheritance(this.pool, tenantId);
+  getConfigWithInheritance(tenantId: string, options?: ResolveConfigOptions): Promise<ResolvedConfig> {
+    return configService.getConfigWithInheritance(this.pool, tenantId, options);
   }
 
   // Config diff
-  async diffConfig(tenantIdA: string, tenantIdB: string): Promise<ConfigDiff> {
+  async diffConfig(tenantIdA: string, tenantIdB: string, options?: ResolveConfigOptions): Promise<ConfigDiff> {
     const [tenantA, tenantB, configA, configB] = await Promise.all([
       this.getTenant(tenantIdA),
       this.getTenant(tenantIdB),
-      this.resolveConfig(tenantIdA),
-      this.resolveConfig(tenantIdB),
+      this.resolveConfig(tenantIdA, options),
+      this.resolveConfig(tenantIdB, options),
     ]);
 
     const allKeys = new Set<string>([
@@ -496,6 +515,7 @@ export class Stratum {
         value: entry.value,
         status,
         source: entry.source_tenant_id,
+        ...(entry.masked ? { masked: true } : {}),
       };
     };
 
@@ -542,7 +562,9 @@ export class Stratum {
           missing++;
         } else if (parentEntry !== null && childEntry !== null) {
           const sameValue = JSON.stringify(parentEntry.value) === JSON.stringify(childEntry.value);
-          const childIsInherited = childEntry.status === "inherited";
+          // A masked entry is always inherited; its value is withheld, so it
+          // cannot be compared with the parent's.
+          const childIsInherited = childEntry.status === "inherited" || childEntry.masked === true;
 
           if (sameValue || childIsInherited) {
             // Child inherits or has the same value
@@ -650,8 +672,12 @@ export class Stratum {
   }
 
   // API Key operations
-  createApiKey(tenantId: string, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
-    return traced("api_key.create", { tenant_id: tenantId }, async () => {
+  /**
+   * Creates an API key and returns its plaintext once.
+   * Pass `null` as tenantId to create a global key, which is not limited to one tenant.
+   */
+  createApiKey(tenantId: string | null, nameOrOptions?: string | apiKeyService.CreateApiKeyOptions, expiresAt?: Date, audit?: AuditContext): Promise<apiKeyService.CreatedApiKey> {
+    return traced("api_key.create", { tenant_id: tenantId ?? undefined }, async () => {
       const created = await apiKeyService.createApiKey(this.pool, this.keyPrefix, tenantId, nameOrOptions, expiresAt);
       if (audit) {
         await auditService.createAuditEntry(

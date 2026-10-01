@@ -21,7 +21,7 @@ All endpoints require authentication via `X-API-Key` or `Authorization: Bearer` 
 | `GET` | `/api/v1/tenants/:id/ancestors` | Get ancestors (root to parent) |
 | `GET` | `/api/v1/tenants/:id/descendants` | Get all descendants |
 | `GET` | `/api/v1/tenants/:id/children` | Get direct children |
-| `GET` | `/api/v1/tenants/:id/context` | Resolve full context |
+| `GET` | `/api/v1/tenants/:id/context` | Resolve full context (read) |
 | `GET` | `/api/v1/tenants/:id/export` | Export tenant data (GDPR, admin) |
 | `POST` | `/api/v1/tenants/:id/purge` | Hard-delete tenant data (GDPR, admin) |
 | `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate to region (admin) |
@@ -231,6 +231,10 @@ GET /api/v1/tenants/:id/context
 ```
 
 Returns the full tenant context including resolved config and permissions.
+
+**Scope:** `read`. A tenant-scoped key can resolve its own tenant and its descendants. A global key can resolve any tenant. The SDK middleware, the NestJS guard and the Hono resolver call this route, so an app server needs only a `read` key.
+
+`resolved_config` follows the same masking rule as [`GET /tenants/:id/config`](/api/config/#sensitive-values): a sensitive value inherited from an ancestor comes back as `"value": null` with `"sensitive": true` and `"masked": true`, unless the caller's key belongs to the tenant that set it.
 
 **Response:** `200 OK`
 

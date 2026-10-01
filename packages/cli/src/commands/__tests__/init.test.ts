@@ -71,6 +71,24 @@ describe("init", () => {
     expect(read("stratum.config.ts")).toContain('integration: "sdk"');
   });
 
+  it("writes the Next.js middleware and proxy route into src when the app lives in src/app", async () => {
+    fs.mkdirSync(path.join(outDir, "src", "app"), { recursive: true });
+    fs.writeFileSync(
+      path.join(detectDir, "package.json"),
+      JSON.stringify({ dependencies: { next: "*", pg: "*", react: "*" } }),
+      "utf8",
+    );
+    (select as Mock).mockResolvedValueOnce(1); // integration: sdk
+    (confirm as Mock).mockResolvedValue(true);
+
+    await init({ out: outDir });
+
+    expect(exists("src/middleware.ts")).toBe(true);
+    expect(exists("src/app/api/stratum/[...path]/route.ts")).toBe(true);
+    expect(exists("middleware.ts")).toBe(false);
+    expect(exists("app")).toBe(false);
+  });
+
   it("uses the detected framework, ORM and React from an existing package.json", async () => {
     fs.writeFileSync(
       path.join(detectDir, "package.json"),

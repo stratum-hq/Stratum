@@ -196,7 +196,7 @@ Generates:
 
 Generates:
 
-- `middleware.ts`: Edge middleware that takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same middleware for Next.js.
+- `middleware.ts`: written next to the app directory (`src/middleware.ts` when the project keeps its app in `src/app`), because Next.js runs middleware only from there. Edge middleware that takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same middleware for Next.js.
 - `lib/stratum.ts`: server-side helpers for API routes and Server Components
 - `components/tenant-layout.tsx`: client component with `StratumProvider`
 

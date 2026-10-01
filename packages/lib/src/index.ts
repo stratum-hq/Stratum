@@ -72,6 +72,7 @@ export type {
   SetConfigInput,
   BatchSetConfigEntry,
   ResolvedConfigEntry,
+  ResolveConfigOptions,
   ResolvedConfig,
   PermissionPolicy,
   CreatePermissionInput,

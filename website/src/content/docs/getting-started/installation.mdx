@@ -131,7 +131,7 @@ For production, you should also set:
 |----------|-------------|
 | `JWT_SECRET` | JWT signing secret (required whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder such as `change-me-in-production`) |
 | `JWT_AUDIENCE` | Required `aud` claim for Bearer tokens, for example `stratum-control-plane` |
-| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
+| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required, at least 32 bytes, whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
 | `STRATUM_HKDF_SALT` | Hex-encoded HKDF salt for the encryption key (required whenever `NODE_ENV` is not `development` or `test`) |
 | `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated) |

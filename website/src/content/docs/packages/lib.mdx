@@ -50,7 +50,7 @@ const stratum = new Stratum({
   keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
   logger: myLogger,          // Optional: StratumLogger (default: defaultLogger)
   autoMigrate: false,        // Optional: run migrations on initialize() (default: false)
-  enforceRls: false,         // Optional: hard-fail migration if the PG role has BYPASSRLS (default: false)
+  enforceRls: false,         // Optional: hard-fail initialize() and migrations if the PG role has BYPASSRLS (default: false)
 });
 ```
 
@@ -60,7 +60,7 @@ The pool is **borrowed, not owned**: Stratum never creates or closes the pool. Y
 stratum.initialize(): Promise<void>
 ```
 
-Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so migrations refuse to run under a `BYPASSRLS` role; `initialize()` logs a warning when it is off there.
+Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so `initialize()` and migrations refuse to run under a `BYPASSRLS` role. The role is checked on every `initialize()`, with or without `autoMigrate`, and on every `migrate()` call, not only when a migration is applied. `initialize()` logs a warning when `autoMigrate` is on and `enforceRls` is off there.
 
 ## API Reference
 
@@ -80,7 +80,7 @@ stratum.getDescendants(id, includeArchived?): Promise<TenantNode[]>
 stratum.getChildren(id): Promise<TenantNode[]>
 stratum.reorderTenant(id, position, audit?): Promise<TenantNode>
 stratum.batchCreateTenants(inputs, audit?): Promise<BatchCreateResult>
-stratum.getTenantContext(tenantId): Promise<TenantContext>
+stratum.getTenantContext(tenantId, options?): Promise<TenantContext>
 ```
 
 - `getTenantBySlug(slug, includeArchived?)`: resolve a tenant by its globally unique slug in one indexed lookup, the slug-keyed counterpart to `getTenant`. Throws `TenantNotFoundError` when no row matches, and (unless `includeArchived` is set) `TenantArchivedError` / `TenantSuspendedError` for a non-active row.
@@ -118,16 +118,17 @@ stratum.getOrganization(id): Promise<TenantNode>                 // alias for ge
 ### Config
 
 ```typescript
-stratum.resolveConfig(tenantId): Promise<ResolvedConfig>
+stratum.resolveConfig(tenantId, options?): Promise<ResolvedConfig>
 stratum.setConfig(tenantId, key, input, audit?): Promise<ConfigEntry>
 stratum.deleteConfig(tenantId, key, audit?): Promise<void>
-stratum.getConfigWithInheritance(tenantId): Promise<ResolvedConfig>
+stratum.getConfigWithInheritance(tenantId, options?): Promise<ResolvedConfig>
 stratum.batchSetConfig(tenantId, entries, audit?): Promise<BatchSetConfigResult>
-stratum.diffConfig(tenantIdA, tenantIdB): Promise<ConfigDiff>
+stratum.diffConfig(tenantIdA, tenantIdB, options?): Promise<ConfigDiff>
 stratum.computeDrift(parentId, childId): Promise<DriftResult>
 stratum.batchComputeDrift(parentId, childIds): Promise<BatchDriftResult>
 ```
 
+- `resolveConfig(tenantId, options?)`: a sensitive value inherited from an ancestor comes back masked: `value: null`, `sensitive: true`, `masked: true`, with `source_tenant_id` naming the tenant that set it. A tenant's own sensitive values come back decrypted. Pass `{ revealSensitive: true }` in trusted server code that needs the inherited secret itself, and never send that result to a client. Pass `{ viewerTenantId }` to reveal only the values that tenant set. `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take the same options.
 - `computeDrift(parentId, childId)`: classify each resolved config key on the child against the parent as `ok` / `override` / `missing` / `conflict` (a `conflict` is a child value that diverges from a **locked** parent key), with per-key detail and a rolled-up worst status.
 - `batchComputeDrift(parentId, childIds)`: `computeDrift` fanned out over many children, with a per-status summary count.
 
@@ -164,6 +165,7 @@ stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
 ```
 
+- `createApiKey(tenantId, ...)`: `tenantId` is `null` for a global key, which is not limited to one tenant.
 - `validateApiKey(key)`: on success, sets the key's `last_used_at` before the promise resolves, so `listDormantKeys` called next does not report the key. It skips that update when `last_used_at` is less than 60 seconds old, so `last_used_at` can lag the latest use by up to one minute. The update waits at most one second. A failure or timeout of that update does not fail the validation.
 - `getApiKey(id)`: look up a single API key by id, including its owning tenant; returns `null` when no key has that id. The primitive for authorizing an operation that targets a key by id whose owning tenant is not otherwise in the request.
 
@@ -276,7 +278,7 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 
 ### Encryption
 
-Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. The package does not export the encryption functions; use the `Stratum` method below to change the key.
+Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. Outside development and test the library refuses to load unless `STRATUM_ENCRYPTION_KEY` is at least 32 bytes and is not the built-in development key, and `STRATUM_HKDF_SALT` is not the built-in development salt. In every environment, a `STRATUM_HKDF_SALT` that is set must be a non-empty, even-length hex string. The legacy `WEBHOOK_ENCRYPTION_KEY` variable is read only in development and test; elsewhere, set `STRATUM_ENCRYPTION_KEY` to its value. The package does not export the encryption functions; use the `Stratum` method below to change the key.
 
 ```typescript
 stratum.rotateEncryptionKey(oldKey, newKey, audit?, salts?): Promise<KeyRotationResult>

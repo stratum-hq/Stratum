@@ -3,6 +3,7 @@ import path from "node:path";
 import pg from "pg";
 import { withClient } from "./pool-helpers.js";
 import { assertRoleName, isSuperuser, migrationSql, setControlRole } from "./migration-sql.js";
+import { assertRoleSubjectToRls } from "./migrate.js";
 
 export interface MigrateSchemasOptions {
   pool: pg.Pool;
@@ -29,6 +30,10 @@ export async function migrateAllSchemas(
 ): Promise<MigrateSchemasResult> {
   const { pool, concurrency = 5, onProgress, enforceRls, controlRole } = options;
   if (controlRole !== undefined) assertRoleName(controlRole, "control role");
+
+  if (enforceRls) {
+    await assertRoleSubjectToRls(pool);
+  }
 
   // Discover tenant schemas. The tenants registry is under FORCE RLS, so
   // discovery runs under the control-plane bypass like every other lib read.

@@ -97,7 +97,7 @@ async function assertTenantAcceptsKeys(
 export async function createApiKey(
   pool: pg.Pool,
   keyPrefix: string,
-  tenantId: string,
+  tenantId: string | null,
   nameOrOptions?: string | CreateApiKeyOptions,
   expiresAt?: Date,
 ): Promise<CreatedApiKey> {
@@ -108,7 +108,10 @@ export async function createApiKey(
   const { plaintextKey, keyHash, hashVersion } = generateKey(keyPrefix);
 
   return withClient(pool, async (client) => {
-    await assertTenantAcceptsKeys(client, tenantId, "create an API key for");
+    // A global key (tenantId null) has no tenant whose state could block it.
+    if (tenantId !== null) {
+      await assertTenantAcceptsKeys(client, tenantId, "create an API key for");
+    }
     const res = await client.query<ApiKeyRecord>(
       `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, expires_at, rate_limit_max, rate_limit_window, hash_version)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

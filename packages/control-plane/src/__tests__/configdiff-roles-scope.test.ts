@@ -116,7 +116,7 @@ describe("config diff scopes both compared tenants to the caller's subtree", () 
   it("allows diffing entirely within the caller's subtree", async () => {
     const res = await diff(ATTACKER, ATTACKER_CHILD);
     expect(res.statusCode).toBe(200);
-    expect(stratum.diffConfig).toHaveBeenCalledWith(ATTACKER, ATTACKER_CHILD);
+    expect(stratum.diffConfig).toHaveBeenCalledWith(ATTACKER, ATTACKER_CHILD, { viewerTenantId: ATTACKER });
   });
 });
 
@@ -251,7 +251,7 @@ describe("global operator keys keep full access", () => {
   it("still diffs any two tenants", async () => {
     const res = await diff(ATTACKER, VICTIM);
     expect(res.statusCode).toBe(200);
-    expect(stratum.diffConfig).toHaveBeenCalledWith(ATTACKER, VICTIM);
+    expect(stratum.diffConfig).toHaveBeenCalledWith(ATTACKER, VICTIM, {});
   });
 
   it("still enumerates every tenant's roles", async () => {

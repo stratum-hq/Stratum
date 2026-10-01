@@ -53,8 +53,14 @@ const REFUSED_METHODS = new Map<string, string>([
   ].map((method): [string, string] => [method, NOT_SCOPED]),
 ]);
 
+/**
+ * True when a column key resolves to tenant_id. Knex splits a key on " as "
+ * and on dots, so "notes.tenant_id" and "db.notes.TENANT_ID" name the same
+ * column as "tenant_id" (MySQL column names are case-insensitive).
+ */
 function isTenantColumn(name: string): boolean {
-  return name.toLowerCase() === TENANT_COLUMN;
+  const column = name.split(/\s+as\s+/i)[0].split(".").pop() ?? "";
+  return column.toLowerCase() === TENANT_COLUMN;
 }
 
 function withoutTenantColumn(row: Record<string, unknown>): Record<string, unknown> {
@@ -79,7 +85,9 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * you do not need to include it yourself:
  *   await scoped("users").insert({ name: "Alice" });
  *
- * UPDATE never changes tenant_id: the column is dropped from the update data.
+ * UPDATE never changes tenant_id: the column is dropped from the update data,
+ * however the key names it (any letter case, table- or schema-qualified).
+ * INSERT drops such keys too before it adds the tenant's tenant_id.
  * onConflict().merge(), upsert() and truncate() throw, because MySQL applies
  * none of them through the WHERE clause. onConflict().ignore() is allowed.
  *
@@ -91,11 +99,16 @@ function withoutTenantColumn(row: Record<string, unknown>): Record<string, unkno
  * builder's table, not the joined or unioned rows. To combine tenant data, use
  * a tenant-scoped builder as a whereIn subquery, or write the query with an
  * explicit tenant_id condition on every table.
+ *
+ * The returned builder has the builder type of the Knex instance given. For a
+ * real Knex instance, that is Knex's own QueryBuilder, so `orWhere()`, the
+ * three-argument `where()` and the other Knex methods type-check. The methods
+ * that this function refuses also type-check, and throw when they run.
  */
-export function withTenantScope(
-  knex: KnexLike,
+export function withTenantScope<K extends KnexLike>(
+  knex: K,
   tenantId: string,
-): (tableName: string) => KnexQueryBuilderLike {
+): (tableName: string) => ReturnType<K> {
   // Statement objects this module created, so they can be recognized again on
   // clones, which copy the statement array but share the statement objects.
   const tenantStatements = new WeakSet<object>();
@@ -192,7 +205,7 @@ export function withTenantScope(
         return (...args: unknown[]) => {
           if (prop === "insert") {
             const data = args[0] as Record<string, unknown> | Record<string, unknown>[];
-            const inject = (row: Record<string, unknown>) => ({ ...row, tenant_id: tenantId });
+            const inject = (row: Record<string, unknown>) => ({ ...withoutTenantColumn(row), tenant_id: tenantId });
             args[0] = Array.isArray(data) ? data.map(inject) : inject(data);
           } else if (prop === "update") {
             if (typeof args[0] === "string") {
@@ -230,5 +243,5 @@ export function withTenantScope(
   }
 
   return (tableName: string) =>
-    scope(knex(tableName) as unknown as KnexBuilderInternals);
+    scope(knex(tableName) as unknown as KnexBuilderInternals) as unknown as ReturnType<K>;
 }

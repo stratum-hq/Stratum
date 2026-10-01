@@ -181,10 +181,12 @@
         "type": "object",
         "properties": {
           "key": { "type": "string" },
-          "value": {},
+          "value": { "description": "The value, or null when masked is true." },
           "source_tenant_id": { "type": "string", "format": "uuid" },
           "inherited": { "type": "boolean" },
-          "locked": { "type": "boolean" }
+          "locked": { "type": "boolean" },
+          "sensitive": { "type": "boolean", "description": "Present and true when the value was set with sensitive: true." },
+          "masked": { "type": "boolean", "description": "Present and true when a sensitive value inherited from an ancestor was withheld; value is then null. Only a key of the tenant that set it (source_tenant_id) receives the value." }
         },
         "required": ["key", "value", "source_tenant_id", "inherited", "locked"]
       },
@@ -925,7 +927,7 @@
       "get": {
         "tags": ["Tenants"],
         "summary": "Resolve tenant context",
-        "description": "Resolve the full tenant context including inherited config and permissions.",
+        "description": "Resolve the full tenant context including inherited config and permissions. Requires the read scope; a tenant-scoped key reaches its own tenant and its descendants. Sensitive config values inherited from an ancestor are masked unless the key belongs to the tenant that set them.",
         "operationId": "resolveTenantContext",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }

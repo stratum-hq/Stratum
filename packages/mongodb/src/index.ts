@@ -3,6 +3,7 @@ export type {
   MongoClientLike,
   DatabaseLike,
   CollectionLike,
+  MongoIndexDirection,
   MongoAdapter,
   PurgeResult,
   AdapterStats,
