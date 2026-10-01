@@ -15,12 +15,26 @@ export interface RoleModelCheck {
  * `--admin-database-url`. In 1.x every problem is a warning: the hardening
  * is opt-in.
  *
- * Before the control role is applied, only the hardening line is reported;
- * the other checks have nothing to check against yet.
+ * Before the control role is applied, only the hardening line is reported
+ * (with the search path check, which does not depend on it); the other checks
+ * have nothing to check against yet.
  */
 export function roleModelChecks(report: RoleModelReport): RoleModelCheck[] {
+  const searchPath: RoleModelCheck[] = report.searchPathIssue
+    ? [
+        {
+          status: "warn",
+          label: "Admin search path",
+          summary: "A schema the application login can create would come first on it",
+          details: [report.searchPathIssue],
+        },
+      ]
+    : [];
   if (!report.migrated) {
-    return [{ status: "warn", label: "Control role", summary: "Migration 032 not applied; run the Stratum migrations" }];
+    return [
+      { status: "warn", label: "Control role", summary: "Migration 032 not applied; run the Stratum migrations" },
+      ...searchPath,
+    ];
   }
   if (!report.hardeningActive) {
     return [
@@ -30,11 +44,13 @@ export function roleModelChecks(report: RoleModelReport): RoleModelCheck[] {
         summary: "Hardening not active: migration 032 did not apply the control role",
         details: ["Run `stratum db roles --apply` as a superuser (or the SQL it prints) to apply it."],
       },
+      ...searchPath,
     ];
   }
 
   const checks: RoleModelCheck[] = [
     { status: "pass", label: "Control role", summary: `Hardening active (control role ${report.controlRole})` },
+    ...searchPath,
   ];
 
   const app = report.appIssues ?? [];

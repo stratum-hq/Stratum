@@ -491,6 +491,61 @@ async function appRoleIssues(subject: RoleSubject, control: string): Promise<str
   return issues;
 }
 
+/** The search_path of the admin login: the session's for a pool, else the role's default in this database. */
+async function adminSearchPath(admin: RoleSubject): Promise<{ me: string; path: string } | null> {
+  if (admin.role === undefined) {
+    // Unpinned, so it reads the path the admin login's sessions use.
+    const res = await admin.pool.query<{ me: string; path: string }>(
+      "SELECT current_user::text AS me, pg_catalog.current_setting('search_path') AS path",
+    );
+    return res.rows[0] ?? null;
+  }
+  // As PostgreSQL applies them: role in database, role, database, then the default.
+  const res = await pinnedQuery<{ me: string; path: string }>(
+    admin.pool,
+    `WITH cfg AS (
+       SELECT s.setrole, s.setdatabase, substr(c, 13) AS path
+         FROM pg_db_role_setting s, unnest(s.setconfig) c WHERE c LIKE 'search_path=%'
+     )
+     SELECT r.rolname::text AS me, COALESCE(
+              (SELECT path FROM cfg WHERE setrole = r.oid AND setdatabase = d.oid),
+              (SELECT path FROM cfg WHERE setrole = r.oid AND setdatabase = 0),
+              (SELECT path FROM cfg WHERE setrole = 0 AND setdatabase = d.oid),
+              (SELECT boot_val FROM pg_settings WHERE name = 'search_path')) AS path
+       FROM pg_roles r, pg_database d WHERE r.rolname = $1::text AND d.datname = current_database()`,
+    [admin.role],
+  );
+  return res.rows[0] ?? null;
+}
+
+/**
+ * Why a schema the application login creates could shadow the Stratum schema
+ * on the admin login's search path, or null when it cannot: the application
+ * login can create schemas in the database and the admin login's path starts
+ * from "$user", so a schema named after the admin login would come first.
+ */
+async function searchPathShadowIssue(app: RoleSubject, admin: RoleSubject): Promise<string | null> {
+  const res = await pinnedQuery<{ me: string; su: boolean; can_create: boolean; db: string }>(
+    app.pool,
+    `SELECT r.rolname::text AS me, r.rolsuper AS su, has_database_privilege(r.oid, d.oid, 'CREATE') AS can_create,
+            d.datname::text AS db
+       FROM pg_roles r, pg_database d
+      WHERE r.rolname = COALESCE($1::text, current_user) AND d.datname = current_database()`,
+    [app.role ?? null],
+  );
+  const row = res.rows[0];
+  if (!row || row.su || !row.can_create) return null;
+  const adminPath = await adminSearchPath(admin);
+  if (!adminPath || !adminPath.path.includes("$user")) return null;
+  return (
+    `the app role "${row.me}" can create schemas in the database "${row.db}", and the search_path of the admin ` +
+    `login "${adminPath.me}" (${adminPath.path}) contains "$user", so a schema named after the admin login would ` +
+    `come first on it. Set the admin login's path (ALTER ROLE ${quoteIdentifier(adminPath.me)} IN DATABASE ` +
+    `${quoteIdentifier(row.db)} SET search_path = <Stratum schema>) or REVOKE CREATE ON DATABASE ` +
+    `${quoteIdentifier(row.db)} FROM ${quoteIdentifier(row.me)}`
+  );
+}
+
 /** The login of `pool`. */
 export async function currentLogin(pool: pg.Pool): Promise<string> {
   const res = await pinnedQuery<{ me: string }>(pool, "SELECT current_user::text AS me");
@@ -606,10 +661,17 @@ export interface RoleModelCheckOptions {
  * role model, warning about each problem. With `strict`, a misconfigured
  * application login throws instead. In every mode it reports an
  * application login that can create objects in the schema of the Stratum
- * tables; with an adminPool and `strict` that is an error too.
+ * tables; with an adminPool and `strict` that is an error too. With an
+ * adminPool it also warns when a schema the application login can create
+ * would come first on the admin login's search path.
  */
 export async function checkRoleModel(options: RoleModelCheckOptions): Promise<void> {
   const { adminPool, appPool, logger } = options;
+
+  if (adminPool) {
+    const shadow = await searchPathShadowIssue({ pool: appPool }, { pool: adminPool });
+    if (shadow !== null) logger.warn(`[stratum] ${shadow}.`);
+  }
 
   if (await hardeningInactive(adminPool ?? appPool)) {
     logger.warn(
@@ -691,6 +753,12 @@ export interface RoleModelReport {
   controlMembers: { role: string; login: boolean }[];
   /** The admin login that was checked, or null when none was given. */
   adminLogin: string | null;
+  /**
+   * Why a schema the application login can create would come first on the
+   * admin login's search path ("$user"), or null when it would not or when
+   * either login was not given.
+   */
+  searchPathIssue: string | null;
 }
 
 export interface InspectRoleModelOptions {
@@ -740,6 +808,7 @@ export async function inspectRoleModel(options: InspectRoleModelOptions): Promis
     legacyBypass: switchReader && migrated ? await legacyBypassOn(switchReader) : null,
     controlMembers: await controlRoleMembers(pool, control),
     adminLogin: options.adminRole ?? (adminPool ? await currentLogin(adminPool) : null),
+    searchPathIssue: appSubject && adminSubject ? await searchPathShadowIssue(appSubject, adminSubject) : null,
   };
 }
 

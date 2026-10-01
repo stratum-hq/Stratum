@@ -12,6 +12,7 @@ function report(overrides: Partial<RoleModelReport>): RoleModelReport {
     legacyBypass: false,
     controlMembers: [{ role: "stratum_admin", login: true }],
     adminLogin: "stratum_admin",
+    searchPathIssue: null,
     ...overrides,
   };
 }
@@ -37,5 +38,22 @@ describe("roleModelChecks: members of the control role", () => {
   it("lists the members without judging them when no admin login was given", () => {
     const check = members(report({ adminLogin: null, adminIssues: null }));
     expect(check).toMatchObject({ status: "pass", summary: "Members: stratum_admin" });
+  });
+});
+
+describe("roleModelChecks: the admin login's search path", () => {
+  const issue = 'the app role "app" can create schemas in the database "db", and the search_path ...';
+
+  it("warns with the issue, also before the control role is applied", () => {
+    for (const r of [report({ searchPathIssue: issue }), report({ hardeningActive: false, searchPathIssue: issue })]) {
+      expect(roleModelChecks(r).find((c) => c.label === "Admin search path")).toMatchObject({
+        status: "warn",
+        details: [issue],
+      });
+    }
+  });
+
+  it("has no line when there is no issue", () => {
+    expect(roleModelChecks(report({})).find((c) => c.label === "Admin search path")).toBeUndefined();
   });
 });

@@ -135,6 +135,8 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
 The default search path is `"$user", public`, so the application login creates its unqualified tables in its own schema and still finds the Stratum tables in `public` by their plain names. If another login creates your application's tables (as in projects from `@stratum-hq/create`, where the bootstrap superuser, in `DATABASE_SUPERUSER_URL`, runs your migrations and Stratum's own login, in `STRATUM_ADMIN_DATABASE_URL`, runs Stratum's), give the application login default privileges only on what that login creates (`ALTER DEFAULT PRIVILEGES FOR ROLE <creator> ...`), and run the Stratum migrations as Stratum's login, never as that creator. If they did run as the creator, `stratum db roles --apply --app-role <app login>` removes the privileges the application login received on the Stratum tables.
 
+The same `"$user"` entry works against the admin login when the application login has `CREATE` on the database: it could create a schema named after the admin login, which would then come first on the admin login's path. `stratum doctor` and `initialize()` warn about this. Set the admin login's path to the Stratum schema (`ALTER ROLE <admin login> IN DATABASE <database> SET search_path = <Stratum schema>;`), or do not grant the application login `CREATE ON DATABASE`.
+
 ### Managed PostgreSQL
 
 Managed services usually give you an administrative login that is not a full superuser (for example the master user on Amazon RDS, or `postgres` on Cloud SQL, Azure and Supabase). Such a login normally has `CREATEROLE`, which is enough to create the control role and grant memberships.
