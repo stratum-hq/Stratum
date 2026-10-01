@@ -2,6 +2,8 @@
 
 Cross-tenant isolation test helpers for [Stratum](https://github.com/stratum-hq/Stratum). Drop these into your CI pipeline to catch isolation regressions before they reach production.
 
+Read the documentation at [docs.stratum-hq.org/packages/test-utils](https://docs.stratum-hq.org/packages/test-utils/).
+
 ## Installation
 
 ```bash

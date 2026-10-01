@@ -2,6 +2,8 @@
 
 The [Stratum](https://github.com/stratum-hq/Stratum) control plane: a [Fastify](https://fastify.dev) REST API server that exposes tenant, config, permission, API-key, webhook, audit, consent, region, and ABAC management over HTTP. Pair it with `@stratum-hq/sdk` for polyglot stacks or service separation.
 
+Read the REST API reference at [docs.stratum-hq.org/api/tenants](https://docs.stratum-hq.org/api/tenants/).
+
 ## Installation
 
 ```bash

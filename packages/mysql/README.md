@@ -2,6 +2,8 @@
 
 MySQL tenant isolation for [Stratum](https://github.com/stratum-hq/Stratum). Three isolation strategies, ORM integrations, and MySQL View utilities.
 
+Read the documentation at [docs.stratum-hq.org/packages/mysql](https://docs.stratum-hq.org/packages/mysql/).
+
 ## Isolation Strategies
 
 | Strategy | Mechanism | Security Level |

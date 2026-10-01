@@ -1,6 +1,8 @@
 # @stratum-hq/mongodb
 
-MongoDB tenant isolation adapters for Stratum.
+MongoDB multi-tenancy for [Stratum](https://github.com/stratum-hq/Stratum): tenant isolation adapters and a Mongoose plugin.
+
+Read the documentation at [docs.stratum-hq.org/packages/mongodb](https://docs.stratum-hq.org/packages/mongodb/).
 
 Three isolation strategies:
 - **Shared collection:** tenant_id field injection via Collection Proxy

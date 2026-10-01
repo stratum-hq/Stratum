@@ -4,6 +4,7 @@
   "description": "Drop-in hierarchical multi-tenancy for Node.js: tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "b2b",
@@ -23,7 +24,7 @@
   ],
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/stratum#readme",
+  "homepage": "https://docs.stratum-hq.org/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "repository": {
     "type": "git",

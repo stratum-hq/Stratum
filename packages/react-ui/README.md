@@ -2,6 +2,8 @@
 
 React components and hooks for building multi-tenant administration UIs on top of [Stratum](https://github.com/stratum-hq/Stratum): tenant switching, hierarchy visualization, and config/permission editing.
 
+Read the documentation at [docs.stratum-hq.org/packages/react](https://docs.stratum-hq.org/packages/react/).
+
 ## Installation
 
 ```bash

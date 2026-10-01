@@ -1,12 +1,14 @@
 {
   "name": "@stratum-hq/nestjs",
   "version": "1.3.0",
-  "description": "Stratum NestJS integration: StratumGuard, @Tenant() decorator, and StratumModule",
+  "description": "NestJS multi-tenancy: tenant guard, @Tenant() decorator, and module for Stratum",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
+    "tenant-isolation",
     "nestjs",
     "nest",
     "guard",
@@ -59,7 +61,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/nestjs#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/nestjs/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

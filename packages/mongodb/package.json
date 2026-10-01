@@ -4,6 +4,7 @@
   "description": "MongoDB tenant isolation for Stratum: shared collection, collection-per-tenant, and database-per-tenant strategies",
   "keywords": [
     "multi-tenancy",
+    "multitenancy",
     "multi-tenant",
     "saas",
     "tenant",
@@ -59,7 +60,7 @@
   },
   "license": "MIT",
   "author": "Christian Crank",
-  "homepage": "https://github.com/stratum-hq/Stratum/tree/main/packages/mongodb#readme",
+  "homepage": "https://docs.stratum-hq.org/packages/mongodb/",
   "bugs": "https://github.com/stratum-hq/Stratum/issues",
   "engines": {
     "node": ">=20.0.0"

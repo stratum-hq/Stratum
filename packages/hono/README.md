@@ -2,6 +2,8 @@
 
 [Hono](https://hono.dev) middleware for [Stratum](https://github.com/stratum-hq/Stratum). It extracts tenant identity from a request and sets up AsyncLocalStorage context for downstream handlers.
 
+Read the documentation at [docs.stratum-hq.org/packages/hono](https://docs.stratum-hq.org/packages/hono/).
+
 ## Installation
 
 ```bash
