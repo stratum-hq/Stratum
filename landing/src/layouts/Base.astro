@@ -20,17 +20,16 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!-- Theme, resolved before first paint so there is no post paint flash and the
-       landing agrees with the docs site: an explicit choice in localStorage wins,
-       otherwise the OS preference decides. Mirrors Starlight's pre paint behavior
-       (website/, Epic 18). Kept as is:inline so it runs synchronously in <head>. -->
+  <!-- Theme, resolved before first paint so there is no post paint flash.
+       Bedrock (dark) is the default for every visitor, whatever the OS
+       preference; Daylight applies only when the visitor picks it with the
+       toggle, which stores the choice in localStorage. The docs site does the
+       same (website/src/components/ThemeProvider.astro). Kept as is:inline so
+       it runs synchronously in <head>. -->
   <script is:inline>
     (() => {
       try {
-        const saved = localStorage.getItem('stratum-theme');
-        const theme = saved === 'light' || saved === 'dark'
-          ? saved
-          : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        const theme = localStorage.getItem('stratum-theme') === 'light' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', theme);
       } catch (e) {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -81,26 +80,27 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
   </script>
   <slot name="head" />
   <script defer data-domain="stratum-hq.org" src="https://plausible.io/js/script.js"></script>
-  <link rel="icon" href="/favicon.ico?v=strata" sizes="32x32" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=strata" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=strata" />
+  <link rel="icon" href="/favicon.ico?v=bedrock" sizes="32x32" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=bedrock" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=bedrock" />
   <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Strata identity fonts (Libre Franklin / IBM Plex Sans / IBM Plex Mono),
-       loaded non-blocking so first paint is never held on a font stylesheet.
-       The render-blocking @import that assets/tokens.css carries for website/ is
-       stripped from the landing bundle at build (see astro.config.mjs). -->
+  <!-- Stratum identity fonts (Big Shoulders Display / Instrument Sans /
+       Martian Mono), loaded non-blocking so first paint is never held on a
+       font stylesheet. assets/tokens.css does not @import fonts; any remote
+       font @import is still stripped from the landing bundle at build (see
+       astro.config.mjs). -->
   <link
     rel="preload"
     as="style"
-    href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap"
     onload="this.onload=null;this.rel='stylesheet'"
   />
   <noscript>
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap"
     />
   </noscript>
 </head>

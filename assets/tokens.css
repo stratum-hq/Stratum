@@ -192,6 +192,7 @@
   --lock: var(--magma);
   --warning: var(--ochre);
   --sandstone: #7A5F35;
+  --code-text: #D6C3A0;       /* the code well stays dark, so its text does not follow --sandstone here */
 
   --border: #D9CCB2;
   --border-hover: #BFAE8E;

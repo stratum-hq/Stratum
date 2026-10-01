@@ -38,6 +38,18 @@ a {
   text-decoration: none;
 }
 
+/* Display type: Big Shoulders Display is condensed and heavy, so headings are
+   set uppercase with tight leading. Page styles set the sizes. Card and
+   sub-headings (h3 and below) stay in the body face. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+
 /* ===== THEME TOGGLE ===== */
 .theme-toggle {
   background: var(--surface-2);
@@ -46,7 +58,6 @@ a {
   cursor: pointer;
   width: 36px;
   height: 36px;
-  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -54,7 +65,7 @@ a {
               color var(--duration-fast) var(--ease-out);
 }
 .theme-toggle:hover {
-  border-color: var(--border-hover);
+  border-color: var(--rule);
   color: var(--text-primary);
 }
 
@@ -80,18 +91,18 @@ a {
 }
 .nav-logo {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.125rem;
+  font-weight: 900;
+  font-size: 1.5rem;
+  line-height: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
 }
 .nav-logo-img {
   width: 28px;
   height: 28px;
-  border-radius: var(--radius-sm);
   object-fit: contain;
 }
 .nav-links {
@@ -137,49 +148,88 @@ a {
   }
 }
 
-/* ===== BUTTONS ===== */
-.btn-primary {
-  background: var(--accent);
+/* ===== BUTTONS =====
+   A rock chip: the face is a ::before clipped to --edge-chip with grain, and
+   the lip and pool are drop-shadows on the unclipped element, because
+   clip-path removes box-shadow, borders and outlines. Keeping the element
+   itself unclipped also keeps the keyboard focus ring visible.
+   .btn-primary is the one magma action; .btn-vein is the cool second action;
+   .btn-secondary is the "scratch" text button with a rule underline. */
+.btn-primary,
+.btn-vein {
+  --btn-lip: var(--magma-deep);
+  --btn-face: var(--accent);
+  position: relative;
+  isolation: isolate;
+  background: transparent;
   color: var(--on-accent);
-  padding: 11px 22px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9375rem;
+  padding: 13px 24px 12px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   border: none;
   cursor: pointer;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  transition: background var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out);
+  margin-bottom: 4px;
+  filter: drop-shadow(0 4px 0 var(--btn-lip)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.32));
+  transition: transform var(--duration-fast) var(--ease-out),
+              filter var(--duration-fast) var(--ease-out);
 }
-.btn-primary:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
+.btn-vein {
+  --btn-lip: var(--vein-deep);
+  --btn-face: var(--vein);
+  color: var(--on-vein);
 }
-.btn-primary:active {
-  transform: translateY(0);
+.btn-primary::before,
+.btn-vein::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--edge-chip);
+  background-color: var(--btn-face);
+  background-image: var(--lit), var(--grain);
+  background-size: auto, 160px 160px;
+  background-blend-mode: normal, multiply;
+}
+.btn-primary:hover,
+.btn-vein:hover {
+  transform: translateY(-3px);
+  filter: drop-shadow(0 7px 0 var(--btn-lip)) drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
+}
+.btn-primary:hover::before {
+  background-color: var(--accent-hover);
+}
+.btn-primary:active,
+.btn-vein:active {
+  transform: translateY(2px);
+  filter: drop-shadow(0 1px 0 var(--btn-lip)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+  transition-duration: 120ms;
 }
 .btn-secondary {
-  background: transparent;
-  color: var(--text-secondary);
-  padding: 11px 22px;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: 0.9375rem;
-  border: 1px solid var(--border);
+  background: linear-gradient(var(--rule), var(--rule)) no-repeat 0 100% / 100% 2px;
+  color: var(--accent-text);
+  padding: 11px 4px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: none;
   cursor: pointer;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  transition: border-color var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
+  transition: background-size var(--duration-fast) var(--ease-out);
 }
 .btn-secondary:hover {
-  border-color: var(--border-hover);
-  color: var(--text-primary);
+  background-size: 100% 4px;
 }
 
 /* ===== HERO ACTIONS + ACCENT (shared across pages) ===== */
@@ -199,6 +249,7 @@ a {
     gap: var(--space-2);
   }
   .hero-actions .btn-primary,
+  .hero-actions .btn-vein,
   .hero-actions .btn-secondary {
     width: 100%;
     justify-content: center;
@@ -211,9 +262,8 @@ a {
 /* ===== INSTALL BOX ===== */
 .install-box {
   background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-6);
+  clip-path: var(--edge-ledge);
+  padding: calc(var(--space-4) + 4px) var(--space-6) var(--space-4);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -222,22 +272,24 @@ a {
 }
 .install-box code {
   font-family: var(--font-mono);
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--code-text);
 }
 .install-box code .pkg {
-  color: var(--sandstone);
+  color: var(--syntax-string);
 }
 .install-copy {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-tertiary);
+  background: transparent;
+  border: 1px solid var(--syntax-comment);
+  color: var(--code-text);
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   white-space: nowrap;
   transition: border-color var(--duration-fast) var(--ease-out),
               color var(--duration-fast) var(--ease-out);
@@ -246,56 +298,127 @@ a {
   align-items: center;
 }
 .install-copy:hover {
-  border-color: var(--border-hover);
-  color: var(--text-primary);
+  border-color: var(--code-text);
+}
+
+/* ===== LAYER =====
+   A panel is a slab of rock: a band-colored lip clipped to --edge-ledge (::before),
+   then the inner surface clipped to --edge-ledge-b a few px lower (::after), so
+   the lip varies in thickness. The element itself stays unclipped and carries
+   the lip-and-pool shadow as drop-shadows. Content sits above both pseudo
+   layers through isolation. Set --layer-band to pick the rock by depth. */
+.layer,
+.inherit-panel,
+.feature-block,
+.feature-diagram-block,
+.feature-compact {
+  --layer-band: var(--topsoil);
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
+}
+.layer::before,
+.inherit-panel::before,
+.feature-block::before,
+.feature-diagram-block::before,
+.feature-compact::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  clip-path: var(--edge-ledge);
+  background-color: var(--layer-band);
+  background-image: var(--shade), var(--lam);
+}
+.layer::after,
+.inherit-panel::after,
+.feature-block::after,
+.feature-diagram-block::after,
+.feature-compact::after {
+  content: "";
+  position: absolute;
+  inset: 10px 0 0;
+  z-index: -1;
+  clip-path: var(--edge-ledge-b);
+  background: var(--surface-1);
+}
+[data-theme="light"] .layer,
+[data-theme="light"] .inherit-panel,
+[data-theme="light"] .feature-block,
+[data-theme="light"] .feature-diagram-block,
+[data-theme="light"] .feature-compact {
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
 }
 
 /* ===== HERO: INHERITANCE FLOW PANEL =====
-   The signature graphic. A config value resolves down the strata in Ember;
-   a sealed key sits in ochre. One accent, one warm color, each with one meaning. */
+   The signature graphic. Each tenant is a rock band colored by depth (topsoil,
+   clay, sandstone, limestone), indented 28px per level, each row overlapping the
+   ragged top of the one above. A config value resolves down the strata in vein;
+   a locked key is a magma tag that carries the word LOCKED. */
 .inherit-panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-8);
+  --layer-band: var(--magma-deep);
+  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
   font-family: var(--font-mono);
-  overflow-x: auto;
 }
 @media (max-width: 480px) {
-  .inherit-panel { padding: var(--space-6); }
+  .inherit-panel { padding: calc(var(--space-6) + 10px) var(--space-4) var(--space-6); }
 }
 .inherit-label {
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-6);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
 }
 .inherit-tree {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  font-size: 0.8125rem;
-  line-height: 1.5;
 }
 .itrow {
-  display: grid;
-  grid-template-columns: 2ch 1fr auto;
-  gap: var(--space-3);
+  position: relative;
+  display: flex;
   align-items: baseline;
+  gap: var(--space-3);
+  margin-top: -9px;
+  padding: 18px 22px 11px 14px;
+  clip-path: var(--edge-row);
+  background-size: auto, 160px 160px, auto;
+  background-blend-mode: normal, multiply, normal;
   white-space: nowrap;
 }
+.itrow:first-child { margin-top: 0; }
+.itrow.d0 { z-index: 1; margin-left: 0; background-color: var(--topsoil); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
+.itrow.d1 { z-index: 2; margin-left: 28px; background-color: var(--clay); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
+.itrow.d2 { z-index: 3; margin-left: 56px; background-color: var(--sandstone-band); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
+.itrow.d3 { z-index: 4; margin-left: 84px; background-color: var(--limestone); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
 .idepth {
-  color: var(--text-tertiary);
   font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.inode { color: var(--text-secondary); }
-.inode-root { color: var(--text-primary); font-weight: 600; }
+.inode {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.375rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
 .imeta {
-  color: var(--text-tertiary);
+  margin-left: auto;
   font-size: 0.6875rem;
-  font-style: italic;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 480px) {
+  .itrow { padding: 16px 12px 10px 10px; gap: var(--space-2); }
+  .itrow.d1 { margin-left: 14px; }
+  .itrow.d2 { margin-left: 28px; }
+  .itrow.d3 { margin-left: 42px; }
+  .inode { font-size: 1.125rem; }
+  .imeta { display: none; }
 }
 .inherit-config {
   margin-top: var(--space-6);
@@ -305,30 +428,52 @@ a {
 }
 .icfg {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-3);
-  border-left: 2px solid var(--border);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: 0.8125rem;
+  border-left: 3px solid var(--rule);
+  font-size: 0.78rem;
 }
 .icfg-resolved {
-  border-left-color: var(--accent);
-  background: var(--accent-muted);
+  border-left-color: var(--flow);
+  background: var(--flow-muted);
 }
 .icfg-locked {
   border-left-color: var(--lock);
   background: var(--lock-muted);
 }
-.ikey { color: var(--text-secondary); }
-.ival { color: var(--accent-text); font-weight: 600; }
-.ilock { color: var(--lock); font-weight: 600; letter-spacing: 0.04em; }
+.ikey { color: var(--text-primary); }
+.ival { color: var(--flow); font-weight: 600; }
 .itag {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 0.6875rem;
   white-space: nowrap;
 }
+
+/* ===== TAG =====
+   Inheritance mode as glyph plus word plus color, never color alone:
+   ■ LOCKED (magma), ↓ INHERITED (vein), ⇄ DELEGATED (amber), △ OVERRIDE. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px 4px 9px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  line-height: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: var(--edge-chip);
+}
+.tag-glyph { letter-spacing: 0; }
+.tag-locked { background: var(--magma); color: var(--on-accent); }
+.tag-inherited { background: var(--vein); color: var(--on-vein); }
+.tag-delegated { background: var(--amber-fill); color: var(--on-ember); }
+.tag-override { background: var(--text-primary); color: var(--surface-0); }
 
 /* ===== HERO: BADGE ROW ===== */
 .badge-row {
@@ -342,7 +487,6 @@ a {
 .badge-row img {
   height: 20px;
   display: block;
-  border-radius: var(--radius-sm);
 }
 
 /* ===== FEATURES ===== */
@@ -356,10 +500,12 @@ a {
 }
 .features-heading h2 {
   font-family: var(--font-display);
-  font-size: clamp(1.5rem, 3vw, 1.75rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-size: clamp(2rem, 4vw, 2.5rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--text-primary);
   margin-bottom: var(--space-3);
   text-wrap: balance;
   max-width: 45ch;
@@ -374,18 +520,15 @@ a {
 .features-row-primary {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 @media (max-width: 768px) {
   .features-row-primary { grid-template-columns: 1fr; }
 }
 
 .feature-block {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-8);
+  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
 }
 .feature-icon {
   width: 36px;
@@ -397,10 +540,10 @@ a {
    never inverts. Body copy inside a card may be smaller; the heading may not. */
 .feature-block h3,
 .feature-diagram-block h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: var(--space-2);
   text-wrap: balance;
 }
@@ -413,13 +556,10 @@ a {
 
 /* Row 2: full-width diagram */
 .features-row-diagram {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-8);
 }
 .feature-diagram-block {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-8);
+  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: var(--space-12);
@@ -428,104 +568,142 @@ a {
 @media (max-width: 768px) {
   .feature-diagram-block { grid-template-columns: 1fr; gap: var(--space-6); }
 }
+/* Depth gauge: the three isolation strategies as one continuous stack of rock,
+   shallow to deep. Each layer overlaps the ragged top of the one above. The
+   strategy in use gets a magma rim along its top and a drill marker. */
 .isolation-diagram {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  padding-bottom: var(--space-3);
 }
 .iso-eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  color: var(--text-tertiary);
+  font-weight: 600;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: var(--space-2);
+  letter-spacing: 0.14em;
+  margin-bottom: var(--space-3);
+}
+.isolation-stack {
+  display: flex;
+  flex-direction: column;
 }
 .isolation-row {
+  position: relative;
+  margin-top: -16px;
+  filter: drop-shadow(0 -2px 3px rgba(0, 0, 0, 0.35));
+}
+.isolation-row:first-child {
+  margin-top: 0;
+  filter: none;
+}
+.isolation-row:nth-child(1) { z-index: 1; }
+.isolation-row:nth-child(2) { z-index: 2; }
+.isolation-row:nth-child(3) { z-index: 3; }
+.isolation-face {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: 26px 20px 24px;
+  clip-path: var(--edge-ledge);
+  background-size: auto, 160px 160px, auto;
+  background-blend-mode: normal, multiply, normal;
 }
+.isolation-row:first-child .isolation-face { padding-top: 18px; }
+.isolation-row:last-child .isolation-face { padding-bottom: 26px; }
+.iso-rls .isolation-face { background-color: var(--sandstone-band); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
+.iso-schema .isolation-face { background-color: var(--topsoil); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
+.iso-db .isolation-face { background-color: var(--basalt); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
 .isolation-label {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  min-width: 88px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
-/* Every strategy reads as a neutral instrument readout. Exactly one, the active
-   strategy, carries the Ember accent. All the boldness is spent there. */
-.isolation-bar {
-  flex: 1;
-  height: 30px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  padding: 0 var(--space-3);
+.isolation-note {
+  display: block;
+  margin-top: 4px;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+.isolation-mark {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
-.isolation-bar.is-active {
-  border-color: var(--accent);
-  background: var(--accent-muted);
-  color: var(--accent-text);
+.isolation-row.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  bottom: 0;
+  clip-path: var(--edge-ledge);
+  background: var(--magma);
+}
+.isolation-row.is-active .isolation-mark::before {
+  content: "\25BC  ";
+  display: inline-block;
+  white-space: pre;
+  animation: drill 1600ms var(--ease-in-out) infinite;
+}
+@keyframes drill {
+  0%, 100% { transform: translateY(-3px); }
+  50% { transform: translateY(2px); }
 }
 @media (max-width: 480px) {
-  /* This block follows the base rules so that it overrides them. */
-  .isolation-label { min-width: 60px; font-size: 0.6875rem; }
-  /* On one line the longest readout is wider than a phone screen, so it wraps. */
-  .isolation-bar {
-    font-size: 0.625rem;
-    height: auto;
-    min-height: 24px;
-    padding-top: var(--space-1);
-    padding-bottom: var(--space-1);
-    white-space: normal;
-  }
+  .isolation-face { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .isolation-label { font-size: 1.25rem; }
 }
 .iso-code {
   margin-top: var(--space-4);
+  padding: calc(var(--space-3) + 4px) var(--space-4) var(--space-3);
+  background: var(--code-bg);
+  clip-path: var(--edge-ledge);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   line-height: 1.7;
-  color: var(--text-secondary);
+  color: var(--code-text);
+  overflow-x: auto;
 }
 .iso-fn { color: var(--syntax-function); }
-.iso-accent { color: var(--accent-text); }
+.iso-accent { color: var(--syntax-accent); }
 .iso-cm { color: var(--syntax-comment); }
 
 /* Row 3: 3 compact items */
 .features-row-compact {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4);
-  margin-top: var(--space-4);
+  gap: var(--space-6);
+  margin-top: var(--space-8);
 }
 @media (max-width: 768px) {
   .features-row-compact { grid-template-columns: 1fr; }
 }
 .feature-compact {
-  padding: var(--space-8) var(--space-6);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
+  padding: calc(var(--space-8) + 10px) var(--space-6) var(--space-8);
 }
 .feature-compact-icon {
   width: 24px;
   height: 24px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   margin-bottom: var(--space-3);
 }
 .feature-compact h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: 1.0625rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: var(--space-2);
 }
 .feature-compact p {
@@ -554,10 +732,12 @@ a {
 }
 .code-section-text h2 {
   font-family: var(--font-display);
-  font-size: clamp(1.375rem, 2.5vw, 1.625rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-size: clamp(1.75rem, 3.2vw, 2.125rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--text-primary);
   margin-bottom: var(--space-4);
   text-wrap: balance;
 }
@@ -567,41 +747,47 @@ a {
   line-height: 1.65;
   max-width: 40ch;
 }
+/* The code well stays dark in both themes. Its top edge is ragged rock
+   (--edge-ledge only cuts the top few px, so the horizontal scrollbar at the
+   bottom is never clipped). */
 .code-block {
   background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  clip-path: var(--edge-ledge);
   overflow: hidden;
 }
 .code-block-header {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
+  padding: calc(var(--space-3) + 6px) var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--seam);
 }
+/* Three small square core samples in the rock colors (no circles: Stratum has
+   no rounded corners and these carry no function). */
 .code-block-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--surface-3);
+  width: 8px;
+  height: 8px;
+  background: var(--topsoil);
 }
+.code-block-dot + .code-block-dot { background: var(--clay); }
+.code-block-dot + .code-block-dot + .code-block-dot { background: var(--sandstone-band); }
 .code-block-filename {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--syntax-comment);
   margin-left: auto;
 }
 .code-block pre {
   margin: 0;
   padding: var(--space-6);
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
-  line-height: 1.75;
+  font-size: 0.75rem;
+  line-height: 1.8;
   overflow-x: auto;
 }
 /* Real syntax highlighting. Shiki's css-variables theme emits token colors as
-   --astro-code-* properties; map them onto the Strata --syntax-* tokens so
+   --astro-code-* properties; map them onto the Stratum --syntax-* tokens so
    the code well is theme-independent and no hex is hardcoded in the markup. */
 .code-block .astro-code {
   --astro-code-color-text: var(--code-text);
@@ -617,7 +803,7 @@ a {
   --astro-code-token-link: var(--syntax-accent);
   color: var(--code-text);
 }
-/* Resolved output: the one value that glows, in Ember. Ties the code well
+/* Resolved output: the one value that glows, in magma. Ties the code well
    to the inheritance thesis. */
 .code-output {
   display: flex;
@@ -625,16 +811,16 @@ a {
   gap: var(--space-2);
   flex-wrap: wrap;
   padding: var(--space-3) var(--space-6);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--seam);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  color: var(--syntax-comment);
 }
-.co-arrow { color: var(--accent); }
-.co-text { color: var(--text-secondary); }
-.co-val { color: var(--accent-text); font-weight: 600; }
+.co-arrow { color: var(--syntax-accent); }
+.co-text { color: var(--code-text); }
+.co-val { color: var(--syntax-accent); font-weight: 600; }
 .co-src { color: var(--syntax-string); }
-.co-tag { margin-left: auto; color: var(--text-tertiary); }
+.co-tag { margin-left: auto; color: var(--syntax-comment); }
 
 /* ===== PACKAGES ===== */
 .packages {
@@ -650,9 +836,12 @@ a {
 }
 .packages-heading h2 {
   font-family: var(--font-display);
-  font-size: clamp(1.375rem, 2.5vw, 1.625rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.75rem, 3.2vw, 2.125rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--text-primary);
   margin-bottom: var(--space-2);
   text-wrap: balance;
 }
@@ -662,7 +851,7 @@ a {
 }
 .pkg-scope {
   font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 .packages-table {
@@ -681,7 +870,7 @@ a {
 }
 .pkg-name {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--sandstone);
   padding: var(--space-4) var(--space-4) var(--space-4) 0;
   white-space: nowrap;
@@ -697,16 +886,16 @@ a {
 }
 .pkg-tag {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-tertiary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  margin-left: var(--space-2);
+  clip-path: var(--edge-chip);
+  background: var(--surface-3);
+  color: var(--text-primary);
   white-space: nowrap;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.14em;
   display: inline-block;
 }
 .pkg-actions {
@@ -717,15 +906,15 @@ a {
 }
 .pkg-link {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
   transition: color var(--duration-fast) var(--ease-out);
 }
 .pkg-link:hover {
   color: var(--sandstone);
 }
 @media (max-width: 600px) {
-  .pkg-name { width: auto; display: block; font-size: 0.75rem; }
+  .pkg-name { width: auto; display: block; font-size: 0.6875rem; }
   .pkg-actions { display: none; }
   .packages-table, .packages-table tbody, .packages-table tr, .packages-table td {
     display: block;
@@ -754,7 +943,7 @@ a {
   }
   .code-block pre {
     padding: var(--space-4);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
   }
 }
 
@@ -774,10 +963,12 @@ a {
 }
 .cta h2 {
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 0.92;
+  text-transform: uppercase;
+  color: var(--text-primary);
   text-wrap: balance;
 }
 .cta h2 .accent {
@@ -801,10 +992,10 @@ a {
 }
 .footer-meta {
   font-size: 0.8125rem;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .footer-meta a {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   transition: color var(--duration-fast) var(--ease-out);
 }
 .footer-meta a:hover {
@@ -845,7 +1036,7 @@ a {
 .features-row-compact .fade-in:nth-child(3) { transition-delay: 200ms; }
 
 /* ===== DEPTH RAIL (persistent stratigraphic signature) =====
-   A thin left axis marked with tenant depth d0..d3. The ember cursor tracks scroll
+   A thin left axis marked with tenant depth d0..d3. The vein cursor tracks scroll
    position; marks light up as the active depth resolves downward. Desktop only,
    decorative, and sits in the left gutter so it never overlaps content. */
 .depth-rail {
@@ -869,7 +1060,7 @@ a {
   top: 6px;
   bottom: 6px;
   width: 1px;
-  background: var(--border);
+  background: var(--rule);
 }
 .depth-rail-cursor {
   position: absolute;
@@ -878,9 +1069,8 @@ a {
   transform: translate(-50%, -50%);
   width: 7px;
   height: 7px;
-  border-radius: var(--radius-full);
-  background: var(--accent);
-  box-shadow: 0 0 0 4px var(--accent-muted);
+  background: var(--flow);
+  box-shadow: 0 0 0 4px var(--flow-muted);
   transition: top var(--duration-normal) var(--ease-out);
 }
 .depth-rail-marks {
@@ -903,8 +1093,7 @@ a {
   width: 5px;
   height: 5px;
   margin-left: 3px;
-  border-radius: var(--radius-full);
-  background: var(--border-hover);
+  background: var(--rule);
   flex-shrink: 0;
   transition: background var(--duration-fast) var(--ease-out);
 }
@@ -914,16 +1103,14 @@ a {
   color: var(--text-tertiary);
   transition: color var(--duration-fast) var(--ease-out);
 }
-.dm.active .dm-dot { background: var(--accent); }
-.dm.active .dm-label { color: var(--accent-text); }
+.dm.active .dm-dot { background: var(--flow); }
+.dm.active .dm-label { color: var(--flow); }
 
 /* Feature blocks hover lift */
 .feature-block:hover,
 .feature-compact:hover {
-  border-color: var(--border-hover);
-  transform: translateY(-2px);
-  transition: border-color var(--duration-normal) var(--ease-out),
-              transform var(--duration-normal) var(--ease-out);
+  transform: translateY(-3px);
+  transition: transform var(--duration-normal) var(--ease-out);
 }
 
 /* Packages table row highlight */
@@ -931,28 +1118,21 @@ a {
   color: var(--text-primary);
 }
 
-/* ===== LIGHT MODE FIXES ===== */
-[data-theme="light"] .install-box {
-  background: var(--surface-1);
-  border-color: var(--border);
-}
-[data-theme="light"] .install-box code {
-  color: var(--text-primary);
-}
-/* The code well and its syntax tokens are theme independent (see
-   assets/tokens.css): the well stays dark in light mode, so no light overrides
-   are needed here. The hero diagram is a structural panel, not a code well, so
-   it follows --surface-1 and adapts with the theme on its own. */
+/* ===== LIGHT MODE =====
+   The code wells (including the install box) and their syntax tokens are theme
+   independent (see assets/tokens.css): they stay dark in light mode, so no light
+   overrides are needed here. Panels follow --surface-1 and adapt on their own. */
 
 /* ===== ACCESSIBILITY ===== */
-/* Keyboard focus: a 2px Ember ring with a 3px offset on every interactive
-   element. Ember clears the 3:1 UI contrast floor on both canvases (12.1:1 on
-   Peat, 3.9:1 on limestone paper). Matches the docs site's focus treatment
-   (website/src/styles/custom.css) so the two surfaces agree. */
+/* Keyboard focus: a solid 3px --focus ring with a 3px offset on every
+   interactive element. --focus clears the 3:1 UI floor on both grounds (8.7:1
+   on Bedrock, 5.3:1 on Daylight). clip-path would clip an outline, so no
+   focusable element here is itself clipped: buttons clip a ::before face and
+   keep the ring on the unclipped element. Matches the docs site's focus
+   treatment (website/src/styles/custom.css) so the two surfaces agree. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
-  border-radius: var(--radius-sm);
 }
 
 /* ===== REDUCED MOTION ===== */
@@ -970,5 +1150,9 @@ a {
   .fade-in {
     opacity: 1 !important;
     transform: none !important;
+  }
+  /* Every keyframe animation (drill marker, drifting strata) stops. */
+  *, *::before, *::after {
+    animation: none !important;
   }
 }
