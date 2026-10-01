@@ -1,6 +1,6 @@
 import pg from "pg";
 import { STRATUM_TABLES } from "@stratum-hq/lib";
-import { evaluatePolicies, type PolicyRow } from "./policy-check.js";
+import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "./policy-check.js";
 
 export function getConnectionString(flags: Record<string, string | boolean>): string {
   const explicit = flags["database-url"] || flags["d"];
@@ -78,6 +78,8 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
   const result = await pool.query(`
     SELECT
       t.tablename AS table_name,
+      -- The control role of migration 032 (see doctor checkRLSPolicies).
+      NULLIF(current_setting('stratum.control_role', true), '') AS control_role,
       EXISTS (
         SELECT 1 FROM information_schema.columns c
         WHERE c.table_schema = 'public'
@@ -92,7 +94,8 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
           'permissive', p.permissive,
           'cmd', p.cmd,
           'qual', p.qual,
-          'with_check', p.with_check
+          'with_check', p.with_check,
+          'roles', p.roles
         ))
         FROM pg_policies p
         WHERE p.tablename = t.tablename
@@ -112,9 +115,10 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
   `, [STRATUM_TABLES]);
 
   // A policy counts only for what its expression does, not for its name.
-  return result.rows.map((row: Omit<TableInfo, "has_policy" | "policy_issue"> & { policies: PolicyRow[] }) => {
-    const { policies, ...rest } = row;
-    const verdict = evaluatePolicies(policies, "public");
+  type Row = Omit<TableInfo, "has_policy" | "policy_issue"> & { control_role: string | null; policies: PolicyRow[] };
+  return result.rows.map((row: Row) => {
+    const { policies, control_role, ...rest } = row;
+    const verdict = evaluatePolicies(policies, "public", control_role ?? DEFAULT_CONTROL_ROLE);
     return { ...rest, has_policy: verdict.isolated, policy_issue: verdict.issue };
   });
 }

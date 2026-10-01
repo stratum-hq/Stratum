@@ -13,6 +13,12 @@
  * conditions. Anything else is reported as not isolated with a reason, so an
  * unusual but correct policy is a false alarm, never a false all-clear.
  *
+ * It recognises the legacy bypass of migration 032, `(SELECT
+ * stratum_legacy_bypass()) OR <tenant match>`, like the older direct check of
+ * app.bypass_rls, and skips a policy named stratum_control_plane that applies
+ * to exactly the control role (default stratum_control). Other policies for
+ * that role must filter like any other.
+ *
  * It also recognises the subtree read of migration 031: the
  * stratum_subtree_tenant_ids() match ANDed with the app.tenant_scope =
  * 'subtree' check. That form counts only in the USING clause of a SELECT
@@ -30,6 +36,8 @@ export interface PolicyRow {
   cmd: string;
   qual: string | null;
   with_check: string | null;
+  /** The roles the policy applies to; ["public"] for PUBLIC. Needed to accept stratum_control_plane. */
+  roles?: string[];
 }
 
 export interface PolicyVerdict {
@@ -50,6 +58,12 @@ const BYPASS_SETTING = "app.bypass_rls";
 const SCOPE_SETTING = "app.tenant_scope";
 /** The function that returns the current tenant and its descendants (migration 031). */
 const SUBTREE_FUNCTION = "stratum_subtree_tenant_ids";
+/** The function of migration 032 that gates the legacy bypass behind stratum_security. */
+const LEGACY_FUNCTION = "stratum_legacy_bypass";
+/** The policy of migration 032 that admits the control role. */
+const CONTROL_POLICY = "stratum_control_plane";
+/** The default control role of migration 032. */
+export const DEFAULT_CONTROL_ROLE = "stratum_control";
 
 /** Drops whitespace and casts, lower-cases, and keeps string literals intact. */
 function normalize(expr: string): string {
@@ -159,6 +173,13 @@ function subtreeMatch(functionSchema: string | undefined): RegExp {
   return new RegExp(`^tenant_id=anyselect${qualifier}${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`);
 }
 
+/** (SELECT stratum_legacy_bypass()) after normalize and flatten; qualifier rule as for the subtree function. */
+function legacyMatch(functionSchema: string | undefined): RegExp {
+  const qualifier =
+    functionSchema === undefined ? "" : `(?:${escapeRegExp(quoteIdent(functionSchema).toLowerCase())}\\.)?`;
+  return new RegExp(`^select${qualifier}${LEGACY_FUNCTION}(?:as${LEGACY_FUNCTION})?$`);
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -173,21 +194,23 @@ function quoteIdent(name: string): string {
  * matches the subtree function call that may appear in the expression, or is
  * null where the subtree read is not allowed.
  */
-function filtersByTenant(expr: string, subtree: RegExp | null): boolean {
+function filtersByTenant(expr: string, subtree: RegExp | null, legacy: RegExp): boolean {
   const e = stripOuterParens(expr);
 
   const disjuncts = splitTopLevel(e, "or");
   if (disjuncts.length > 1) {
-    // Every branch must be safe; Stratum's administrative bypass is one of them.
+    // Every branch must be safe; Stratum's administrative bypass, direct or
+    // through the legacy function of migration 032, is one of them.
+    const isBypass = (d: string) => BYPASS_MATCH.test(flatten(d)) || legacy.test(flatten(d));
     return (
-      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d, subtree)) &&
-      disjuncts.some((d) => !BYPASS_MATCH.test(flatten(d)))
+      disjuncts.every((d) => isBypass(d) || filtersByTenant(d, subtree, legacy)) &&
+      disjuncts.some((d) => !isBypass(d))
     );
   }
 
   const conjuncts = splitTopLevel(e, "and");
   if (conjuncts.length > 1) {
-    if (conjuncts.some((c) => filtersByTenant(c, subtree))) return true;
+    if (conjuncts.some((c) => filtersByTenant(c, subtree, legacy))) return true;
     // The subtree read of migration 031: the descendants of the current
     // tenant, only when the session opted in with app.tenant_scope.
     return (
@@ -206,19 +229,19 @@ function oneLine(expr: string | null): string {
 }
 
 /** Why one permissive policy fails to isolate, or null when it does. */
-function permissiveIssue(p: PolicyRow, subtree: RegExp): string | null {
+function permissiveIssue(p: PolicyRow, subtree: RegExp, legacy: RegExp): string | null {
   const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
   // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
   // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
   if (p.cmd !== "INSERT") {
     // Only a SELECT policy may widen to the subtree: in any other policy the
     // same USING clause would let UPDATE or DELETE reach a descendant's rows.
-    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT" ? subtree : null)) {
+    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT" ? subtree : null, legacy)) {
       return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
     }
   }
   if (p.cmd === "INSERT" || p.with_check !== null) {
-    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), null)) {
+    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), null, legacy)) {
       return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
     }
   }
@@ -229,11 +252,21 @@ function permissiveIssue(p: PolicyRow, subtree: RegExp): string | null {
  * @param functionSchema - The schema of Stratum's tenants table, the only
  *   schema that may qualify stratum_subtree_tenant_ids(). When it is
  *   undefined, only the unqualified function counts.
+ * @param controlRole - The control role of migration 032. A policy named
+ *   stratum_control_plane that applies to exactly this role is skipped.
  */
-export function evaluatePolicies(policies: PolicyRow[], functionSchema?: string): PolicyVerdict {
+export function evaluatePolicies(
+  policies: PolicyRow[],
+  functionSchema?: string,
+  controlRole: string = DEFAULT_CONTROL_ROLE,
+): PolicyVerdict {
   if (policies.length === 0) return { isolated: false, issue: null };
 
-  const permissive = policies.filter((p) => p.permissive === "PERMISSIVE");
+  const permissive = policies.filter(
+    (p) =>
+      p.permissive === "PERMISSIVE" &&
+      !(p.policyname === CONTROL_POLICY && p.roles?.length === 1 && p.roles[0] === controlRole),
+  );
   if (permissive.length === 0) {
     return {
       isolated: false,
@@ -242,7 +275,8 @@ export function evaluatePolicies(policies: PolicyRow[], functionSchema?: string)
   }
 
   const subtree = subtreeMatch(functionSchema);
-  const issues = permissive.map((p) => permissiveIssue(p, subtree)).filter((i): i is string => i !== null);
+  const legacy = legacyMatch(functionSchema);
+  const issues = permissive.map((p) => permissiveIssue(p, subtree, legacy)).filter((i): i is string => i !== null);
   if (issues.length > 0) {
     return {
       isolated: false,

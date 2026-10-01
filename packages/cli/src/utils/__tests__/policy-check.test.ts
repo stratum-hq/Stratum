@@ -239,3 +239,38 @@ describe("evaluatePolicies", () => {
     });
   });
 });
+
+describe("evaluatePolicies with the control role model of migration 032", () => {
+  const LEGACY = `(( SELECT stratum_legacy_bypass() AS stratum_legacy_bypass) OR ${GENERATED})`;
+  const control = (roles: string[]) =>
+    policy({ policyname: "stratum_control_plane", qual: "true", with_check: "true", roles });
+
+  it("counts the legacy form of tenant_isolation as isolated", () => {
+    expect(evaluatePolicies([policy({ qual: LEGACY, with_check: LEGACY })], "public")).toEqual({
+      isolated: true,
+      issue: null,
+    });
+  });
+
+  it("counts a table as isolated with stratum_control_plane for exactly the control role", () => {
+    expect(evaluatePolicies([policy({ qual: LEGACY }), control(["stratum_control"])], "public")).toEqual({
+      isolated: true,
+      issue: null,
+    });
+    expect(evaluatePolicies([policy({}), control(["acme_control"])], "public", "acme_control")).toEqual({
+      isolated: true,
+      issue: null,
+    });
+  });
+
+  it("reports stratum_control_plane for PUBLIC, another role, or without its roles", () => {
+    for (const p of [control(["public"]), control(["stratum_control", "stratum_app"]), policy({ policyname: "stratum_control_plane", qual: "true" })]) {
+      expect(evaluatePolicies([policy({}), p], "public").issue).toMatch(/stratum_control_plane/);
+    }
+  });
+
+  it("does not count the legacy function without a tenant match", () => {
+    const qual = "( SELECT stratum_legacy_bypass() AS stratum_legacy_bypass)";
+    expect(evaluatePolicies([policy({ qual })], "public").isolated).toBe(false);
+  });
+});

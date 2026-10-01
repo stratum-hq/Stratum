@@ -1,6 +1,6 @@
 import pg from "pg";
 import { connectDb, withRlsBypass } from "../utils/db.js";
-import { evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
+import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "../utils/policy-check.js";
 
 // ── ANSI Colors ──────────────────────────────────────────────────────
 const RESET = "\x1b[0m";
@@ -170,16 +170,20 @@ async function checkRLSEnabled(pool: pg.Pool): Promise<CheckResult> {
 async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
   // Check that the policies on every tenant-scoped table filter by tenant.
   // A policy's name proves nothing, so its expressions are checked.
+  // The control role of migration 032 comes from the stratum.control_role
+  // setting of the connection (ALTER DATABASE ... SET), else stratum_control.
   const res = await pool.query(`
     SELECT
       c.table_name,
+      NULLIF(current_setting('stratum.control_role', true), '') AS control_role,
       COALESCE((
         SELECT json_agg(json_build_object(
           'policyname', p.policyname,
           'permissive', p.permissive,
           'cmd', p.cmd,
           'qual', p.qual,
-          'with_check', p.with_check
+          'with_check', p.with_check,
+          'roles', p.roles
         ))
         FROM pg_policies p
         WHERE p.tablename = c.table_name
@@ -192,9 +196,11 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
     ORDER BY c.table_name;
   `);
 
-  const tables = (res.rows as Array<{ table_name: string; policies: PolicyRow[] }>).map((t) => ({
+  const tables = (
+    res.rows as Array<{ table_name: string; control_role: string | null; policies: PolicyRow[] }>
+  ).map((t) => ({
     table_name: t.table_name,
-    verdict: evaluatePolicies(t.policies, "public"),
+    verdict: evaluatePolicies(t.policies, "public", t.control_role ?? DEFAULT_CONTROL_ROLE),
   }));
 
   if (tables.length === 0) {
