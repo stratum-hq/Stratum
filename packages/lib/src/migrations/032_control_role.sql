@@ -598,14 +598,16 @@ END;
   EXECUTE pg_catalog.format('ALTER FUNCTION %I.refuse_tenant_parent_cycle() OWNER TO %I', v_schema, v_role);
   EXECUTE pg_catalog.format('ALTER FUNCTION %I.refuse_tenant_tree_column_change() OWNER TO %I', v_schema, v_role);
 
-  -- The other Stratum functions, this one included, belong to the role that
-  -- applies the control role, so that no former owner can change them.
+  -- The other Stratum functions, this one included, are taken from an owner
+  -- that is not a member of the control role (such as a former owner of the
+  -- tables) by the role that applies it, so that no such owner can change
+  -- them. An owner that is a member, such as the admin login, keeps them.
   FOR v_function IN
     SELECT p.oid::regprocedure FROM pg_proc p
      WHERE p.pronamespace = pg_catalog.to_regnamespace(pg_catalog.quote_ident(v_schema))
        AND p.proname = ANY (ARRAY['update_updated_at_column', 'maintain_ancestry_ltree',
                                   'propagate_ancestry_ltree', 'stratum_apply_control_role'])
-       AND p.proowner <> (SELECT r.oid FROM pg_roles r WHERE r.rolname = current_user)
+       AND NOT pg_catalog.pg_has_role(p.proowner, v_role, 'USAGE')
   LOOP
     EXECUTE pg_catalog.format('ALTER FUNCTION %s OWNER TO %I', v_function, current_user);
   END LOOP;
@@ -772,7 +774,7 @@ BEGIN
   END LOOP;
   FOR r IN
     SELECT f.name, p.oid IS NOT NULL AS present, md5(p.prosrc) = f.md5 AS same_body, p.proconfig, p.prosecdef
-      FROM (VALUES ('update_updated_at_column', '301a884953d37769916294bb60562e05'), ('maintain_ancestry_ltree', 'ddce857b77ffe5dad27239825949c886'), ('propagate_ancestry_ltree', 'a79bc2cb286893cb622c336876491759'), ('stratum_apply_control_role', 'e01700f8e3ff68a25f344d6143aa17c7')) AS f(name, md5)
+      FROM (VALUES ('update_updated_at_column', '301a884953d37769916294bb60562e05'), ('maintain_ancestry_ltree', 'ddce857b77ffe5dad27239825949c886'), ('propagate_ancestry_ltree', 'a79bc2cb286893cb622c336876491759'), ('stratum_apply_control_role', '78e5309852d1a441403e8d7f743b9446')) AS f(name, md5)
       LEFT JOIN pg_proc p ON p.pronamespace = v_ns AND p.proname = f.name
   LOOP
     IF r.present AND NOT r.same_body THEN
