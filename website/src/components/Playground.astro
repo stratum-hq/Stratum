@@ -1,29 +1,76 @@
 ---
-// Playground.astro: browser-based Stratum playground
-// Uses PGlite (WASM Postgres) + CodeMirror, no server required
+// Playground.astro: the real @stratum-hq/lib on PGlite (PostgreSQL in WebAssembly).
+// The page loads only this small script. PGlite, the library and the editor
+// load after the visitor presses Start.
 ---
 
 <div class="playground" id="playground-root">
-  <div class="playground-tabs" role="tablist" aria-label="Scenario tabs">
-    <button class="tab active" data-tab="flat" role="tab" aria-selected="true" aria-controls="editor">Flat Tenancy</button>
-    <button class="tab" data-tab="hierarchy" role="tab" aria-selected="false" aria-controls="editor">Hierarchy</button>
-    <button class="tab" data-tab="config" role="tab" aria-selected="false" aria-controls="editor">Config Inheritance</button>
-    <button class="tab" data-tab="gdpr" role="tab" aria-selected="false" aria-controls="editor">GDPR Compliance</button>
+  <div class="pg-start" id="pg-start">
+    <p>
+      The Playground runs the real <code>@stratum-hq/lib</code> on PostgreSQL compiled to
+      WebAssembly (PGlite), in this browser tab. No data goes to a server.
+    </p>
+    <p class="pg-start-note">Start downloads about 9 MB, one time.</p>
+    <button id="start-btn" class="run-btn" type="button">Start</button>
   </div>
-  <div class="playground-panes">
-    <div class="playground-editor" id="editor" role="region" aria-label="Code editor"></div>
-    <div class="playground-output">
-      <div class="output-header">
-        <span class="output-label">Output</span>
-        <div class="playground-actions">
-          <button id="run-btn" class="run-btn" aria-label="Run code" disabled>Run</button>
-          <button id="reset-btn" class="reset-btn" aria-label="Reset to scenario default">Reset</button>
+
+  <div class="pg-app" id="pg-app" hidden>
+    <div class="playground-tabs" role="tablist" aria-label="Playground mode">
+      <button class="tab mode-tab active" data-mode="tour" role="tab" aria-selected="true" aria-controls="tour" type="button">Guided tour</button>
+      <button class="tab mode-tab" data-mode="editor" role="tab" aria-selected="false" aria-controls="editor-mode" type="button">Code editor</button>
+    </div>
+
+    <section class="tour" id="tour" role="tabpanel" aria-label="Guided tour">
+      <ol class="tour-steps" id="tour-steps"></ol>
+      <div class="tour-main">
+        <div class="step-detail">
+          <h3 id="step-title"></h3>
+          <p id="step-text"></p>
+          <pre id="step-code" class="step-code"></pre>
+          <div class="playground-actions">
+            <button id="step-run" class="run-btn" type="button">Run this step</button>
+            <button id="tour-reset" class="reset-btn" type="button">Restart tour</button>
+          </div>
+        </div>
+        <div class="tour-panels">
+          <div class="panel">
+            <h4>Tenant tree</h4>
+            <ul class="tree" id="tree"><li class="output-dim">No tenants yet.</li></ul>
+          </div>
+          <div class="panel">
+            <h4>Inspector <span id="inspect-name" class="output-dim"></span></h4>
+            <table class="inspector" id="inspector-config" aria-label="Resolved config"></table>
+            <table class="inspector" id="inspector-perms" aria-label="Resolved permissions"></table>
+          </div>
+        </div>
+        <pre id="tour-output" class="output-pre" aria-live="polite" aria-label="Tour output"></pre>
+      </div>
+    </section>
+
+    <section class="editor-mode" id="editor-mode" role="tabpanel" aria-label="Code editor" hidden>
+      <div class="playground-tabs" role="tablist" aria-label="Scenario tabs">
+        <button class="tab scenario-tab active" data-tab="flat" role="tab" aria-selected="true" aria-controls="editor" type="button">Flat Tenancy</button>
+        <button class="tab scenario-tab" data-tab="hierarchy" role="tab" aria-selected="false" aria-controls="editor" type="button">Hierarchy</button>
+        <button class="tab scenario-tab" data-tab="config" role="tab" aria-selected="false" aria-controls="editor" type="button">Config Inheritance</button>
+        <button class="tab scenario-tab" data-tab="gdpr" role="tab" aria-selected="false" aria-controls="editor" type="button">GDPR Compliance</button>
+      </div>
+      <div class="playground-panes">
+        <div class="playground-editor" id="editor" role="region" aria-label="Code editor"></div>
+        <div class="playground-output">
+          <div class="output-header">
+            <span class="output-label">Output</span>
+            <div class="playground-actions">
+              <button id="run-btn" class="run-btn" aria-label="Run code" type="button">Run</button>
+              <button id="reset-btn" class="reset-btn" aria-label="Reset to scenario default" type="button">Reset</button>
+            </div>
+          </div>
+          <pre id="output" class="output-pre" aria-live="polite" aria-label="Output"></pre>
         </div>
       </div>
-      <pre id="output" class="output-pre" aria-live="polite" aria-label="Output"></pre>
-    </div>
+    </section>
   </div>
-  <div class="playground-status" id="status" aria-live="polite">Initializing Postgres...</div>
+
+  <div class="playground-status" id="status" aria-live="polite">Press Start to load PostgreSQL and Stratum.</div>
 </div>
 
 <style>
@@ -35,10 +82,26 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 160px);
-    min-height: 400px;
-    max-height: 700px;
     font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+  }
+
+  .pg-start {
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .pg-start p {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--text-primary);
+  }
+
+  .pg-start .pg-start-note {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
   }
 
   .playground-tabs {
@@ -92,12 +155,197 @@
     border-radius: var(--radius-sm, 4px);
   }
 
+  /* Guided tour */
+  .tour {
+    display: grid;
+    grid-template-columns: minmax(180px, 220px) 1fr;
+    min-height: 560px;
+  }
+
+  .tour-steps {
+    list-style: none;
+    margin: 0;
+    padding: 12px 0;
+    border-right: 1px solid var(--border);
+    background: var(--surface-0);
+  }
+
+  .tour-steps li {
+    margin: 0;
+  }
+
+  .step-btn {
+    all: unset;
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    padding: 8px 16px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+
+  .step-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .step-btn.current {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .step-btn.done::after {
+    content: " (done)";
+    color: var(--success);
+    font-weight: 400;
+  }
+
+  .step-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .step-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .tour-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    min-width: 0;
+  }
+
+  .step-detail h3 {
+    margin: 0 0 4px 0;
+    font-size: 1rem;
+  }
+
+  .step-detail p {
+    margin: 0 0 8px 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  .step-code {
+    margin: 0 0 8px 0;
+    padding: 12px;
+    max-height: 220px;
+    overflow: auto;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .tour-panels {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 12px;
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    background: var(--surface-0);
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .panel h4 {
+    margin: 0 0 8px 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+  }
+
+  .tree,
+  .tree ul {
+    list-style: none;
+    margin: 0;
+    padding-left: 14px;
+    font-size: 0.8125rem;
+  }
+
+  .tree {
+    padding-left: 0;
+  }
+
+  .tree li {
+    margin: 2px 0;
+  }
+
+  .tree-node {
+    all: unset;
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .tree-node.selected {
+    background: var(--surface-2);
+    color: var(--accent);
+  }
+
+  .tree-node:focus-visible {
+    outline: 2px solid var(--accent);
+  }
+
+  .inspector {
+    width: 100%;
+    margin: 0 0 8px 0;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+
+  .inspector caption {
+    text-align: left;
+    font-weight: 600;
+    padding-bottom: 4px;
+  }
+
+  .inspector th,
+  .inspector td {
+    text-align: left;
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 3px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border: 1px solid var(--border-hover);
+  }
+
+  .badge-locked {
+    color: var(--error);
+    border-color: var(--error);
+  }
+
+  .badge-delegated {
+    color: var(--success);
+    border-color: var(--success);
+  }
+
+  /* Code editor */
   .playground-panes {
     display: flex;
     flex-direction: row;
-    flex: 1;
+    height: 520px;
     overflow: hidden;
-    min-height: 0;
   }
 
   .playground-editor {
@@ -107,15 +355,10 @@
     background: var(--code-bg);
   }
 
-  /* CodeMirror overrides */
-  .playground-editor .cm-editor {
+  .playground-editor :global(.cm-editor) {
     height: 100%;
     font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
     font-size: 0.875rem;
-  }
-
-  .playground-editor .cm-scroller {
-    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
   }
 
   .playground-output {
@@ -150,7 +393,7 @@
     align-items: center;
   }
 
-  /* Shared button base: nuke Starlight defaults */
+  /* Shared button base: override Starlight defaults */
   .run-btn,
   .reset-btn {
     all: unset;
@@ -182,10 +425,6 @@
     background: var(--accent-hover) !important;
   }
 
-  .run-btn:active {
-    background: var(--accent) !important;
-  }
-
   .run-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -206,13 +445,13 @@
   .reset-btn:hover {
     color: var(--text-primary) !important;
     border-color: var(--text-tertiary) !important;
-    outline-offset: 2px;
   }
 
   .output-pre {
     flex: 1;
     margin: 0;
     padding: 16px;
+    min-height: 120px;
     overflow-y: auto;
     font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
     font-size: 0.8125rem;
@@ -221,13 +460,20 @@
     white-space: pre-wrap;
     word-break: break-word;
     background: var(--surface-0);
+    border: 1px solid var(--border);
+    border-radius: 4px;
   }
 
-  .output-pre .output-error {
+  .playground-output .output-pre {
+    border: none;
+    border-radius: 0;
+  }
+
+  .output-pre :global(.output-error) {
     color: var(--error);
   }
 
-  .output-pre .output-dim {
+  .output-dim {
     color: var(--text-tertiary);
   }
 
@@ -252,27 +498,30 @@
     color: var(--sandstone);
   }
 
-  /* Loading overlay */
-  .playground-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-tertiary);
-    font-size: 0.875rem;
-  }
-
   @media (max-width: 768px) {
+    .tour {
+      grid-template-columns: 1fr;
+    }
+
+    .tour-steps {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tour-panels {
+      grid-template-columns: 1fr;
+    }
+
     .playground-panes {
       flex-direction: column;
-      min-height: 700px;
+      height: auto;
     }
 
     .playground-editor {
       width: 100%;
       border-right: none;
       border-bottom: 1px solid var(--border);
-      min-height: 320px;
+      height: 320px;
     }
 
     .playground-output {
@@ -291,542 +540,288 @@
 </style>
 
 <script>
-import { PGlite } from '@electric-sql/pglite';
-import { ltree } from '@electric-sql/pglite/contrib/ltree';
-import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
-import { javascript } from '@codemirror/lang-javascript';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { SCENARIOS, TOUR_STEPS, type ScenarioKey } from "../playground/scenarios";
+import type { PlaygroundRuntime } from "../playground/runtime";
+import type { EditorView } from "@codemirror/view";
 
-// ---------------------------------------------------------------------------
-// Scenario definitions
-// ---------------------------------------------------------------------------
+type Runtime = typeof import("../playground/runtime");
+type TenantRow = { id: string; parent_id: string | null; name: string };
 
-const SCENARIOS = {
-  flat: {
-    label: 'Flat Tenancy',
-    description: 'Create organizations with no hierarchy.',
-    code: `// Create organizations (flat, no hierarchy)
-const org1 = await stratum.createOrganization({ name: "Acme Corp", slug: "acme" });
-console.log("Created:", org1.name, "(id:", org1.id + ")");
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const org2 = await stratum.createOrganization({ name: "Globex Inc", slug: "globex" });
-console.log("Created:", org2.name, "(id:", org2.id + ")");
+const statusEl = $("status");
+const startBtn = $<HTMLButtonElement>("start-btn");
 
-const orgs = await stratum.listOrganizations();
-console.log("\\nAll organizations:");
-orgs.forEach(o => console.log("  -", o.name, "(" + o.slug + ")"));`,
-  },
-  hierarchy: {
-    label: 'Hierarchy',
-    description: 'Build a 3-level MSP tenant hierarchy.',
-    code: `// Build a 3-level MSP hierarchy
-const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
-console.log("Root:", root.name, "| path:", root.ancestry_path);
+function setStatus(message: string, type = "") {
+  statusEl.textContent = message;
+  statusEl.className = "playground-status" + (type ? " status-" + type : "");
+}
 
-const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar", parent_id: root.id });
-console.log("MSP:", msp.name, "| path:", msp.ancestry_path);
+function formatArg(arg: unknown): string {
+  if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
+  return typeof arg === "object" ? JSON.stringify(arg, null, 2) : String(arg);
+}
 
-const client = await stratum.createTenant({ name: "Client Alpha", slug: "alpha", parent_id: msp.id });
-console.log("Client:", client.name, "| path:", client.ancestry_path);
+/**
+ * Run a script with the given names in scope and return what it logged.
+ *
+ * The script is an async function body. console.log inside it writes to the
+ * returned lines, and to the browser console as well.
+ */
+async function runScript(code: string, scope: Record<string, unknown>): Promise<{ lines: string[]; error?: unknown }> {
+  const lines: string[] = [];
+  const log = (...args: unknown[]) => lines.push(args.map(formatArg).join(" "));
+  const sandboxConsole = { ...console, log, info: log, error: (...args: unknown[]) => log("[error]", ...args) };
+  const names = [...Object.keys(scope), "console"];
+  const fn = new Function(...names, `return (async () => {\n${code}\n})()`);
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("The script ran for more than 15 seconds")), 15_000),
+  );
+  try {
+    await Promise.race([fn(...Object.values(scope), sandboxConsole), timeout]);
+    return { lines };
+  } catch (error) {
+    return { lines, error };
+  }
+}
 
-// Show the full hierarchy
-const all = await stratum.listTenants();
-console.log("\\nTenant hierarchy:");
-all.forEach(t => console.log("  " + "  ".repeat(t.depth) + t.name + " (depth: " + t.depth + ")"));`,
-  },
-  config: {
-    label: 'Config Inheritance',
-    description: 'Set config at the root and resolve inherited values on a child.',
-    code: `// Build hierarchy for config demo
-const root = await stratum.createTenant({ name: "AcmeSec", slug: "acmesec" });
-const child = await stratum.createTenant({ name: "NorthStar", slug: "northstar", parent_id: root.id });
+let runtimeModule: Runtime;
+let rt: PlaygroundRuntime;
 
-// Set config on root
-await stratum.setConfig(root.id, "max_users", { value: 1000, locked: false, sensitive: false });
-await stratum.setConfig(root.id, "data_region", { value: "us-east-1", locked: true, sensitive: false });
-console.log("Config set on root: max_users=1000, data_region=us-east-1 (locked)");
-
-// Resolve on child (inherits from parent)
-const config = await stratum.resolveConfig(child.id);
-console.log("\\nResolved config for", child.name + ":");
-Object.entries(config).forEach(([key, val]) => {
-  console.log("  " + key + ":", JSON.stringify(val.value), val.inherited ? "(inherited)" : "(own)", val.locked ? "[LOCKED]" : "");
-});`,
-  },
-  gdpr: {
-    label: 'GDPR Compliance',
-    description: 'Export (Article 20) and purge (Article 17) tenant data.',
-    code: `// Create a tenant with config
-const org = await stratum.createTenant({ name: "Acme Corp", slug: "acme" });
-await stratum.setConfig(org.id, "plan", { value: "enterprise", locked: false, sensitive: false });
-console.log("Created tenant with config");
-
-// Export tenant data (Article 20)
-const exported = await stratum.exportTenantData(org.id);
-console.log("\\nExported data keys:", Object.keys(exported).join(", "));
-console.log("Tenant data:", JSON.stringify(exported.tenant, null, 2));
-
-// Purge tenant data (Article 17)
-await stratum.purgeTenant(org.id);
-console.log("\\nTenant purged successfully");
-
-// Verify purge
-const check = await stratum.getTenant(org.id);
-console.log("Tenant after purge:", check ? "STILL EXISTS (error!)" : "Gone (correct)");`,
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Patched migrations, all 17, with patches applied:
-//   1. uuid-ossp DO block removed
-//   2. ltree DO block replaced with direct CREATE EXTENSION
-//   3. BYPASSRLS warning DO block removed
-//   4. uuid_generate_v4() replaced with gen_random_uuid()
-//   5. _migrations table created before migration 016
-// ---------------------------------------------------------------------------
-
-const MIGRATIONS = [
-  // 001_init.sql
-  `CREATE EXTENSION IF NOT EXISTS ltree;
-
-CREATE TABLE IF NOT EXISTS tenants (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_id UUID REFERENCES tenants(id) ON DELETE RESTRICT,
-  ancestry_path TEXT NOT NULL,
-  ancestry_ltree ltree,
-  depth INTEGER NOT NULL DEFAULT 0,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE
-    CHECK (slug ~ '^[a-z][a-z0-9_]{0,62}$'),
-  config JSONB NOT NULL DEFAULT '{}',
-  metadata JSONB NOT NULL DEFAULT '{}',
-  isolation_strategy TEXT NOT NULL DEFAULT 'SHARED_RLS'
-    CHECK (isolation_strategy IN ('SHARED_RLS')),
-  status TEXT NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'archived')),
-  deleted_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
-CREATE TRIGGER update_tenants_updated_at
-  BEFORE UPDATE ON tenants
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE OR REPLACE FUNCTION maintain_ancestry_ltree()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.parent_id IS NULL THEN
-    NEW.ancestry_ltree = NEW.slug::ltree;
-  ELSE
-    SELECT ancestry_ltree || NEW.slug::ltree INTO NEW.ancestry_ltree
-    FROM tenants WHERE id = NEW.parent_id;
-  END IF;
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-DROP TRIGGER IF EXISTS maintain_tenant_ancestry_ltree ON tenants;
-CREATE TRIGGER maintain_tenant_ancestry_ltree
-  BEFORE INSERT OR UPDATE OF parent_id, slug ON tenants
-  FOR EACH ROW EXECUTE FUNCTION maintain_ancestry_ltree();
-
-CREATE INDEX IF NOT EXISTS idx_tenant_parent ON tenants(parent_id);
-CREATE INDEX IF NOT EXISTS idx_tenant_ancestry ON tenants USING GIST (ancestry_ltree);
-CREATE INDEX IF NOT EXISTS idx_tenant_depth ON tenants(depth);
-CREATE INDEX IF NOT EXISTS idx_tenant_slug ON tenants(slug);
-CREATE INDEX IF NOT EXISTS idx_tenant_status ON tenants(status) WHERE status = 'active';
-
-CREATE TABLE IF NOT EXISTS permission_policies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
-  key TEXT NOT NULL,
-  value JSONB NOT NULL DEFAULT 'true',
-  mode TEXT NOT NULL DEFAULT 'INHERITED'
-    CHECK (mode IN ('LOCKED', 'INHERITED', 'DELEGATED')),
-  revocation_mode TEXT NOT NULL DEFAULT 'CASCADE'
-    CHECK (revocation_mode IN ('CASCADE', 'SOFT', 'PERMANENT')),
-  source_tenant_id UUID NOT NULL REFERENCES tenants(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(tenant_id, key)
-);
-
-CREATE INDEX IF NOT EXISTS idx_permission_source ON permission_policies(source_tenant_id);
-
-DROP TRIGGER IF EXISTS update_permission_policies_updated_at ON permission_policies;
-CREATE TRIGGER update_permission_policies_updated_at
-  BEFORE UPDATE ON permission_policies
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TABLE IF NOT EXISTS config_entries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  key TEXT NOT NULL,
-  value JSONB NOT NULL,
-  inherited BOOLEAN NOT NULL DEFAULT false,
-  source_tenant_id UUID NOT NULL REFERENCES tenants(id),
-  locked BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(tenant_id, key)
-);
-
-DROP TRIGGER IF EXISTS update_config_entries_updated_at ON config_entries;
-CREATE TRIGGER update_config_entries_updated_at
-  BEFORE UPDATE ON config_entries
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TABLE IF NOT EXISTS api_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  key_hash TEXT NOT NULL,
-  key_prefix VARCHAR(16),
-  name TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_used_at TIMESTAMPTZ,
-  revoked_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys (key_hash);`,
-
-  // 002_schema_isolation.sql
-  `ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_isolation_strategy_check;
-ALTER TABLE tenants ADD CONSTRAINT tenants_isolation_strategy_check
-  CHECK (isolation_strategy IN ('SHARED_RLS', 'SCHEMA_PER_TENANT'));`,
-
-  // 003_db_isolation.sql
-  `ALTER TABLE tenants DROP CONSTRAINT IF EXISTS tenants_isolation_strategy_check;
-ALTER TABLE tenants ADD CONSTRAINT tenants_isolation_strategy_check
-  CHECK (isolation_strategy IN ('SHARED_RLS', 'SCHEMA_PER_TENANT', 'DB_PER_TENANT'));
-
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS connection_config JSONB DEFAULT NULL;`,
-
-  // 004_webhooks.sql
-  `CREATE TABLE IF NOT EXISTS webhooks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  url TEXT NOT NULL,
-  secret_hash TEXT NOT NULL,
-  events TEXT[] NOT NULL DEFAULT '{}',
-  active BOOLEAN NOT NULL DEFAULT true,
-  description TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(active) WHERE active = true;
-
-DROP TRIGGER IF EXISTS update_webhooks_updated_at ON webhooks;
-CREATE TRIGGER update_webhooks_updated_at
-  BEFORE UPDATE ON webhooks
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TABLE IF NOT EXISTS webhook_events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type TEXT NOT NULL,
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  data JSONB NOT NULL DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_webhook_events_tenant ON webhook_events(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_webhook_events_type ON webhook_events(type);
-CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON webhook_events(created_at);
-
-CREATE TABLE IF NOT EXISTS webhook_deliveries (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  webhook_id UUID NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
-  event_id UUID NOT NULL REFERENCES webhook_events(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'success', 'failed')),
-  attempts INTEGER NOT NULL DEFAULT 0,
-  next_retry_at TIMESTAMPTZ,
-  last_error TEXT,
-  response_code INTEGER,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_deliveries_webhook ON webhook_deliveries(webhook_id);
-CREATE INDEX IF NOT EXISTS idx_deliveries_event ON webhook_deliveries(event_id);
-CREATE INDEX IF NOT EXISTS idx_deliveries_status ON webhook_deliveries(status) WHERE status = 'pending';
-CREATE INDEX IF NOT EXISTS idx_deliveries_retry ON webhook_deliveries(next_retry_at) WHERE status = 'pending';`,
-
-  // 005_audit_logs.sql
-  `CREATE TABLE IF NOT EXISTS audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_id TEXT NOT NULL,
-  actor_type TEXT NOT NULL CHECK (actor_type IN ('api_key', 'jwt', 'system')),
-  action TEXT NOT NULL,
-  resource_type TEXT NOT NULL,
-  resource_id TEXT,
-  tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
-  source_ip INET,
-  request_id TEXT,
-  before_state JSONB,
-  after_state JSONB,
-  metadata JSONB NOT NULL DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);
-CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id);`,
-
-  // 006_api_key_scopes.sql
-  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] NOT NULL DEFAULT '{read,write}';`,
-
-  // 007_sensitive_config.sql
-  `ALTER TABLE config_entries ADD COLUMN IF NOT EXISTS sensitive BOOLEAN NOT NULL DEFAULT false;`,
-
-  // 008_api_key_management.sql
-  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit_max INTEGER;
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit_window TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_api_keys_expires ON api_keys(expires_at) WHERE expires_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_api_keys_last_used ON api_keys(last_used_at);`,
-
-  // 009_consent.sql
-  `CREATE TABLE IF NOT EXISTS consent_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  subject_id TEXT NOT NULL,
-  purpose TEXT NOT NULL,
-  granted BOOLEAN NOT NULL DEFAULT true,
-  granted_at TIMESTAMPTZ DEFAULT now(),
-  revoked_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ,
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(tenant_id, subject_id, purpose)
-);
-
-CREATE INDEX IF NOT EXISTS idx_consent_tenant ON consent_records(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_consent_subject ON consent_records(subject_id);
-CREATE INDEX IF NOT EXISTS idx_consent_purpose ON consent_records(purpose);`,
-
-  // 010_multi_region.sql
-  `CREATE TABLE IF NOT EXISTS regions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  display_name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  control_plane_url TEXT,
-  database_url TEXT,
-  is_primary BOOLEAN NOT NULL DEFAULT false,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draining', 'inactive')),
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_regions_slug ON regions(slug);
-CREATE INDEX IF NOT EXISTS idx_regions_status ON regions(status);
-
-ALTER TABLE tenants ADD COLUMN IF NOT EXISTS region_id UUID REFERENCES regions(id);
-CREATE INDEX IF NOT EXISTS idx_tenants_region ON tenants(region_id);`,
-
-  // 011_demo_bootstrap.sql: no-op (demo data seeded separately)
-  `-- 011_demo_bootstrap: no-op in playground`,
-
-  // 012_roles.sql
-  `CREATE TABLE IF NOT EXISTS roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  description TEXT,
-  scopes TEXT[] NOT NULL DEFAULT ARRAY['read'],
-  tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles (tenant_id);
-
-ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS role_id UUID REFERENCES roles(id) ON DELETE SET NULL;`,
-
-  // 013_api_key_hmac.sql
-  `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS hash_version SMALLINT NOT NULL DEFAULT 1;`,
-
-  // 014_sort_order.sql
-  `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
-
-CREATE INDEX IF NOT EXISTS idx_tenant_sort_order ON tenants(parent_id, sort_order);`,
-
-  // 015_region_url_encryption.sql
-  `ALTER TABLE regions RENAME COLUMN database_url TO database_url_encrypted;`,
-
-  // 016_migration_alias.sql: needs _migrations table
-  `CREATE TABLE IF NOT EXISTS _migrations (
-  name TEXT PRIMARY KEY,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-INSERT INTO _migrations (name, applied_at)
-SELECT '014_sort_order.sql', applied_at
-FROM _migrations
-WHERE name = '002_sort_order.sql'
-ON CONFLICT DO NOTHING;`,
-
-  // 017_abac_policies.sql
-  `CREATE TABLE IF NOT EXISTS abac_policies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  resource_type TEXT NOT NULL,
-  action TEXT NOT NULL,
-  effect TEXT NOT NULL CHECK (effect IN ('allow', 'deny')),
-  conditions JSONB NOT NULL DEFAULT '[]',
-  priority INTEGER NOT NULL DEFAULT 0,
-  mode TEXT NOT NULL DEFAULT 'INHERITED' CHECK (mode IN ('LOCKED', 'INHERITED', 'DELEGATED')),
-  source_tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_abac_policies_tenant_id ON abac_policies(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_abac_policies_resource_action ON abac_policies(resource_type, action);`,
-];
-
-// ---------------------------------------------------------------------------
-// Stratum helpers: mirror the Stratum API surface over raw PGlite SQL
-// ---------------------------------------------------------------------------
-
-function createStratumHelpers(db) {
+function scope(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    async createTenant({ name, slug, parent_id = null }) {
-      let ancestry_path, depth;
-      if (parent_id) {
-        const parent = await db.query('SELECT * FROM tenants WHERE id = $1', [parent_id]);
-        if (!parent.rows.length) throw new Error('Parent tenant not found');
-        const p = parent.rows[0];
-        ancestry_path = p.ancestry_path + '.' + slug;
-        depth = p.depth + 1;
-      } else {
-        ancestry_path = slug;
-        depth = 0;
-      }
-      const result = await db.query(
-        `INSERT INTO tenants (name, slug, parent_id, ancestry_path, ancestry_ltree, depth)
-         VALUES ($1, $2, $3, $4, $5::ltree, $6) RETURNING *`,
-        [name, slug, parent_id, ancestry_path, ancestry_path, depth]
-      );
-      return result.rows[0];
-    },
-
-    async createOrganization({ name, slug }) {
-      return this.createTenant({ name, slug, parent_id: null });
-    },
-
-    async listOrganizations() {
-      const result = await db.query('SELECT * FROM tenants WHERE parent_id IS NULL ORDER BY name');
-      return result.rows;
-    },
-
-    async listTenants() {
-      const result = await db.query('SELECT * FROM tenants ORDER BY depth, name');
-      return result.rows;
-    },
-
-    async getTenant(id) {
-      const result = await db.query('SELECT * FROM tenants WHERE id = $1', [id]);
-      return result.rows[0] || null;
-    },
-
-    async setConfig(tenantId, key, { value, locked = false, sensitive = false }) {
-      await db.query(
-        `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id)
-         VALUES ($1, $2, $3, $4, $5, $1)
-         ON CONFLICT (tenant_id, key) DO UPDATE SET value = $3, locked = $4, sensitive = $5`,
-        [tenantId, key, JSON.stringify(value), locked, sensitive]
-      );
-    },
-
-    async resolveConfig(tenantId) {
-      const tenant = await this.getTenant(tenantId);
-      if (!tenant) throw new Error('Tenant not found');
-
-      const slugs = tenant.ancestry_path.split('.');
-      const config = {};
-
-      for (let i = 0; i < slugs.length; i++) {
-        const pathSlug = slugs.slice(0, i + 1).join('.');
-        const ancestor = await db.query('SELECT * FROM tenants WHERE ancestry_path = $1', [pathSlug]);
-        if (!ancestor.rows.length) continue;
-
-        const entries = await db.query('SELECT * FROM config_entries WHERE tenant_id = $1', [ancestor.rows[0].id]);
-        for (const entry of entries.rows) {
-          const isOwn = ancestor.rows[0].id === tenantId;
-          if (config[entry.key] && config[entry.key].locked && !isOwn) continue;
-          config[entry.key] = {
-            value: entry.value,
-            inherited: !isOwn,
-            locked: entry.locked,
-            source: ancestor.rows[0].slug,
-          };
-        }
-      }
-      return config;
-    },
-
-    async exportTenantData(tenantId) {
-      const tenant = await this.getTenant(tenantId);
-      const config = await db.query('SELECT * FROM config_entries WHERE tenant_id = $1', [tenantId]);
-      const audit = await db.query('SELECT * FROM audit_logs WHERE tenant_id = $1', [tenantId]);
-      return {
-        tenant,
-        config: config.rows,
-        audit_logs: audit.rows,
-      };
-    },
-
-    async purgeTenant(tenantId) {
-      await db.query('DELETE FROM config_entries WHERE tenant_id = $1', [tenantId]);
-      await db.query('DELETE FROM audit_logs WHERE tenant_id = $1', [tenantId]);
-      await db.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
-    },
+    stratum: rt.stratum,
+    pool: rt.pool,
+    appPool: rt.appPool,
+    withTenantContext: runtimeModule.withTenantContext,
+    enableRLS: runtimeModule.enableRLS,
+    createPolicy: runtimeModule.createPolicy,
+    ConfigLockedError: runtimeModule.ConfigLockedError,
+    PermissionLockedError: runtimeModule.PermissionLockedError,
+    StratumError: runtimeModule.StratumError,
+    ...extra,
   };
 }
 
 // ---------------------------------------------------------------------------
-// DB initialisation
+// Guided tour
 // ---------------------------------------------------------------------------
 
-async function initDB(onStatus) {
-  onStatus('Loading Postgres WASM...');
-  const db = await PGlite.create({ extensions: { ltree } });
+const tour = {
+  current: 0,
+  done: 0,
+  tenants: {} as Record<string, { id: string; name: string }>,
+  inspected: null as string | null,
+};
 
-  onStatus('Running migrations...');
-  for (let i = 0; i < MIGRATIONS.length; i++) {
-    onStatus(`Running migration ${i + 1}/${MIGRATIONS.length}...`);
-    await db.exec(MIGRATIONS[i]);
-  }
+const stepsEl = $<HTMLOListElement>("tour-steps");
+const stepRunBtn = $<HTMLButtonElement>("step-run");
+const tourOutput = $<HTMLPreElement>("tour-output");
 
-  onStatus('Ready');
-  return db;
+function renderSteps() {
+  stepsEl.textContent = "";
+  TOUR_STEPS.forEach((step, index) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "step-btn";
+    btn.dataset.step = step.id;
+    btn.textContent = `${index + 1}. ${step.title}`;
+    btn.classList.toggle("current", index === tour.current);
+    btn.classList.toggle("done", index < tour.done);
+    btn.addEventListener("click", () => {
+      tour.current = index;
+      renderSteps();
+    });
+    li.appendChild(btn);
+    stepsEl.appendChild(li);
+  });
+  const step = TOUR_STEPS[tour.current];
+  $("step-title").textContent = step.title;
+  $("step-text").textContent = step.text;
+  $("step-code").textContent = step.code ?? "";
+  $("step-code").hidden = !step.code;
+  stepRunBtn.disabled = !step.code || tour.current < tour.done;
+  stepRunBtn.textContent = tour.current < tour.done ? "Done" : tour.current > tour.done ? "Run the steps up to here" : "Run this step";
 }
 
+function appendTourLines(lines: string[], isError = false) {
+  for (const line of lines) {
+    const span = document.createElement("span");
+    if (isError) span.className = "output-error";
+    span.textContent = line + "\n";
+    tourOutput.appendChild(span);
+  }
+  tourOutput.scrollTop = tourOutput.scrollHeight;
+}
+
+async function renderTree() {
+  const tree = $<HTMLUListElement>("tree");
+  const { data } = await rt.stratum.listTenants({ limit: 100 });
+  const rows = data as TenantRow[];
+  tree.textContent = "";
+  if (rows.length === 0) {
+    tree.innerHTML = '<li class="output-dim">No tenants yet.</li>';
+    return;
+  }
+  const build = (parentId: string | null, into: HTMLUListElement) => {
+    for (const row of rows.filter((r) => r.parent_id === parentId)) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tree-node" + (row.id === tour.inspected ? " selected" : "");
+      btn.textContent = row.name;
+      btn.addEventListener("click", () => inspect(row.id));
+      li.appendChild(btn);
+      const children = document.createElement("ul");
+      build(row.id, children);
+      if (children.childElementCount > 0) li.appendChild(children);
+      into.appendChild(li);
+    }
+  };
+  build(null, tree);
+}
+
+function tenantName(id: string, names: Map<string, string>): string {
+  return names.get(id) ?? id;
+}
+
+function cell(row: HTMLTableRowElement, text: string, badge?: string) {
+  const td = document.createElement("td");
+  if (badge) {
+    const span = document.createElement("span");
+    span.className = "badge " + badge;
+    span.textContent = text;
+    td.appendChild(span);
+  } else {
+    td.textContent = text;
+  }
+  row.appendChild(td);
+}
+
+function table(el: HTMLTableElement, caption: string, headers: string[]) {
+  el.textContent = "";
+  el.createCaption().textContent = caption;
+  const head = el.createTHead().insertRow();
+  for (const h of headers) {
+    const th = document.createElement("th");
+    th.textContent = h;
+    head.appendChild(th);
+  }
+  return el.createTBody();
+}
+
+async function inspect(tenantId: string) {
+  tour.inspected = tenantId;
+  const { data } = await rt.stratum.listTenants({ limit: 100 });
+  const names = new Map((data as TenantRow[]).map((t) => [t.id, t.name]));
+  $("inspect-name").textContent = "for " + tenantName(tenantId, names);
+
+  const config = await rt.stratum.resolveConfig(tenantId);
+  const configBody = table($("inspector-config"), "Config", ["Key", "Value", "Set by", "State"]);
+  for (const entry of Object.values(config)) {
+    const row = configBody.insertRow();
+    cell(row, entry.key);
+    cell(row, JSON.stringify(entry.value));
+    cell(row, tenantName(entry.source_tenant_id, names));
+    cell(row, entry.locked ? "LOCKED" : entry.inherited ? "inherited" : "own", entry.locked ? "badge-locked" : undefined);
+  }
+  if (Object.keys(config).length === 0) cell(configBody.insertRow(), "No config yet.");
+
+  const perms = await rt.stratum.resolvePermissions(tenantId);
+  const permBody = table($("inspector-perms"), "Permissions", ["Key", "Mode", "Set by", "Delegated"]);
+  for (const entry of Object.values(perms)) {
+    const row = permBody.insertRow();
+    cell(row, entry.key);
+    cell(row, entry.mode, entry.mode === "LOCKED" ? "badge-locked" : entry.mode === "DELEGATED" ? "badge-delegated" : undefined);
+    cell(row, tenantName(entry.source_tenant_id, names));
+    cell(row, entry.delegated ? "yes" : "no");
+  }
+  if (Object.keys(perms).length === 0) cell(permBody.insertRow(), "No permissions yet.");
+  await renderTree();
+}
+
+async function runTourStep(index: number): Promise<boolean> {
+  const step = TOUR_STEPS[index];
+  if (!step.code) return false;
+  setStatus(`Running step ${index + 1}: ${step.title}`, "running");
+  appendTourLines([`> ${index + 1}. ${step.title}`]);
+  const { lines, error } = await runScript(step.code, scope({ t: tour.tenants }));
+  appendTourLines(lines);
+  if (error) {
+    appendTourLines([formatArg(error)], true);
+    setStatus(`Step ${index + 1} failed: ${formatArg(error)}`, "error");
+    return false;
+  }
+  tour.done = index + 1;
+  const focus = step.inspect ? tour.tenants[step.inspect] : undefined;
+  if (focus) await inspect(focus.id);
+  else await renderTree();
+  return true;
+}
+
+stepRunBtn.addEventListener("click", async () => {
+  stepRunBtn.disabled = true;
+  for (let index = tour.done; index <= tour.current; index++) {
+    if (!(await runTourStep(index))) break;
+  }
+  if (tour.current < TOUR_STEPS.length - 1 && tour.done > tour.current) tour.current += 1;
+  if (statusEl.className.indexOf("status-error") === -1) setStatus("Step done. Select a tenant in the tree to inspect it.", "ready");
+  renderSteps();
+});
+
+async function resetTour() {
+  await rt.reset();
+  tour.current = 0;
+  tour.done = 0;
+  tour.tenants = {};
+  tour.inspected = null;
+  tourOutput.textContent = "";
+  $("inspect-name").textContent = "";
+  $("inspector-config").textContent = "";
+  $("inspector-perms").textContent = "";
+  await renderTree();
+  renderSteps();
+}
+
+$("tour-reset").addEventListener("click", async () => {
+  setStatus("Resetting the database", "running");
+  await resetTour();
+  setStatus("Ready: the tour starts again with an empty database.", "ready");
+});
+
 // ---------------------------------------------------------------------------
-// CodeMirror setup
+// Code editor
 // ---------------------------------------------------------------------------
 
-function createEditor(parent, initialCode) {
+let editorView: EditorView | null = null;
+let currentScenario: ScenarioKey = "flat";
+const outputEl = $<HTMLPreElement>("output");
+const runBtn = $<HTMLButtonElement>("run-btn");
+
+function setOutput(text: string, isError = false) {
+  outputEl.textContent = "";
+  const span = document.createElement("span");
+  if (isError) span.className = "output-error";
+  span.textContent = text;
+  outputEl.appendChild(span);
+}
+
+function setEditorCode(code: string) {
+  editorView?.dispatch({ changes: { from: 0, to: editorView.state.doc.length, insert: code } });
+}
+
+async function createEditor() {
+  const [{ EditorView, keymap, lineNumbers, highlightActiveLine }, { EditorState }, { javascript }, { oneDark }, { defaultKeymap, history, historyKeymap }] =
+    await Promise.all([
+      import("@codemirror/view"),
+      import("@codemirror/state"),
+      import("@codemirror/lang-javascript"),
+      import("@codemirror/theme-one-dark"),
+      import("@codemirror/commands"),
+    ]);
   const state = EditorState.create({
-    doc: initialCode,
+    doc: SCENARIOS[currentScenario].code,
     extensions: [
       lineNumbers(),
       highlightActiveLine(),
@@ -835,208 +830,104 @@ function createEditor(parent, initialCode) {
       javascript(),
       oneDark,
       EditorView.theme({
-        '&': {
-          height: '100%',
-          backgroundColor: 'var(--code-bg)',
-        },
-        '.cm-scroller': {
+        "&": { height: "100%", backgroundColor: "var(--code-bg)" },
+        ".cm-scroller": {
           fontFamily: 'var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace)',
-          fontSize: '0.875rem',
-          lineHeight: '1.6',
+          fontSize: "0.875rem",
+          lineHeight: "1.6",
         },
-        '.cm-content': {
-          padding: '16px 0',
+        ".cm-content": { padding: "16px 0" },
+        ".cm-gutters": {
+          backgroundColor: "var(--code-bg)",
+          borderRight: "1px solid var(--border)",
+          color: "var(--text-tertiary)",
         },
-        '.cm-gutters': {
-          backgroundColor: 'var(--code-bg)',
-          borderRight: '1px solid var(--border)',
-          color: 'var(--text-tertiary)',
-        },
-        '.cm-activeLineGutter': {
-          backgroundColor: 'var(--surface-2)',
-        },
-        '.cm-activeLine': {
-          backgroundColor: 'rgba(255,255,255,0.03)',
-        },
+        ".cm-activeLineGutter": { backgroundColor: "var(--surface-2)" },
+        ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.03)" },
       }),
       EditorView.lineWrapping,
     ],
   });
-
-  return new EditorView({ state, parent });
+  editorView = new EditorView({ state, parent: $("editor") });
 }
 
-// ---------------------------------------------------------------------------
-// Main init
-// ---------------------------------------------------------------------------
+async function resetDatabase(message: string) {
+  setStatus("Resetting the database", "running");
+  await rt.reset();
+  // The tour and the editor share one database, so a reset restarts the tour.
+  await resetTour();
+  setStatus(message, "ready");
+}
 
-(async () => {
-  const statusEl = document.getElementById('status');
-  const outputEl = document.getElementById('output');
-  const runBtn = document.getElementById('run-btn');
-  const resetBtn = document.getElementById('reset-btn');
-  const editorEl = document.getElementById('editor');
-  const tabs = document.querySelectorAll('.tab');
-
-  let db = null;
-  let stratum = null;
-  let editorView = null;
-  let currentTab = 'flat';
-
-  function setStatus(msg, type = '') {
-    if (!statusEl) return;
-    statusEl.textContent = msg;
-    statusEl.className = 'playground-status' + (type ? ' status-' + type : '');
-  }
-
-  function setOutput(text, isError = false) {
-    if (!outputEl) return;
-    outputEl.textContent = '';
-    const span = document.createElement('span');
-    span.className = isError ? 'output-error' : '';
-    span.textContent = text;
-    outputEl.appendChild(span);
-  }
-
-  function appendOutput(text) {
-    if (!outputEl) return;
-    outputEl.textContent += text + '\n';
-  }
-
-  function getEditorCode() {
-    return editorView ? editorView.state.doc.toString() : '';
-  }
-
-  function setEditorCode(code) {
-    if (!editorView) return;
-    editorView.dispatch({
-      changes: { from: 0, to: editorView.state.doc.length, insert: code },
+document.querySelectorAll<HTMLButtonElement>(".scenario-tab").forEach((tab) => {
+  tab.addEventListener("click", async () => {
+    const key = tab.dataset.tab as ScenarioKey;
+    document.querySelectorAll(".scenario-tab").forEach((t) => {
+      t.classList.toggle("active", t === tab);
+      t.setAttribute("aria-selected", String(t === tab));
     });
-  }
+    currentScenario = key;
+    setEditorCode(SCENARIOS[key].code);
+    setOutput("");
+    await resetDatabase("Ready: " + SCENARIOS[key].description);
+  });
+});
 
-  // Init editor with default scenario
-  if (editorEl) {
-    editorView = createEditor(editorEl, SCENARIOS.flat.code);
-  }
+$("reset-btn").addEventListener("click", async () => {
+  setEditorCode(SCENARIOS[currentScenario].code);
+  setOutput("");
+  await resetDatabase("Ready: the database is empty.");
+});
 
-  // Init DB
+runBtn.addEventListener("click", async () => {
+  const code = editorView?.state.doc.toString() ?? "";
+  if (!code.trim()) return;
+  runBtn.disabled = true;
+  setOutput("");
+  setStatus("Running", "running");
+  const { lines, error } = await runScript(code, scope());
+  if (error) {
+    setOutput((lines.length ? lines.join("\n") + "\n\n" : "") + formatArg(error), true);
+    setStatus("Error: " + formatArg(error), "error");
+  } else {
+    setOutput(lines.join("\n") || "(no output)");
+    setStatus("Done", "ready");
+  }
+  runBtn.disabled = false;
+});
+
+// ---------------------------------------------------------------------------
+// Mode tabs and Start
+// ---------------------------------------------------------------------------
+
+document.querySelectorAll<HTMLButtonElement>(".mode-tab").forEach((tab) => {
+  tab.addEventListener("click", async () => {
+    document.querySelectorAll(".mode-tab").forEach((t) => {
+      t.classList.toggle("active", t === tab);
+      t.setAttribute("aria-selected", String(t === tab));
+    });
+    const editorMode = tab.dataset.mode === "editor";
+    $("tour").hidden = editorMode;
+    $("editor-mode").hidden = !editorMode;
+    if (editorMode && !editorView) await createEditor();
+  });
+});
+
+startBtn.addEventListener("click", async () => {
+  startBtn.disabled = true;
+  setStatus("Downloading PostgreSQL and Stratum", "running");
   try {
-    db = await initDB((msg) => {
-      setStatus(msg, 'running');
-    });
-    stratum = createStratumHelpers(db);
-    setStatus('Ready: Postgres running in your browser', 'ready');
-    if (runBtn) runBtn.disabled = false;
-  } catch (err) {
-    setStatus('Failed to initialize Postgres: ' + err.message, 'error');
-    setOutput('Initialization error:\n' + err.message, true);
+    runtimeModule = await import("../playground/runtime");
+    rt = await runtimeModule.startPlayground((message) => setStatus(message, "running"));
+  } catch (error) {
+    console.error(error);
+    setStatus("PostgreSQL did not start: " + formatArg(error), "error");
+    startBtn.disabled = false;
     return;
   }
-
-  // Tab switching
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', async () => {
-      const tabKey = tab.dataset.tab;
-      if (!tabKey || !SCENARIOS[tabKey]) return;
-
-      tabs.forEach((t) => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-
-      currentTab = tabKey;
-      setEditorCode(SCENARIOS[tabKey].code);
-      setOutput('');
-
-      // Reset DB for fresh scenario
-      await resetDB();
-      setStatus('Ready', 'ready');
-    });
-  });
-
-  async function resetDB() {
-    setStatus('Resetting database...', 'running');
-    try {
-      // Drop all data by truncating core tables
-      await db.exec(`
-        TRUNCATE TABLE audit_logs, config_entries, permission_policies,
-          api_keys, webhook_deliveries, webhook_events, webhooks,
-          consent_records, abac_policies, roles RESTART IDENTITY CASCADE;
-        TRUNCATE TABLE tenants RESTART IDENTITY CASCADE;
-      `);
-      setStatus('Ready', 'ready');
-    } catch (err) {
-      // Fallback: recreate DB from scratch
-      try {
-        db = await initDB((msg) => setStatus(msg, 'running'));
-        stratum = createStratumHelpers(db);
-        setStatus('Ready', 'ready');
-      } catch (e) {
-        setStatus('Reset failed: ' + e.message, 'error');
-      }
-    }
-  }
-
-  // Reset button
-  if (resetBtn) {
-    resetBtn.addEventListener('click', async () => {
-      setEditorCode(SCENARIOS[currentTab].code);
-      setOutput('');
-      await resetDB();
-    });
-  }
-
-  // Run button
-  if (runBtn) {
-    runBtn.addEventListener('click', async () => {
-      const code = getEditorCode();
-      if (!code.trim()) return;
-
-      runBtn.disabled = true;
-      setOutput('');
-      setStatus('Running...', 'running');
-
-      // Capture console.log output
-      const logs = [];
-      const origLog = console.log;
-      const origError = console.error;
-      console.log = (...args) => {
-        const line = args.map((a) =>
-          typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
-        ).join(' ');
-        logs.push(line);
-        origLog(...args);
-      };
-      console.error = (...args) => {
-        const line = '[error] ' + args.map((a) =>
-          typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)
-        ).join(' ');
-        logs.push(line);
-        origError(...args);
-      };
-
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Execution timed out after 5 seconds')), 5000)
-      );
-
-      try {
-        const wrapped = new Function('stratum', `return (async () => {\n${code}\n})()`);
-        await Promise.race([wrapped(stratum), timeout]);
-        const output = logs.join('\n') || '(no output)';
-        setOutput(output);
-        setStatus('Done', 'ready');
-      } catch (err) {
-        const output = (logs.length ? logs.join('\n') + '\n\n' : '') + 'Error: ' + err.message;
-        setOutput(output, true);
-        setStatus('Error: ' + err.message, 'error');
-      } finally {
-        console.log = origLog;
-        console.error = origError;
-        runBtn.disabled = false;
-      }
-    });
-  }
-})();
+  $("pg-start").hidden = true;
+  $("pg-app").hidden = false;
+  renderSteps();
+  setStatus(`Ready: PostgreSQL runs in your browser, with ${rt.migrations} Stratum migrations applied.`, "ready");
+});
 </script>
