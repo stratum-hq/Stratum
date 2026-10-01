@@ -60,58 +60,75 @@ Each webhook delivery is an HTTP POST to your URL with these headers:
 | Header | Value |
 |--------|-------|
 | `Content-Type` | `application/json` |
+| `X-Stratum-Event` | Event type (for example `tenant.created`) |
 | `X-Stratum-Signature` | `sha256=<hmac_hex>` |
-| `X-Stratum-Event` | Event type (e.g., `tenant.created`) |
-| `X-Stratum-Delivery` | Unique delivery ID |
+| `X-Stratum-Timestamp` | The time of this attempt, as an ISO 8601 string |
+| `X-Stratum-Delivery-ID` | The delivery ID. It stays the same on every retry of a delivery, so you can use it to drop duplicates. |
 
-The body contains the event payload:
+The body is the event:
 
 ```json
 {
-  "event": "tenant.created",
-  "timestamp": "2024-06-15T10:30:00.000Z",
+  "id": "event-uuid",
+  "type": "tenant.created",
+  "tenant_id": "tenant-uuid",
   "data": {
-    "id": "tenant-uuid",
-    "name": "Acme Corp",
-    "slug": "acme_corp",
-    "parent_id": null,
-    "isolation_strategy": "SHARED_RLS"
-  }
+    "tenant": {
+      "id": "tenant-uuid",
+      "name": "Acme Corp",
+      "slug": "acme_corp",
+      "parent_id": null,
+      "isolation_strategy": "SHARED_RLS"
+    }
+  },
+  "created_at": "2024-06-15T10:30:00.000Z"
 }
 ```
 
+`data` depends on the event. For the tenant events it holds the tenant.
+
 ## Verifying Signatures
 
-Verify the HMAC-SHA256 signature to ensure the delivery is authentic:
+The signature is an HMAC-SHA256, keyed with the webhook secret, over the timestamp, a dot and the raw body: `<X-Stratum-Timestamp>.<body>`. Because the timestamp is signed, a captured delivery cannot be sent again with a new timestamp.
+
+Use `verifyWebhookSignature` from `@stratum-hq/lib`. It checks the signature in constant time and also rejects a timestamp outside the freshness window (300 seconds by default, `toleranceSeconds` to change it). It returns `false` instead of throwing. Pass it the body exactly as it arrived, not a re-serialized `req.body`:
 
 ```typescript
-import crypto from "crypto";
+import express from "express";
+import { verifyWebhookSignature } from "@stratum-hq/lib";
 
-function verifyWebhook(body: string, signature: string, secret: string): boolean {
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(body)
-    .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(`sha256=${expected}`),
-    Buffer.from(signature)
-  );
+const app = express();
+
+const webhookSecret = process.env.WEBHOOK_SECRET;
+if (!webhookSecret) {
+  throw new Error("WEBHOOK_SECRET is required to verify deliveries.");
 }
 
-// In your webhook handler
-app.post("/webhooks/stratum", (req, res) => {
-  const signature = req.headers["x-stratum-signature"];
-  if (!verifyWebhook(JSON.stringify(req.body), signature, WEBHOOK_SECRET)) {
-    return res.status(401).send("Invalid signature");
+// Keep the raw body: the signature covers the exact bytes that were sent.
+app.post("/webhooks/stratum", express.raw({ type: "application/json" }), (req, res) => {
+  const payload = req.body.toString("utf8");
+  const valid = verifyWebhookSignature({
+    secret: webhookSecret,
+    payload,
+    signature: req.get("X-Stratum-Signature") ?? "",
+    timestamp: req.get("X-Stratum-Timestamp") ?? "",
+  });
+  if (!valid) {
+    res.status(401).send("Invalid signature");
+    return;
   }
-  // Process the event
+
+  const event = JSON.parse(payload);
+  // Process the event. Use the X-Stratum-Delivery-ID header to drop duplicates.
   res.status(200).send("OK");
 });
 ```
 
+`signWebhookPayload(secret, timestamp, payload)` is exported too, if you need to produce a signature, for example in a test.
+
 ## Retry Logic
 
-Failed deliveries (non-2xx responses or network errors) are retried with exponential backoff. The retry schedule depends on your control plane configuration.
+A delivery fails on a non-2xx response or a network error. Stratum makes up to 5 attempts. After a failed attempt `n`, it waits `n² × 5` seconds before the next one (5, 20, 45 and 80 seconds). A delivery that fails its fifth attempt is marked `failed` and lands in the [dead-letter queue](#dead-letter-queue).
 
 ## Testing Webhooks
 
@@ -122,7 +139,7 @@ curl -X POST http://localhost:3001/api/v1/webhooks/WEBHOOK_ID/test \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-This sends a synthetic `test` event to the webhook URL and returns the response code.
+This sends a synthetic `webhook.test` event, signed and with the same headers as a real delivery, and returns `{ "success": true, "response_code": 200 }` (or the failure). The test is not recorded as a delivery.
 
 ## Delivery History
 
