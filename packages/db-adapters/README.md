@@ -103,6 +103,49 @@ When the pool count reaches `maxPools`, the manager ends the least recently used
 
 Concurrent first requests for one tenant share one pool.
 
+## PGlite
+
+`@stratum-hq/db-adapters/pglite` runs `@stratum-hq/lib` on [PGlite](https://pglite.dev), which is PostgreSQL compiled to WebAssembly. It works in Node and in the browser, and it needs no database server. Use it for fast local tests and for demos.
+
+Install PGlite. It is an optional peer dependency, so npm does not install it for you.
+
+```bash
+npm install @electric-sql/pglite
+```
+
+```typescript
+import { Stratum } from "@stratum-hq/lib";
+import { withTenantContext } from "@stratum-hq/db-adapters";
+import { createPglitePool, createRestrictedPool } from "@stratum-hq/db-adapters/pglite";
+
+// In-memory database. Pass PGlite options, such as { dataDir: "idb://my-db" }, to keep data.
+const pool = await createPglitePool();
+const stratum = new Stratum({ pool, autoMigrate: true });
+await stratum.initialize();
+
+const acme = await stratum.createTenant({ name: "Acme", slug: "acme" });
+
+// Row-level security applies only to a role that is not a superuser.
+const appPool = await createRestrictedPool(pool);
+await withTenantContext(appPool, acme.id, (client) => client.query("SELECT * FROM config_entries"));
+```
+
+`createPglitePool(source?)` returns a `pg.Pool`-compatible object:
+
+- `source` is a PGlite instance or PGlite options. When you pass options, the pool creates the instance and loads the `ltree` and `uuid_ossp` extensions. `pool.end()` then closes the instance.
+- When you pass your own instance, load `ltree` and `uuid_ossp` yourself. `pool.end()` does not close your instance.
+- `pool.pglite` is the PGlite instance.
+
+`createRestrictedPool(pool, { role? })` creates the role `stratum_app` (or the name you give) with `NOSUPERUSER NOBYPASSRLS`. It grants the role read and write access to every table and sequence in the `public` schema. Default privileges extend the grants to tables that the superuser creates later. The returned pool runs every query as that role.
+
+Limits:
+
+- **One connection.** A client from `connect()` holds the only connection until `release()`. Other callers wait in order. If you hold a client and call `pool.query()`, the call waits forever.
+- **No concurrency.** Queries run one at a time. Do not use this adapter to test race conditions or lock contention.
+- **Superuser by default.** PGlite connects as the superuser `postgres`, and a superuser bypasses row-level security. Use `createRestrictedPool` when a test must prove isolation.
+- **Only part of `pg.Pool`.** The pool supports `query`, `connect`, `end` and `on`. Callbacks, cursors, `totalCount` and the other pool counters do not exist.
+- PGlite `^0.4.2` is the supported version.
+
 ## Security
 
 - All DDL validates table names against `/^[a-zA-Z_][a-zA-Z0-9_]*$/`.
