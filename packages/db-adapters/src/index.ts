@@ -11,6 +11,10 @@ export {
   SchemaPrismaAdapter,
   withSchemaTenant,
 } from "./adapters/schema-prisma.js";
+export type {
+  PrismaDriverAdapterClass,
+  PrismaDriverAdapterOptions,
+} from "./adapters/prisma-driver-adapter.js";
 
 export {
   createPolicy,

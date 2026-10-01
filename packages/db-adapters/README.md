@@ -42,6 +42,15 @@ const tenantPrisma = prismaWithTenant(prisma, () => getTenantContext().tenant_id
 const orders = await tenantPrisma.order.findMany();
 ```
 
+The Prisma helpers support Prisma 5, 6 and 7. Prisma 7 has no `datasources` option, so give `SchemaPrismaAdapter` and `DatabasePrismaAdapter` a driver adapter class:
+
+```typescript
+import { PrismaPg } from "@prisma/adapter-pg";
+
+const schemas = new SchemaPrismaAdapter(PrismaClient, datasourceUrl, { driverAdapter: PrismaPg });
+const databases = new DatabasePrismaAdapter(poolManager, PrismaClient, datasourceUrl, { driverAdapter: PrismaPg });
+```
+
 The Sequelize wrapper scopes its `query()` method only. Model methods such as `Order.findAll()` do not go through it and run without a tenant.
 
 ## RLS & Migration Helpers
@@ -90,7 +99,7 @@ await setSchemaSearchPath(client, "acme", ["extensions"]); // inside BEGIN ... C
 
 Extra schemas come **after** the tenant schema, and each entry must be a plain identifier (`/^[a-zA-Z_][a-zA-Z0-9_]*$/`, validated like tenant schema names). The trade-off: an unqualified table name missing from the tenant schema resolves in the extra schemas too, so list only schemas that hold no tenant data. Prefer a dedicated extensions schema over `public`. Column defaults such as `DEFAULT uuid_generate_v4()` are bound when the table is created and work without any extra schema.
 
-Prisma qualifies every table with its datasource schema, so `search_path` does not route it. For Prisma, use `new SchemaPrismaAdapter(PrismaClient, datasourceUrl).getClient(tenantSlug)`, which gives each tenant a client bound to its own schema.
+Prisma qualifies every table with its datasource schema, so `search_path` does not route it. For Prisma, use `new SchemaPrismaAdapter(PrismaClient, datasourceUrl).getClient(tenantSlug)`, which gives each tenant a client bound to its own schema. With Prisma 7, add `{ driverAdapter: PrismaPg }` as the third argument, because Prisma 7 ignores the `schema` URL parameter.
 
 ## Database-per-tenant pools
 

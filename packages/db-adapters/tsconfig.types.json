@@ -7,7 +7,9 @@
     "declarationMap": false,
     "sourceMap": false,
     "paths": {
-      "@stratum-hq/db-adapters": ["./src/index.ts"]
+      "@stratum-hq/db-adapters": ["./src/index.ts"],
+      "@prisma/client/runtime/client": ["./test-fixtures/prisma-7/client/runtime/client.d.ts"],
+      "@prisma/client-runtime-utils": ["./test-fixtures/prisma-7/client-runtime-utils/index.d.ts"]
     }
   },
   "include": ["src/__tests__/types/**/*.ts"],

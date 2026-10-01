@@ -62,3 +62,105 @@ describe("DatabasePrismaAdapter", () => {
     expect(FakePrisma.made).toHaveLength(3);
   });
 });
+
+// Prisma 7 removed the `datasources` option. Its client takes a driver adapter,
+// such as PrismaPg from @prisma/adapter-pg, which holds the connection settings.
+class FakeDriverAdapter {
+  constructor(
+    readonly config: { connectionString: string },
+    readonly options: { schema?: string },
+  ) {}
+}
+
+class FakePrisma7 {
+  static made: FakePrisma7[] = [];
+  disconnected = false;
+  constructor(readonly options: { adapter: FakeDriverAdapter }) {
+    FakePrisma7.made.push(this);
+  }
+  async $disconnect() {
+    this.disconnected = true;
+  }
+}
+
+function make7(base = BASE, maxClients?: number) {
+  FakePrisma7.made = [];
+  return new DatabasePrismaAdapter(poolManager, FakePrisma7, base, {
+    driverAdapter: FakeDriverAdapter,
+    maxClients,
+  });
+}
+
+describe("DatabasePrismaAdapter with a driver adapter (Prisma 7)", () => {
+  it("gives the driver adapter the tenant database URL and passes no datasources option", () => {
+    const client = make7().getClient("acme");
+    expect(client.options).not.toHaveProperty("datasources");
+    const url = new URL(client.options.adapter.config.connectionString);
+    expect(url.pathname).toBe("/stratum_tenant_acme");
+    expect(url.host).toBe("db.internal:5432");
+    expect(url.username).toBe("user");
+    expect(url.searchParams.get("sslmode")).toBe("require");
+  });
+
+  it("gives each tenant a different database", () => {
+    const adapter = make7();
+    const a = adapter.getClient("tenant_a").options.adapter.config.connectionString;
+    const b = adapter.getClient("tenant_b").options.adapter.config.connectionString;
+    expect(new URL(a).pathname).toBe("/stratum_tenant_tenant_a");
+    expect(new URL(b).pathname).toBe("/stratum_tenant_tenant_b");
+  });
+
+  it("passes the schema parameter of the base URL to the driver adapter", () => {
+    // Prisma 5 and 6 read `schema` from the URL. A driver adapter ignores it,
+    // so the tables would silently resolve in `public`.
+    const client = make7(`${BASE}&schema=app`).getClient("acme");
+    expect(client.options.adapter.options.schema).toBe("app");
+  });
+
+  it("leaves the schema unset when the base URL names none", () => {
+    const client = make7().getClient("acme");
+    expect(client.options.adapter.options.schema).toBeUndefined();
+  });
+
+  it("rejects an invalid slug before it creates a client", () => {
+    expect(() => make7().getClient("x@other.host")).toThrow();
+    expect(FakePrisma7.made).toHaveLength(0);
+  });
+
+  it("caches clients up to a bound and disconnects the least recently used", () => {
+    const adapter = make7(BASE, 2);
+    const a = adapter.getClient("tenant_a");
+    const b = adapter.getClient("tenant_b");
+    expect(adapter.getClient("tenant_a")).toBe(a);
+    adapter.getClient("tenant_c");
+    expect(b.disconnected).toBe(true);
+    expect(a.disconnected).toBe(false);
+    expect(FakePrisma7.made).toHaveLength(3);
+  });
+});
+
+// Prisma 7 throws a PrismaClientConstructorValidationError with this message
+// when a caller without types passes the Prisma 5 and 6 form.
+describe("a client class that rejects the datasources option", () => {
+  it("throws an error that names the driverAdapter option", () => {
+    class Rejecting {
+      constructor() {
+        throw new Error("Unknown property datasources provided to PrismaClient constructor.");
+      }
+      async $disconnect() {}
+    }
+    const adapter = new DatabasePrismaAdapter(poolManager, Rejecting as never, BASE);
+    expect(() => adapter.getClient("acme")).toThrow(/driverAdapter/);
+  });
+
+  it("keeps any other constructor error unchanged", () => {
+    class Rejecting {
+      constructor() {
+        throw new Error("Invalid datasource URL");
+      }
+      async $disconnect() {}
+    }
+    const adapter = new DatabasePrismaAdapter(poolManager, Rejecting as never, BASE);
+    expect(() => adapter.getClient("acme")).toThrow("Invalid datasource URL");
+  });
+});
