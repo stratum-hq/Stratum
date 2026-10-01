@@ -121,6 +121,8 @@ const users = await tenantKnex("users").where("name", "like", q).orWhere("email"
 
 Your where clauses are always grouped after the tenant filter, including on clones and when the builder is used as a subquery. `insert()` sets `tenant_id`, `update()` never changes it, and `onConflict().merge()`, `upsert()`, `truncate()` and `modify()` throw (a `modify()` callback would call the builder without these rules).
 
+`insert()`, `update()`, `increment()` and `decrement()` accept only column names made of ASCII letters, digits, underscores and `$`, with dots between qualified parts (`notes.body`). Any other name, such as one with spaces, other punctuation or non-ASCII letters, throws, because Knex trims name parts and MySQL folds some letters when it matches a column. For such a column, use plain Knex with an explicit `tenant_id` condition.
+
 Joins (`join()`, `leftJoin()`, `crossJoin()`, `joinRaw()` and the other join forms) and `union()` / `unionAll()` also throw, because the tenant filter covers only the builder's own table. To combine tables, use a tenant-scoped builder as a `whereIn()` subquery, or write the query with plain Knex and a `tenant_id` condition on every table.
 
 ### Sequelize Adapter
