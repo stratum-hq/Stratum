@@ -22,6 +22,13 @@
  * either order, with casts, inside an AND with other conditions, and ORed with
  * Stratum's administrative bypass. Anything else is reported as not filtering
  * by tenant, so an unusual but correct policy is refused, never accepted.
+ *
+ * It also recognises the subtree read of migration 031: the
+ * stratum_subtree_tenant_ids() match ANDed with the app.tenant_scope =
+ * 'subtree' check. That form counts only in the USING clause of a SELECT
+ * policy. In any other policy, the same clause would let UPDATE or DELETE
+ * reach a descendant's rows, and in WITH CHECK it would let a write name a
+ * descendant.
  */
 
 /** One row of pg_policies. */
@@ -41,6 +48,10 @@ export interface PolicyRow {
 const TENANT_SETTING = "app.current_tenant_id";
 /** The setting Stratum's own policies admit for administrative access. */
 const BYPASS_SETTING = "app.bypass_rls";
+/** The setting that opts a session in to the subtree read scope (migration 031). */
+const SCOPE_SETTING = "app.tenant_scope";
+/** The function that returns the current tenant and its descendants (migration 031). */
+const SUBTREE_FUNCTION = "stratum_subtree_tenant_ids";
 
 /** Drops whitespace and casts, lower-cases, and keeps string literals intact. */
 function normalize(expr: string): string {
@@ -129,23 +140,59 @@ const TENANT_MATCH = new RegExp(`^(?:tenant_id=${CURRENT_TENANT}|${CURRENT_TENAN
 const BYPASS_MATCH = new RegExp(
   `^current_setting'${BYPASS_SETTING.replace(".", "\\.")}'(?:,(?:true|false))?='on'$`,
 );
+const SCOPE_MATCH = new RegExp(
+  `^current_setting'${SCOPE_SETTING.replace(".", "\\.")}'(?:,(?:true|false))?='subtree'$`,
+);
+/**
+ * tenant_id = ANY ((SELECT stratum_subtree_tenant_ids())::uuid[]) after
+ * normalize and flatten. PostgreSQL qualifies the function with its schema
+ * when that schema is not on the search path of the reading session. Only the
+ * schema that holds Stratum's tenants table, where migration 031 creates the
+ * function, may qualify it: a function of the same name in another schema
+ * could return any ids.
+ */
+function subtreeMatch(functionSchema: string | undefined): RegExp {
+  const qualifier =
+    functionSchema === undefined ? "" : `(?:${escapeRegExp(quoteIdent(functionSchema).toLowerCase())}\\.)?`;
+  return new RegExp(`^tenant_id=anyselect${qualifier}${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`);
+}
 
-/** True when the normalized expression only admits rows of the current tenant. */
-function filtersByTenant(expr: string): boolean {
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** The identifier as PostgreSQL prints it: quoted unless it is a plain lowercase name. */
+function quoteIdent(name: string): string {
+  return /^[a-z_][a-z0-9_$]*$/.test(name) ? name : `"${name.replace(/"/g, '""')}"`;
+}
+
+/**
+ * True when the normalized expression only admits rows of the current tenant.
+ * `subtree` matches the subtree function call that may appear in the
+ * expression, or is null where the subtree read is not allowed.
+ */
+function filtersByTenant(expr: string, subtree: RegExp | null): boolean {
   const e = stripOuterParens(expr);
 
   const disjuncts = splitTopLevel(e, "or");
   if (disjuncts.length > 1) {
     // Every branch must be safe; Stratum's administrative bypass is one of them.
     return (
-      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d)) &&
+      disjuncts.every((d) => BYPASS_MATCH.test(flatten(d)) || filtersByTenant(d, subtree)) &&
       disjuncts.some((d) => !BYPASS_MATCH.test(flatten(d)))
     );
   }
 
   const conjuncts = splitTopLevel(e, "and");
   if (conjuncts.length > 1) {
-    return conjuncts.some((c) => filtersByTenant(c));
+    if (conjuncts.some((c) => filtersByTenant(c, subtree))) return true;
+    // The subtree read of migration 031: the descendants of the current
+    // tenant, only when the session opted in with app.tenant_scope.
+    return (
+      subtree !== null &&
+      conjuncts.some((c) => SCOPE_MATCH.test(flatten(c))) &&
+      conjuncts.some((c) => subtree.test(flatten(c)))
+    );
   }
 
   return TENANT_MATCH.test(flatten(e));
@@ -157,17 +204,19 @@ function oneLine(expr: string | null): string {
 }
 
 /** Why one permissive policy lets rows of other tenants through, or null. */
-function permissiveIssue(p: PolicyRow): string | null {
+function permissiveIssue(p: PolicyRow, subtree: RegExp): string | null {
   const name = `policy "${oneLine(p.policyname)}" (${p.cmd})`;
   // INSERT policies have only WITH CHECK; SELECT and DELETE only USING. For
   // ALL and UPDATE a missing WITH CHECK means PostgreSQL reuses USING.
   if (p.cmd !== "INSERT") {
-    if (p.qual === null || !filtersByTenant(normalize(p.qual))) {
+    // Only a SELECT policy may widen to the subtree: in any other policy the
+    // same USING clause would let UPDATE or DELETE reach a descendant's rows.
+    if (p.qual === null || !filtersByTenant(normalize(p.qual), p.cmd === "SELECT" ? subtree : null)) {
       return `${name} USING (${oneLine(p.qual)}) does not filter by tenant`;
     }
   }
   if (p.cmd === "INSERT" || p.with_check !== null) {
-    if (p.with_check === null || !filtersByTenant(normalize(p.with_check))) {
+    if (p.with_check === null || !filtersByTenant(normalize(p.with_check), null)) {
       return `${name} WITH CHECK (${oneLine(p.with_check)}) does not filter by tenant`;
     }
   }
@@ -192,8 +241,13 @@ function tenantIsolationShapeIssue(p: PolicyRow): string | null {
 /**
  * Every reason the table's policies do not isolate it by tenant. Empty when
  * they do, or when the table has no policies.
+ *
+ * @param functionSchema - The schema of Stratum's tenants table, the only
+ *   schema that may qualify stratum_subtree_tenant_ids(). When it is
+ *   undefined, only the unqualified function counts.
  */
-export function tablePolicyIssues(policies: PolicyRow[]): string[] {
+export function tablePolicyIssues(policies: PolicyRow[], functionSchema?: string): string[] {
+  const subtree = subtreeMatch(functionSchema);
   const issues: string[] = [];
   for (const p of policies) {
     if (p.policyname === "tenant_isolation") {
@@ -204,7 +258,7 @@ export function tablePolicyIssues(policies: PolicyRow[]): string[] {
       }
     }
     if (p.permissive === "PERMISSIVE") {
-      const issue = permissiveIssue(p);
+      const issue = permissiveIssue(p, subtree);
       if (issue !== null) issues.push(issue);
     }
   }

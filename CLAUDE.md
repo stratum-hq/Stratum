@@ -146,8 +146,10 @@ To get the current counts, run `npx turbo test --force --concurrency=2`. Vitest 
 
 ### The important caveat
 
-**No unit test in `@stratum-hq/lib` touches a real database.** All of them run without
-Postgres.
+**Only one unit test file in `@stratum-hq/lib` touches a real database.**
+`packages/lib/src/__tests__/pglite.test.ts` runs the migrations and some services on
+PGlite, an in-process PostgreSQL with one connection. It cannot show concurrency, pooling
+or server role behavior. All other lib unit tests run without Postgres.
 
 Most test files in `packages/lib/src` stub the database layer entirely: they
 `vi.mock("../../pool-helpers.js")` and use `makeMockPool()` from
@@ -166,8 +168,8 @@ What this means in practice:
   a transaction rolls back, that RLS actually isolates, or that a constraint fires.
 - A refactor that changes SQL text will fail these tests even when behavior is identical.
 - A change that keeps the SQL text identical but breaks the schema will pass them.
-- The only tests that exercise real database behavior are the ones in
-  `packages/integration-tests` (plus the `src/__tests__/integration/` suites in `mysql` and
+- Apart from the PGlite tests in `lib` and `db-adapters`, the only tests that exercise
+  real database behavior are the ones in `packages/integration-tests` (plus the `src/__tests__/integration/` suites in `mysql` and
   `mongodb`), and they are not in `npm test`. CI runs them in `ci-integration.yml` and
   `ci-mongo-integration.yml`.
 

@@ -114,7 +114,7 @@ export async function scanTables(pool: pg.Pool): Promise<TableInfo[]> {
   // A policy counts only for what its expression does, not for its name.
   return result.rows.map((row: Omit<TableInfo, "has_policy" | "policy_issue"> & { policies: PolicyRow[] }) => {
     const { policies, ...rest } = row;
-    const verdict = evaluatePolicies(policies);
+    const verdict = evaluatePolicies(policies, "public");
     return { ...rest, has_policy: verdict.isolated, policy_issue: verdict.issue };
   });
 }

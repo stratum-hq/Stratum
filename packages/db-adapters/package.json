@@ -31,6 +31,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./pglite": {
+      "types": "./dist/pglite/index.d.ts",
+      "default": "./dist/pglite/index.js"
     }
   },
   "files": [
@@ -54,14 +58,19 @@
     "pg": "^8.11.0"
   },
   "peerDependencies": {
+    "@electric-sql/pglite": "^0.4.2",
     "drizzle-orm": ">=0.29.0"
   },
   "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
     "drizzle-orm": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.4.6",
     "@prisma/client": "^5.10.0",
     "@types/pg": "^8.11.0",
     "drizzle-orm": "^0.45.3",

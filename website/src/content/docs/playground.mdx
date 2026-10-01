@@ -1,6 +1,6 @@
 ---
 title: Playground
-description: Try Stratum in your browser. No installation required.
+description: Run the real Stratum library in your browser, on PostgreSQL compiled to WebAssembly. No installation required.
 template: splash
 ---
 
@@ -8,9 +8,13 @@ import Playground from '../../components/Playground.astro';
 
 <div class="playground-page">
   <div class="playground-header">
-    <p>Run Stratum code live in your browser. Powered by PGlite (Postgres in WebAssembly).</p>
+    <p>Run <code>@stratum-hq/lib</code> live in your browser, on PGlite (PostgreSQL in WebAssembly).</p>
   </div>
   <Playground />
+  <div class="playground-notes">
+    <p>The Playground runs the library from the same commit as these docs, with all of its migrations. The guided tour walks through an MSSP tree, config inheritance, locked and delegated permissions, row-level security and subtree reads. The code editor runs your own scripts against the same database.</p>
+    <p>Some parts of the library need Node and do not run in a browser: sensitive (encrypted) config, webhook delivery, and the file-based <code>migrate()</code>. The database lives in this tab only, and a reload starts a new one.</p>
+  </div>
 </div>
 
 <style>{`
@@ -50,5 +54,11 @@ import Playground from '../../components/Playground.astro';
     font-size: 0.875rem;
     color: var(--sl-color-gray-3);
     margin: 0;
+  }
+
+  .playground-notes p {
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-3);
+    max-width: 75ch;
   }
 `}</style>
