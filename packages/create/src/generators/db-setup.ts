@@ -670,7 +670,7 @@ export const notes = pgTable(
 function generateSequelizeSetup(preset: StackPreset): DbSetupFile[] {
   if (preset.database === "mysql") {
     return [
-      { filename: "src/stratum-tenant.ts", content: MYSQL_SHARED_TENANT_CHECK },
+      { filename: "src/stratum-tenant-id.ts", content: MYSQL_TENANT_ID_CHECK },
       { filename: "src/stratum-sequelize.ts", content: SEQUELIZE_MYSQL_SHARED },
     ];
   }
@@ -771,7 +771,7 @@ export const appConfig: Knex.Config = {
       content: mysql ? KNEX_MYSQL_SHARED : KNEX_POSTGRES_SCOPE,
     },
   ];
-  if (mysql) files.push({ filename: "src/stratum-tenant.ts", content: MYSQL_SHARED_TENANT_CHECK });
+  if (mysql) files.push({ filename: "src/stratum-tenant-id.ts", content: MYSQL_TENANT_ID_CHECK });
   return files;
 }
 
@@ -1078,12 +1078,13 @@ export { pool };
 function generateMysqlSetup(preset: StackPreset): DbSetupFile[] {
   if (preset.strategy === "shared") {
     return [
-      { filename: "src/stratum-tenant.ts", content: MYSQL_SHARED_TENANT_CHECK },
+      { filename: "src/stratum-tenant-id.ts", content: MYSQL_TENANT_ID_CHECK },
       { filename: "src/stratum-db.ts", content: MYSQL_SHARED_CLIENT },
     ];
   }
   const database = preset.strategy === "database";
   return [
+    { filename: "src/stratum-tenant-id.ts", content: MYSQL_TENANT_ID_CHECK },
     { filename: "src/stratum-tenant.ts", content: mysqlTenantLookup(database ? "database" : "tables") },
     { filename: "src/stratum-db.ts", content: database ? MYSQL_DATABASE_CLIENT : MYSQL_TABLE_CLIENT },
     { filename: "sql/tenant.sql", content: database ? MYSQL_DATABASE_TENANT_SQL : MYSQL_TABLE_TENANT_SQL },
@@ -1095,6 +1096,7 @@ function mysqlTenantLookup(where: string): string {
   return `// Maps a verified tenant ID to the tenant's slug. The slug names the tenant's
 // own database (stratum_tenant_{slug}) or tables ({table}_{slug}).
 import mysql, { type RowDataPacket } from "mysql2/promise";
+import { checkedTenantId } from "./stratum-tenant-id.js";
 
 // The app's own database, as the app user in DATABASE_URL.
 export const pool = mysql.createPool({ uri: process.env.DATABASE_URL! });
@@ -1104,13 +1106,16 @@ export const pool = mysql.createPool({ uri: process.env.DATABASE_URL! });
  * tenant:provision records it. Pass only the tenant_id claim of a verified
  * token, as the generated server resolves it. Never take the slug from the
  * request, such as its host name or a header: any caller can choose those.
- * Throws when no tenant with this ID is provisioned.
+ * Throws when the ID is not a valid tenant ID (see checkedTenantId), or when
+ * no tenant with this ID is provisioned.
  *
  * Do not change a slug in _stratum_tenants: the names of the tenant's
  * ${where} are fixed at provisioning and do not follow the slug.
  */
 export async function tenantSlug(tenantId: string): Promise<string> {
-  const [rows] = await pool.query<RowDataPacket[]>("SELECT slug FROM _stratum_tenants WHERE id = ?", [tenantId]);
+  const [rows] = await pool.query<RowDataPacket[]>("SELECT slug FROM _stratum_tenants WHERE id = ?", [
+    checkedTenantId(tenantId),
+  ]);
   if (rows.length === 0) throw new Error(\`No provisioned tenant has the ID \${tenantId}\`);
   return rows[0].slug as string;
 }
@@ -1122,18 +1127,19 @@ export async function tenantSlug(tenantId: string): Promise<string> {
 // tenant. MySQL has no row-level security, so the generated helpers are the
 // only scope: MysqlSharedAdapter (raw mysql2), withTenantScope (Knex) and
 // withMysqlTenantScope (Sequelize) from @stratum-hq/mysql. They take the
-// tenant ID of the verified token as it is; no slug is looked up.
+// tenant ID of the verified token after checkedTenantId; no slug is looked up.
 
-const MYSQL_SHARED_TENANT_CHECK = `// Checks the tenant ID that scopes a shared-table query.
+const MYSQL_TENANT_ID_CHECK = `// Checks a tenant ID before the app uses it in a query.
 //
-// All tenants share each table, and the tenant_id column of a row names its
-// tenant. The column compares with ascii_bin, which ignores trailing spaces:
-// "a " matches the rows of "a". So the helpers accept only IDs without spaces.
+// The tenant ID columns of init.sql compare with ascii_bin. ascii_bin
+// compares letter case exactly, but it is a PAD SPACE collation: it ignores
+// trailing spaces, so "a " equals "a". This check, not the collation,
+// refuses such variants.
 
 /**
- * Returns tenantId when it names one tenant's rows: 1 to 36 printable ASCII
- * characters without spaces, such as a UUID. Pass only the tenant_id claim of
- * a verified token. Never take the tenant from the request, such as its host
+ * Returns tenantId when it can name exactly one tenant: 1 to 36 printable
+ * ASCII characters without spaces, such as a UUID. Pass only the tenant_id
+ * claim of a verified token. Never take the tenant from the request, such as its host
  * name or a header: any caller can choose those.
  *
  * @throws Error when tenantId does not fit the tenant_id column.
@@ -1150,7 +1156,7 @@ const MYSQL_SHARED_CLIENT = `// MySQL client with Stratum shared-table isolation
 // table, and the tenant_id column of a row names its tenant.
 import mysql from "mysql2/promise";
 import { MysqlSharedAdapter } from "@stratum-hq/mysql";
-import { checkedTenantId } from "./stratum-tenant.js";
+import { checkedTenantId } from "./stratum-tenant-id.js";
 
 // The app's database, as the app user in DATABASE_URL. A query you send to
 // the pool itself is not scoped: write its tenant_id condition yourself.
@@ -1193,7 +1199,7 @@ const KNEX_MYSQL_SHARED = `// Knex with Stratum shared-table tenant scoping
 import createKnex from "knex";
 import { withTenantScope } from "@stratum-hq/mysql";
 import { appConfig } from "../knexfile.js";
-import { checkedTenantId } from "./stratum-tenant.js";
+import { checkedTenantId } from "./stratum-tenant-id.js";
 
 // The app user in DATABASE_URL. A query through knex itself, knex.raw()
 // included, is not scoped: query tenant tables through tenantKnex().
@@ -1217,7 +1223,7 @@ export function tenantKnex(tenantId: string) {
 const SEQUELIZE_MYSQL_SHARED = `// Sequelize with Stratum shared-table tenant scoping
 import { Sequelize, DataTypes, Model, type Transaction } from "sequelize";
 import { withMysqlTenantScope } from "@stratum-hq/mysql";
-import { checkedTenantId } from "./stratum-tenant.js";
+import { checkedTenantId } from "./stratum-tenant-id.js";
 
 // The app user in DATABASE_URL. Raw sequelize.query() is not scoped.
 const sequelize = new Sequelize(process.env.DATABASE_URL!, {

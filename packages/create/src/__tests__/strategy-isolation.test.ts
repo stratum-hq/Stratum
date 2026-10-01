@@ -266,6 +266,10 @@ describe("MySQL database and table-prefix presets", () => {
       expect(helper).toContain(`new ${MYSQL_ADAPTER[preset.strategy]}(`);
       expect(helper).toContain("await tenantSlug(tenantId)");
       expect(files.get("src/stratum-tenant.ts")).toContain("SELECT slug FROM _stratum_tenants WHERE id = ?");
+      // The tenant ID is checked before the lookup, because ascii_bin ignores trailing spaces.
+      const lookup = files.get("src/stratum-tenant.ts")!;
+      expect(lookup).toMatch(/WHERE id = \?", \[\s*checkedTenantId\(tenantId\),?\s*\]\)/);
+      expect(lookup).toContain('import { checkedTenantId } from "./stratum-tenant-id.js";');
       expect(files.get("init.sql")).toMatch(/slug VARCHAR\(63\) NOT NULL UNIQUE/);
     },
   );
@@ -333,9 +337,9 @@ const MYSQL_SHARED_HELPER: Record<string, { file: string; scopes: string[] }> = 
   sequelize: { file: "src/stratum-sequelize.ts", scopes: ["withMysqlTenantScope(sequelize, checkedTenantId(tenantId),"] },
 };
 
-/** Loads the generated src/stratum-tenant.ts of a preset as a module. */
+/** Loads the generated src/stratum-tenant-id.ts of a preset as a module. */
 async function loadTenantCheck(preset: StackPreset): Promise<{ checkedTenantId(id: unknown): string }> {
-  const source = generatedFiles(preset).get("src/stratum-tenant.ts")!;
+  const source = generatedFiles(preset).get("src/stratum-tenant-id.ts")!;
   const js = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText;
@@ -353,7 +357,7 @@ describe("MySQL shared-table presets", () => {
     const helper = generatedFiles(preset).get(file)!;
     expect(helper).toContain('from "@stratum-hq/mysql"');
     for (const call of scopes) expect(helper).toContain(call);
-    expect(helper).toContain('from "./stratum-tenant.js"');
+    expect(helper).toContain('from "./stratum-tenant-id.js"');
   });
 
   it.each(mysqlShared.map(formatPresetString))("%s exports no query path that leaves the tenant out", (name) => {
@@ -370,19 +374,23 @@ describe("MySQL shared-table presets", () => {
   it.each(mysqlShared.map(formatPresetString))("%s takes the tenant only from the verified token", (name) => {
     const preset = mysqlShared.find((p) => formatPresetString(p) === name)!;
     const files = generatedFiles(preset);
-    for (const file of ["src/stratum-tenant.ts", MYSQL_SHARED_HELPER[preset.orm].file]) {
+    for (const file of ["src/stratum-tenant-id.ts", MYSQL_SHARED_HELPER[preset.orm].file]) {
       expect(files.get(file), file).not.toMatch(/\.headers\b|\.hostname\b|\.subdomains?\b|x-tenant-id/);
     }
   });
 
-  it("refuses a tenant ID that the tenant_id column could match for another tenant", async () => {
-    const { checkedTenantId } = await loadTenantCheck(mysqlShared[0]);
-    expect(checkedTenantId("00000000-0000-4000-8000-00000000000a")).toBe("00000000-0000-4000-8000-00000000000a");
-    // ascii_bin ignores trailing spaces, so "a " would match the rows of "a".
-    for (const bad of ["", "a ", " a", "a\tb", "x".repeat(37), "caf\u00e9", undefined, 42]) {
-      expect(() => checkedTenantId(bad), JSON.stringify(bad)).toThrow(/Invalid tenant ID/);
-    }
-  });
+  it.each([...mysqlShared, ...mysqlPresets].map(formatPresetString))(
+    "%s refuses a tenant ID that the tenant_id column could match for another tenant",
+    async (name) => {
+      const preset = [...mysqlShared, ...mysqlPresets].find((p) => formatPresetString(p) === name)!;
+      const { checkedTenantId } = await loadTenantCheck(preset);
+      expect(checkedTenantId("00000000-0000-4000-8000-00000000000a")).toBe("00000000-0000-4000-8000-00000000000a");
+      // ascii_bin ignores trailing spaces, so "a " would match the rows of "a".
+      for (const bad of ["", "a ", " a", "a\tb", "x".repeat(37), "caf\u00e9", undefined, 42]) {
+        expect(() => checkedTenantId(bad), JSON.stringify(bad)).toThrow(/Invalid tenant ID/);
+      }
+    },
+  );
 
   it.each(mysqlShared.map(formatPresetString))(
     "%s creates a shared tenant table and gives the app user only DML on the app database",

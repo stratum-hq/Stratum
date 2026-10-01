@@ -241,8 +241,8 @@ ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- An example tenant table. All tenants share it, and tenant_id names the
 -- tenant of each row. Give every tenant table the same tenant_id column and
 -- an index that starts with tenant_id. ascii_bin compares letter case
--- exactly, so "A" and "a" are different tenants. It ignores trailing spaces,
--- so the generated helper refuses a tenant ID that contains a space.
+-- exactly, so "A" and "a" are different tenants. It ignores trailing spaces
+-- (PAD SPACE), so the generated helper refuses a tenant ID with spaces.
 CREATE TABLE IF NOT EXISTS notes (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -273,8 +273,9 @@ ALTER DATABASE ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- tenant's own database (stratum_tenant_{slug}) or tables ({table}_{slug}),
 -- and the app looks it up by the tenant ID of a verified token. Do not change
 -- a slug: those names are fixed when the tenant is provisioned. ascii_bin
--- compares IDs byte for byte, so an ID that differs in letter case or
--- trailing spaces matches no tenant.
+-- compares letter case exactly, so an ID in another letter case matches no
+-- tenant. It ignores trailing spaces (PAD SPACE), so the generated app
+-- refuses a tenant ID with spaces before it looks the ID up.
 CREATE TABLE IF NOT EXISTS _stratum_tenants (
   id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   name VARCHAR(255) NOT NULL,

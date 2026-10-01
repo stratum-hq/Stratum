@@ -190,7 +190,7 @@ npm run tenant:provision -- <tenant-id> <slug>
 
 The app user in \`DATABASE_URL\` creates, alters and drops nothing, and only reads \`_stratum_tenants\`: \`init.sql\` removes the rights the MySQL image gives it on the app's database.
 
-In the app, ${helper}. Pass only the tenant ID from the verified token: the helper looks up the tenant's slug in \`_stratum_tenants\`. Never take the slug from the hostname or a request header, which any caller can choose.
+In the app, ${helper}. Pass only the tenant ID from the verified token: the helper refuses an ID that is not 1 to 36 printable ASCII characters without spaces (\`src/stratum-tenant-id.ts\`), then looks up the tenant's slug in \`_stratum_tenants\`. Never take the slug from the hostname or a request header, which any caller can choose.
 
 ${slugReuseNote(where)}
 `;
@@ -218,7 +218,7 @@ The app user in \`DATABASE_URL\` reads and writes rows in the app's database. It
 
 ### The tenant helper
 
-MySQL has no row-level security. A query is filtered by tenant only when it goes through the generated helper. Pass the helper only the tenant ID from the verified token, never a value from the hostname or a request header, which any caller can choose. The helper refuses a tenant ID that is not 1 to 36 printable ASCII characters without spaces (\`src/stratum-tenant.ts\`).
+MySQL has no row-level security. A query is filtered by tenant only when it goes through the generated helper. Pass the helper only the tenant ID from the verified token, never a value from the hostname or a request header, which any caller can choose. The helper refuses a tenant ID that is not 1 to 36 printable ASCII characters without spaces (\`src/stratum-tenant-id.ts\`).
 
 ${MYSQL_SHARED_HELPER_NOTES[preset.orm]}
 `;
