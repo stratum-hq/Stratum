@@ -64,6 +64,13 @@ export async function migrate(options: MigrateOptions): Promise<void> {
     .filter((f) => f.endsWith(".sql"))
     .sort();
 
+  // Migrations 029 and 031 created helper functions with `SET app.*` clauses,
+  // which PostgreSQL accepts only from a superuser (or a role granted SET on
+  // the parameter). For any other migrating role, migrationSql() drops those
+  // clause lines from these two files only; migration 032 then re-creates
+  // both functions without them when it applies the control role. Until it
+  // does, they see only what their caller sees, which can only narrow what
+  // they return. See migration-sql.ts.
   const superuser = await isSuperuser(pool);
 
   for (const file of files) {

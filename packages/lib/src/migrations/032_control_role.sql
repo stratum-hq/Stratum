@@ -3,27 +3,42 @@
 -- Until now the library reached across tenants by setting app.bypass_rls in
 -- its session, and the tenant_isolation policies of 019 and 020 admitted any
 -- session that set it. A role that can run SQL can set that setting. This
--- migration adds the role-based model that replaces it:
+-- migration adds the role-based model that replaces it, in two parts.
 --
---   * A NOLOGIN control role (default stratum_control). Each Stratum table
---     gets a stratum_control_plane policy FOR ALL TO that role. The login
---     role behind the library's adminPool is a member of it; the
---     application's login role is not. Membership is checked by PostgreSQL,
---     so a session cannot claim it by setting anything.
+-- Part 1 needs no new role and always applies:
+--   * stratum_security holds one switch, legacy_guc_bypass, true by default
+--     in 1.8. While it is true, a session that sets app.bypass_rls still
+--     passes tenant_isolation, as before. Setting it to false closes that
+--     path. 2.0 removes the switch and the legacy branch.
+--   * tenant_isolation on the 13 tables of 019 and 020 is re-created as
+--     (SELECT stratum_legacy_bypass()) OR <the same tenant scope>.
+--   * regions (T-11) gets row-level security. It has no tenant, so only the
+--     legacy bypass and, once applied, the control role reach it.
+--   * PUBLIC loses every privilege on the Stratum tables and the trigger
+--     functions.
+--
+-- Part 2, stratum_apply_control_role(role_name, target_schema), applies the
+-- control role. It is defined here and called at the end of this migration,
+-- and it is idempotent, so `stratum db roles` and the bootstrap SQL can call
+-- it again later:
+--   * A NOLOGIN control role (default stratum_control), created when missing
+--     and granted to the caller. Each Stratum table gets a
+--     stratum_control_plane policy FOR ALL TO that role. The login behind the
+--     library's adminPool is a member of it; the application's login is not.
+--     Membership is checked by PostgreSQL, so a session cannot claim it by
+--     setting anything.
 --   * The SECURITY DEFINER helpers (the subtree read of 031 and the cycle
---     guard of 029) are owned by the control role and no longer set
---     app.bypass_rls for their own duration.
+--     guard of 029) are re-created without their SET app.* clauses and owned
+--     by the control role.
 --   * The tree-column guard of 031 accepts a member of the control role, or
---     the legacy bypass below.
---   * regions (T-11) gets row-level security like the other tables. It has no
---     tenant, so only the control role, or the legacy bypass, reaches it.
+--     the legacy bypass.
+--   * stratum_security gets FORCE ROW LEVEL SECURITY.
 --
--- The legacy bypass stays on by default in 1.8, so nothing changes for a
--- deployment until it opts in. stratum_security holds one switch,
--- legacy_guc_bypass. While it is true, a session that sets app.bypass_rls
--- still passes tenant_isolation, as before. Setting it to false (only a
--- member of the control role can) closes that path: app.bypass_rls then
--- opens nothing. 2.0 removes the switch and the legacy branch.
+-- When the migrating role can neither create nor join the control role (no
+-- CREATEROLE, no ADMIN on an existing role), part 2 is skipped with a
+-- WARNING that prints the bootstrap SQL, and the migration still succeeds.
+-- The install then behaves as before 1.8 until an administrator runs that
+-- SQL; Stratum.initialize() reports the hardening as not active.
 --
 -- Choosing the control role name. Roles are cluster-wide, so the name can be
 -- set per database. The migration takes, in order:
@@ -35,13 +50,6 @@
 --      has, so a later schema (migrateAllSchemas) uses the same role;
 --   3. stratum_control.
 -- The name must be a plain lowercase identifier.
---
--- Privileges. The migration creates the control role when it does not exist
--- and grants it to the migrating role (current_user) WITH INHERIT TRUE, SET
--- TRUE (PostgreSQL 16 and later; earlier versions use a plain GRANT). That
--- needs CREATEROLE, or a database administrator who ran the bootstrap SQL
--- first. Without either, the migration stops with an error that prints that
--- SQL. A superuser needs no membership and gets none.
 --
 -- Safe to re-run, and safe in every tenant schema of migrateAllSchemas: every
 -- object is created idempotently in the current schema, and the role section
@@ -55,16 +63,18 @@ CREATE TABLE IF NOT EXISTS stratum_security (
   legacy_guc_bypass BOOLEAN NOT NULL DEFAULT true,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
--- The row goes in before row-level security is turned on, so the migrating
--- role does not need the control policy yet.
 INSERT INTO stratum_security (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
+-- Row-level security without FORCE: no other role reads or writes the table,
+-- but its owner still can, so stratum_legacy_bypass() (SECURITY DEFINER,
+-- owned by the migrating role until the control role takes it over) reads it
+-- before the control role is applied. stratum_apply_control_role() turns on
+-- FORCE.
 ALTER TABLE stratum_security ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stratum_security FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON stratum_security FROM PUBLIC;
 
 -- stratum_legacy_bypass(): true when the session set app.bypass_rls = 'on'
--- and the legacy switch is on. SECURITY DEFINER, owned by the control role
--- (below), so it reads stratum_security through the control policy. It
+-- and the legacy switch is on. SECURITY DEFINER, so it reads stratum_security
+-- as its owner: the migrating role, then the control role once applied. It
 -- returns false when the row is missing, so deleting the row also closes the
 -- legacy path. Policies call it in a scalar subquery, so it runs once per
 -- policy reference in a statement. Every role that queries a Stratum table
@@ -194,68 +204,12 @@ CREATE POLICY stratum_legacy_bypass ON regions FOR ALL
   USING ((SELECT stratum_legacy_bypass()))
   WITH CHECK ((SELECT stratum_legacy_bypass()));
 
--- ---------------------------------------------------------------------------
--- The helpers, without SET app.* clauses. They become SECURITY DEFINER and
--- the control role owns them (below), so they read the whole tree through
--- the control policy, whatever the caller can see.
---
--- stratum_subtree_tenant_ids(): the body of 031. It no longer clears
--- app.tenant_scope, so its query on tenants is evaluated with the caller's
--- scope. That cannot recurse: the control role's policy is USING (true), and
--- PostgreSQL folds `true OR <tenant_subtree_read>` to true before it plans
--- the subquery that would call this function again. An integration test pins
--- this.
--- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION stratum_subtree_tenant_ids()
-RETURNS uuid[]
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-AS $$
-  WITH cur AS (
-    SELECT t.id, rtrim(t.ancestry_path, '/') || '/' || t.id::text AS sub
-    FROM tenants t
-    WHERE t.id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
-  )
-  SELECT coalesce(array_agg(s.id), '{}'::uuid[])
-  FROM (
-    SELECT cur.id FROM cur
-    UNION ALL
-    SELECT d.id
-    FROM cur
-    JOIN tenants d
-      ON d.ancestry_path ~>=~ cur.sub
-     AND d.ancestry_path ~<~ (cur.sub || '0')
-     AND (d.ancestry_path = cur.sub OR d.ancestry_path LIKE cur.sub || '/%')
-  ) s
-$$;
-
--- refuse_tenant_parent_cycle(): the body of 029.
-CREATE OR REPLACE FUNCTION refuse_tenant_parent_cycle()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  IF NEW.parent_id = NEW.id OR EXISTS (
-    WITH RECURSIVE up(id, parent_id, seen) AS (
-      SELECT t.id, t.parent_id, ARRAY[t.id]
-      FROM tenants t
-      WHERE t.id = NEW.parent_id
-      UNION ALL
-      SELECT t.id, t.parent_id, up.seen || t.id
-      FROM tenants t
-      JOIN up ON t.id = up.parent_id
-      WHERE t.id <> ALL (up.seen)
-    )
-    SELECT 1 FROM up WHERE up.id = NEW.id
-  ) THEN
-    RAISE EXCEPTION 'tenant % cannot be its own ancestor (parent_id cycle)', NEW.id
-      USING ERRCODE = 'check_violation';
-  END IF;
-  RETURN NEW;
-END;
-$$;
+DO $pin$ BEGIN
+  EXECUTE format(
+    'ALTER FUNCTION stratum_legacy_bypass() SET search_path = pg_catalog, %I, pg_temp',
+    current_schema()
+  );
+END $pin$;
 
 -- Trigger functions are not called directly; nobody needs EXECUTE on them.
 REVOKE ALL ON FUNCTION refuse_tenant_parent_cycle() FROM PUBLIC;
@@ -267,12 +221,20 @@ REVOKE ALL ON tenants, config_entries, permission_policies, audit_logs, webhook_
   principal_roles, usage_events, regions FROM PUBLIC;
 
 -- ---------------------------------------------------------------------------
--- The control role and everything that names it.
+-- Part 2: stratum_apply_control_role(role_name, target_schema).
+--
+-- SECURITY INVOKER: the caller must own the Stratum tables of target_schema
+-- (or be a superuser) and be able to create or join the role. EXECUTE is
+-- revoked from PUBLIC. It raises insufficient_privilege, with the bootstrap
+-- SQL in the message, when the caller can neither create nor join the role.
 -- ---------------------------------------------------------------------------
-DO $control$
+CREATE OR REPLACE FUNCTION stratum_apply_control_role(role_name text, target_schema text)
+RETURNS void
+LANGUAGE plpgsql
+AS $apply$
 DECLARE
-  v_schema text := current_schema();
-  v_role text := NULLIF(current_setting('stratum.control_role', true), '');
+  v_role text := role_name;
+  v_schema text := target_schema;
   v_existing text[];
   v_pg16 boolean := current_setting('server_version_num')::int >= 160000;
   v_bootstrap text;
@@ -283,20 +245,18 @@ DECLARE
     'roles', 'principal_roles', 'usage_events', 'regions', 'stratum_security'
   ];
 BEGIN
+  IF v_role IS NULL OR v_role !~ '^[a-z_][a-z0-9_]{0,62}$' THEN
+    RAISE EXCEPTION 'the control role must be a plain lowercase identifier, got "%"', v_role
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  IF to_regnamespace(quote_ident(v_schema)) IS NULL THEN
+    RAISE EXCEPTION 'schema "%" does not exist', v_schema USING ERRCODE = 'invalid_schema_name';
+  END IF;
   SELECT array_agg(DISTINCT r::text) INTO v_existing
     FROM pg_policies p, unnest(p.roles) r
    WHERE p.policyname = 'stratum_control_plane';
-
-  IF v_role IS NULL THEN
-    v_role := CASE WHEN cardinality(v_existing) = 1 THEN v_existing[1] ELSE 'stratum_control' END;
-  END IF;
-  IF v_role !~ '^[a-z_][a-z0-9_]{0,62}$' THEN
-    RAISE EXCEPTION 'stratum.control_role must be a plain lowercase identifier, got "%"', v_role
-      USING ERRCODE = 'invalid_parameter_value';
-  END IF;
   IF cardinality(v_existing) > 0 AND v_existing <> ARRAY[v_role] THEN
-    RAISE EXCEPTION 'this database already uses the control role %, not "%"; set stratum.control_role to match',
-      v_existing, v_role
+    RAISE EXCEPTION 'this database already uses the control role %, not "%"', v_existing, v_role
       USING ERRCODE = 'invalid_parameter_value';
   END IF;
 
@@ -305,7 +265,7 @@ BEGIN
       THEN format('GRANT %I TO %I WITH INHERIT TRUE, SET TRUE;', v_role, current_user)
       ELSE format('GRANT %I TO %I;', v_role, current_user)
     END || E'\n' ||
-    format('GRANT USAGE, CREATE ON SCHEMA %I TO %I;', v_schema, v_role);
+    format('SELECT %I.stratum_apply_control_role(%L, %L);', v_schema, v_role, v_schema);
 
   -- Roles are cluster-wide; serialize their creation within this database.
   PERFORM pg_advisory_xact_lock(hashtext('stratum.control_role'));
@@ -317,8 +277,8 @@ BEGIN
       WHEN duplicate_object OR unique_violation THEN
         NULL; -- created concurrently, by another database's migration
       WHEN insufficient_privilege THEN
-        RAISE EXCEPTION E'Stratum migration 032 needs the control role "%", and role "%" cannot create it. Ask a database administrator to run this once, then migrate again:\n%',
-          v_role, current_user, v_bootstrap
+        RAISE EXCEPTION E'role "%" cannot create the Stratum control role "%". Run this once as a superuser:\n%',
+          current_user, v_role, v_bootstrap
           USING ERRCODE = 'insufficient_privilege';
     END;
   END IF;
@@ -335,12 +295,12 @@ BEGIN
         EXECUTE format('GRANT %I TO %I', v_role, current_user);
       END IF;
     EXCEPTION WHEN insufficient_privilege THEN
-      RAISE EXCEPTION E'Stratum migration 032 needs role "%" to be a member of the control role "%", and it cannot grant that itself. Ask a database administrator to run this once, then migrate again:\n%',
+      RAISE EXCEPTION E'role "%" is not a member of the Stratum control role "%" and cannot grant that itself. Run this once as a superuser:\n%',
         current_user, v_role, v_bootstrap
         USING ERRCODE = 'insufficient_privilege';
     END;
     IF NOT pg_has_role(current_user, v_role, 'USAGE') THEN
-      RAISE EXCEPTION 'role "%" is a member of the control role "%" but does not inherit its privileges (NOINHERIT); use a role with INHERIT to migrate',
+      RAISE EXCEPTION 'role "%" is a member of the control role "%" but does not inherit its privileges (NOINHERIT)',
         current_user, v_role
         USING ERRCODE = 'insufficient_privilege';
     END IF;
@@ -352,8 +312,8 @@ BEGIN
   BEGIN
     EXECUTE format('GRANT USAGE, CREATE ON SCHEMA %I TO %I', v_schema, v_role);
   EXCEPTION WHEN insufficient_privilege THEN
-    RAISE EXCEPTION E'Stratum migration 032 cannot grant the control role "%" USAGE and CREATE on schema "%". Ask a database administrator to run this once, then migrate again:\n%',
-      v_role, v_schema, v_bootstrap
+    RAISE EXCEPTION E'role "%" cannot grant the control role "%" USAGE and CREATE on schema "%". Run this once as a superuser:\n%',
+      current_user, v_role, v_schema, v_bootstrap
       USING ERRCODE = 'insufficient_privilege';
   END;
 
@@ -365,13 +325,76 @@ BEGIN
       v_schema, v_table, v_role
     );
   END LOOP;
+  EXECUTE format('ALTER TABLE %I.stratum_security FORCE ROW LEVEL SECURITY', v_schema);
+
+  -- stratum_subtree_tenant_ids(): the body of 031, SECURITY DEFINER, without
+  -- the SET clauses. It no longer clears app.tenant_scope, so its query on
+  -- tenants is evaluated with the caller's scope. That cannot recurse: the
+  -- control role's policy is USING (true), and PostgreSQL folds
+  -- `true OR <tenant_subtree_read>` to true before it plans the subquery that
+  -- would call this function again. An integration test pins this.
+  EXECUTE format($fn$
+    CREATE OR REPLACE FUNCTION %I.stratum_subtree_tenant_ids()
+    RETURNS uuid[]
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    AS $body$
+  WITH cur AS (
+    SELECT t.id, rtrim(t.ancestry_path, '/') || '/' || t.id::text AS sub
+    FROM tenants t
+    WHERE t.id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid
+  )
+  SELECT coalesce(array_agg(s.id), '{}'::uuid[])
+  FROM (
+    SELECT cur.id FROM cur
+    UNION ALL
+    SELECT d.id
+    FROM cur
+    JOIN tenants d
+      ON d.ancestry_path ~>=~ cur.sub
+     AND d.ancestry_path ~<~ (cur.sub || '0')
+     AND (d.ancestry_path = cur.sub OR d.ancestry_path LIKE cur.sub || '/%%')
+  ) s
+    $body$
+  $fn$, v_schema);
+
+  -- refuse_tenant_parent_cycle(): the body of 029, SECURITY DEFINER, without
+  -- the SET clause.
+  EXECUTE format($fn$
+    CREATE OR REPLACE FUNCTION %I.refuse_tenant_parent_cycle()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    AS $body$
+BEGIN
+  IF NEW.parent_id = NEW.id OR EXISTS (
+    WITH RECURSIVE up(id, parent_id, seen) AS (
+      SELECT t.id, t.parent_id, ARRAY[t.id]
+      FROM tenants t
+      WHERE t.id = NEW.parent_id
+      UNION ALL
+      SELECT t.id, t.parent_id, up.seen || t.id
+      FROM tenants t
+      JOIN up ON t.id = up.parent_id
+      WHERE t.id <> ALL (up.seen)
+    )
+    SELECT 1 FROM up WHERE up.id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'tenant %% cannot be its own ancestor (parent_id cycle)', NEW.id
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+    $body$
+  $fn$, v_schema);
 
   -- The tree-column guard of 031, which now accepts a member of the control
   -- role. It is not SECURITY DEFINER: it checks the role that runs the
   -- statement. pg_has_role(..., 'USAGE') is true for a member that inherits
   -- the role's privileges and for a superuser.
   EXECUTE format($fn$
-    CREATE OR REPLACE FUNCTION refuse_tenant_tree_column_change()
+    CREATE OR REPLACE FUNCTION %I.refuse_tenant_tree_column_change()
     RETURNS TRIGGER
     LANGUAGE plpgsql
     AS $body$
@@ -389,15 +412,51 @@ BEGIN
       RETURN NEW;
     END;
     $body$
-  $fn$, v_role);
+  $fn$, v_schema, v_role);
 
-  EXECUTE format('ALTER FUNCTION %I.stratum_legacy_bypass() SET search_path = pg_catalog, %I, pg_temp', v_schema, v_schema);
   EXECUTE format('ALTER FUNCTION %I.stratum_subtree_tenant_ids() SET search_path = pg_catalog, %I, pg_temp', v_schema, v_schema);
   EXECUTE format('ALTER FUNCTION %I.refuse_tenant_parent_cycle() SET search_path = pg_catalog, %I, pg_temp', v_schema, v_schema);
   EXECUTE format('ALTER FUNCTION %I.refuse_tenant_tree_column_change() SET search_path = pg_catalog, %I, pg_temp', v_schema, v_schema);
+  EXECUTE format('REVOKE ALL ON FUNCTION %I.refuse_tenant_parent_cycle() FROM PUBLIC', v_schema);
+  EXECUTE format('REVOKE ALL ON FUNCTION %I.refuse_tenant_tree_column_change() FROM PUBLIC', v_schema);
 
   EXECUTE format('ALTER FUNCTION %I.stratum_legacy_bypass() OWNER TO %I', v_schema, v_role);
   EXECUTE format('ALTER FUNCTION %I.stratum_subtree_tenant_ids() OWNER TO %I', v_schema, v_role);
   EXECUTE format('ALTER FUNCTION %I.refuse_tenant_parent_cycle() OWNER TO %I', v_schema, v_role);
+END;
+$apply$;
+
+DO $pin$ BEGIN
+  EXECUTE format(
+    'ALTER FUNCTION stratum_apply_control_role(text, text) SET search_path = pg_catalog, %I, pg_temp',
+    current_schema()
+  );
+END $pin$;
+REVOKE ALL ON FUNCTION stratum_apply_control_role(text, text) FROM PUBLIC;
+
+-- ---------------------------------------------------------------------------
+-- Apply the control role now when the migrating role can; otherwise warn.
+-- ---------------------------------------------------------------------------
+DO $control$
+DECLARE
+  v_role text := NULLIF(current_setting('stratum.control_role', true), '');
+  v_existing text[];
+  v_message text;
+BEGIN
+  SELECT array_agg(DISTINCT r::text) INTO v_existing
+    FROM pg_policies p, unnest(p.roles) r
+   WHERE p.policyname = 'stratum_control_plane';
+  IF v_role IS NULL THEN
+    v_role := CASE WHEN cardinality(v_existing) = 1 THEN v_existing[1] ELSE 'stratum_control' END;
+  END IF;
+
+  BEGIN
+    PERFORM stratum_apply_control_role(v_role, current_schema());
+  EXCEPTION WHEN insufficient_privilege THEN
+    -- Everything the call did is rolled back to here; part 1 stays.
+    GET STACKED DIAGNOSTICS v_message = MESSAGE_TEXT;
+    RAISE WARNING E'Stratum control-role hardening is NOT active in schema "%": %\nUntil that SQL runs, this database keeps the pre-1.8 behavior.',
+      current_schema(), v_message;
+  END;
 END
 $control$;

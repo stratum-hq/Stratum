@@ -13,7 +13,9 @@ import { Stratum } from "../stratum.js";
 async function warningsFor(nodeEnv: string | undefined, enforceRls = false): Promise<string[]> {
   vi.stubEnv("NODE_ENV", nodeEnv);
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-  const stratum = new Stratum({ pool: {} as pg.Pool, logger, autoMigrate: true, enforceRls });
+  // initialize() also reads the catalog for the control-role check (role-model.ts).
+  const pool = { query: vi.fn().mockResolvedValue({ rows: [] }) } as unknown as pg.Pool;
+  const stratum = new Stratum({ pool, logger, autoMigrate: true, enforceRls });
   await stratum.initialize();
   return logger.warn.mock.calls.map((c) => String(c[0]));
 }

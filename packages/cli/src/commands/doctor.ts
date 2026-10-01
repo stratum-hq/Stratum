@@ -231,6 +231,43 @@ async function checkRLSPolicies(pool: pg.Pool): Promise<CheckResult> {
   };
 }
 
+/**
+ * Whether the control-role hardening of @stratum-hq/lib migration 032 is
+ * active: the migration ran and its stratum_control_plane policies exist.
+ * 032 skips them, with a warning, when the migrating role can neither create
+ * nor join the control role.
+ */
+async function checkControlRole(pool: pg.Pool): Promise<CheckResult> {
+  const res = await pool.query(`
+    SELECT to_regclass('public.stratum_security') IS NOT NULL AS migrated,
+           (SELECT string_agg(DISTINCT r::text, ', ') FROM pg_policies p, unnest(p.roles) r
+             WHERE p.schemaname = 'public' AND p.policyname = 'stratum_control_plane') AS control_role;
+  `);
+  const row = res.rows[0] as { migrated: boolean; control_role: string | null } | undefined;
+  if (!row?.migrated) {
+    return {
+      status: "warn",
+      label: "Control role",
+      summary: "Migration 032 not applied; run the Stratum migrations",
+    };
+  }
+  if (!row.control_role) {
+    return {
+      status: "warn",
+      label: "Control role",
+      summary: "Hardening not active: migration 032 could not apply the control role",
+      details: [
+        "Run the SQL from bootstrapRolesSql() of @stratum-hq/lib as a superuser to apply it.",
+      ],
+    };
+  }
+  return {
+    status: "pass",
+    label: "Control role",
+    summary: `Hardening active (control role ${row.control_role})`,
+  };
+}
+
 async function checkMissingIndexes(pool: pg.Pool): Promise<CheckResult> {
   const res = await pool.query(`
     SELECT
@@ -553,6 +590,9 @@ export async function doctor(flags: Record<string, string | boolean>): Promise<v
 
       // d. RLS policies
       results.push(await checkRLSPolicies(pool));
+
+      // d2. Control-role hardening (migration 032)
+      results.push(await checkControlRole(pool));
 
       // e. Missing indexes
       results.push(await checkMissingIndexes(pool));

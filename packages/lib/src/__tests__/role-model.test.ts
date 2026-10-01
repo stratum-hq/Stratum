@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { bootstrapRolesSql, APP_READ_TABLES } from "../role-model.js";
 import { migrationSql, STRATUM_CONTROL_ROLE } from "../migration-sql.js";
 import * as lib from "../index.js";
@@ -8,6 +8,7 @@ describe("bootstrapRolesSql", () => {
     const sql = bootstrapRolesSql();
     expect(sql).toContain(`CREATE ROLE "${STRATUM_CONTROL_ROLE}" NOLOGIN NOSUPERUSER NOBYPASSRLS`);
     expect(sql).toContain(`GRANT USAGE, CREATE ON SCHEMA "public" TO "${STRATUM_CONTROL_ROLE}"`);
+    expect(sql).toContain(`PERFORM "public".stratum_apply_control_role('stratum_control', 'public')`);
     expect(sql).not.toMatch(/GRANT "stratum_control" TO/);
     expect(sql).not.toMatch(/GRANT SELECT/);
   });
@@ -61,5 +62,18 @@ describe("migrationSql", () => {
 
   it("runs every other migration unchanged", () => {
     expect(migrationSql("024_propagate_ancestry_ltree.sql", sql029, false)).toBe(sql029);
+  });
+});
+
+describe("warnLegacyKeyHash", () => {
+  it("warns once per process however often a legacy key hash authenticates", async () => {
+    vi.resetModules();
+    const { warnLegacyKeyHash } = await import("../role-model.js");
+    const warn = vi.fn();
+    const logger = { info: vi.fn(), error: vi.fn(), warn };
+    warnLegacyKeyHash(logger);
+    warnLegacyKeyHash(logger);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/2\.0 will refuse such keys/);
   });
 });

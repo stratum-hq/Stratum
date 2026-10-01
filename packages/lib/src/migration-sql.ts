@@ -17,12 +17,13 @@ export function assertRoleName(role: string, what: string): void {
 // `SET app.bypass_rls = 'on'` (and `SET app.tenant_scope = ''`) clauses.
 // PostgreSQL lets only a superuser, or a role granted SET on the parameter,
 // put a custom setting in a function, so a fresh install by a role that is
-// not a superuser stopped at 029. Migration 032 re-creates both functions
-// without those clauses (SECURITY DEFINER, owned by the control role) in the
-// same run, so for such a role the runner drops the clauses from these two
-// files. Until 032 has run, the functions then see what their caller sees,
-// which can only narrow what they return. A superuser runs the files as they
-// are.
+// not a superuser stopped at 029. For such a role the runner drops the
+// clauses from these two files. Migration 032 re-creates both functions
+// without them (SECURITY DEFINER, owned by the control role) when it applies
+// the control role, in the same run or later through
+// stratum_apply_control_role(). Until then the functions see what their
+// caller sees, which can only narrow what they return. A superuser runs the
+// files as they are.
 const SUPERSEDED_SET_CLAUSES = new Set(["029_tenant_parent_cycle_guard.sql", "031_subtree_read_scope.sql"]);
 const APP_SET_CLAUSE = /^SET app\.[a-z_]+ = '[^']*'\n/gm;
 

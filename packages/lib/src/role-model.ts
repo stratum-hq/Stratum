@@ -70,13 +70,19 @@ function sqlArray(names: readonly string[]): string {
 
 /**
  * The SQL a database administrator runs to set up the role model, as a
- * superuser or a role with CREATEROLE. It is idempotent.
+ * superuser, or a role with CREATEROLE that owns the Stratum tables. It is
+ * idempotent.
  *
  * - Creates the NOLOGIN control role when it does not exist, and lets it use
  *   and create objects in the schema (it owns the 032 helpers).
  * - With `adminRole`: makes the admin login a member of the control role
  *   (WITH INHERIT TRUE, SET TRUE on PostgreSQL 16 and later), and moves the
  *   Stratum tables and functions that `appRole` owns to it.
+ * - Applies the control role to the Stratum objects through
+ *   stratum_apply_control_role() of migration 032, when it exists. This is
+ *   what activates the hardening when the migration could not (its migrating
+ *   role could neither create nor join the control role). It needs a
+ *   superuser or the owner of the Stratum tables.
  * - With `appRole`: removes the application login from the control role,
  *   revokes its privileges on every Stratum table, and grants it SELECT on
  *   the read-list tables only. This part acts on the tables that exist, so
@@ -95,7 +101,7 @@ export function bootstrapRolesSql(options: BootstrapRolesOptions = {}): string {
   if (options.appRole !== undefined) assertRoleName(options.appRole, "app role");
 
   const parts: string[] = [
-    `-- Stratum role model (migration 032). Run as a superuser or a role with CREATEROLE.`,
+    `-- Stratum role model (migration 032). Run as a superuser, or a role with CREATEROLE that owns the Stratum tables.`,
     `DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ${literal(control)}) THEN
     CREATE ROLE ${quote(control)} NOLOGIN NOSUPERUSER NOBYPASSRLS;
@@ -141,6 +147,15 @@ END $$;`,
       );
     }
   }
+
+  parts.push(
+    `-- Apply the control role to the Stratum objects (migration 032), when they exist.
+DO $$ BEGIN
+  IF to_regprocedure('${quote(schema)}.stratum_apply_control_role(text, text)') IS NOT NULL THEN
+    PERFORM ${quote(schema)}.stratum_apply_control_role(${literal(control)}, ${literal(schema)});
+  END IF;
+END $$;`,
+  );
 
   if (options.appRole !== undefined) {
     const app = options.appRole;
@@ -254,8 +269,21 @@ async function legacyBypassOn(adminPool: pg.Pool): Promise<boolean | null> {
   return res.rows[0]?.on ?? null;
 }
 
+/**
+ * Whether migration 032 ran but the control role is not applied: the
+ * stratum_security table exists and no stratum_control_plane policy does.
+ */
+async function hardeningInactive(pool: pg.Pool): Promise<boolean> {
+  const res = await pool.query<{ inactive: boolean }>(
+    `SELECT to_regclass('stratum_security') IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'stratum_control_plane') AS inactive`,
+  );
+  return res.rows[0]?.inactive === true;
+}
+
 export interface RoleModelCheckOptions {
-  adminPool: pg.Pool;
+  /** The library's admin pool, or undefined in the legacy single-pool mode. */
+  adminPool?: pg.Pool;
   appPool: pg.Pool;
   /** The configured control role, or undefined to use the database's. */
   controlRole?: string;
@@ -265,12 +293,24 @@ export interface RoleModelCheckOptions {
 }
 
 /**
- * Checks the admin and application logins against the role model and warns
- * about each problem. With `strict`, a misconfigured application login
- * throws instead.
+ * Reports whether the control-role hardening of migration 032 is active and,
+ * with an adminPool, checks the admin and application logins against the
+ * role model, warning about each problem. With `strict`, a misconfigured
+ * application login throws instead.
  */
 export async function checkRoleModel(options: RoleModelCheckOptions): Promise<void> {
   const { adminPool, appPool, logger } = options;
+
+  if (await hardeningInactive(adminPool ?? appPool)) {
+    logger.warn(
+      "Stratum control-role hardening is not active: migration 032 could not apply the control role, " +
+        "so this database keeps the pre-1.8 behavior. Run the SQL from bootstrapRolesSql() as a superuser " +
+        "(or `stratum db roles`) to activate it.",
+    );
+    return;
+  }
+  if (!adminPool) return;
+
   const control = options.controlRole ?? (await databaseControlRole(adminPool)) ?? STRATUM_CONTROL_ROLE;
 
   for (const issue of await adminRoleIssues(adminPool, control)) {
@@ -307,3 +347,17 @@ export function warnNoAdminPool(logger: StratumLogger): void {
       "adminPool becomes required in 2.0.",
   );
 }
+
+let warnedLegacyKeyHash = false;
+
+/** Warns once per process that an API key with a legacy SHA-256 hash authenticated. */
+export function warnLegacyKeyHash(logger: StratumLogger): void {
+  if (warnedLegacyKeyHash) return;
+  warnedLegacyKeyHash = true;
+  logger.warn(
+    "An API key with a legacy SHA-256 hash (version 1) authenticated while STRATUM_API_KEY_HMAC_SECRET is set; " +
+      "it was re-hashed with HMAC. 2.0 will refuse such keys: rotate the ones that are not used before then, " +
+      "or set allowLegacyKeyHashes: false to refuse them now.",
+  );
+}
+

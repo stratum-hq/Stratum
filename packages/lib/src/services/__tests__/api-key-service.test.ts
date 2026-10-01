@@ -128,17 +128,17 @@ describe("validateApiKey hash candidates", () => {
     expect(await lookups()).toEqual([[sha256("presented-key"), 1]]);
   });
 
-  it("looks up only the HMAC hash with version 2 once an HMAC secret is set", async () => {
+  it("looks up the HMAC hash first, then the legacy SHA-256 hash, by default once an HMAC secret is set", async () => {
     process.env[HMAC_ENV_NAME] = "unit-secret";
-    expect(await lookups()).toEqual([[hmac("presented-key", "unit-secret"), 2]]);
-  });
-
-  it("also looks up the SHA-256 hash with version 1 when legacy hashes are allowed", async () => {
-    process.env[HMAC_ENV_NAME] = "unit-secret";
-    expect(await lookups({ allowLegacyHashes: true })).toEqual([
+    expect(await lookups()).toEqual([
       [hmac("presented-key", "unit-secret"), 2],
       [sha256("presented-key"), 1],
     ]);
+  });
+
+  it("looks up only the HMAC hash with version 2 when legacy hashes are turned off", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    expect(await lookups({ allowLegacyHashes: false })).toEqual([[hmac("presented-key", "unit-secret"), 2]]);
   });
 });
 

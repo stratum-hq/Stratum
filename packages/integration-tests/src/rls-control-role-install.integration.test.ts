@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import pg from "pg";
 import { migrate, Stratum, bootstrapRolesSql, type StratumLogger } from "@stratum-hq/lib";
 import {
@@ -33,6 +34,19 @@ const INSTALL_CONTROL = `${ROLE_PREFIX}install_control`;
 const PASSWORD = "install_pw";
 
 const MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../lib/src/migrations");
+const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../cli/dist/index.js");
+
+/** The `stratum doctor` line about the control role, for the database at `url`. */
+function doctorControlRoleLine(url: string): string {
+  const res = spawnSync(process.execPath, [CLI, "doctor", "--database-url", url], {
+    encoding: "utf8",
+    env: { ...process.env, NO_COLOR: "1" },
+    timeout: 30000,
+  });
+  // eslint-disable-next-line no-control-regex
+  const out = `${res.stdout}${res.stderr}`.replace(/\x1b\[[0-9;]*m/g, "");
+  return out.split("\n").find((l) => l.includes("Control role")) ?? out;
+}
 
 let su: pg.Client;
 let adminPool: pg.Pool;
@@ -167,20 +181,86 @@ describe("a fresh install by a CREATEROLE role that is not a superuser", () => {
   });
 });
 
-describe("a migrating role without CREATEROLE and outside the control role", () => {
-  it("stops at migration 032 with the bootstrap SQL in the error", async () => {
-    const ownerPool = new pg.Pool({ connectionString: urlFor({ user: OWNER, password: PASSWORD, database: NOPRIV_DB }), max: 1 });
+describe("an upgrade by a migrating role without CREATEROLE and outside the control role", () => {
+  let ownerPool: pg.Pool;
+  const notices: string[] = [];
+
+  beforeAll(() => {
+    ownerPool = new pg.Pool({ connectionString: urlFor({ user: OWNER, password: PASSWORD, database: NOPRIV_DB }), max: 2 });
+    ownerPool.on("connect", (c) => c.on("notice", (n) => notices.push(n.message ?? "")));
+  });
+
+  afterAll(async () => {
+    await ownerPool.end();
+  });
+
+  it("completes migration 032 with a warning that prints the bootstrap SQL", async () => {
+    await migrate({ pool: ownerPool });
+    const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
+    const applied = await ownerPool.query<{ name: string }>("SELECT name FROM _migrations ORDER BY name");
+    expect(applied.rows.map((r) => r.name)).toEqual(files);
+
+    const warning = notices.find((n) => /hardening is NOT active/.test(n));
+    expect(warning).toContain(`GRANT ${control} TO ${OWNER}`);
+    expect(warning).toContain(`SELECT public.stratum_apply_control_role('${control}', 'public')`);
+    const policies = await ownerPool.query("SELECT 1 FROM pg_policies WHERE policyname = 'stratum_control_plane'");
+    expect(policies.rows).toEqual([]);
+  });
+
+  it("keeps the pre-1.8 behavior and reports the hardening as not active", async () => {
+    const logger = capture();
+    const stratum = new Stratum({ pool: ownerPool, logger });
+    await stratum.initialize();
+    expect(logger.warnings.join("\n")).toMatch(/hardening is not active/);
+    expect(doctorControlRoleLine(urlFor({ user: OWNER, password: PASSWORD, database: NOPRIV_DB }))).toMatch(
+      /Hardening not active/,
+    );
+
+    const root = await stratum.createTenant({ name: "Up root", slug: "up_root" });
+    const a = await stratum.createTenant({ name: "Up A", slug: "up_a", parent_id: root.id });
+    const b = await stratum.createTenant({ name: "Up B", slug: "up_b", parent_id: root.id });
+    await stratum.moveTenant(b.id, a.id);
+    expect((await stratum.getAncestors(b.id)).map((t) => t.id)).toEqual([root.id, a.id]);
+    await expect(stratum.moveTenant(root.id, b.id)).rejects.toThrow();
+    await stratum.setConfig(root.id, "plan", { value: "gold" });
+    expect((await stratum.resolveConfig(b.id)).plan).toMatchObject({ value: "gold", inherited: true });
+    const key = await stratum.createApiKey(b.id, "up");
+    expect((await stratum.validateApiKey(key.plaintext_key))?.tenant_id).toBe(b.id);
+    await stratum.createRegion({ display_name: "Up region", slug: "up_region" });
+    expect((await stratum.listRegions()).map((r) => r.slug)).toContain("up_region");
+  });
+
+  it("activates the hardening once a superuser runs the bootstrap SQL", async () => {
+    const dbSu = new pg.Client({ connectionString: urlFor({ database: NOPRIV_DB }) });
+    await dbSu.connect();
     try {
-      const err = await migrate({ pool: ownerPool }).then(
-        () => null,
-        (e: Error) => e,
-      );
-      expect(err?.message).toMatch(/migration 032/);
-      expect(err?.message).toContain(`GRANT ${control} TO ${OWNER}`);
-      const applied = await ownerPool.query<{ name: string }>("SELECT name FROM _migrations ORDER BY name DESC LIMIT 1");
-      expect(applied.rows[0].name).toBe("031_subtree_read_scope.sql");
+      await dbSu.query(bootstrapRolesSql({ adminRole: OWNER, controlRole: control }));
     } finally {
-      await ownerPool.end();
+      await dbSu.end();
     }
+    const policies = await ownerPool.query<{ roles: string[] }>(
+      "SELECT DISTINCT roles::text[] AS roles FROM pg_policies WHERE policyname = 'stratum_control_plane'",
+    );
+    expect(policies.rows).toEqual([{ roles: [control] }]);
+    const owners = await ownerPool.query<{ owner: string }>(
+      `SELECT DISTINCT pg_get_userbyid(proowner) AS owner FROM pg_proc
+        WHERE proname IN ('stratum_subtree_tenant_ids', 'stratum_legacy_bypass', 'refuse_tenant_parent_cycle')`,
+    );
+    expect(owners.rows).toEqual([{ owner: control }]);
+
+    // The owner is now a member of the control role: the library runs on it
+    // as adminPool with the legacy switch off.
+    await ownerPool.query("UPDATE stratum_security SET legacy_guc_bypass = false");
+    const logger = capture();
+    const stratum = new Stratum({ adminPool: ownerPool, pool: ownerPool, logger });
+    await stratum.initialize();
+    expect(logger.warnings.join("\n")).not.toMatch(/hardening is not active/);
+    expect(doctorControlRoleLine(urlFor({ user: OWNER, password: PASSWORD, database: NOPRIV_DB }))).toMatch(
+      /Hardening active \(control role /,
+    );
+    const c = await stratum.createTenant({ name: "Up C", slug: "up_c" });
+    const up = await stratum.getTenantBySlug("up_b");
+    await stratum.moveTenant(up.id, c.id);
+    expect((await stratum.getAncestors(up.id)).map((t) => t.id)).toEqual([c.id]);
   });
 });

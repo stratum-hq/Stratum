@@ -262,37 +262,16 @@ describe("API key service (integration)", () => {
   });
 
   describe("legacy SHA-256 hashes once an HMAC secret is set", () => {
-    it("refuses a key stored with a SHA-256 hash and leaves its row unchanged", async () => {
-      // Create while no secret is configured -> stored as SHA-256 (v1).
-      const tenant = await makeTenant("apikey_legacy_refused");
-      const created = await stratum.createApiKey(tenant.id, "legacy");
-      expect((await rawKeyRow(created.id)).hash_version).toBe(1);
-
-      process.env[HMAC_SECRET_ENV] = "refuse-secret";
-      expect(await stratum.validateApiKey(created.plaintext_key)).toBeNull();
-      const row = await rawKeyRow(created.id);
-      expect(row.hash_version).toBe(1);
-      expect(row.key_hash).toBe(sha256(created.plaintext_key));
-    });
-
-    it("refuses a SHA-256 key row written straight into api_keys", async () => {
-      const tenant = await makeTenant("apikey_legacy_written");
-      process.env[HMAC_SECRET_ENV] = "refuse-secret";
-      const plaintext = "sk_test_written_by_hand";
-      await getPool().query(
-        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name) VALUES ($1, $2, 'sk_test_', 'hand')`,
-        [tenant.id, sha256(plaintext)],
-      );
-      expect(await stratum.validateApiKey(plaintext)).toBeNull();
-    });
-
-    it("with allowLegacyKeyHashes, validates a SHA-256 key and upgrades its stored hash to HMAC", async () => {
+    it("by default, validates a SHA-256 key, upgrades its stored hash to HMAC, and warns at most once per process", async () => {
       const tenant = await makeTenant("apikey_upgrade");
       const created = await stratum.createApiKey(tenant.id, "legacy");
+      const second = await stratum.createApiKey(tenant.id, "legacy2");
       expect((await rawKeyRow(created.id)).hash_version).toBe(1);
 
       process.env[HMAC_SECRET_ENV] = "upgrade-secret";
-      const legacy = new Stratum({ pool: getPool(), adminPool: getAdminPool(), allowLegacyKeyHashes: true, logger: noopLogger });
+      const warnings: string[] = [];
+      const logger = { ...noopLogger, warn: (msg: string) => warnings.push(msg) };
+      const legacy = new Stratum({ pool: getPool(), adminPool: getAdminPool(), logger });
       const result = await legacy.validateApiKey(created.plaintext_key);
       expect(result).not.toBeNull();
       expect(result!.key_id).toBe(created.id);
@@ -303,8 +282,38 @@ describe("API key service (integration)", () => {
       expect(upgraded.key_hash).toBe(
         hmacSha256(created.plaintext_key, "upgrade-secret"),
       );
-      // Once upgraded, the key authenticates without the option too.
-      expect((await stratum.validateApiKey(created.plaintext_key))!.key_id).toBe(created.id);
+      expect(await legacy.validateApiKey(second.plaintext_key)).not.toBeNull();
+      // The warning is once per process, so an earlier suite may have used it up.
+      expect(warnings.filter((w) => /legacy SHA-256 hash/.test(w)).length).toBeLessThanOrEqual(1);
+
+      // Once upgraded, the key authenticates with legacy hashes turned off too.
+      const strict = new Stratum({ pool: getPool(), adminPool: getAdminPool(), allowLegacyKeyHashes: false, logger: noopLogger });
+      expect((await strict.validateApiKey(created.plaintext_key))!.key_id).toBe(created.id);
+    });
+
+    it("with allowLegacyKeyHashes: false, refuses a key stored with a SHA-256 hash and leaves its row unchanged", async () => {
+      const tenant = await makeTenant("apikey_legacy_refused");
+      const created = await stratum.createApiKey(tenant.id, "legacy");
+      expect((await rawKeyRow(created.id)).hash_version).toBe(1);
+
+      process.env[HMAC_SECRET_ENV] = "refuse-secret";
+      const strict = new Stratum({ pool: getPool(), adminPool: getAdminPool(), allowLegacyKeyHashes: false, logger: noopLogger });
+      expect(await strict.validateApiKey(created.plaintext_key)).toBeNull();
+      const row = await rawKeyRow(created.id);
+      expect(row.hash_version).toBe(1);
+      expect(row.key_hash).toBe(sha256(created.plaintext_key));
+    });
+
+    it("with allowLegacyKeyHashes: false, refuses a SHA-256 key row written straight into api_keys", async () => {
+      const tenant = await makeTenant("apikey_legacy_written");
+      process.env[HMAC_SECRET_ENV] = "refuse-secret";
+      const plaintext = "sk_test_written_by_hand";
+      await getPool().query(
+        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name) VALUES ($1, $2, 'sk_test_', 'hand')`,
+        [tenant.id, sha256(plaintext)],
+      );
+      const strict = new Stratum({ pool: getPool(), adminPool: getAdminPool(), allowLegacyKeyHashes: false, logger: noopLogger });
+      expect(await strict.validateApiKey(plaintext)).toBeNull();
     });
   });
 

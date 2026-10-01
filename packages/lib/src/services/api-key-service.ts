@@ -156,9 +156,11 @@ export interface ValidateApiKeyOptions {
   /**
    * Accept a key stored with the unkeyed SHA-256 hash (version 1) while
    * STRATUM_API_KEY_HMAC_SECRET is set, and re-hash it with HMAC when it
-   * authenticates. Default false.
+   * authenticates. Default true in 1.x; the default becomes false in 2.0.
    */
   allowLegacyHashes?: boolean;
+  /** Called when a version 1 hash authenticated while the HMAC secret is set. */
+  onLegacyHash?: () => void;
 }
 
 export async function validateApiKey(
@@ -168,16 +170,17 @@ export async function validateApiKey(
 ): Promise<ValidatedApiKey | null> {
   const hmacSecret = getHmacSecret();
 
-  // Candidate hashes. With an HMAC secret, only HMAC hashes (version 2)
-  // authenticate, unless the caller opted in to the legacy SHA-256 hashes
-  // (version 1) for a migration window. A SHA-256 hash needs no secret to
-  // compute, so accepting it would let anyone who can write a key row choose
-  // the key. Without a secret, SHA-256 is the only hash there is.
+  // Candidate hashes. With an HMAC secret, HMAC hashes (version 2) come
+  // first. The legacy SHA-256 hashes (version 1) are tried too unless the
+  // caller turned allowLegacyHashes off: a SHA-256 hash needs no secret to
+  // compute, so accepting it lets anyone who can write a key row choose the
+  // key. 1.x accepts them by default and re-hashes each on use; 2.0 will not.
+  // Without a secret, SHA-256 is the only hash there is.
   const candidates: Array<{ hash: string; version: number }> = [];
   if (hmacSecret) {
     candidates.push({ hash: hmacHash(key, hmacSecret), version: HASH_V2_HMAC });
   }
-  if (!hmacSecret || options.allowLegacyHashes === true) {
+  if (!hmacSecret || options.allowLegacyHashes !== false) {
     candidates.push({ hash: sha256Hash(key), version: HASH_V1_SHA256 });
   }
 
@@ -232,11 +235,11 @@ export async function validateApiKey(
   // When a stamp is due, we await it so that a read made after validateApiKey
   // resolves sees the new last_used_at. Without the await, listDormantKeys can
   // report a just-used key.
-  // Transparent upgrade: if we matched via legacy SHA-256 (allowed above only
-  // with allowLegacyHashes) and the HMAC secret is set, re-hash with HMAC and
-  // update the stored hash in place.
+  // Transparent upgrade: if we matched via legacy SHA-256 and the HMAC secret
+  // is set, re-hash with HMAC and update the stored hash in place.
   const { row } = found;
   const upgrade = row.hash_version === HASH_V1_SHA256 && hmacSecret;
+  if (upgrade) options.onLegacyHash?.();
   if (!upgrade && !row.stamp_due) return found.validated;
   await withClient(pool, async (client) => {
     // SET LOCAL ends with this transaction, so the pooled connection keeps its own timeout.

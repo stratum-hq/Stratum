@@ -74,7 +74,7 @@ import { StratumError, TenantEvent } from "@stratum-hq/core";
 import { assertRoleSubjectToRls, migrate } from "./migrate.js";
 import { markAdminPool } from "./pool-helpers.js";
 import { assertRoleName } from "./migration-sql.js";
-import { checkRoleModel, warnNoAdminPool } from "./role-model.js";
+import { checkRoleModel, warnLegacyKeyHash, warnNoAdminPool } from "./role-model.js";
 import { redactUrlForAudit } from "./url-redaction.js";
 
 export interface StratumOptions {
@@ -98,9 +98,10 @@ export interface StratumOptions {
   /**
    * Accept API keys stored with the legacy unkeyed SHA-256 hash (version 1)
    * while STRATUM_API_KEY_HMAC_SECRET is set, and re-hash each one with HMAC
-   * when it authenticates. Default false: once the secret is set, only HMAC
-   * hashes authenticate. Without the secret, SHA-256 is the only hash and
-   * this option has no effect.
+   * when it authenticates (a warning is logged once per process when that
+   * happens). Default true in 1.x; the default becomes false in 2.0. Set it
+   * to false to accept only HMAC hashes once the secret is set. Without the
+   * secret, SHA-256 is the only hash and this option has no effect.
    */
   allowLegacyKeyHashes?: boolean;
   keyPrefix?: string;
@@ -134,19 +135,13 @@ export class Stratum {
     this.hasAdminPool = options.adminPool !== undefined;
     if (options.controlRole !== undefined) assertRoleName(options.controlRole, "control role");
     this.controlRole = options.controlRole;
-    this.allowLegacyKeyHashes = options.allowLegacyKeyHashes ?? false;
+    this.allowLegacyKeyHashes = options.allowLegacyKeyHashes ?? true;
     this.keyPrefix = options.keyPrefix ?? "sk_live_";
     this.logger = options.logger ?? defaultLogger;
     this.autoMigrate = options.autoMigrate ?? false;
     this.enforceRls = options.enforceRls ?? false;
     if (options.adminPool) markAdminPool(options.adminPool);
     else warnNoAdminPool(this.logger);
-    if (this.allowLegacyKeyHashes) {
-      this.logger.warn(
-        "allowLegacyKeyHashes is on: API keys with a SHA-256 hash (version 1) still authenticate " +
-          "while STRATUM_API_KEY_HMAC_SECRET is set. Turn it off once those keys are re-hashed or rotated.",
-      );
-    }
   }
 
   /**
@@ -184,15 +179,13 @@ export class Stratum {
     } else if (this.enforceRls) {
       await assertRoleSubjectToRls(this.appPool);
     }
-    if (this.hasAdminPool) {
-      await checkRoleModel({
-        adminPool: this.pool,
-        appPool: this.appPool,
-        controlRole: this.controlRole,
-        strict: this.enforceRls,
-        logger: this.logger,
-      });
-    }
+    await checkRoleModel({
+      adminPool: this.hasAdminPool ? this.pool : undefined,
+      appPool: this.appPool,
+      controlRole: this.controlRole,
+      strict: this.enforceRls,
+      logger: this.logger,
+    });
   }
 
   // --- Flat-tenancy convenience API ---
@@ -690,7 +683,10 @@ export class Stratum {
   }
   validateApiKey(key: string): Promise<apiKeyService.ValidatedApiKey | null> {
     return traced("api_key.validate", {}, async () => {
-      return apiKeyService.validateApiKey(this.pool, key, { allowLegacyHashes: this.allowLegacyKeyHashes });
+      return apiKeyService.validateApiKey(this.pool, key, {
+        allowLegacyHashes: this.allowLegacyKeyHashes,
+        onLegacyHash: () => warnLegacyKeyHash(this.logger),
+      });
     });
   }
   revokeApiKey(keyId: string, audit?: AuditContext): Promise<boolean> {
