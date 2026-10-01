@@ -24,7 +24,7 @@
  */
 
 import { spawn, type ChildProcess } from "child_process";
-import { connectDb, getConnectionString } from "../utils/db.js";
+import { connectDb, getConnectionString, DEFAULT_DATABASE_URL } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
 const HEALTH_POLL_INTERVAL_MS = 500;
@@ -44,13 +44,8 @@ export async function playground(
 
   // Step 1: Check DATABASE_URL
   const connectionString = getConnectionString(flags);
-  if (
-    connectionString === "postgres://stratum:stratum_dev@localhost:5432/stratum" &&
-    !process.env.DATABASE_URL &&
-    !flags["database-url"] &&
-    !flags["d"]
-  ) {
-    log.warn("Using default DATABASE_URL (postgres://localhost:5432/stratum)");
+  if (usesDefaultDatabaseUrl(flags)) {
+    log.warn(`Using the default DATABASE_URL (${redactPassword(DEFAULT_DATABASE_URL)})`);
     log.info(
       'Set DATABASE_URL or use --database-url <url> to connect to your database'
     );
@@ -179,6 +174,19 @@ export async function playground(
 
   // Keep the process alive
   await new Promise(() => {});
+}
+
+/** Whether no --database-url, -d or DATABASE_URL is given, so the default applies. */
+export function usesDefaultDatabaseUrl(flags: Record<string, string | boolean>): boolean {
+  return getConnectionString(flags) === DEFAULT_DATABASE_URL &&
+    typeof flags["database-url"] !== "string" &&
+    typeof flags["d"] !== "string" &&
+    !process.env.DATABASE_URL;
+}
+
+/** The URL without its password, for printing. */
+function redactPassword(url: string): string {
+  return url.replace(/^(postgres(?:ql)?:\/\/[^:@/]+):[^@]*@/, "$1@");
 }
 
 async function pollHealth(

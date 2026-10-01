@@ -3,6 +3,9 @@ import { STRATUM_TABLES } from "@stratum-hq/lib";
 import { DEFAULT_CONTROL_ROLE, evaluatePolicies, type PolicyRow } from "./policy-check.js";
 import * as log from "./log.js";
 
+/** The connection string used when neither --database-url nor DATABASE_URL is given. */
+export const DEFAULT_DATABASE_URL = "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
+
 export function getConnectionString(flags: Record<string, string | boolean>): string {
   const explicit = flags["database-url"] || flags["d"];
   if (typeof explicit === "string") return explicit;
@@ -10,7 +13,7 @@ export function getConnectionString(flags: Record<string, string | boolean>): st
   const env = process.env.DATABASE_URL;
   if (env) return env;
 
-  return "postgres://stratum_app:stratum_dev@localhost:5432/stratum";
+  return DEFAULT_DATABASE_URL;
 }
 
 export async function connectDb(flags: Record<string, string | boolean>): Promise<pg.Pool> {
