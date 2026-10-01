@@ -77,7 +77,7 @@ A parent can **lock** a config key to prevent any descendant from overriding it.
 
 ### Sensitive Values
 
-Config values can be marked `sensitive: true`, which encrypts them at rest using AES-256-GCM before storage. Sensitive values are decrypted when resolved. See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
+Config values can be marked `sensitive: true`, which encrypts them at rest using AES-256-GCM before storage. A tenant's own sensitive values are decrypted when resolved. Descendants inherit them masked (`value: null`, `masked: true`) unless the caller asks to reveal them; see [Config Inheritance](/guides/config-inheritance/#sensitive-values). See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
 
 ## Permission Delegation
 
