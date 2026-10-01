@@ -83,7 +83,7 @@ describe("evaluatePolicies", () => {
     ];
     for (const [name, policies] of cases) {
       it(name, () => {
-        expect(evaluatePolicies(policies)).toEqual({ isolated: true, issue: null });
+        expect(evaluatePolicies(policies, "public")).toEqual({ isolated: true, issue: null });
       });
     }
   });
@@ -161,6 +161,18 @@ describe("evaluatePolicies", () => {
         /"s" \(SELECT\) USING/,
       ],
       [
+        "with a subtree read through evil.stratum_subtree_tenant_ids(), a schema that does not hold tenants",
+        [
+          policy({}),
+          policy({
+            policyname: "s",
+            cmd: "SELECT",
+            qual: SUBTREE_READ.replace("SELECT stratum_", "SELECT evil.stratum_"),
+          }),
+        ],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
         "with a subtree read ORed with the scope check",
         [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: `(${SCOPE_SUBTREE} OR ${SUBTREE_IDS})` })],
         /"s" \(SELECT\) USING/,
@@ -183,7 +195,7 @@ describe("evaluatePolicies", () => {
     ];
     for (const [name, policies, reason] of cases) {
       it(name, () => {
-        const verdict = evaluatePolicies(policies);
+        const verdict = evaluatePolicies(policies, "public");
         expect(verdict.isolated).toBe(false);
         expect(verdict.issue).toMatch(reason);
       });
@@ -197,5 +209,33 @@ describe("evaluatePolicies", () => {
   it("puts a multi-line policy expression on one line in the reason", () => {
     const verdict = evaluatePolicies([policy({ qual: "(true\nAND\r\ntrue)" })]);
     expect(verdict.issue).not.toMatch(/[\r\n]/);
+  });
+
+  describe("the schema that may qualify the subtree function", () => {
+    const qualified = (schema: string) => [
+      policy({}),
+      policy({
+        policyname: "tenant_subtree_read",
+        cmd: "SELECT",
+        qual: SUBTREE_READ.replace("SELECT stratum_", `SELECT ${schema}.stratum_`),
+      }),
+    ];
+
+    it("accepts the function qualified with the schema of the tenants table", () => {
+      expect(evaluatePolicies(qualified("tenancy"), "tenancy")).toEqual({ isolated: true, issue: null });
+    });
+
+    it("rejects public.stratum_subtree_tenant_ids() when tenants is in another schema", () => {
+      expect(evaluatePolicies(qualified("public"), "tenancy").isolated).toBe(false);
+    });
+
+    it("rejects any qualified function when the tenants schema is unknown", () => {
+      expect(evaluatePolicies(qualified("public")).isolated).toBe(false);
+    });
+
+    it("accepts the unqualified function when the tenants schema is unknown", () => {
+      const policies = [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: SUBTREE_READ })];
+      expect(evaluatePolicies(policies)).toEqual({ isolated: true, issue: null });
+    });
   });
 });

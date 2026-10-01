@@ -10,7 +10,7 @@ import {
   setTenantContext,
   withTenantContext,
 } from "@stratum-hq/db-adapters";
-import { runScopedJob } from "@stratum-hq/lib";
+import { runScopedJob, Stratum } from "@stratum-hq/lib";
 import { getPool, closePool, runMigrations } from "./helpers/db.js";
 
 /**
@@ -259,24 +259,23 @@ describe("subtree read scope (migration 031)", () => {
     expect(seen).toEqual(["a1", "a1x", "a2", "a3", "a4", "mspA"]);
   });
 
-  it("follows the tree when a tenant moves to another parent", async () => {
-    const c = await getPool().connect();
+  it("follows the tree at once when moveTenant moves a tenant to another parent", async () => {
+    const stratum = new Stratum({ pool: getPool() });
+    await stratum.moveTenant(id.b1, id.mspA);
     try {
-      await c.query("BEGIN");
-      // Move b1 under mspA, as the superuser, inside a transaction that rolls back.
-      await c.query(`UPDATE tenants SET parent_id = $1, ancestry_path = $2 WHERE id = $3`, [
-        id.mspA,
-        `${ancestry.mspA === "/" ? "" : ancestry.mspA}/${id.mspA}`,
-        id.b1,
-      ]);
-      await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
-      await setTenantContext(c, id.mspA, { scope: "subtree" });
-      const seen = labelsOf((await c.query<{ key: string }>(OWN_ROWS)).rows);
+      const seen = await asApp(async (c) => {
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        return labelsOf((await c.query<{ key: string }>(OWN_ROWS)).rows);
+      });
       expect(seen).toContain("b1");
     } finally {
-      await c.query("ROLLBACK");
-      c.release();
+      await stratum.moveTenant(id.b1, id.mspB);
     }
+    const after = await asApp(async (c) => {
+      await setTenantContext(c, id.mspA, { scope: "subtree" });
+      return labelsOf((await c.query<{ key: string }>(OWN_ROWS)).rows);
+    });
+    expect(after).not.toContain("b1");
   });
 
   describe("writes stay limited to the exact tenant", () => {
@@ -433,7 +432,246 @@ describe("subtree read scope (migration 031)", () => {
     }
   });
 
-  it("puts a read-only subtree policy on every tenant-scoped table except api_keys", async () => {
+  describe("credential-bearing rows stay exact-tenant", () => {
+    it("does not let a parent in subtree scope read its descendants' webhooks rows", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        const hook: Partial<Record<Label, string>> = {};
+        for (const label of ["mspA", "a1"] as const) {
+          const wh = await c.query<{ id: string }>(
+            `INSERT INTO webhooks (tenant_id, url, secret_hash) VALUES ($1, $2, 'hash') RETURNING id`,
+            [id[label], "https://example.test/hook"],
+          );
+          hook[label] = wh.rows[0].id;
+        }
+        await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
+
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        const asParent = await c.query<{ id: string }>("SELECT id FROM webhooks WHERE id = ANY($1)", [
+          [hook.mspA, hook.a1],
+        ]);
+        expect(asParent.rows.map((r) => r.id)).toEqual([hook.mspA]);
+
+        // The owner still reads its own webhook, so the row exists and RLS hides it.
+        await setTenantContext(c, id.a1);
+        const asOwner = await c.query("SELECT id FROM webhooks WHERE id = $1", [hook.a1]);
+        expect(asOwner.rowCount ?? 0).toBe(1);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+
+    it("does not reach a descendant's webhooks row through webhook_deliveries", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        const wh = await c.query<{ id: string }>(
+          `INSERT INTO webhooks (tenant_id, url, secret_hash) VALUES ($1, $2, 'hash') RETURNING id`,
+          [id.a1, "https://example.test/hook"],
+        );
+        const ev = await c.query<{ id: string }>(
+          `INSERT INTO webhook_events (type, tenant_id) VALUES ('tenant.created', $1) RETURNING id`,
+          [id.a1],
+        );
+        const del = await c.query<{ id: string }>(
+          `INSERT INTO webhook_deliveries (webhook_id, event_id) VALUES ($1, $2) RETURNING id`,
+          [wh.rows[0].id, ev.rows[0].id],
+        );
+        await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+
+        const delivery = await c.query("SELECT id FROM webhook_deliveries WHERE id = $1", [del.rows[0].id]);
+        expect(delivery.rowCount ?? 0).toBe(1);
+        const joined = await c.query(
+          `SELECT w.id FROM webhook_deliveries d JOIN webhooks w ON w.id = d.webhook_id WHERE d.id = $1`,
+          [del.rows[0].id],
+        );
+        expect(joined.rowCount ?? 0).toBe(0);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+
+    it("reads a descendant's non-sensitive config rows but not its sensitive ones in subtree scope", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        const secretKey = `sub_secret_a1_${run}`;
+        await c.query(
+          `INSERT INTO config_entries (tenant_id, key, value, source_tenant_id, sensitive)
+           VALUES ($1, $2, '"s"'::jsonb, $1, true)`,
+          [id.a1, secretKey],
+        );
+        await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
+
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        const plain = await c.query("SELECT key FROM config_entries WHERE key = $1", [keyOf("a1")]);
+        expect(plain.rowCount ?? 0).toBe(1);
+        const sensitive = await c.query("SELECT key FROM config_entries WHERE sensitive");
+        expect(sensitive.rowCount ?? 0).toBe(0);
+
+        // The owner still reads its own sensitive row.
+        await setTenantContext(c, id.a1);
+        const asOwner = await c.query("SELECT key FROM config_entries WHERE key = $1", [secretKey]);
+        expect(asOwner.rowCount ?? 0).toBe(1);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+
+    it("still lets a parent in subtree scope read its own sensitive config rows", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        const ownKey = `sub_secret_mspa_${run}`;
+        await c.query(
+          `INSERT INTO config_entries (tenant_id, key, value, source_tenant_id, sensitive)
+           VALUES ($1, $2, '"s"'::jsonb, $1, true)`,
+          [id.mspA, ownKey],
+        );
+        await c.query(`SET LOCAL ROLE ${APP_ROLE}`);
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        const own = await c.query("SELECT key FROM config_entries WHERE key = $1", [ownKey]);
+        expect(own.rowCount ?? 0).toBe(1);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+  });
+
+  describe("locking reads and upserts in subtree scope", () => {
+    it("returns only the exact tenant's rows to SELECT FOR UPDATE and FOR SHARE", async () => {
+      const seen = await asApp(async (c) => {
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        const forUpdate = labelsOf((await c.query<{ key: string }>(`${OWN_ROWS} FOR UPDATE`)).rows);
+        const forShare = labelsOf((await c.query<{ key: string }>(`${OWN_ROWS} FOR SHARE`)).rows);
+        return { forUpdate, forShare };
+      });
+      expect(seen).toEqual({ forUpdate: ["mspA"], forShare: ["mspA"] });
+    });
+
+    it("refuses INSERT ON CONFLICT DO UPDATE on a descendant's row", async () => {
+      await asApp(async (c) => {
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        await expect(
+          c.query(
+            `INSERT INTO config_entries (tenant_id, key, value, source_tenant_id)
+             VALUES ($1, $2, '"changed"'::jsonb, $1)
+             ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value`,
+            [id.a1, keyOf("a1")],
+          ),
+        ).rejects.toThrow(/row-level security/i);
+      });
+      const res = await getPool().query<{ value: string }>(
+        "SELECT value FROM config_entries WHERE key = $1",
+        [keyOf("a1")],
+      );
+      expect(res.rows[0].value).toBe("a1");
+    });
+  });
+
+  describe("tree columns change only under the bypass", () => {
+    const changes: Array<[string, string, unknown]> = [
+      ["ancestry_path", "ancestry_path = $2", "/"],
+      ["parent_id", "parent_id = $2", null],
+      ["depth", "depth = $2", 0],
+      ["ancestry_ltree", "ancestry_ltree = $2::ltree", "moved"],
+    ];
+
+    for (const [column, set, value] of changes) {
+      it(`refuses an update of the tenant's own ${column} from an exact tenant context`, async () => {
+        await asApp(async (c) => {
+          await setTenantContext(c, id.a1);
+          await expect(c.query(`UPDATE tenants SET ${set} WHERE id = $1`, [id.a1, value])).rejects.toThrow(
+            /tree columns/i,
+          );
+        });
+      });
+    }
+
+    it("refuses an update of the tenant's own parent_id from a subtree context", async () => {
+      await asApp(async (c) => {
+        await setTenantContext(c, id.a1, { scope: "subtree" });
+        await expect(
+          c.query(`UPDATE tenants SET parent_id = $2 WHERE id = $1`, [id.a1, id.mspB]),
+        ).rejects.toThrow(/tree columns/i);
+      });
+    });
+
+    it("still lets a tenant context update its own non-tree columns", async () => {
+      const count = await asApp(async (c) => {
+        await setTenantContext(c, id.a1);
+        return (await c.query("UPDATE tenants SET name = 'renamed' WHERE id = $1", [id.a1])).rowCount;
+      });
+      expect(count).toBe(1);
+    });
+
+    it("refuses a tree column update without the bypass, even for a role that skips RLS", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        await expect(
+          c.query(`UPDATE tenants SET depth = depth + 1 WHERE id = $1`, [id.a1]),
+        ).rejects.toThrow(/tree columns/i);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+
+    it("lets the bypass change tree columns", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL app.bypass_rls = 'on'");
+        const res = await c.query(`UPDATE tenants SET depth = depth + 1 WHERE id = $1`, [id.a1]);
+        expect(res.rowCount).toBe(1);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+  });
+
+  describe("name resolution in the subtree and cycle-guard functions", () => {
+    it("ignores a session's temporary tenants table when it computes the subtree", async () => {
+      const seen = await asApp(async (c) => {
+        await c.query("CREATE TEMP TABLE tenants (id uuid, ancestry_path text) ON COMMIT DROP");
+        // b1 placed under mspA in the temporary table only.
+        await c.query("INSERT INTO pg_temp.tenants VALUES ($1, $2), ($3, $4)", [
+          id.mspA,
+          ancestry.mspA,
+          id.b1,
+          `${ancestry.mspA === "/" ? "" : ancestry.mspA}/${id.mspA}`,
+        ]);
+        await setTenantContext(c, id.mspA, { scope: "subtree" });
+        return labelsOf((await c.query<{ key: string }>(OWN_ROWS)).rows);
+      });
+      expect(seen).toEqual(["a1", "a1x", "a2", "a3", "a4", "mspA"]);
+    });
+
+    it("ignores a session's temporary tenants table when it checks a new parent for a cycle", async () => {
+      const c = await getPool().connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("CREATE TEMP TABLE tenants (id uuid, parent_id uuid, slug text, ancestry_ltree ltree) ON COMMIT DROP");
+        await c.query("SET LOCAL app.bypass_rls = 'on'");
+        await expect(
+          c.query(`UPDATE public.tenants SET parent_id = $1 WHERE id = $2`, [id.a1, id.mspA]),
+        ).rejects.toThrow(/own ancestor/);
+      } finally {
+        await c.query("ROLLBACK");
+        c.release();
+      }
+    });
+  });
+
+  it("puts a read-only subtree policy on every tenant-scoped table except api_keys and webhooks", async () => {
     const res = await getPool().query<{ tablename: string; cmd: string; permissive: string }>(
       `SELECT tablename, cmd, permissive FROM pg_policies
         WHERE schemaname = current_schema() AND policyname = 'tenant_subtree_read'
@@ -452,7 +690,6 @@ describe("subtree read scope (migration 031)", () => {
       "usage_events",
       "webhook_deliveries",
       "webhook_events",
-      "webhooks",
     ]);
     for (const r of res.rows) {
       expect(r.cmd).toBe("SELECT");

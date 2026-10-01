@@ -6,7 +6,8 @@ import pg from "pg";
  * - "exact": the rows of the tenant only. This is the default.
  * - "subtree": the rows of the tenant and of every descendant, through the
  *   tenant_subtree_read policies of migration 031. Writes stay limited to the
- *   exact tenant in both scopes.
+ *   exact tenant in both scopes, and so do reads of credential-bearing rows
+ *   (api_keys, webhooks and sensitive config_entries).
  */
 export type TenantScope = "exact" | "subtree";
 

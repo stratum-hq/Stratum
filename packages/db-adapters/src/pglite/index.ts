@@ -110,19 +110,17 @@ function makePool(
     let released = false;
     return {
       query: (textOrConfig: string | QueryConfig, values?: unknown[]) => run(db, textOrConfig, values),
-      // pg destroys the connection when release() receives an error. This pool
-      // has one connection, so it rolls back the open transaction instead. The
-      // lock stays held until the cleanup ends, so the next client gets a
-      // clean session.
-      release: (err?: Error | boolean) => {
+      // pg gives each client its own session and destroys the connection when
+      // release() receives an error. This pool has one session for every
+      // client, so release cleans it instead: it rolls back a transaction the
+      // client left open, and resets the settings and the role the client
+      // set. The lock stays held until the cleanup ends, so the next client
+      // gets a clean session.
+      release: () => {
         if (released) return;
         released = true;
-        const cleanup = [err ? "ROLLBACK" : "", role ? "RESET ROLE" : ""].filter(Boolean).join("; ");
-        if (!cleanup) {
-          unlock();
-          return;
-        }
-        db.exec(cleanup).then(unlock, unlock);
+        // RESET ALL leaves the role alone, so RESET ROLE follows it.
+        db.exec("ROLLBACK; RESET ALL; RESET ROLE").then(unlock, unlock);
       },
     };
   };
@@ -163,7 +161,9 @@ function isPglite(value: unknown): value is PGliteInterface {
  * Return a `pg.Pool`-compatible pool that runs every query on one PGlite instance.
  *
  * The pool has one connection. A client from `connect()` holds it until
- * `release()`, and other callers wait in order. Queries run as the PGlite
+ * `release()`, and other callers wait in order. `release()` rolls back a
+ * transaction the client left open and resets the session settings, so the
+ * next client does not inherit them. Queries run as the PGlite
  * superuser, so row-level security does not apply; use
  * {@link createRestrictedPool} for that.
  *
@@ -204,6 +204,10 @@ export async function createPglitePool(source?: PGliteInterface | PGliteOptions)
  * The returned pool shares the connection and the lock of `pool`. Each client
  * runs `SET ROLE` when it gets the connection and `RESET ROLE` at release.
  * Its `end()` closes nothing; end the source pool instead.
+ *
+ * The restricted role is a convenience for tests and demos, not a security
+ * boundary: any query can leave it with `RESET ROLE`, because the session
+ * belongs to the superuser.
  *
  * @param pool - A pool from {@link createPglitePool} that runs as the superuser.
  * @param options - The role name.

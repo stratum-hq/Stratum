@@ -113,6 +113,31 @@ describe("createPglitePool", () => {
     expect(res.rows[0].n).toBe(0);
   });
 
+  it("rolls back a transaction that a client leaves open at release", async () => {
+    const client = await pool.connect();
+    await client.query("BEGIN");
+    await client.query("INSERT INTO items (tenant_id, title) VALUES ($1, 'left open')", [TENANT_A]);
+    client.release();
+    const res = await pool.query("SELECT count(*)::int AS n FROM items WHERE title = 'left open'");
+    expect(res.rows[0].n).toBe(0);
+  });
+
+  it("does not carry session settings from one client to the next", async () => {
+    const client = await pool.connect();
+    await client.query("SELECT set_config('app.current_tenant_id', $1, false)", [TENANT_A]);
+    await client.query("SET app.tenant_scope = 'subtree'");
+    await client.query("SET app.bypass_rls = 'on'");
+    client.release();
+    const res = await pool.query(
+      `SELECT current_setting('app.current_tenant_id', true) AS tenant,
+              current_setting('app.tenant_scope', true) AS scope,
+              current_setting('app.bypass_rls', true) AS bypass`,
+    );
+    for (const value of Object.values(res.rows[0])) {
+      expect(value === null || value === "").toBe(true);
+    }
+  });
+
   it("runs as a superuser by default, so row-level security does not apply", async () => {
     const res = await withTenantContext(pool, TENANT_A, (c) => c.query("SELECT body FROM notes"));
     expect(res.rows).toHaveLength(2);
@@ -155,6 +180,27 @@ describe("createPglitePool", () => {
       await restricted.query("SELECT 1");
       const res = await pool.query("SELECT current_user AS who");
       expect(res.rows[0].who).toBe("postgres");
+    });
+
+    it("does not carry a tenant context set for the session to the next restricted client", async () => {
+      const client = await restricted.connect();
+      await client.query("SELECT set_config('app.current_tenant_id', $1, false)", [TENANT_A]);
+      client.release();
+      const res = await restricted.query("SELECT body FROM notes");
+      expect(res.rows).toEqual([]);
+    });
+
+    it("is not a security boundary: a query can leave the role with RESET ROLE", async () => {
+      const client = await restricted.connect();
+      try {
+        await client.query("RESET ROLE");
+        const res = await client.query("SELECT body FROM notes");
+        expect(res.rows).toHaveLength(2);
+      } finally {
+        client.release();
+      }
+      const next = await restricted.query("SELECT current_user AS who");
+      expect(next.rows[0].who).toBe("stratum_app");
     });
 
     it("rejects a role name that is not a plain lowercase identifier", async () => {

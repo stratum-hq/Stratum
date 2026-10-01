@@ -140,9 +140,11 @@ await withTenantContext(appPool, acme.id, (client) => client.query("SELECT * FRO
 
 `createRestrictedPool(pool, { role? })` creates the role `stratum_app` (or the name you give) with `NOSUPERUSER NOBYPASSRLS`. It grants the role read and write access to every table and sequence in the `public` schema. Default privileges extend the grants to tables that the superuser creates later. The returned pool runs every query as that role.
 
+The restricted role is a test and demo convenience, not a security boundary: any query can leave it with `RESET ROLE`.
+
 Limits:
 
-- **One connection.** A client from `connect()` holds the only connection until `release()`. Other callers wait in order. If you hold a client and call `pool.query()`, the call waits forever.
+- **One connection.** A client from `connect()` holds the only connection until `release()`. Other callers wait in order. If you hold a client and call `pool.query()`, the call waits forever. `release()` rolls back a transaction the client left open and resets the session settings and the role, so the next client starts clean.
 - **No concurrency.** Queries run one at a time. Do not use this adapter to test race conditions or lock contention.
 - **Superuser by default.** PGlite connects as the superuser `postgres`, and a superuser bypasses row-level security. Use `createRestrictedPool` when a test must prove isolation.
 - **Only part of `pg.Pool`.** The pool supports `query`, `connect`, `end` and `on`. Callbacks, cursors, `totalCount` and the other pool counters do not exist.
