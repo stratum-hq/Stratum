@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { connectDb, connectAdminDb, checkStratumTables, controlRoleFlag, crossTenantRunner } from "../utils/db.js";
 import * as log from "../utils/log.js";
 
+const MIN_HMAC_SECRET_BYTES = 32;
+
 /**
  * The stored hash of an API key, the way @stratum-hq/lib hashes it: HMAC-SHA256
  * (hash version 2) when STRATUM_API_KEY_HMAC_SECRET is set, else unkeyed
@@ -11,6 +13,17 @@ import * as log from "../utils/log.js";
  */
 export function hashApiKey(plaintextKey: string): { keyHash: string; hashVersion: number } {
   const secret = process.env.STRATUM_API_KEY_HMAC_SECRET;
+  // The same minimum @stratum-hq/lib enforces outside development and test
+  // (an unset NODE_ENV counts as development).
+  const nodeEnv = process.env.NODE_ENV || "development";
+  if (
+    secret &&
+    nodeEnv !== "development" &&
+    nodeEnv !== "test" &&
+    Buffer.byteLength(secret, "utf8") < MIN_HMAC_SECRET_BYTES
+  ) {
+    throw new Error(`STRATUM_API_KEY_HMAC_SECRET must be at least ${MIN_HMAC_SECRET_BYTES} bytes in ${nodeEnv}`);
+  }
   if (secret) {
     return { keyHash: crypto.createHmac("sha256", secret).update(plaintextKey).digest("hex"), hashVersion: 2 };
   }
