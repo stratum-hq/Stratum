@@ -1,5 +1,12 @@
 import { STRATUM_TABLES } from "@stratum-hq/lib";
-import { connectDb, scanTables, type TableInfo } from "../utils/db.js";
+import {
+  connectDb,
+  connectAdminDb,
+  controlRoleFlag,
+  crossTenantRunner,
+  scanTables,
+  type TableInfo,
+} from "../utils/db.js";
 import { confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 
@@ -32,22 +39,21 @@ function parseTenantFlag(flags: Record<string, string | boolean>): string | unde
   return value;
 }
 
+/** Whether a tenant id is a row of Stratum's tenants table. */
+type TenantLookup = (tenantId: string) => Promise<boolean>;
+
 /** Throws unless `tenantId` is a row in the tenants table, when that table exists. */
 async function assertTenantExists(
   client: import("pg").PoolClient,
   tenantId: string,
+  tenantExists: TenantLookup,
 ): Promise<void> {
   const hasTenants = await client.query(
     "SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tenants'",
   );
   if (hasTenants.rows.length === 0) return;
 
-  // Stratum's tenants table has FORCE RLS, so the lookup needs the bypass. The
-  // bypass is switched off again so that it does not apply to the rest of the migration.
-  await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
-  const found = await client.query("SELECT 1 FROM tenants WHERE id = $1", [tenantId]);
-  await client.query("SELECT set_config('app.bypass_rls', 'off', true)");
-  if (found.rows.length === 0) {
+  if (!(await tenantExists(tenantId))) {
     throw new Error(`Tenant "${tenantId}" does not exist in the tenants table.`);
   }
 }
@@ -55,8 +61,9 @@ async function assertTenantExists(
 async function migrateTable(
   pool: import("pg").Pool,
   tableName: string,
-  info?: TableInfo,
-  tenantId?: string,
+  info: TableInfo | undefined,
+  tenantId: string | undefined,
+  tenantExists: TenantLookup,
 ): Promise<void> {
   const safe = validateTableName(tableName);
   const client = await pool.connect();
@@ -95,7 +102,7 @@ async function migrateTable(
         // The column starts nullable so that existing rows get a real tenant, not a placeholder.
         await client.query(`ALTER TABLE ${safe} ADD COLUMN tenant_id UUID`);
         if (rowCount > 0) {
-          await assertTenantExists(client, tenantId as string);
+          await assertTenantExists(client, tenantId as string, tenantExists);
           await client.query(`UPDATE ${safe} SET tenant_id = $1 WHERE tenant_id IS NULL`, [
             tenantId,
           ]);
@@ -151,6 +158,19 @@ async function migrateTable(
         [fkName],
       );
       if (hasFk.rows.length === 0) {
+        // The role model of migration 032 grants the application login
+        // SELECT on tenants, not REFERENCES, so a foreign key to it needs a
+        // grant that the operator chooses to give.
+        const canReference = await client.query(
+          "SELECT has_column_privilege('public.tenants', 'id', 'REFERENCES') AS ok",
+        );
+        if (canReference.rows[0]?.ok !== true) {
+          throw new Error(
+            `This login cannot add a foreign key from ${safe}.tenant_id to tenants(id): it has no REFERENCES ` +
+              "privilege on tenants. As an administrator, run: GRANT REFERENCES (id) ON tenants TO <this login>; " +
+              "then run the migration again.",
+          );
+        }
         await client.query(
           `ALTER TABLE ${safe} ADD CONSTRAINT ${fkName}
            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE NOT VALID`,
@@ -187,13 +207,29 @@ export async function migrate(
   flags: Record<string, string | boolean>,
 ): Promise<void> {
   const tenantId = parseTenantFlag(flags);
+  const controlRole = controlRoleFlag(flags);
   const pool = await connectDb(flags);
+  let adminPool: import("pg").Pool | undefined;
+  try {
+    adminPool = await connectAdminDb(flags);
+  } catch (err) {
+    await pool.end();
+    throw err;
+  }
+  // Stratum's tenants table has FORCE RLS, so the lookup runs as the control
+  // role on the admin login, or under the legacy administrative bypass, on a
+  // connection of its own: nothing of it reaches the migration's transaction.
+  const tenantExists: TenantLookup = async (id) => {
+    const run = await crossTenantRunner(pool, adminPool, controlRole);
+    const found = await run((client) => client.query("SELECT 1 FROM tenants WHERE id = $1", [id]));
+    return found.rows.length > 0;
+  };
 
   try {
     if (flags["scan"]) {
       // Scan mode
       log.heading("Database Table Scan");
-      const tables = await scanTables(pool);
+      const tables = await scanTables(pool, controlRole);
 
       if (tables.length === 0) {
         log.info("No user tables found in the public schema.");
@@ -229,7 +265,7 @@ export async function migrate(
     } else if (flags["all"]) {
       // Migrate all unmigrated tables
       log.heading("Migrate All Tables");
-      const tables = await scanTables(pool);
+      const tables = await scanTables(pool, controlRole);
       const unmigrated = tables.filter(
         (t) => !t.has_tenant_id || !t.rls_enabled || !t.rls_forced || !t.has_policy,
       );
@@ -271,7 +307,7 @@ export async function migrate(
       for (const table of migratable) {
         console.log();
         log.heading(`Migrating: ${table.table_name}`);
-        await migrateTable(pool, table.table_name, table, tenantId);
+        await migrateTable(pool, table.table_name, table, tenantId, tenantExists);
       }
 
       console.log();
@@ -288,7 +324,7 @@ export async function migrate(
       }
       log.heading(`Migrate: ${tableName}`);
 
-      const tables = await scanTables(pool);
+      const tables = await scanTables(pool, controlRole);
       const info = tables.find((t) => t.table_name === tableName);
 
       if (info && info.has_tenant_id && info.rls_enabled && info.rls_forced && info.has_policy) {
@@ -309,7 +345,7 @@ export async function migrate(
         return;
       }
 
-      await migrateTable(pool, tableName, info, tenantId);
+      await migrateTable(pool, tableName, info, tenantId, tenantExists);
     } else {
       console.error("Usage: stratum migrate <table> | --scan | --all [--tenant <uuid>]");
       process.exit(1);
@@ -318,5 +354,6 @@ export async function migrate(
     console.log();
   } finally {
     await pool.end();
+    await adminPool?.end();
   }
 }

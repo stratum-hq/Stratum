@@ -1,11 +1,31 @@
 import crypto from "crypto";
-import { connectDb, checkStratumTables, withRlsBypass } from "../utils/db.js";
+import { connectDb, connectAdminDb, checkStratumTables, controlRoleFlag, crossTenantRunner } from "../utils/db.js";
 import * as log from "../utils/log.js";
+
+/**
+ * The stored hash of an API key, the way @stratum-hq/lib hashes it: HMAC-SHA256
+ * (hash version 2) when STRATUM_API_KEY_HMAC_SECRET is set, else unkeyed
+ * SHA-256 (version 1). With the secret set, the library accepts only HMAC
+ * hashes once allowLegacyKeyHashes is off, so a SHA-256 hash would never
+ * authenticate.
+ */
+export function hashApiKey(plaintextKey: string): { keyHash: string; hashVersion: number } {
+  const secret = process.env.STRATUM_API_KEY_HMAC_SECRET;
+  if (secret) {
+    return { keyHash: crypto.createHmac("sha256", secret).update(plaintextKey).digest("hex"), hashVersion: 2 };
+  }
+  return { keyHash: crypto.createHash("sha256").update(plaintextKey).digest("hex"), hashVersion: 1 };
+}
 
 export async function generateApiKey(flags: Record<string, string | boolean>): Promise<void> {
   log.heading("Generate API Key");
 
+  const controlRole = controlRoleFlag(flags);
   const pool = await connectDb(flags);
+  const adminPool = await connectAdminDb(flags).catch(async (err) => {
+    await pool.end();
+    throw err;
+  });
 
   try {
     const hasSchema = await checkStratumTables(pool);
@@ -23,17 +43,18 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     // Generate key
     const rawBytes = crypto.randomBytes(32);
     const plaintextKey = prefix + rawBytes.toString("base64url");
-    const keyHash = crypto.createHash("sha256").update(plaintextKey).digest("hex");
+    const { keyHash, hashVersion } = hashApiKey(plaintextKey);
     const keyPrefix = plaintextKey.slice(0, 12);
 
-    // Insert into database. api_keys has FORCE RLS, so the insert runs under
-    // the administrative bypass, as the control plane's key creation does.
-    const result = await withRlsBypass(pool, (client) =>
+    // api_keys has FORCE RLS, so the insert runs as the control role on the
+    // admin login, or under the legacy administrative bypass.
+    const run = await crossTenantRunner(pool, adminPool, controlRole);
+    const result = await run((client) =>
       client.query(
-        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, hash_version)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, created_at`,
-        [tenantId, keyHash, keyPrefix, name],
+        [tenantId, keyHash, keyPrefix, name, hashVersion],
       ),
     );
 
@@ -45,6 +66,7 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     log.info(`Name:    ${name || "(unnamed)"}`);
     log.info(`Tenant:  ${tenantId || "(global)"}`);
     log.info(`Created: ${created_at}`);
+    log.info(`Hash:    ${hashVersion === 2 ? "HMAC-SHA256" : "SHA-256 (set STRATUM_API_KEY_HMAC_SECRET for HMAC)"}`);
     console.log();
     console.log(`  \x1b[1m\x1b[33mKey: ${plaintextKey}\x1b[0m`);
     console.log();
@@ -52,5 +74,6 @@ export async function generateApiKey(flags: Record<string, string | boolean>): P
     console.log();
   } finally {
     await pool.end();
+    await adminPool?.end();
   }
 }

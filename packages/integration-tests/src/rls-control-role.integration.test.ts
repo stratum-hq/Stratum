@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { bootstrapRolesSql, migrate, noopLogger, Stratum } from "@stratum-hq/lib";
 import {
@@ -27,7 +30,13 @@ import {
  *   1. a superuser migrates, and 032 applies the control role itself;
  *   2. an upgrade: a database owner without CREATEROLE migrates, 032 skips
  *      the control role with a warning, and a superuser then runs the
- *      bootstrap SQL (bootstrapRolesSql), which applies it.
+ *      bootstrap SQL (bootstrapRolesSql), which applies it;
+ *   3. a legacy install that the application role itself migrated and owns
+ *      (with the old schema grants), hardened only through the CLI: a
+ *      superuser runs `stratum db roles --apply` with a separate admin login,
+ *      and the admin login runs `stratum db lock`. The CLI moves the Stratum
+ *      objects to the admin login and gives the application role the
+ *      recommended grants; this setup adds none by hand.
  * - The legacy app.bypass_rls switch in stratum_security is off.
  * - APP_ROLE has the recommended grants: SELECT on the read-list tables only.
  * - WIDE_ROLE has the write grants older setups gave the application role
@@ -41,7 +50,22 @@ import {
 const MODES = [
   { key: "su", title: "migrated by a superuser" },
   { key: "upgrade", title: "upgraded by a role without CREATEROLE, then bootstrapped" },
+  { key: "cli", title: "owned by the application role, then hardened with stratum db roles and db lock" },
 ] as const;
+
+const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../cli/dist/index.js");
+
+/** Runs the built `stratum` CLI and throws when it exits non-zero. */
+function runCli(args: string[]): string {
+  const res = spawnSync(process.execPath, [CLI, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, NODE_ENV: "test", DATABASE_ADMIN_URL: "" },
+    timeout: 60000,
+  });
+  const out = `${res.stdout}${res.stderr}`;
+  if (res.status !== 0) throw new Error(`stratum ${args.slice(0, 2).join(" ")} exited ${res.status}:\n${out}`);
+  return out;
+}
 
 for (const mode of MODES) {
 describe(mode.title, () => {
@@ -54,6 +78,7 @@ describe(mode.title, () => {
   let su: pg.Client;
   let suPool: pg.Pool;
   let ownerPool: pg.Pool | undefined;
+  let legacyAppPool: pg.Pool | undefined;
   let appPool: pg.Pool;
   let widePool: pg.Pool;
   let control: string;
@@ -118,6 +143,15 @@ describe(mode.title, () => {
       await suPool.query(bootstrapRolesSql({ adminRole: OWNER_ROLE, controlRole: control }));
       // Seeded through the library on the owner, now a member of the control role.
       stratum = new Stratum({ adminPool: ownerPool, pool: ownerPool, logger: noopLogger });
+    } else if (mode.key === "cli") {
+      // The grants older setups gave the application login (docker/init-db.sql before 1.8).
+      await suPool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+      await suPool.query(`CREATE EXTENSION IF NOT EXISTS ltree`);
+      await suPool.query(`GRANT ALL ON SCHEMA public TO "${APP_ROLE}"`);
+      legacyAppPool = new pg.Pool({ connectionString: urlFor({ user: APP_ROLE, password: PASSWORD, database: DB }), max: 2 });
+      await migrate({ pool: legacyAppPool });
+      // Seeded by the application role through the legacy path, as the library did before 1.8.
+      stratum = new Stratum({ pool: legacyAppPool, logger: noopLogger });
     } else {
       await migrate({ pool: suPool });
       // Seeded by the superuser through the library.
@@ -145,10 +179,22 @@ describe(mode.title, () => {
     }
     await stratum.createRegion({ display_name: "Attack region", slug: "atk_region" });
 
-    await suPool.query(`GRANT USAGE ON SCHEMA public TO "${APP_ROLE}", "${WIDE_ROLE}"`);
-    await suPool.query(`GRANT SELECT ON ${APP_READ_TABLES.join(", ")} TO "${APP_ROLE}"`);
-    await suPool.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO "${WIDE_ROLE}"`);
-    await setLegacySwitch(false);
+    if (mode.key === "cli") {
+      await legacyAppPool?.end();
+      legacyAppPool = undefined;
+      runCli([
+        "db", "roles", "--apply", "--database-url", urlFor({ database: DB }),
+        "--admin-role", OWNER_ROLE, "--app-role", APP_ROLE,
+      ]);
+      runCli(["db", "lock", "--admin-database-url", urlFor({ user: OWNER_ROLE, password: PASSWORD, database: DB })]);
+      await suPool.query(`GRANT USAGE ON SCHEMA public TO "${WIDE_ROLE}"`);
+      await suPool.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO "${WIDE_ROLE}"`);
+    } else {
+      await suPool.query(`GRANT USAGE ON SCHEMA public TO "${APP_ROLE}", "${WIDE_ROLE}"`);
+      await suPool.query(`GRANT SELECT ON ${APP_READ_TABLES.join(", ")} TO "${APP_ROLE}"`);
+      await suPool.query(`GRANT ALL ON ALL TABLES IN SCHEMA public TO "${WIDE_ROLE}"`);
+      await setLegacySwitch(false);
+    }
 
     appPool = new pg.Pool({ connectionString: urlFor({ user: APP_ROLE, password: PASSWORD, database: DB }), max: 2 });
     widePool = new pg.Pool({ connectionString: urlFor({ user: WIDE_ROLE, password: PASSWORD, database: DB }), max: 2 });
@@ -158,6 +204,7 @@ describe(mode.title, () => {
     await appPool?.end();
     await widePool?.end();
     await ownerPool?.end();
+    await legacyAppPool?.end();
     await suPool?.end();
     await su.query(`DROP DATABASE IF EXISTS "${DB}"`);
     for (const role of [APP_ROLE, WIDE_ROLE, OWNER_ROLE]) await dropTestRole(su, role);

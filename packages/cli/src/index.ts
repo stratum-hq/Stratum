@@ -12,6 +12,7 @@ import { scaffold } from "./commands/scaffold.js";
 import { doctor } from "./commands/doctor.js";
 import { scan } from "./commands/scan.js";
 import { playground } from "./commands/playground.js";
+import { db } from "./commands/db.js";
 
 function getVersion(): string {
   // package.json sits one level up from the compiled dist/index.js at runtime.
@@ -67,6 +68,9 @@ async function main(): Promise<void> {
         break;
       case "playground":
         await playground(flags);
+        break;
+      case "db":
+        await db(args, flags);
         break;
       case "help":
       case "--help":

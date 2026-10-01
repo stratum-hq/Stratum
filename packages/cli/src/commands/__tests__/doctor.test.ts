@@ -2,11 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vite
 import { doctor } from "../doctor.js";
 import { connectDb } from "../../utils/db.js";
 
-// The fake pool answers the data checks directly, so the RLS bypass only
-// passes the pool through.
+// The fake pool answers the data checks directly, so the cross-tenant runner
+// only passes the pool through.
 vi.mock("../../utils/db.js", () => ({
   connectDb: vi.fn(),
-  withRlsBypass: vi.fn((pool: unknown, fn: (client: unknown) => unknown) => fn(pool)),
+  connectAdminDb: vi.fn(() => Promise.resolve(undefined)),
+  controlRoleFlag: vi.fn(() => undefined),
+  crossTenantRunner: vi.fn((pool: unknown) =>
+    Promise.resolve((fn: (client: unknown) => unknown) => fn(pool)),
+  ),
 }));
 
 class ExitError extends Error {

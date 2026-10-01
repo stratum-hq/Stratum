@@ -5,6 +5,9 @@ import { confirm } from "../../utils/prompt.js";
 
 vi.mock("../../utils/db.js", () => ({
   connectDb: vi.fn(),
+  connectAdminDb: vi.fn(() => Promise.resolve(undefined)),
+  controlRoleFlag: vi.fn(() => undefined),
+  crossTenantRunner: vi.fn(),
   scanTables: vi.fn(),
 }));
 vi.mock("../../utils/prompt.js", () => ({
@@ -27,14 +30,17 @@ class ExitError extends Error {
  * in migrateTable fires.
  */
 function makeFakePool(
-  opts: { tableExists?: boolean; tenantsExists?: boolean; rowCount?: number } = {},
+  opts: { tableExists?: boolean; tenantsExists?: boolean; rowCount?: number; canReference?: boolean } = {},
 ) {
-  const { tableExists = true, tenantsExists = false, rowCount = 0 } = opts;
+  const { tableExists = true, tenantsExists = false, rowCount = 0, canReference = true } = opts;
   const queries: string[] = [];
 
   const client = {
     query: vi.fn((sql: string, params?: unknown[]) => {
       queries.push(sql.trim());
+      if (sql.includes("has_column_privilege")) {
+        return Promise.resolve({ rows: [{ ok: canReference }] });
+      }
       if (sql.includes("count(*)")) {
         return Promise.resolve({ rows: [{ n: rowCount }] });
       }
@@ -110,6 +116,17 @@ describe("migrate", () => {
     await migrate(["orders"], {});
 
     expect(queries.join("\n")).toMatch(/ADD CONSTRAINT fk_orders_tenant_id/);
+  });
+
+  it("refuses, rolls back and names the grant when the login has no REFERENCES on tenants", async () => {
+    const { pool, queries } = makeFakePool({ tenantsExists: true, canReference: false });
+    (connectDb as Mock).mockResolvedValue(pool);
+    (scanTables as Mock).mockResolvedValue([]);
+    (confirm as Mock).mockResolvedValue(true);
+
+    await expect(migrate(["orders"], {})).rejects.toThrow(/GRANT REFERENCES \(id\) ON tenants/);
+    expect(queries.join("\n")).not.toMatch(/ADD CONSTRAINT fk_orders_tenant_id/);
+    expect(queries[queries.length - 1]).toBe("ROLLBACK");
   });
 
   it("adds tenant_id without a default, then adds the foreign key NOT VALID and validates it", async () => {
