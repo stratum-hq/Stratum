@@ -117,6 +117,18 @@ describe("tablePolicyIssues", () => {
         /"s" \(SELECT\) USING/,
       ],
       [
+        "a subtree read through a function whose name only ends like the subtree function",
+        [
+          policy({}),
+          policy({
+            policyname: "s",
+            cmd: "SELECT",
+            qual: SUBTREE_READ.replace("SELECT stratum_", "SELECT public_stratum_"),
+          }),
+        ],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
         "a subtree read ORed with the scope check",
         [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: `(${SCOPE_SUBTREE} OR ${SUBTREE_IDS})` })],
         /"s" \(SELECT\) USING/,

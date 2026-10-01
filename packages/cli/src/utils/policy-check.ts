@@ -151,7 +151,7 @@ const SCOPE_MATCH = new RegExp(
  * when that schema is not on the search path of the reading session.
  */
 const SUBTREE_MATCH = new RegExp(
-  `^tenant_id=anyselect(?:[a-z_][a-z0-9_]*\.)?${SUBTREE_FUNCTION}(?:as[a-z_][a-z0-9_]*)?$`,
+  `^tenant_id=anyselect(?:[a-z_][a-z0-9_]*\\.)?${SUBTREE_FUNCTION}(?:as${SUBTREE_FUNCTION})?$`,
 );
 
 /** True when the expression only admits rows of the current tenant. */

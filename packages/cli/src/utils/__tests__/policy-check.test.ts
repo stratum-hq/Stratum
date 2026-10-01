@@ -54,11 +54,11 @@ describe("evaluatePolicies", () => {
         ],
       ],
       [
-        "the read-only subtree policy of migration 031 next to tenant_isolation",
+        "with the read-only subtree policy of migration 031 next to tenant_isolation",
         [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: SUBTREE_READ })],
       ],
       [
-        "the subtree policy with a schema-qualified function",
+        "with the subtree policy, using a schema-qualified function",
         [
           policy({}),
           policy({
@@ -69,7 +69,7 @@ describe("evaluatePolicies", () => {
         ],
       ],
       [
-        "the subtree policy with the conditions reversed",
+        "with the subtree policy, using the conditions reversed",
         [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: `(${SUBTREE_IDS} AND ${SCOPE_SUBTREE})` })],
       ],
       [
@@ -139,27 +139,39 @@ describe("evaluatePolicies", () => {
         /USING/,
       ],
       [
-        "a subtree read without the scope check, which widens every session",
+        "with a subtree read without the scope check, which widens every session",
         [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: SUBTREE_IDS })],
         /"s" \(SELECT\) USING/,
       ],
       [
-        "a subtree read whose scope check names another value",
+        "with a subtree read whose scope check names another value",
         [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: SUBTREE_READ.replace("'subtree'", "'all'") })],
         /"s" \(SELECT\) USING/,
       ],
       [
-        "a subtree read ORed with the scope check",
+        "with a subtree read through a function whose name only ends like the subtree function",
+        [
+          policy({}),
+          policy({
+            policyname: "s",
+            cmd: "SELECT",
+            qual: SUBTREE_READ.replace("SELECT stratum_", "SELECT public_stratum_"),
+          }),
+        ],
+        /"s" \(SELECT\) USING/,
+      ],
+      [
+        "with a subtree read ORed with the scope check",
         [policy({}), policy({ policyname: "s", cmd: "SELECT", qual: `(${SCOPE_SUBTREE} OR ${SUBTREE_IDS})` })],
         /"s" \(SELECT\) USING/,
       ],
       [
-        "a subtree predicate in a policy for ALL commands, which lets DELETE reach descendants",
+        "with a subtree predicate in a policy for ALL commands, which lets DELETE reach descendants",
         [policy({}), policy({ policyname: "s", cmd: "ALL", qual: SUBTREE_READ })],
         /"s" \(ALL\) USING/,
       ],
       [
-        "a subtree predicate in an INSERT WITH CHECK",
+        "with a subtree predicate in an INSERT WITH CHECK",
         [policy({}), policy({ policyname: "s", cmd: "INSERT", qual: null, with_check: SUBTREE_READ })],
         /"s" \(INSERT\) WITH CHECK/,
       ],
