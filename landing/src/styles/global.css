@@ -132,8 +132,14 @@ a {
   .nav-links::-webkit-scrollbar {
     display: none;
   }
+  /* Pin the toggle to the right edge of the scrolling row, so it stays
+     on screen while the links scroll beneath it. */
   .nav-links .theme-toggle {
     flex-shrink: 0;
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    box-shadow: calc(-1 * var(--space-4)) 0 var(--space-3) var(--surface-0);
   }
 }
 
