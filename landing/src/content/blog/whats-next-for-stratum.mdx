@@ -1,0 +1,95 @@
+---
+title: What's Next for Stratum
+accent: Stratum
+seoTitle: "What's Next for Stratum: Listening, Hardening, Shipping"
+description: "Stratum v0.2.3 is out. Here's where we're headed: community feedback, security hardening, and a developer-first roadmap."
+intro: We shipped the foundation. Now we're listening.
+pubDate: 2026-03-27
+---
+
+## v0.2.3 is out. Now what?
+
+Stratum v0.2.3 landed with tree-structured tenants, config inheritance, three isolation
+strategies, GDPR tooling, a hierarchical ABAC policy engine, and a NestJS integration
+package. That's a lot of surface area for a young library. We're proud of what's there,
+but we're also clear-eyed about what comes next.
+
+The honest answer: we're waiting. Not passively, but deliberately. The most important
+thing we can do right now is hear from developers who actually try Stratum in their
+own codebases, with their own schemas, against their own edge cases.
+
+## We need your issues and feature requests
+
+If you're evaluating Stratum for a project, we want to know what you run into. Does
+the config inheritance model fit your use case? Is the tenant tree depth sufficient?
+Did schema isolation behave the way you expected? What's missing from the API that
+would make adoption easier?
+
+These aren't rhetorical questions. We built Stratum based on patterns we've seen
+across dozens of B2B SaaS codebases, but no library survives first contact with the
+real world unchanged. The gap between what we designed and what you need is where the
+best improvements will come from.
+
+Open an issue on [GitHub](https://github.com/stratum-hq/Stratum/issues).
+Tell us what broke. Tell us what's awkward. Tell us what you wished existed. Every
+issue filed makes Stratum better for the next team that picks it up.
+
+## Security-first, not security-later
+
+Multi-tenancy libraries sit at the foundation of your data layer. A bug in tenant
+isolation isn't a UI glitch. It's a data breach. We take that responsibility seriously.
+
+Stratum's Row-Level Security policies are generated, not hand-written. Schema isolation
+creates real PostgreSQL schemas with enforced boundaries. The ABAC policy engine
+evaluates attribute-based rules at the library level before queries reach the database.
+These aren't shortcuts. They're deliberate design choices that put correctness ahead of
+convenience.
+
+Going forward, security hardening is the top priority. We're investing in:
+
+- Comprehensive test coverage for isolation boundary edge cases
+- Fuzz testing tenant resolution and config inheritance paths
+- Third-party security review before we call anything 1.0
+- Clear documentation of the threat model and what Stratum does (and does not) protect against
+
+If you find a security issue, please report it responsibly. We'll treat every report
+with urgency.
+
+## Developer experience is the product
+
+A library that's correct but painful to use doesn't get adopted. We're committed to
+making Stratum something you actually enjoy wiring into your stack.
+
+That means better TypeScript types so your editor catches mistakes before your tests do.
+It means clear, honest error messages that point you toward the fix, not just the failure.
+It means documentation that respects your time: quick starts that actually work in under
+five minutes, API references that don't hide the important parts behind three clicks.
+
+We're also working on framework adapters. The NestJS package shipped in v0.2.3. Express
+and Fastify adapters are in progress. The goal is the same everywhere: wire in your pool,
+call `initialize()`, and get back to building your product.
+
+## What we're not doing
+
+We're not rushing to 1.0 to put a number on the README. We're not adding features
+nobody asked for. We're not building a SaaS dashboard or a hosted offering before the
+core library is rock-solid.
+
+The roadmap is simple: listen to developers, harden what exists, and ship what's
+actually needed. No vanity features. No premature abstractions. Just a multi-tenancy
+library that works and keeps working.
+
+## Get involved
+
+Stratum is MIT licensed and built in the open. The best way to shape its future is to
+use it and tell us what happens.
+
+- [Open an issue](https://github.com/stratum-hq/Stratum/issues)
+  with bugs, feature requests, or questions
+- [Start a discussion](https://github.com/stratum-hq/Stratum/discussions)
+  if you want to talk through a use case before filing
+- Star the [repo](https://github.com/stratum-hq/Stratum)
+  so we know you're watching
+
+We built Stratum because the Node.js ecosystem needed it. Where it goes from here
+depends on the developers who use it.
