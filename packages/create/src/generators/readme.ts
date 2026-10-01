@@ -106,7 +106,11 @@ ${preset.database === "postgres" ? "\nOn PostgreSQL drizzle-kit connects with `D
   }
   if (preset.database === "postgres") {
     return `
-\`init.sql\` creates an example tenant-scoped table, \`notes\`, with its row-level security policy. Create every tenant-scoped table the same way, as the superuser in \`DATABASE_SUPERUSER_URL\`: a table without a policy is not filtered by tenant.
+\`init.sql\` creates an example tenant-scoped table, \`notes\`, with its row-level security policy. Create every tenant-scoped table the same way, as the superuser in \`DATABASE_SUPERUSER_URL\`: a table without a policy is not filtered by tenant.${
+  preset.orm === "knex"
+    ? " Knex migrations (`npx knex migrate:latest`) read the default export of `knexfile.ts`, which connects as that superuser; the app uses `appConfig`, the app role in `DATABASE_URL`."
+    : ""
+}
 `;
   }
   return "";

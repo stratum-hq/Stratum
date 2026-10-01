@@ -194,6 +194,34 @@ describe("PostgreSQL presets that provision as the superuser", () => {
   );
 });
 
+describe("PostgreSQL rls Sequelize and Knex presets", () => {
+  it.each(rls.filter((p) => p.orm === "sequelize").map(formatPresetString))(
+    "%s maps its example model to its own table, not to Stratum's tenants table",
+    (name) => {
+      const preset = rls.find((p) => formatPresetString(p) === name)!;
+      const files = generatedFiles(preset);
+      const helper = files.get("src/stratum-sequelize.ts")!;
+      expect(helper).not.toContain('tableName: "tenants"');
+      expect(helper).toContain('tableName: "notes"');
+      expect(files.get("init.sql")).toContain("CREATE TABLE notes (");
+    },
+  );
+
+  it.each(rls.filter((p) => p.orm === "knex").map(formatPresetString))(
+    "%s runs migrations as the superuser and queries as the app role",
+    (name) => {
+      const preset = rls.find((p) => formatPresetString(p) === name)!;
+      const files = generatedFiles(preset);
+      const knexfile = files.get("knexfile.ts")!;
+      const defaultConfig = knexfile.slice(knexfile.indexOf("const config"), knexfile.indexOf("export default config"));
+      expect(defaultConfig).toContain("connection: process.env.DATABASE_SUPERUSER_URL,");
+      expect(defaultConfig).not.toContain("process.env.DATABASE_URL");
+      expect(knexfile).toMatch(/export const appConfig: Knex\.Config = \{[^}]*connection: process\.env\.DATABASE_URL,/);
+      expect(files.get("src/stratum-knex.ts")).toContain("createKnex(appConfig)");
+    },
+  );
+});
+
 describe("PostgreSQL rls Prisma presets", () => {
   const prismaRls = rls.filter((p) => p.orm === "prisma");
 

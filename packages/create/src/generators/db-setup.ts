@@ -681,18 +681,21 @@ const sequelize = new Sequelize(process.env.DATABASE_URL!, {
   logging: false,
 });
 
-// Define a tenant-scoped model example
-class Tenant extends Model {}
-Tenant.init(
+// An example tenant-scoped model: the notes table that init.sql creates with
+// its row-level security policy. Stratum's own tables, such as tenants, are
+// created by Stratum, not here.
+class Note extends Model {}
+Note.init(
   {
     id: { type: DataTypes.UUID, primaryKey: true, defaultValue: DataTypes.UUIDV4 },
-    name: { type: DataTypes.STRING, allowNull: false },
+    tenantId: { type: DataTypes.UUID, allowNull: false },
+    body: { type: DataTypes.TEXT, allowNull: false },
   },
-  { sequelize, tableName: "tenants", underscored: true },
+  { sequelize, tableName: "notes", underscored: true, updatedAt: false },
 );
 
 ${SEQUELIZE_POSTGRES_SCOPE}
-export { sequelize, Tenant };
+export { sequelize, Note };
 `,
     },
   ];
@@ -731,9 +734,12 @@ function generateKnexSetup(preset: StackPreset): DbSetupFile[] {
       content: `// Knex configuration for Stratum
 import type { Knex } from "knex";
 
+// The knex CLI (npx knex migrate:latest) reads the default export. Migrations
+// create tables, so they run as the superuser in DATABASE_SUPERUSER_URL: the
+// app role cannot create tables, and must not own them.
 const config: Knex.Config = {
   client: "${client}",
-  connection: process.env.DATABASE_URL,
+  connection: process.env.DATABASE_SUPERUSER_URL,
   migrations: {
     directory: "./migrations",
     extension: "ts",
@@ -741,6 +747,12 @@ const config: Knex.Config = {
 };
 
 export default config;
+
+// The app connects as the app role in DATABASE_URL (src/stratum-knex.ts).
+export const appConfig: Knex.Config = {
+  client: "${client}",
+  connection: process.env.DATABASE_URL,
+};
 `,
     },
     {
@@ -755,9 +767,9 @@ export default config;
 // the transaction, so a pooled connection never keeps another tenant's ID.
 const KNEX_POSTGRES_SCOPE = `// Knex with Stratum tenant-scoped queries
 import createKnex, { type Knex } from "knex";
-import config from "../knexfile.js";
+import { appConfig } from "../knexfile.js";
 
-const knex = createKnex(config);
+const knex = createKnex(appConfig);
 
 // Run fn in a transaction that sets app.current_tenant_id, the setting that
 // the RLS policies read. The setting ends with the transaction, so run every
