@@ -143,14 +143,19 @@ describe("generated postgres projects connect the app as a role that RLS applies
 
   it("postgres-schema preset keeps the app's schemas off the search path of the Stratum login and the superuser", () => {
     const files = genPreset({ database: "postgres", strategy: "schema", orm: "pg", framework: "express" });
-    const stratumUser = pgUser(envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL"));
+    const stratumUrl = envValue(files[".env.example"], "STRATUM_ADMIN_DATABASE_URL");
+    const stratumUser = pgUser(stratumUrl);
+    const db = new URL(stratumUrl).pathname.slice(1);
     const sql = files["init.sql"];
     const grant = sql.indexOf("GRANT CREATE ON DATABASE");
     expect(grant).toBeGreaterThan(-1);
-    expect(sql.indexOf(`ALTER ROLE ${stratumUser} SET search_path = public;`)).toBeGreaterThan(-1);
-    expect(sql.indexOf(`ALTER ROLE ${stratumUser} SET search_path = public;`)).toBeLessThan(grant);
-    expect(sql.indexOf("ALTER ROLE CURRENT_USER SET search_path = public;")).toBeLessThan(grant);
-    expect(sql.indexOf("ALTER ROLE CURRENT_USER SET search_path = public;")).toBeGreaterThan(-1);
+    // Set in this database only, not for the whole cluster.
+    for (const role of [stratumUser, "CURRENT_USER"]) {
+      const at = sql.indexOf(`ALTER ROLE ${role} IN DATABASE ${db} SET search_path = public;`);
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(grant);
+    }
+    expect(sql).not.toMatch(/ALTER ROLE \S+ SET search_path/);
   });
 
   it("names the superuser URL DATABASE_SUPERUSER_URL, not the admin login's DATABASE_ADMIN_URL", () => {

@@ -38,8 +38,8 @@ export function postgresAppRoleSql(dbName: string, strategy?: string): string {
 -- like a login comes first on that login's default search path ("$user",
 -- public), so a schema the app creates could come before public for the
 -- Stratum login or the bootstrap superuser. Both search only public.
-ALTER ROLE ${stratum} SET search_path = public;
-ALTER ROLE CURRENT_USER SET search_path = public;
+ALTER ROLE ${stratum} IN DATABASE ${dbName} SET search_path = public;
+ALTER ROLE CURRENT_USER IN DATABASE ${dbName} SET search_path = public;
 GRANT CREATE ON DATABASE ${dbName} TO ${role};
 `;
   } else if (strategy === "database") {
