@@ -1,5 +1,5 @@
 import pg from "pg";
-import { tablePolicyIssues, type PolicyRow } from "./policy-check.js";
+import { tablePolicyIssues, tablePolicyWarnings, type PolicyRow } from "./policy-check.js";
 
 const TENANT_FILTER = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
 
@@ -19,6 +19,12 @@ export interface CreatePolicyOptions {
    * migration 031 of @stratum-hq/lib. Default false.
    */
   subtreeRead?: boolean;
+  /**
+   * The control role of migration 032 (default `stratum_control`). An
+   * existing stratum_control_plane policy is accepted only when it applies to
+   * exactly this role.
+   */
+  controlRole?: string;
 }
 
 /**
@@ -70,13 +76,20 @@ export async function createPolicy(
       WHERE c.oid = to_regclass($1)`,
     [safe],
   );
-  const issues = tablePolicyIssues(existing.rows, existing.rows[0]?.tenants_schema ?? undefined);
+  const issues = tablePolicyIssues(
+    existing.rows,
+    existing.rows[0]?.tenants_schema ?? undefined,
+    options.controlRole,
+  );
   if (issues.length > 0) {
     throw new Error(
       `[stratum] Table ${safe} has row-level security policies that do not isolate it by tenant: ` +
         `${issues.join("; ")} (expected ${TENANT_FILTER}). ` +
         `Drop or correct those policies, then call createPolicy again.`,
     );
+  }
+  for (const warning of tablePolicyWarnings(existing.rows)) {
+    process.emitWarning(`[stratum] Table ${safe}: ${warning}`, { code: "STRATUM_GUC_BYPASS_POLICY" });
   }
   if (!existing.rows.some((p) => p.policyname === "tenant_isolation")) {
     // Cannot use parameterized queries inside DO blocks or for DDL identifiers.
