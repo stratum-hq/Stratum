@@ -133,9 +133,9 @@ const jsonLd = {
   }
 
   .post-header h1 {
-    font-size: clamp(1.75rem, 4vw, 2.5rem);
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: clamp(2.25rem, 5vw, 3rem);
+    font-weight: 900;
+    line-height: 0.95;
     color: var(--text-primary);
     margin-bottom: var(--space-4);
   }
@@ -159,11 +159,12 @@ const jsonLd = {
   /* The post body is rendered by the MDX file, not by this template, so its
      selectors are :global() under .post-body to reach that markup. */
   .post-body :global(h2) {
-    font-size: 1.375rem;
-    font-weight: 600;
+    font-size: 1.75rem;
+    font-weight: 900;
     color: var(--text-primary);
     margin-top: var(--space-8);
     margin-bottom: var(--space-4);
+    line-height: 0.95;
   }
 
   .post-body :global(p) {
@@ -185,10 +186,9 @@ const jsonLd = {
   .post-body :global(:not(pre) > code) {
     font-family: var(--font-mono);
     font-size: 0.875em;
-    color: var(--sandstone);
+    color: var(--code-text);
     background: var(--code-bg);
     padding: 2px 6px;
-    border-radius: 3px;
   }
 
   .post-body :global(a) {
@@ -205,9 +205,8 @@ const jsonLd = {
   .post-body :global(blockquote) {
     margin: 0 0 var(--space-6) 0;
     padding: var(--space-4) var(--space-4) var(--space-1);
-    border-left: 3px solid var(--sandstone);
+    border-left: 4px solid var(--clay);
     background: var(--surface-1);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
   }
 
   /* Lists */
@@ -234,7 +233,6 @@ const jsonLd = {
     width: 5px;
     height: 5px;
     background: var(--sandstone);
-    border-radius: 50%;
   }
 
   /* Tables */
@@ -258,7 +256,7 @@ const jsonLd = {
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--text-tertiary);
+    color: var(--syntax-comment);
     background: var(--code-bg);
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
@@ -276,7 +274,7 @@ const jsonLd = {
   }
 
   .post-body :global(tbody tr:hover td) {
-    background: var(--code-bg);
+    background: var(--surface-2);
   }
 
   /* CTA */
@@ -295,7 +293,6 @@ const jsonLd = {
     padding: var(--space-3) var(--space-6);
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
     font-family: var(--font-mono);
     font-size: 0.875rem;
     color: var(--code-text);
@@ -308,8 +305,9 @@ const jsonLd = {
   }
 
   @media (max-width: 640px) {
+    /* The top padding clears the fixed nav, which is 69px tall on phones. */
     .post {
-      padding: var(--space-8) var(--space-4);
+      padding: calc(var(--space-8) * 3) var(--space-4) var(--space-8);
     }
 
     .post-body :global(th),

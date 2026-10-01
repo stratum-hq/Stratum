@@ -34,7 +34,7 @@ export function Skeleton({
     circle: {
       width: width || "40px",
       height: height || "40px",
-      borderRadius: "var(--radius-full, 9999px)",
+      borderRadius: "50%",
     },
   }[variant];
 

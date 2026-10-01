@@ -1,98 +1,114 @@
 /* ==========================================================================
    Stratum design tokens: THE single source of truth.
 
-   Consumed by both surfaces:
+   Consumed by both sites:
      landing/src/styles/global.css   (Astro marketing site)
      website/src/styles/custom.css   (Starlight docs)
+   @stratum-hq/react carries a copy of the values in
+   packages/react-ui/src/styles/default.css; keep the two in step.
 
    Documented in DESIGN.md at the repo root. Do not hardcode a hex value in
-   either stylesheet. Add or change a value here so the two surfaces resolve
-   the same palette and cannot drift.
+   either stylesheet. Add or change a value here so the surfaces resolve the
+   same palette and cannot drift.
 
-   Palette: Strata (earth-toned, dark first, one live mineral accent).
-   Type: Libre Franklin (display) / IBM Plex Sans (body) / IBM Plex Mono (structural).
+   Palette: Bedrock (dark, default) / Daylight (light, [data-theme="light"]).
+   Type:    Big Shoulders Display (display) / Instrument Sans (body) / Martian Mono (structural).
 
-   Fonts are NOT loaded here. A CSS @import is render-blocking, so each surface
-   loads the Libre Franklin / IBM Plex Sans / IBM Plex Mono families non-blocking
-   from its own document head (preload + swap). This file only names the
-   families in --font-display / --font-body / --font-mono below.
+   Every token name the surfaces already consumed is kept; names added for the
+   Bedrock identity are marked NEW. Fonts are NOT loaded here: a CSS @import is
+   render-blocking, so each surface loads the families non-blocking from its
+   own document head (preload + swap).
    ========================================================================== */
 
-/* --------------------------------------------------------------------------
-   Dark theme (default). Strata.
-   -------------------------------------------------------------------------- */
 :root {
-  /* Strata primitives */
-  --peat: #12100C;      /* page canvas: warm near-black, undisturbed ground */
-  --loam: #1C1813;      /* raised surface: cards, code wells, readout panels */
-  --seam: #332B21;      /* the boundary line between two strata */
-  --marl: #EFE7D9;      /* primary text: warm chalk / limestone */
-  --silt: #A79880;      /* secondary text, captions, inactive markers */
-  --ember: #C9793F;     /* the one accent: copper patina, the live value only */
-  --ember-strong: #D89060;
-  --ochre: #D9A03F;     /* functional: "sealed / cannot override" only */
-  --oxide: #C4573A;     /* functional: failure */
+  /* ---- Strata primitives (existing names, new values) ---- */
+  --peat: #120D0B;      /* page canvas: ground */
+  --loam: #1C1511;      /* raised surface */
+  --seam: #3A2F26;      /* hairline boundary. Decorative only; controls use --rule */
+  --marl: #F4EAD8;      /* primary text */
+  --silt: #C2B19A;      /* secondary text */
+  --ember: #FF5B1F;     /* NOTE: this is now MAGMA, the one hot colour. Name kept for compatibility */
+  --ember-strong: #FF6A33;
+  --ochre: #FFB21E;     /* amber: DELEGATED / warning */
+  --amber-fill: #FFB21E; /* NEW: amber as a FILL (tag backgrounds); ink on it: --on-ember */
+  --oxide: #FF6A33;     /* error text on dark; always paired with the word "Error" */
 
-  /* Surfaces */
+  /* ---- NEW: rock strata, shallow to deep. Same in both themes. ---- */
+  --topsoil: #8F5F36;   /* depth 0, root tenant. Text on it: --on-strata-dark */
+  --clay: #D2683C;      /* depth 1. Text: --on-strata-light */
+  --sandstone-band: #E0B266; /* depth 2. Text: --on-strata-light */
+  --limestone: #D6CDB8; /* depth 3. Text: --on-strata-light */
+  --basalt: #4A4A52;    /* depth 4+, database isolation. Text: --on-strata-dark */
+  --on-strata-dark: #F4EAD8;
+  --on-strata-light: #120D0B;
+
+  /* ---- NEW: hot and cool pairs ---- */
+  --magma: #FF5B1F;
+  --magma-deep: #A63A10;     /* decorative lip under magma buttons; never carries text */
+  --vein: #35C2A8;           /* INHERITED / resolved value / success */
+  --vein-deep: #1F7F6D;
+  --on-vein: #0D1A17;
+  --on-ember: #120D0B;       /* ink on amber fills */
+  --rule: #8C7660;           /* control borders, 3:1 on all grounds */
+  --focus: #35C2A8;          /* solid 3px focus ring */
+
+  /* ---- Surfaces ---- */
   --surface-0: var(--peat);
   --surface-1: var(--loam);
-  --surface-2: #241F19;
-  --surface-3: #2E271F;
+  --surface-2: #281E18;
+  --surface-3: #332820;
 
-  /* Text */
+  /* ---- Text ---- */
   --text-primary: var(--marl);
   --text-secondary: var(--silt);
-  --text-tertiary: #7A6C58;
+  --text-tertiary: #9A8670;   /* de-emphasised meta: large/UI only, 5.2:1 on peat */
 
-  /* Accent: ember. --accent for UI / large / non text, --accent-text for
-     small accent text and inline links. They diverge only in light mode where
-     ember must darken to hold the contrast floor. --on-accent is the ink that
-     sits on an ember fill (ember is a light color, so its label must be dark). */
-  --accent: var(--ember);
+  /* ---- Accent: magma ---- */
+  --accent: var(--magma);
   --accent-hover: var(--ember-strong);
-  --accent-text: var(--ember);
-  --accent-muted: color-mix(in srgb, var(--accent) 14%, transparent);
-  --on-accent: var(--peat);
+  --accent-text: #FF6A33;
+  --accent-muted: color-mix(in srgb, var(--accent) 16%, transparent);
+  --on-accent: #120D0B;
 
-  /* Secondary structural tone: sand. Used for package names, code text, and
-     other structural mono runs that must not read as "live". */
-  --sandstone: #C9B08A;
+  /* ---- Flow / inherited (NEW) ---- */
+  --flow: var(--vein);
+  --flow-muted: color-mix(in srgb, var(--vein) 16%, transparent);
+  --on-flow: var(--on-vein);
+
+  /* ---- Structural sand (existing name). Package names, code text. ---- */
+  --sandstone: #D6C3A0;
   --sandstone-muted: color-mix(in srgb, var(--sandstone) 22%, transparent);
 
-  /* Lock: ochre. Never a heading color, never decoration. */
-  --lock: var(--ochre);
-  --lock-muted: color-mix(in srgb, var(--lock) 16%, transparent);
+  /* ---- Lock: LOCKED is magma-family, always with the word LOCKED ---- */
+  --lock: var(--magma);
+  --lock-muted: color-mix(in srgb, var(--lock) 18%, transparent);
 
-  /* Boundaries */
+  /* ---- Boundaries ---- */
   --border: var(--seam);
-  --border-hover: #463B2D;
+  --border-hover: #5A4838;
 
-  /* Code well. Stays dark in both themes: the instrument surface is constant,
-     so a snippet reads the same on the landing page and in a guide. */
-  --code-bg: #0F0D0A;
+  /* ---- Code well: stays dark in both themes ---- */
+  --code-bg: #0C0907;
   --code-text: var(--sandstone);
+  --syntax-keyword: #C09AB3;
+  --syntax-function: #35C2A8;
+  --syntax-string: #E0B266;
+  --syntax-number: #FFB21E;
+  --syntax-comment: #9A8670;
+  --syntax-accent: #FF5B1F;   /* the resolved value: still the one thing that glows */
 
-  /* Syntax. Theme independent (the well is always dark). Restrained so exactly
-     one thing glows: the resolved value, in ember. */
-  --syntax-keyword: #B08FA6;   /* dusty mauve */
-  --syntax-function: #9FB07E;  /* olive */
-  --syntax-string: #C9976A;    /* clay tan */
-  --syntax-number: #D9A03F;    /* ochre */
-  --syntax-comment: #7A6C58;
-  --syntax-accent: #C9793F;    /* the resolved value */
-
-  /* Functional status (earth compatible, sparingly used) */
-  --success: var(--ember);
-  --warning: var(--lock);
+  /* ---- Functional status. Each also carries a word or glyph. ---- */
+  --success: var(--vein);
+  --warning: var(--ochre);
   --error: var(--oxide);
   --info: var(--sandstone);
 
-  /* Type roles */
-  --font-display: "Libre Franklin", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  /* ---- Type ---- */
+  --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Instrument Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 
-  /* Spacing */
+  /* ---- Spacing (unchanged scale, names kept) ---- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -104,58 +120,86 @@
   --space-24: 96px;
   --space-32: 128px;
 
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 9999px;
+  /* ---- Radius: Stratum has no rounded corners. Shape comes from --edge-*. ---- */
+  --radius-sm: 2px;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-full: 0;   /* was 9999px. Any pill or avatar needs a deliberate decision */
 
-  /* Motion */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* ---- Motion: everything eases, nothing steps ---- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
+  --duration-fast: 220ms;
+  --duration-normal: 320ms;
+  --duration-slow: 700ms;
 
-  /* Shadows. Warm-toned: they fall from peat, never neutral black. */
-  --shadow-sm: 0 1px 2px rgba(18, 16, 12, 0.4);
-  --shadow-md: 0 2px 8px rgba(18, 16, 12, 0.5), 0 1px 2px rgba(18, 16, 12, 0.3);
-  --shadow-lg: 0 4px 16px rgba(18, 16, 12, 0.6), 0 2px 4px rgba(18, 16, 12, 0.3);
+  /* ---- Shadows: light from above. Thin rock lip, then a soft pool.
+     On clip-path elements use filter: drop-shadow() with the same offsets. ---- */
+  --shadow-sm: 0 2px 0 0 #8F5F36, 0 10px 16px -8px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 3px 0 0 #8F5F36, 0 7px 0 0 #4A4A52, 0 18px 26px -8px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 7px 0 0 #A63A10, 0 22px 30px -8px rgba(0, 0, 0, 0.65);
+  --shadow-glow: 0 0 0 1px #FF5B1F, 0 0 36px 4px rgba(255, 91, 31, 0.5);  /* NEW: the one hottest element */
+  --shadow-sunk: inset 0 5px 6px 0 rgba(0, 0, 0, 0.55);                   /* NEW: fields */
+
+  /* ---- NEW: organic edges and rock texture (clip-path polygons, grain, laminations) ---- */
+  --edge-ledge: polygon(0.0% 6.0px, 3.5% 4.1px, 8.0% 3.8px, 10.4% 5.9px, 14.8% 0.4px, 20.4% 1.4px, 23.9% 3.0px, 27.3% 0.1px, 31.1% 2.7px, 34.7% 5.8px, 38.9% 3.5px, 42.9% 4.1px, 45.7% 4.7px, 50.9% 5.9px, 54.4% 3.9px, 58.2% 4.3px, 61.3% 4.5px, 65.3% 2.1px, 70.1% 0px, 72.2% 2.8px, 78.0% 3.0px, 81.1% 2.2px, 84.6% 5.7px, 88.1% 6.6px, 92.5% 5.0px, 96.6% 6.0px, 100.0% 6.0px, 100% 100%, 0 100%);
+  --edge-ledge-b: polygon(0.0% 2.9px, 4.4% 3.8px, 6.7% 2.5px, 9.2% 0.2px, 13.6% 2.9px, 15.7% 2.1px, 19.0% 2.4px, 23.8% 1.8px, 27.8% 7.0px, 30.4% 4.3px, 32.5% 2.2px, 36.7% 3.8px, 39.3% 2.4px, 42.2% 0.9px, 46.5% 3.5px, 50.0% 2.5px, 53.3% 0.8px, 56.6% 1.5px, 61.2% 5.9px, 64.1% 3.8px, 66.2% 3.0px, 69.5% 4.6px, 74.0% 3.9px, 77.5% 2.0px, 81.1% 4.7px, 82.1% 1.5px, 87.7% 0px, 91.2% 1.3px, 92.3% 3.4px, 97.3% 1.0px, 100.0% 1.8px, 100% 100%, 0 100%);
+  --edge-row: polygon(0.0% 3.5px, 5.3% 2.7px, 9.7% 1.4px, 12.5% 1.9px, 19.2% 3.2px, 23.7% 0.5px, 27.2% 2.7px, 31.9% 5.1px, 35.2% 2.2px, 40.4% 4.2px, 46.1% 2.7px, 50.7% 0.7px, 54.8% 0px, 57.9% 3.1px, 62.9% 0.8px, 69.3% 1.8px, 72.2% 4.1px, 77.4% 4.7px, 81.1% 4.3px, 86.8% 5.0px, 91.9% 4.1px, 95.1% 1.7px, calc(100% - 4px) 0, calc(100% - 1px) 24%, calc(100% - 6px) 47%, calc(100% - 2px) 72%, calc(100% - 7px) 100%, 0 100%);
+  --edge-chip: polygon(0 5px, 2px 2px, 6px 0, 38% 1px, 72% 0, calc(100% - 7px) 0, calc(100% - 2px) 3px, 100% 8px, 100% calc(100% - 9px), calc(100% - 3px) calc(100% - 3px), calc(100% - 9px) 100%, 62% calc(100% - 1px), 30% 100%, 8px 100%, 2px calc(100% - 3px), 0 calc(100% - 8px));
+  --edge-slab: polygon(0 0, calc(100% - 6px) 0, calc(100% - 2px) 22%, calc(100% - 7px) 47%, calc(100% - 1px) 71%, calc(100% - 5px) 100%, 0 100%);
+  --edge-fault: polygon(0.0% 2.1px, 4.8% 2.5px, 7.9% 5.1px, 11.6% 2.5px, 14.6% 5.0px, 18.6% 6.6px, 21.9% 2.5px, 27.4% 2.3px, 30.8% 4.7px, 34.3% 0.5px, 39.1% 0.3px, 42.7% 3.1px, 47.3% 3.2px, 50.6% 1.9px, 54.0% 5.2px, 57.2% 5.5px, 61.5% 5.2px, 65.6% 3.9px, 69.6% 4.5px, 72.3% 2.3px, 77.7% 0px, 79.8% 1.3px, 83.5% 1.7px, 88.6% 1.8px, 91.9% 3.1px, 95.6% 5.1px, 100.0% 4.9px, 100% 14px, 100% calc(100% - 12px), 100.0% calc(100% - 4.6px), 97.1% calc(100% - 1.7px), 92.3% calc(100% - 0.5px), 87.5% calc(100% - 2.8px), 84.5% calc(100% - 1.8px), 81.3% calc(100% - 0.5px), 77.2% calc(100% - 3.9px), 72.8% calc(100% - 3.7px), 69.8% calc(100% - 4.3px), 64.7% calc(100% - 4.9px), 62.2% calc(100% - 5.9px), 58.7% calc(100% - 2.5px), 54.2% calc(100% - 0.9px), 50.6% calc(100% - 2.3px), 45.2% calc(100% - 1.5px), 43.0% calc(100% - 0.8px), 38.2% calc(100% - 4.7px), 33.9% calc(100% - 3.9px), 30.1% calc(100% - 1.7px), 26.5% calc(100% - 5.6px), 22.1% calc(100% - 4.7px), 18.8% calc(100% - 1.9px), 14.8% calc(100% - 2.2px), 11.0% calc(100% - 2.2px), 7.4% calc(100% - 2.3px), 3.9% calc(100% - 0.6px), 0.0% calc(100% - 3.8px), 0 calc(100% - 9px), 0 12px);
+  --grain: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --lam: repeating-linear-gradient(180deg, rgba(0,0,0,.05) 0 1px, transparent 1px 11px, rgba(0,0,0,.035) 11px 12px, transparent 12px 23px);
+  --lit: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%);
+  --shade: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.22));
 }
 
 /* --------------------------------------------------------------------------
-   Light theme: limestone paper. Warm, but a quarried warm (bone and dust,
-   not lifestyle cream). The muted, syntax, code well, warning, and on-accent
-   tokens reference the values above via var(), so they adapt here without
-   being restated.
+   Daylight. Warm paper, same rock bands.
    -------------------------------------------------------------------------- */
 [data-theme="light"] {
-  --surface-0: #F4EFE4;
-  --surface-1: #FFFCF6;
-  --surface-2: #E9E2D4;
-  --surface-3: #DCD2BF;
+  --surface-0: #F2E9D8;
+  --surface-1: #FAF4E6;
+  --surface-2: #FFFAF0;
+  --surface-3: #E8DCC4;
 
-  --text-primary: #1A1611;
-  --text-secondary: #4E4636;
-  --text-tertiary: #6F6553;
+  --text-primary: #1C140F;
+  --text-secondary: #5A4A3B;
+  --text-tertiary: #7A6552;
 
-  /* Ember darkens on paper. Two tokens hold the WCAG floor:
-     --accent (about 3.9:1) for large / bold / non text UI and buttons,
-     --accent-text (about 5.6:1, AA at body size) for small accent text. */
-  --accent: #8B4A26;
-  --accent-hover: #6E3A1D;
-  --accent-text: #6E3A1D;
+  --accent: #C93A08;
+  --accent-hover: #A63200;
+  --accent-text: #B32F00;
+  --on-accent: #FFFAF0;       /* NOTE: light ink on a dark magma fill. Dark theme is dark ink. */
+  --magma: #C93A08;
+  --magma-deep: #8A2A04;
 
+  --flow: #0B7A68;
+  --on-flow: #FFFAF0;
+  --vein: #0B7A68;
+  --vein-deep: #075446;
+  --on-vein: #FFFAF0;
+  --focus: #0B6B5B;
+  --rule: #7A6552;
+
+  --ochre: #8A5A00;           /* amber as TEXT on paper; fills use --amber-fill */
+  --amber-fill: #F2A900;
+  --ember: #C93A08;           /* magma darkens on paper */
+  --ember-strong: #A63200;
+  --on-ember: #1C140F;
+  --oxide: #B32F00;
+  --lock: var(--magma);
+  --warning: var(--ochre);
   --sandstone: #7A5F35;
+  --code-text: #D6C3A0;       /* the code well stays dark, so its text does not follow --sandstone here */
 
-  --lock: #8A5A0F;
+  --border: #D9CCB2;
+  --border-hover: #BFAE8E;
 
-  --border: #DBD2BF;
-  --border-hover: #C4B79F;
-
-  --info: #6B5A3C;
-
-  --shadow-sm: 0 1px 3px rgba(26, 22, 17, 0.07);
-  --shadow-md: 0 2px 8px rgba(26, 22, 17, 0.10), 0 1px 2px rgba(26, 22, 17, 0.05);
+  --shadow-sm: 0 2px 0 0 #8F5F36, 0 8px 14px -8px rgba(60, 30, 10, 0.3);
+  --shadow-md: 0 3px 0 0 #8F5F36, 0 7px 0 0 #4A4A52, 0 16px 24px -8px rgba(60, 30, 10, 0.3);
+  --shadow-lg: 0 7px 0 0 #8A2A04, 0 20px 28px -8px rgba(60, 30, 10, 0.35);
+  --shadow-glow: 0 0 0 1px #C93A08, 0 0 30px 2px rgba(201, 58, 8, 0.35);
+  --shadow-sunk: inset 0 4px 6px 0 rgba(90, 60, 30, 0.25);
 }

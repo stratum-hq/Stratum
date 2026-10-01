@@ -39,8 +39,8 @@
   const moonIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
 
   // The active theme is already resolved and applied pre paint in Base.astro
-  // (explicit choice, else OS preference). Here we only mirror it on the toggle
-  // icon and let the button flip and persist an explicit choice.
+  // (Bedrock unless the visitor chose Daylight). Here we only mirror it on the
+  // toggle icon and let the button flip and persist an explicit choice.
   const syncIcon = () => {
     const isLight = html.getAttribute('data-theme') === 'light';
     if (toggle) toggle.innerHTML = isLight ? moonIcon : sunIcon;

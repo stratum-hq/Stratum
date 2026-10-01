@@ -67,45 +67,47 @@ export function WebhookEditor({ className }: WebhookEditorProps) {
 
   return (
     <div className={`stratum-webhook-editor ${className || ""}`}>
-      <table className="stratum-webhook-editor__table">
-        <thead>
-          <tr>
-            <th>URL</th>
-            <th>Events</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {webhooks.map((wh) => (
-            <tr key={wh.id}>
-              <td><code>{wh.url}</code></td>
-              <td>{wh.events.join(", ")}</td>
-              <td>
-                <span className={`stratum-badge stratum-badge--${wh.active ? "own" : "locked"}`}>
-                  {wh.active ? "Active" : "Inactive"}
-                </span>
-                {testResults[wh.id] && (
-                  <span className={`stratum-badge stratum-badge--${testResults[wh.id].success ? "own" : "locked"}`}>
-                    {testResults[wh.id].message}
-                  </span>
-                )}
-              </td>
-              <td>
-                <button type="button" onClick={() => handleTest(wh.id)}>Test</button>
-                <button type="button" onClick={() => handleDelete(wh.id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-          {webhooks.length === 0 && (
+      <div className="stratum-table-scroll">
+        <table className="stratum-webhook-editor__table">
+          <thead>
             <tr>
-              <td colSpan={4} style={{ textAlign: "center", padding: "16px" }}>
-                No webhooks configured. Add one below.
-              </td>
+              <th>URL</th>
+              <th>Events</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {webhooks.map((wh) => (
+              <tr key={wh.id}>
+                <td><code>{wh.url}</code></td>
+                <td>{wh.events.join(", ")}</td>
+                <td>
+                  <span className={`stratum-badge stratum-badge--${wh.active ? "own" : "locked"}`}>
+                    {wh.active ? "Active" : "Inactive"}
+                  </span>
+                  {testResults[wh.id] && (
+                    <span className={`stratum-badge stratum-badge--${testResults[wh.id].success ? "own" : "locked"}`}>
+                      {testResults[wh.id].message}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <button type="button" onClick={() => handleTest(wh.id)}>Test</button>
+                  <button type="button" onClick={() => handleDelete(wh.id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+            {webhooks.length === 0 && (
+              <tr>
+                <td colSpan={4} style={{ textAlign: "center", padding: "16px" }}>
+                  No webhooks configured. Add one below.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <div className="stratum-webhook-editor__add">
         <input

@@ -39,8 +39,8 @@ function TreeNode({
   return (
     <li role="treeitem" aria-expanded={hasChildren ? node.expanded : undefined}>
       <div
-        className={`stratum-tree__node ${selectedId === node.id ? "stratum-tree__node--selected" : ""}`}
-        style={{ paddingInlineStart: `calc(${depth} * var(--space-xl) + var(--space-sm))` }}
+        className={`stratum-tree__node stratum-tree__node--d${Math.min(depth, 4)} ${selectedId === node.id ? "stratum-tree__node--selected" : ""}`}
+        style={{ marginInlineStart: `calc(${depth} * var(--stratum-tree-indent, 28px))` }}
       >
         {hasChildren ? (
           <button
@@ -76,7 +76,7 @@ function TreeNode({
                 onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
                 title="Edit tenant"
               >
-                &#9998;
+                {"\u270E"}
               </button>
             )}
             {onAddChild && (

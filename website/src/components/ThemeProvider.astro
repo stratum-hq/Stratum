@@ -1,0 +1,39 @@
+---
+// Replaces Starlight's ThemeProvider. Bedrock (dark) is the default for every
+// visitor, whatever the OS preference; Daylight applies only when the visitor
+// picks it in the theme select, which stores the choice in localStorage. The
+// landing site resolves its theme the same way (landing/src/layouts/Base.astro).
+import { Icon } from '@astrojs/starlight/components';
+---
+
+{/* Inlined so the theme is set before first paint. */}
+<script is:inline>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme = storedTheme === 'light' ? 'light' : 'dark';
+		document.documentElement.dataset.theme = theme;
+		return {
+			updatePickers(next = theme) {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = next;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + next);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script>
+
+<template id="theme-icons">
+	<Icon name="sun" class="light" />
+	<Icon name="moon" class="dark" />
+</template>

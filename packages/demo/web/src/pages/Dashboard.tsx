@@ -90,112 +90,19 @@ const TABS: TabDef[] = [
 // ── CSS-in-JS with design tokens ─────────────────────────────────────────────
 
 const cssVars = `
-@import url('https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800;900&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
-:root {
-  /* Colors: Strata (earth-toned, one live accent, ember) */
-  --color-primary: #8B4A26;
-  --color-primary-hover: #6E3A1D;
-  --color-accent: #8B4A26;
-  --color-accent-hover: #6E3A1D;
-  --color-accent-light: #F0E0D2;
-  --color-accent-muted: #F7EFE5;
-  --color-success: #8B4A26;
-  --color-success-bg: #F0E0D2;
-  --color-warning: #8A5A0F;
-  --color-warning-bg: #F3E4C0;
-  --color-error: #9C3A22;
-  --color-error-bg: #F5DDD2;
-  --color-info: #6B5A3C;
-  --color-info-bg: #E8E1D2;
-
-  /* Neutrals: peat to limestone paper */
-  --color-950: #12100C;
-  --color-900: #1C1813;
-  --color-800: #241F19;
-  --color-700: #332B21;
-  --color-600: #4E4636;
-  --color-500: #6F6553;
-  --color-400: #A79880;
-  --color-300: #C9B08A;
-  --color-200: #DCD2BF;
-  --color-100: #E9E2D4;
-  --color-50: #F4EFE4;
-
-  /* Typography */
-  --font-display: 'Libre Franklin', system-ui, -apple-system, sans-serif;
-  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  /* Spacing */
-  --space-2xs: 2px;
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-  --space-2xl: 32px;
-  --space-3xl: 48px;
-
-  /* Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-full: 9999px;
-
-  /* Shadows: warm-toned, fall from peat */
-  --shadow-sm: 0 1px 2px rgba(26,22,17,0.07);
-  --shadow-md: 0 2px 8px rgba(26,22,17,0.10), 0 1px 2px rgba(26,22,17,0.05);
-  --shadow-lg: 0 4px 16px rgba(26,22,17,0.13), 0 2px 4px rgba(26,22,17,0.06);
-  --shadow-xl: 0 8px 32px rgba(26,22,17,0.15), 0 4px 8px rgba(26,22,17,0.07);
-
-  /* Motion */
-  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-  --ease-move: cubic-bezier(0.4, 0, 0.2, 1);
-  --duration-micro: 75ms;
-  --duration-short: 150ms;
-  --duration-medium: 250ms;
-  --duration-long: 400ms;
-
-  /* Dark mode surfaces */
-  --bg-page: var(--color-50);
-  --bg-card: #FFFCF6;
-  --bg-input: #FFFCF6;
-  --text-primary: var(--color-900);
-  --text-secondary: var(--color-600);
-  --text-tertiary: var(--color-500);
-  --border: var(--border);
-  --border-strong: var(--color-300);
-}
-
-[data-theme="dark"] {
-  --bg-page: #12100C;
-  --bg-card: var(--color-900);
-  --bg-input: var(--color-800);
-  --text-primary: #EFE7D9;
-  --text-secondary: var(--color-400);
-  --text-tertiary: var(--color-500);
-  --border: var(--color-700);
-  --border-strong: var(--color-600);
-  --color-primary: #D89060;
-  --color-accent: #D89060;
-  --color-success: #C9793F;
-  --color-success-bg: #342619;
-  --color-warning: #D9A03F;
-  --color-warning-bg: #362B19;
-  --color-error: #C4573A;
-  --color-error-bg: #342118;
-  --color-info: #C9B08A;
-  --color-info-bg: #312A21;
-  --shadow-sm: 0 1px 2px rgba(18,16,12,0.4);
-  --shadow-md: 0 2px 8px rgba(18,16,12,0.5), 0 1px 2px rgba(18,16,12,0.3);
-  --shadow-lg: 0 4px 16px rgba(18,16,12,0.6), 0 2px 4px rgba(18,16,12,0.3);
-  --shadow-xl: 0 8px 32px rgba(18,16,12,0.7), 0 4px 8px rgba(18,16,12,0.4);
+/* Colors, type, spacing and motion come from @stratum-hq/react's stylesheet
+   (imported in main.tsx), which mirrors the shared Stratum tokens. These are
+   the demo's local aliases onto those tokens. */
+:root,
+[data-theme] {
+  --bg-page: var(--surface-0);
+  --bg-card: var(--surface-1);
+  --bg-input: var(--surface-2);
+  --border-strong: var(--rule);
 }
 
 body {
+  margin: 0;
   background: var(--bg-page);
   color: var(--text-primary);
   transition: background var(--duration-medium) var(--ease-move), color var(--duration-medium) var(--ease-move);
@@ -243,7 +150,7 @@ body {
 }
 
 .stratum-breadcrumb-sep {
-  color: var(--color-300);
+  color: var(--text-tertiary);
   font-size: 0.75rem;
 }
 
@@ -267,7 +174,7 @@ body {
 .stratum-dash-slug {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: var(--color-400);
+  color: var(--text-secondary);
 }
 
 .stratum-dash-depth {
@@ -284,9 +191,9 @@ body {
   padding: var(--space-xs) var(--space-md);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-accent);
-  background: var(--color-accent-muted);
-  border: 1px solid var(--color-accent-light);
+  color: var(--text-primary);
+  background: var(--flow-muted);
+  border: 2px solid var(--flow);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-body);
@@ -296,21 +203,12 @@ body {
 }
 
 .stratum-view-as-btn:hover {
-  background: var(--color-accent-light);
-  color: var(--color-accent-hover);
-}
-
-[data-theme="dark"] .stratum-view-as-btn {
-  background: rgba(13, 148, 136, 0.12);
-  border-color: rgba(13, 148, 136, 0.3);
-}
-
-[data-theme="dark"] .stratum-view-as-btn:hover {
-  background: rgba(13, 148, 136, 0.25);
+  background: var(--flow);
+  color: var(--on-flow);
 }
 
 .stratum-view-as-btn:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -347,17 +245,17 @@ body {
 }
 
 .stratum-tab:hover {
-  color: var(--color-700);
+  color: var(--text-primary);
 }
 
 .stratum-tab.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
   font-weight: 600;
 }
 
 .stratum-tab:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 3px solid var(--focus);
   outline-offset: -2px;
 }
 
@@ -467,7 +365,7 @@ body {
 
 .stratum-section-desc {
   font-size: 0.75rem;
-  color: var(--color-400);
+  color: var(--text-secondary);
   font-style: italic;
   margin: 0;
   font-family: var(--font-body);
@@ -526,41 +424,35 @@ body {
   border-radius: var(--radius-full);
 }
 
+/* Tag fills, each with its paired ink. The shape comes from the library. */
 .stratum-badge.inherited {
-  color: var(--color-accent);
-  background: var(--color-accent-light);
-  border: 1px solid transparent;
-}
-
-[data-theme="dark"] .stratum-badge.inherited {
-  background: rgba(13, 148, 136, 0.15);
-  border-color: rgba(13, 148, 136, 0.3);
+  color: var(--on-flow);
+  background: var(--flow);
 }
 
 .stratum-badge.locked {
-  color: var(--color-warning);
-  background: var(--color-warning-bg);
+  color: var(--on-accent);
+  background: var(--lock);
 }
 
 .stratum-badge.own {
-  color: var(--text-secondary);
-  background: var(--bg-input);
-  border: 1px solid var(--border);
+  color: var(--surface-0);
+  background: var(--text-primary);
 }
 
 .stratum-badge.success {
-  color: var(--color-success);
-  background: var(--color-success-bg);
+  color: var(--on-vein);
+  background: var(--vein);
 }
 
 .stratum-badge.error {
-  color: var(--color-error);
-  background: var(--color-error-bg);
+  color: var(--on-accent);
+  background: var(--magma);
 }
 
 .stratum-badge.info {
-  color: var(--color-info);
-  background: var(--color-info-bg);
+  color: var(--on-strata-light);
+  background: var(--sandstone-band);
 }
 
 /* Button styles */
@@ -582,13 +474,13 @@ body {
 }
 
 .stratum-btn:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
 .stratum-btn.primary {
   background: var(--color-primary);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--color-primary);
 }
 
@@ -598,7 +490,7 @@ body {
 
 .stratum-btn.accent {
   background: var(--color-accent);
-  color: white;
+  color: var(--on-accent);
   border-color: var(--color-accent);
 }
 
@@ -608,7 +500,7 @@ body {
 
 .stratum-btn.success {
   background: var(--color-success);
-  color: white;
+  color: var(--on-vein);
   border-color: var(--color-success);
 }
 
@@ -653,9 +545,9 @@ body {
 }
 
 .stratum-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  outline: 3px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--focus);
 }
 
 .stratum-select {
@@ -694,13 +586,13 @@ input[type="checkbox"]:checked::after {
   top: 1px;
   width: 5px;
   height: 9px;
-  border: solid white;
+  border: solid var(--on-accent);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -727,7 +619,7 @@ input[type="checkbox"]:focus-visible {
 .stratum-loading {
   padding: var(--space-md) var(--space-lg);
   font-size: 0.8125rem;
-  color: var(--color-400);
+  color: var(--text-secondary);
 }
 
 .stratum-error {
@@ -739,7 +631,7 @@ input[type="checkbox"]:focus-visible {
 .stratum-empty {
   padding: var(--space-xl) var(--space-lg);
   text-align: center;
-  color: var(--color-400);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
 }
 
@@ -782,11 +674,11 @@ input[type="checkbox"]:focus-visible {
 }
 
 /* Severity colors */
-.severity-critical { background: #C4573A; color: white; }
-.severity-high { background: #C9793F; color: white; }
-.severity-medium { background: #D9A03F; color: #1A1611; }
-.severity-low { background: #9FB07E; color: #1A1611; }
-.severity-info { background: #C9B08A; color: #1A1611; }
+.severity-critical { background: var(--magma); color: var(--on-accent); }
+.severity-high { background: var(--clay); color: var(--on-strata-light); }
+.severity-medium { background: var(--amber-fill); color: var(--on-ember); }
+.severity-low { background: var(--vein); color: var(--on-vein); }
+.severity-info { background: var(--limestone); color: var(--on-strata-light); }
 
 /* Edit row */
 .stratum-edit-row {
@@ -801,7 +693,7 @@ input[type="checkbox"]:focus-visible {
 .stratum-key-banner {
   padding: var(--space-md) var(--space-lg);
   background: var(--color-success-bg);
-  border-bottom: 1px solid #F0E0D2;
+  border-bottom: 1px solid var(--border);
   font-size: 0.75rem;
 }
 
@@ -887,12 +779,13 @@ input[type="checkbox"]:focus-visible {
 
 // ── Breadcrumb helper ────────────────────────────────────────────────────────
 
+// Depth swatches use the rock bands, shallow to deep (DESIGN.md).
 const depthDotColors: Record<number, string> = {
-  0: "#C9793F", // ember (root/MSSP)
-  1: "#D9A03F", // ochre (MSP)
-  2: "#C9B08A", // sand (client)
-  3: "#C9B08A",
-  4: "#C9B08A",
+  0: "var(--topsoil)", // root / MSSP
+  1: "var(--clay)", // MSP
+  2: "var(--sandstone-band)", // client
+  3: "var(--limestone)",
+  4: "var(--basalt)",
 };
 
 function findAncestryNames(
@@ -935,7 +828,7 @@ function Breadcrumb({ tenantId }: { tenantId: string }) {
           <span className="stratum-breadcrumb-segment">
             <span
               className="stratum-breadcrumb-dot"
-              style={{ background: depthDotColors[seg.depth] || "#A79880" }}
+              style={{ background: depthDotColors[seg.depth] || "var(--basalt)" }}
             />
             <span className={`stratum-breadcrumb-name${i === ancestry.length - 1 ? " active" : ""}`}>
               {seg.name}
@@ -2179,7 +2072,7 @@ export function Dashboard() {
           style={{
             position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)",
+            background: "color-mix(in srgb, var(--peat) 60%, transparent)", backdropFilter: "blur(2px)",
             overflow: "auto", padding: 24,
           }}
           onClick={() => setContextModal({ open: false, data: null, loading: false })}
@@ -2187,12 +2080,11 @@ export function Dashboard() {
           <div
             style={{
               background: "var(--bg-card)",
-              borderRadius: 12,
               boxShadow: "var(--shadow-xl)",
               color: "var(--text-primary)",
               width: 680,
               maxWidth: "90vw",
-              fontFamily: "'IBM Plex Sans', system-ui, -apple-system, sans-serif",
+              fontFamily: "var(--font-body)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2200,7 +2092,7 @@ export function Dashboard() {
               display: "flex", justifyContent: "space-between", alignItems: "center",
               padding: "16px 24px",
               borderBottom: "1px solid var(--border)",
-              position: "sticky", top: 0, background: "var(--bg-card)", borderRadius: "12px 12px 0 0", zIndex: 1,
+              position: "sticky", top: 0, background: "var(--bg-card)", zIndex: 1,
             }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: "1rem" }}>
@@ -2308,11 +2200,11 @@ export function Dashboard() {
                           <React.Fragment key={a?.id || i}>
                             {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
                             <span style={{
-                              background: i === chain.length - 1 ? "#F0E0D2" : "#E9E2D4",
-                              padding: "4px 12px", borderRadius: 9999,
+                              background: i === chain.length - 1 ? "var(--accent)" : "var(--surface-3)",
+                              padding: "4px 12px", clipPath: "var(--edge-chip)",
                               fontSize: "0.75rem",
                               fontWeight: i === chain.length - 1 ? 600 : 400,
-                              color: i === chain.length - 1 ? "#6E3A1D" : "#4E4636",
+                              color: i === chain.length - 1 ? "var(--on-accent)" : "var(--text-primary)",
                             }}>
                               {a?.name || "Unknown"}
                             </span>

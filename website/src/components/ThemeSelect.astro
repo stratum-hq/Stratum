@@ -1,0 +1,56 @@
+---
+// Replaces Starlight's ThemeSelect. Two choices, Dark (Bedrock, the default)
+// and Light (Daylight). There is no "auto" option, because the site does not
+// follow the OS color scheme. The choice is stored under the same
+// localStorage key Starlight uses, so ThemeProvider.astro reads it pre paint.
+import Select from '@astrojs/starlight/components/Select.astro';
+---
+
+<starlight-theme-select>
+	<Select
+		icon="moon"
+		label={Astro.locals.t('themeSelect.accessibleLabel')}
+		options={[
+			{ label: Astro.locals.t('themeSelect.dark'), selected: true, value: 'dark' },
+			{ label: Astro.locals.t('themeSelect.light'), selected: false, value: 'light' },
+		]}
+		width="6.25em"
+	/>
+</starlight-theme-select>
+
+{/* Inlined to avoid a flash of the wrong icon. Uses the global from ThemeProvider.astro. */}
+<script is:inline>
+	StarlightThemeProvider.updatePickers();
+</script>
+
+<script>
+	type Theme = 'dark' | 'light';
+
+	/** Key in `localStorage` that holds the visitor's explicit choice. */
+	const storageKey = 'starlight-theme';
+
+	/** Anything other than an explicit "light" resolves to the dark default. */
+	const parseTheme = (theme: unknown): Theme => (theme === 'light' ? 'light' : 'dark');
+
+	function onThemeChange(theme: Theme): void {
+		StarlightThemeProvider.updatePickers(theme);
+		document.documentElement.dataset.theme = theme;
+		try {
+			localStorage.setItem(storageKey, theme);
+		} catch {
+			/* storage unavailable: the theme still applies for this page */
+		}
+	}
+
+	class StarlightThemeSelect extends HTMLElement {
+		constructor() {
+			super();
+			this.querySelector('select')?.addEventListener('change', (e) => {
+				if (e.currentTarget instanceof HTMLSelectElement) {
+					onThemeChange(parseTheme(e.currentTarget.value));
+				}
+			});
+		}
+	}
+	customElements.define('starlight-theme-select', StarlightThemeSelect);
+</script>

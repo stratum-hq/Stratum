@@ -52,45 +52,47 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
 
   return (
     <div className={`stratum-permission-editor ${className || ""}`}>
-      <table className="stratum-permission-editor__table">
-        <thead>
-          <tr>
-            <th>{t("permissionEditor.columnKey")}</th>
-            <th>{t("permissionEditor.columnValue")}</th>
-            <th>{t("permissionEditor.columnMode")}</th>
-            <th>{t("permissionEditor.columnSource")}</th>
-            <th>{t("permissionEditor.columnStatus")}</th>
-            <th>{t("permissionEditor.columnActions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {permissions.map((perm) => (
-            <tr key={perm.key}>
-              <td>{perm.key}</td>
-              <td><code>{JSON.stringify(perm.value)}</code></td>
-              <td>
-                <span className={`stratum-badge stratum-badge--${perm.mode.toLowerCase()}`}>
-                  {perm.mode}
-                </span>
-              </td>
-              <td className="stratum-permission-editor__source">
-                {perm.source_tenant_id.slice(0, 8)}...
-              </td>
-              <td>
-                {perm.locked && <span className="stratum-badge stratum-badge--locked">{t("permissionEditor.locked")}</span>}
-                {perm.delegated && <span className="stratum-badge stratum-badge--delegated">{t("permissionEditor.delegated")}</span>}
-              </td>
-              <td>
-                {!perm.locked && (
-                  <button type="button" onClick={() => handleDelete(perm.key, perm.source_tenant_id)}>
-                    {t("permissionEditor.removeButton")}
-                  </button>
-                )}
-              </td>
+      <div className="stratum-table-scroll">
+        <table className="stratum-permission-editor__table">
+          <thead>
+            <tr>
+              <th>{t("permissionEditor.columnKey")}</th>
+              <th>{t("permissionEditor.columnValue")}</th>
+              <th>{t("permissionEditor.columnMode")}</th>
+              <th>{t("permissionEditor.columnSource")}</th>
+              <th>{t("permissionEditor.columnStatus")}</th>
+              <th>{t("permissionEditor.columnActions")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {permissions.map((perm) => (
+              <tr key={perm.key}>
+                <td>{perm.key}</td>
+                <td><code>{JSON.stringify(perm.value)}</code></td>
+                <td>
+                  <span className={`stratum-badge stratum-badge--${perm.mode.toLowerCase()}`}>
+                    {perm.mode}
+                  </span>
+                </td>
+                <td className="stratum-permission-editor__source">
+                  {perm.source_tenant_id.slice(0, 8)}...
+                </td>
+                <td>
+                  {perm.locked && <span className="stratum-badge stratum-badge--locked">{t("permissionEditor.locked")}</span>}
+                  {perm.delegated && <span className="stratum-badge stratum-badge--delegated">{t("permissionEditor.delegated")}</span>}
+                </td>
+                <td>
+                  {!perm.locked && (
+                    <button type="button" onClick={() => handleDelete(perm.key, perm.source_tenant_id)}>
+                      {t("permissionEditor.removeButton")}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="stratum-permission-editor__add">
         <input

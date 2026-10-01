@@ -58,7 +58,7 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
         aria-expanded={isOpen}
       >
         {tenant ? tenant.name : t("tenantSwitcher.placeholder")}
-        <span aria-hidden="true"> &#9662;</span>
+        <span aria-hidden="true"> {"\u25BE"}</span>
       </button>
 
       {isOpen && (

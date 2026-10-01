@@ -6,7 +6,7 @@ export interface TenantBranding {
   companyName?: string;
   /**
    * CSS declarations applied to this provider's subtree, for example
-   * `"color: #333; font-weight: 600;"`. Only plain declarations are accepted:
+   * `"color: red; font-weight: 600;"`. Only plain declarations are accepted:
    * a value containing braces, `@`, `<`, backslashes, quotes or `url(` is
    * ignored, so it cannot add rules outside the subtree or load resources.
    */

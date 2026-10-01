@@ -86,12 +86,13 @@ function DraggableTreeNode({
         ref={setDropRef}
         className={[
           "stratum-tree__node",
+          `stratum-tree__node--d${Math.min(depth, 4)}`,
           selectedId === node.id ? "stratum-tree__node--selected" : "",
           isDragging ? "stratum-tree__node--dragging" : "",
           isOver ? "stratum-tree__node--drop-target" : "",
         ].filter(Boolean).join(" ")}
         style={{
-          paddingInlineStart: `calc(${depth} * var(--space-xl, 24px) + var(--space-sm, 8px))`,
+          marginInlineStart: `calc(${depth} * var(--stratum-tree-indent, 28px))`,
           opacity: isDragging ? 0.4 : 1,
         }}
       >
@@ -143,7 +144,7 @@ function DraggableTreeNode({
                 onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
                 title="Edit tenant"
               >
-                &#9998;
+                {"\u270E"}
               </button>
             )}
             {onAddChild && (
@@ -349,16 +350,14 @@ const draggableStyles = `
 }
 
 .stratum-tree__node--drop-target {
-  outline: 2px dashed var(--color-accent, #C9793F);
-  outline-offset: -2px;
-  border-radius: var(--radius-sm, 4px);
-  background: rgba(13, 148, 136, 0.08);
+  outline: 3px dashed var(--flow);
+  outline-offset: 2px;
 }
 
 .stratum-tree__drag-handle {
   width: 14px;
-  font-size: 10px;
-  color: var(--color-400, #A79880);
+  font-size: 12px;
+  color: inherit;
   flex-shrink: 0;
   cursor: grab;
   line-height: 1;
@@ -371,17 +370,31 @@ const draggableStyles = `
 }
 
 .stratum-tree__drag-overlay {
-  padding: 6px 16px;
+  position: relative;
+  isolation: isolate;
+  padding: 14px 18px 10px;
   min-width: 140px;
-  background: var(--bg-card, white);
-  border: 1px solid var(--color-accent, #C9793F);
-  border-radius: var(--radius-sm, 4px);
-  box-shadow: var(--shadow-md, 0 2px 8px rgba(0,0,0,0.15));
-  font-size: 0.8125rem;
-  font-family: var(--font-body, 'IBM Plex Sans', system-ui, sans-serif);
-  color: var(--text-primary, #12100C);
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--on-accent);
   cursor: grabbing;
   white-space: nowrap;
+  filter: drop-shadow(0 4px 0 var(--magma-deep)) drop-shadow(0 14px 16px var(--pool-deep));
+}
+
+.stratum-tree__drag-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  clip-path: var(--edge-row);
+  background-color: var(--accent);
+  background-image: var(--tex-accent), var(--grain);
+  background-size: auto, 160px 160px;
+  background-blend-mode: normal, multiply;
 }
 
 .stratum-tree__actions {
@@ -394,23 +407,13 @@ const draggableStyles = `
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 11px;
-  padding: 0 2px;
-  color: var(--color-400, #A79880);
+  font-size: 13px;
+  padding: 0 4px;
+  color: inherit;
   line-height: 1;
 }
 
 .stratum-tree__action-btn:hover {
-  color: var(--text-primary, #12100C);
-}
-
-.stratum-tree__action-btn--danger:hover {
-  color: var(--color-error, #C4573A);
-}
-
-[data-theme="dark"] .stratum-tree__drag-overlay {
-  background: var(--color-800, #241F19);
-  color: #EFE7D9;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  text-decoration: underline;
 }
 `;
