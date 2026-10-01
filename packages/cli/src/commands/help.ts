@@ -28,7 +28,7 @@ export function printHelp(): void {
 
     scaffold express              Express.js middleware + tenant-aware routes
     scaffold fastify              Fastify plugin + tenant-aware routes
-    scaffold nextjs               Next.js middleware + API routes + layouts
+    scaffold nextjs               Next.js proxy (or middleware) + API routes + layouts
     scaffold react                React provider + hooks + tenant guard
     scaffold prisma               Prisma client with tenant-scoped queries
     scaffold docker               Docker Compose for Stratum + PostgreSQL

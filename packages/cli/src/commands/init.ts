@@ -5,7 +5,7 @@ import { select, confirm } from "../utils/prompt.js";
 import * as log from "../utils/log.js";
 import { databaseEnvLines, secretEnvLines } from "../utils/env-template.js";
 import { expressProxy, nextjsProxyRoute } from "../utils/proxy-templates.js";
-import { nextjsAppRoot, nextjsMiddleware } from "../utils/nextjs-middleware-template.js";
+import { nextjsAppRoot, writeNextjsTenantFile } from "../utils/nextjs-middleware-template.js";
 
 interface ProjectInfo {
   framework: string;
@@ -172,7 +172,7 @@ export async function init(flags: Record<string, string | boolean>): Promise<voi
     packages.push("jsonwebtoken");
   }
   if (info.framework === "nextjs") {
-    // The generated Next.js middleware verifies the tenant JWT with jose.
+    // The generated Next.js proxy or middleware verifies the tenant JWT with jose.
     packages.push("jose");
   }
 
@@ -470,10 +470,10 @@ process.on("SIGTERM", () => pool.end());
       writeFile(path.join(outDir, "stratum-plugin.ts"), content, force);
     }
   } else if (info.framework === "nextjs") {
-    // Next.js middleware: the tenant comes from a verified JWT, never the subdomain.
-    const middlewareContent = nextjsMiddleware();
-    // Next.js runs middleware only from the directory that holds the app directory.
-    writeFile(path.join(nextjsAppRoot(outDir), "middleware.ts"), middlewareContent, force);
+    // Next.js proxy, or middleware before Next.js 16: the tenant comes from a
+    // verified JWT, never the subdomain. The version comes from the directory
+    // where detectFramework read package.json.
+    writeNextjsTenantFile(process.cwd(), outDir, force, writeFile);
 
     // Next.js API route helper
     const apiHelperContent = `// lib/stratum.ts
