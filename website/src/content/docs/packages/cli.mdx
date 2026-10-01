@@ -75,6 +75,7 @@ Checks:
 - App role: the login of `--database-url` is not a member of the control role, owns no Stratum object or the schema, writes no Stratum table, and reads no credential table
 - Admin role: the login of `--admin-database-url` can act as the control plane
 - Legacy switch: whether `app.bypass_rls` still passes the tenant policies (needs `--admin-database-url`)
+- Stratum policies: how RLS and the policies of the Stratum tables differ from the canonical set of migration 032 (`stratum db roles --apply` restores it)
 - Indexes on `tenant_id`
 - Orphaned tenants: a parent that is missing or archived
 - Tenant parent cycles: tenants whose parent chain comes back to the same tenant
@@ -155,7 +156,7 @@ For each table, migration:
 4. Creates index on `tenant_id`
 5. Adds foreign key to `tenants` table (if it exists)
 
-The foreign key needs the `REFERENCES` privilege on `tenants`. The role model of migration 032 does not give it to the application login, so after `stratum db roles` the migration stops, changes nothing, and names the grant (`GRANT REFERENCES (id) ON tenants TO <login>`); granting it is your choice.
+The foreign key needs the `REFERENCES` privilege on `tenants`. The role model of migration 032 does not give it to the application login, so after `stratum db roles` the migration stops, changes nothing, and names the grant (`GRANT REFERENCES (id) ON tenants TO <login>`). Granting it is opt-in: run it yourself, or `stratum db roles --apply --grant-references`.
 
 If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table; the command looks it up as the control role with `--admin-database-url` (or `DATABASE_ADMIN_URL`), else through the legacy `app.bypass_rls` path. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
 
@@ -187,7 +188,7 @@ stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \
   --database-url postgres://postgres:pass@host:5432/mydb
 ```
 
-The SQL is `bootstrapRolesSql()` from `@stratum-hq/lib`. It first checks that the Stratum tables carry only what the Stratum migrations created, and stops otherwise. Then it creates the NOLOGIN control role, makes the admin login a member, moves the Stratum tables and functions that the application login owns to the admin login (never your application's tables), applies the control role, and limits the application login to `SELECT` on the read-list tables. With `--apply`, the command reports the resulting role model and exits 1 if the control role is not applied. `--control-role` names the control role (default: the connection's `stratum.control_role` setting, else the role the database already uses, else `stratum_control`), and `--schema` the schema of the Stratum tables (default `public`).
+The SQL is `bootstrapRolesSql()` from `@stratum-hq/lib`. It first checks that the Stratum tables carry only what the Stratum migrations created, and stops otherwise. Then it creates the NOLOGIN control role, makes the admin login a member, moves the Stratum tables and functions that the application login owns to the admin login (never your application's tables), applies the control role (which drops every policy on the Stratum tables and re-creates the canonical ones), and limits the application login to `SELECT` on the read-list tables. `--grant-references` also grants the application login `REFERENCES (id)` on `tenants`, for foreign keys from its tables; it is opt-in because it also lets that login block the deletion of a tenant. With `--apply`, the command reports the resulting role model and exits 1 if the control role is not applied. `--control-role` names the control role (default: the connection's `stratum.control_role` setting, else the role the database already uses, else `stratum_control`), and `--schema` the schema of the Stratum tables (default `public`).
 
 ### stratum db lock / db unlock
 
@@ -269,6 +270,7 @@ Generates:
 | `--admin-role`, `--app-role` | Logins for `db roles` |
 | `--schema` | Schema of the Stratum tables for the `db` commands (default `public`) |
 | `--apply` | Run the `db roles` SQL instead of printing it |
+| `--grant-references` | `db roles`: also grant the application login `REFERENCES (id)` on `tenants` (opt-in) |
 | `--name` | Name for generated API key |
 | `--tenant` | Tenant ID for generated API key |
 | `--out` | Output directory for scaffolded files |

@@ -87,10 +87,10 @@ The SQL is the output of `bootstrapRolesSql()` from `@stratum-hq/lib`, so you ca
 - checks that the Stratum tables carry only what the Stratum migrations created, and stops otherwise (see below);
 - creates `stratum_control` (NOLOGIN) when it does not exist, and makes the admin login a member;
 - moves the Stratum tables and functions that the application login owns to the admin login. It never touches your application's tables;
-- applies the control role through `stratum_apply_control_role()`, which migration 032 installs;
+- applies the control role through `stratum_apply_control_role()`, which migration 032 installs. This also resets row-level security on every Stratum table: it drops every policy on them, enables and forces RLS, and creates the canonical Stratum policies again, so a policy that a former owner changed, dropped or added is restored;
 - removes the application login from the control role, revokes its privileges on the Stratum tables, and grants `SELECT` on the read list.
 
-`--apply` then reports the resulting role model. Run it again after an upgrade whose migrations add a Stratum table. For a `migrateAllSchemas` install, run it once per tenant schema with `--schema <name>`.
+`--apply` then reports the resulting role model. Policies of your own on Stratum's tables do not survive the reset; keep your policies on your own tables. Run it again after an upgrade whose migrations add a Stratum table. For a `migrateAllSchemas` install, run it once per tenant schema with `--schema <name>`.
 
 ### The integrity check
 
@@ -101,7 +101,21 @@ The objects attached to a table run with the rights of whoever writes to it, so 
 - a column of a type outside `pg_catalog` and the extensions;
 - a Stratum function whose body or settings differ from what the migrations create.
 
-The error lists each object. Remove it, or restore the Stratum function from the migrations, and run the command again. If the application login may have run SQL you did not write, also review the tables' policies before you rely on them: `stratum doctor` reports policies that do not filter by tenant.
+The check never repairs anything itself: you decide what each object is. The error lists every finding, one per line. To resolve a refusal:
+
+<Steps>
+
+1. **Identify each object.** For a trigger or rule, look at its definition, for example `SELECT pg_get_triggerdef(oid) FROM pg_trigger WHERE tgname = '<name>'` or `SELECT pg_get_ruledef(oid) FROM pg_rewrite WHERE rulename = '<name>'`. Decide whether it is yours and still needed.
+
+2. **Remove what does not belong on Stratum's tables.** For example `DROP TRIGGER <name> ON <table>;`, `DROP RULE <name> ON <table>;`, or `ALTER TABLE <table> ALTER COLUMN <column> DROP DEFAULT;`. If you still need the behavior, move it to your own tables. A column whose type is not from `pg_catalog` or an extension has to be changed back to the type the migrations create.
+
+3. **Restore a changed Stratum function.** Run its `CREATE OR REPLACE FUNCTION` statement again as the owner of the Stratum tables (or a superuser). The statement is in the migration file that creates the function last, in `node_modules/@stratum-hq/lib/dist/migrations/`: `update_updated_at_column` and `maintain_ancestry_ltree` in `001_init.sql`, `propagate_ancestry_ltree` in `024_propagate_ancestry_ltree.sql`, `stratum_legacy_bypass` and `stratum_apply_control_role` in `032_control_role.sql`. For the two functions of 032, also run the `ALTER FUNCTION ... SET search_path` statement that follows them there. If you defined a function of the same name for your own tables, give yours another name.
+
+4. **Run `stratum db roles --apply` again.** It applies once nothing is left to report.
+
+</Steps>
+
+Policies are not part of the refusal, because the bootstrap re-creates all of them. `stratum doctor` reports how the policies and RLS flags of the Stratum tables differ from the canonical set ("Stratum policies"), before and after.
 
 ### Managed PostgreSQL
 
@@ -137,7 +151,7 @@ const stratum = new Stratum({ adminPool, pool, enforceRls: true });
 await stratum.initialize();
 ```
 
-Every library query and `autoMigrate` run on `adminPool`, and the library sets no `app.bypass_rls` there. Your application keeps using `pool` for its own queries, with the tenant context. `initialize()` checks both logins against the role model and warns about each problem; with `enforceRls: true`, a problem with the application login throws. Without `adminPool`, Stratum logs a one-time deprecation warning and keeps the legacy path. `adminPool` becomes required in 2.0.
+Every library query and `autoMigrate` run on `adminPool`, and the library sets no `app.bypass_rls` there. Your application keeps using `pool` for its own queries, with the tenant context. `initialize()` checks both logins against the role model and warns about each problem; with `enforceRls: true`, a problem with the application login throws. In 1.8 the role-model checks of the control plane and of `stratum doctor` only warn; refusing to start in production when the role model is not in place is planned for 1.9 or 2.0. Without `adminPool`, Stratum logs a one-time deprecation warning and keeps the legacy path. `adminPool` becomes required in 2.0.
 
 `inspectRoleModel({ appPool, adminPool })` returns the same checks as data, without logging, for your own health checks.
 
@@ -146,11 +160,22 @@ Every library query and `autoMigrate` run on `adminPool`, and the library sets n
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | The application login. |
-| `DATABASE_ADMIN_URL` | The admin login. When set, the control plane runs the migrations, the library and tenant schema and database provisioning on it, checks both logins at startup, and `/api/v1/health` reports `admin_db`. When unset, everything runs on `DATABASE_URL` as before. |
+| `DATABASE_ADMIN_URL` | The admin login. When set, the control plane runs the migrations, the library and tenant schema and database provisioning on it, checks both logins at startup (in 1.8 it logs each problem and starts anyway), and `/api/v1/health` reports `admin_db`. When unset, everything runs on `DATABASE_URL` as before. |
 | `STRATUM_CONTROL_ROLE` | The control role name, when it is not the default. |
 | `STRATUM_ALLOW_LEGACY_KEY_HASHES` | `false` to accept only HMAC API key hashes (see [API key hashes](#api-key-hashes)). |
 
-The repository's `docker-compose.yml` runs the control plane this way: `docker/init-db.sql` creates `stratum_control`, a `stratum_admin` login that is a member of it, and a `stratum_app` login with no privilege on the Stratum tables. A database volume created before 1.8 has no `stratum_admin`; recreate the volume, or start with `DATABASE_ADMIN_URL=` (empty) to keep the single-pool mode.
+The repository's `docker-compose.yml` runs the control plane this way: `docker/init-db.sql` creates `stratum_control`, a `stratum_admin` login that is a member of it, and a `stratum_app` login with no privilege on the Stratum tables. `init-db.sql` runs only when the database volume is created, so a volume from before 1.8 has no `stratum_admin`, and the control plane cannot connect with it. Either recreate the volume, which deletes the data in it:
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+or keep the volume and the single-pool mode of earlier releases:
+
+```bash
+DATABASE_ADMIN_URL= docker compose up -d
+```
 
 ### CLI
 
@@ -206,13 +231,14 @@ To close that window:
 
 ## Your own tables
 
-The role model changes nothing about your tables: the application login keeps owning them, and `createPolicy` and `stratum migrate` add the same tenant policy as before. One thing to know: a foreign key from your table to `tenants(id)` needs the `REFERENCES` privilege on `tenants`, which the read list does not include. `stratum migrate` stops and names the grant when it is missing. Granting it is your choice:
+The role model changes nothing about your tables: the application login keeps owning them, and `createPolicy` and `stratum migrate` add the same tenant policy as before. One thing to know: a foreign key from your table to `tenants(id)` needs the `REFERENCES` privilege on `tenants`, which the read list does not include. `stratum migrate` stops and names the grant when it is missing. Granting it is opt-in, with `--grant-references`:
 
-```sql
-GRANT REFERENCES (id) ON tenants TO stratum_app;
+```bash
+stratum db roles --apply --grant-references --admin-role stratum_admin --app-role stratum_app \
+  --database-url postgres://postgres:...@host:5432/mydb
 ```
 
-With it, the application login can also create foreign keys that make deleting a tenant fail while rows reference it.
+That adds `GRANT REFERENCES (id) ON tenants TO stratum_app` to the setup SQL. With it, the application login can also create foreign keys that make deleting a tenant fail while rows reference it, so grant it only when your tables need the foreign key.
 
 ## Check the setup
 
@@ -221,4 +247,4 @@ stratum doctor --database-url "$DATABASE_URL" --admin-database-url "$DATABASE_AD
 stratum health --database-url "$DATABASE_URL"
 ```
 
-`doctor` reports whether the control role is applied, whether the application login is limited as above, whether the admin login can act as the control plane, the state of the legacy switch, and any policy that admits `app.bypass_rls` directly. In 1.x these are warnings, so `doctor` keeps its exit code.
+`doctor` reports whether the control role is applied, whether the application login is limited as above, whether the admin login can act as the control plane, the state of the legacy switch, any policy that admits `app.bypass_rls` directly, and how the RLS flags and policies of the Stratum tables differ from the canonical set. In 1.x these are warnings, so `doctor` keeps its exit code; failing on them in production is planned for 1.9 or 2.0.
