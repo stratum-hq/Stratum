@@ -25,8 +25,19 @@ jobs:
     env:
       MONGODB_URL: mongodb://localhost:27017
       MONGODB_TEST_DB: stratum_test
+      MONGODB_RS_URL: mongodb://localhost:27018/?directConnection=true
 
     steps:
+      # Change streams need a replica set. A service container cannot take
+      # mongod arguments, so this step starts a single-node replica set itself.
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongo-rs -p 27018:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            if docker exec mongo-rs mongosh --quiet --eval 'try { rs.status().ok } catch (e) { rs.initiate().ok }'; then break; fi
+            sleep 2
+          done
+          docker exec mongo-rs mongosh --quiet --eval 'while (!db.hello().isWritablePrimary) { sleep(500) }'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:

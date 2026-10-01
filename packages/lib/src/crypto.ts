@@ -31,27 +31,32 @@ const HKDF_SALT: Buffer = (() => {
   return Buffer.from(NON_PRODUCTION_DEFAULT_SALT, "utf8");
 })();
 
-function hkdfDeriveKey(keyMaterial: string, info = "stratum-aes-key"): Buffer {
+function hkdfDeriveKey(keyMaterial: string, salt: Buffer = HKDF_SALT, info = "stratum-aes-key"): Buffer {
   return Buffer.from(
-    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), HKDF_SALT, info, 32),
+    crypto.hkdfSync("sha256", Buffer.from(keyMaterial, "utf8"), salt, info, 32),
   );
 }
 
-function getEncryptionKey(): Buffer {
+function getEncryptionKeyMaterial(): string {
   const envKey = process.env.STRATUM_ENCRYPTION_KEY ?? process.env.WEBHOOK_ENCRYPTION_KEY;
   if (envKey) {
-    return hkdfDeriveKey(envKey);
+    return envKey;
   }
   const strictEnv = nodeEnvRequiringKeyMaterial();
   if (strictEnv) {
     throw new Error(`STRATUM_ENCRYPTION_KEY must be set in ${strictEnv}`);
   }
   // Development and test only fallback
-  return hkdfDeriveKey("stratum-dev-key");
+  return "stratum-dev-key";
 }
 
-function deriveKey(keyMaterial: string): Buffer {
-  return hkdfDeriveKey(keyMaterial, "stratum-aes-key");
+function getEncryptionKey(): Buffer {
+  return hkdfDeriveKey(getEncryptionKeyMaterial());
+}
+
+// A hex salt argument follows the STRATUM_HKDF_SALT format. No argument means the configured salt.
+function deriveKey(keyMaterial: string, saltHex?: string): Buffer {
+  return hkdfDeriveKey(keyMaterial, saltHex ? Buffer.from(saltHex, "hex") : HKDF_SALT);
 }
 
 function encryptWithKey(plaintext: string, key: Buffer): string {
@@ -88,35 +93,39 @@ export function encrypt(plaintext: string): string {
 }
 
 /** Decrypts a versioned encrypted value. Supports v1 format and legacy (no version prefix).
- * Falls back to STRATUM_ENCRYPTION_KEY_PREVIOUS if primary key decryption fails,
- * enabling dual-key reads during rolling deployments. */
+ * If the current key and salt fail, it tries the previous pair: STRATUM_ENCRYPTION_KEY_PREVIOUS
+ * and STRATUM_HKDF_SALT_PREVIOUS. A previous variable that is unset uses the current value.
+ * This keeps values readable during a rolling deployment and until a rotation finishes. */
 export function decrypt(encrypted: string): string {
   try {
     return decryptWithKey(encrypted, getEncryptionKey());
   } catch (err) {
     const previousKey = process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS;
-    if (previousKey) {
+    const previousSalt = process.env.STRATUM_HKDF_SALT_PREVIOUS;
+    if (previousKey || previousSalt) {
       try {
-        return decryptWithKey(encrypted, hkdfDeriveKey(previousKey));
+        return decryptWithKey(encrypted, deriveKey(previousKey || getEncryptionKeyMaterial(), previousSalt));
       } catch {
-        // Both keys failed — throw the original error
+        // Both pairs failed — throw the original error
       }
     }
     throw err;
   }
 }
 
-/** Encrypts a value with the key derived from `keyMaterial`.
+/** Encrypts a value with the key derived from `keyMaterial` and `saltHex`.
+ * If `saltHex` is not given, the configured salt applies.
  * Key rotation uses it because it must not read or change process.env. */
-export function encryptWithKeyMaterial(plaintext: string, keyMaterial: string): string {
-  return encryptWithKey(plaintext, deriveKey(keyMaterial));
+export function encryptWithKeyMaterial(plaintext: string, keyMaterial: string, saltHex?: string): string {
+  return encryptWithKey(plaintext, deriveKey(keyMaterial, saltHex));
 }
 
-/** Returns the plaintext, or null when the value does not decrypt with the key derived from `keyMaterial`.
+/** Returns the plaintext, or null when the value does not decrypt with the key derived from `keyMaterial` and `saltHex`.
+ * If `saltHex` is not given, the configured salt applies.
  * Key rotation uses the null result to try the next key instead of failing. */
-export function decryptWithKeyMaterial(encrypted: string, keyMaterial: string): string | null {
+export function decryptWithKeyMaterial(encrypted: string, keyMaterial: string, saltHex?: string): string | null {
   try {
-    return decryptWithKey(encrypted, deriveKey(keyMaterial));
+    return decryptWithKey(encrypted, deriveKey(keyMaterial, saltHex));
   } catch {
     return null;
   }
