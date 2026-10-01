@@ -259,7 +259,7 @@ export async function validateApiKey(
     await client.query(`SET LOCAL statement_timeout = ${STAMP_TIMEOUT_MS}`);
     return upgrade
       ? client.query(
-          `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3`,
+          `UPDATE api_keys SET key_hash = $1, hash_version = $2, last_used_at = now() WHERE id = $3 AND hash_version = 1`,
           [hmacHash(key, hmacSecret), HASH_V2_HMAC, row.id],
         )
       : // The condition repeats the check, so a concurrent request that stamped first wins.

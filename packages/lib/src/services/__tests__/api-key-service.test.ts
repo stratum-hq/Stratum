@@ -140,5 +140,27 @@ describe("validateApiKey hash candidates", () => {
     process.env[HMAC_ENV_NAME] = "unit-secret";
     expect(await lookups({ allowLegacyHashes: false })).toEqual([[hmac("presented-key", "unit-secret"), 2]]);
   });
+
+  it("re-hashes a version 1 key with HMAC only while the stored row is still version 1", async () => {
+    process.env[HMAC_ENV_NAME] = "unit-secret";
+    const legacyRow = {
+      id: "key-1", tenant_id: null, key_hash: sha256("presented-key"), key_prefix: "sk_live_", name: null,
+      created_at: new Date(), last_used_at: null, revoked_at: null, expires_at: null,
+      scopes: ["read"], rate_limit_max: null, rate_limit_window: null, hash_version: 1, stamp_due: false,
+    };
+    const mockQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [legacyRow] })
+      .mockResolvedValue({ rows: [{ scopes: ["read"], role_scopes: null }] });
+    withMockQuery(mockQuery);
+
+    expect((await apiKeyService.validateApiKey(makeMockPool(), "presented-key"))?.key_id).toBe("key-1");
+
+    const update = mockQuery.mock.calls.find(([sql]) => String(sql).includes("SET key_hash"));
+    expect(update).toBeDefined();
+    const [sql, params] = update!;
+    expect(String(sql).replace(/\s+/g, " ")).toContain("WHERE id = $3 AND hash_version = 1");
+    expect(params).toEqual([hmac("presented-key", "unit-secret"), 2, "key-1"]);
+  });
 });
 
