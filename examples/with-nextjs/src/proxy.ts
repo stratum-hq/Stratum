@@ -1,11 +1,11 @@
 /**
- * Next.js Middleware: tenant resolution
+ * Next.js proxy: tenant resolution
  *
  * Runs before any page or API route. Resolves the tenant from:
  *   1. Bearer token: the verified `tenant_id` claim of an HS256 JWT
  *   2. Subdomain: e.g. acme.app.example.com → tenant slug "acme"
  *
- * The middleware forwards the result to Server Components as a request
+ * The proxy forwards the result to Server Components as a request
  * header (see src/lib/tenant-headers.ts). It deletes any client-sent copy of
  * those headers first, so a client cannot choose its tenant with a header.
  *
@@ -35,7 +35,7 @@ async function verifiedTenantId(token: string): Promise<string | null> {
   }
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // Skip static assets and Next.js internals.
@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  // Only this middleware may set the tenant headers.
+  // Only this proxy may set the tenant headers.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete(TENANT_ID_HEADER);
   requestHeaders.delete(TENANT_SLUG_HEADER);

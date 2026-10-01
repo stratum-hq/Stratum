@@ -59,15 +59,15 @@ describe("generated tenant resolution does not trust a client-supplied tenant he
     });
   }
 
-  it("nextjs preset middleware strips an inbound x-tenant-id before forwarding", () => {
+  it("nextjs preset proxy strips an inbound x-tenant-id before forwarding", () => {
     const files = genPreset({ database: "postgres", strategy: "rls", orm: "pg", framework: "nextjs" });
-    expect(files["src/middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
+    expect(files["src/proxy.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
   });
 
-  it("nextjs template middleware strips an inbound x-tenant-id and never reads it", () => {
+  it("nextjs template proxy strips an inbound x-tenant-id and never reads it", () => {
     const files = genTemplate("nextjs");
-    expect(files["src/middleware.ts"]).not.toMatch(READS_TENANT_HEADER);
-    expect(files["src/middleware.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
+    expect(files["src/proxy.ts"]).not.toMatch(READS_TENANT_HEADER);
+    expect(files["src/proxy.ts"]).toContain(`requestHeaders.delete("x-tenant-id")`);
   });
 });
 

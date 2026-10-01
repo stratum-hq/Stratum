@@ -243,7 +243,7 @@ Generate framework-specific integration boilerplate without the full `init` wiza
 ```bash
 stratum scaffold express         # Express middleware + routes
 stratum scaffold fastify         # Fastify plugin
-stratum scaffold nextjs          # Next.js middleware + API helpers + layout
+stratum scaffold nextjs          # Next.js proxy (or middleware) + API helpers + layout
 stratum scaffold react           # React provider + guards + hooks
 stratum scaffold prisma          # Tenant-scoped Prisma client
 stratum scaffold docker          # Docker Compose for Stratum + PostgreSQL
@@ -267,7 +267,7 @@ Generates:
 
 Generates:
 
-- `middleware.ts`: written next to the app directory (`src/middleware.ts` when the project keeps its app in `src/app`), because Next.js runs middleware only from there. Edge middleware that takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same middleware for Next.js.
+- `proxy.ts` on Next.js 16 and later, `middleware.ts` on Next.js 15: written next to the app directory (`src/proxy.ts` when the project keeps its app in `src/app`), because Next.js runs the file only from there. The CLI reads the version from `node_modules/next`, else from the `next` range in `package.json`. When it cannot read the version, it writes `middleware.ts`, which Next.js 15 and 16 both run, and prints the codemod that renames it. It never writes one file next to the other, even with `--force`, because Next.js 16 refuses a project that has both. The file takes the tenant ID from the `tenant_id` claim of a bearer token verified with `JWT_SECRET` (using `jose`), and rejects a token that does not verify. The subdomain is forwarded as `x-tenant-slug`, never as the tenant ID. `stratum init` generates the same file for Next.js.
 - `lib/stratum.ts`: server-side helpers for API routes and Server Components
 - `components/tenant-layout.tsx`: client component with `StratumProvider`
 

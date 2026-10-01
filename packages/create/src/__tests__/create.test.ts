@@ -105,7 +105,13 @@ describe("createProject", () => {
     createProject("test-project", "nextjs", projectDir, true);
 
     expect(fs.existsSync(path.join(projectDir, "src", "app", "page.tsx"))).toBe(true);
-    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "proxy.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, "src", "middleware.ts"))).toBe(false);
+    const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
+    expect(pkg.dependencies["next"]).toBe("^16.3.8");
+    expect(pkg.dependencies["react"]).toBe("^19.2.0");
+    expect(pkg.dependencies["react-dom"]).toBe("^19.2.0");
+    expect(pkg.engines.node).toBe(">=20.9.0");
   });
 
   it("package.json contains @stratum-hq/lib dependency", () => {

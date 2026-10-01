@@ -52,7 +52,8 @@ export function generatePresetPackageJson(projectName: string, preset: StackPres
       devDependencies: sortKeys(devDeps),
       ...(preset.orm === "drizzle" ? { overrides: DRIZZLE_KIT_OVERRIDES } : {}),
       engines: {
-        node: ">=20.0.0",
+        // Next.js 16 needs Node.js 20.9 or later.
+        node: preset.framework === "nextjs" ? ">=20.9.0" : ">=20.0.0",
       },
     },
     null,
@@ -143,9 +144,10 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
       deps["fastify"] = "^5.12.5";
       break;
     case "nextjs":
-      deps["next"] = "^15.5.16";
-      deps["react"] = "^19.0.0";
-      deps["react-dom"] = "^19.0.0";
+      // Every release before 16.3.0 bundles a postcss with published advisories.
+      deps["next"] = "^16.3.8";
+      deps["react"] = "^19.2.0";
+      deps["react-dom"] = "^19.2.0";
       devDeps["@types/react"] = "^19.0.0";
       devDeps["@types/react-dom"] = "^19.0.0";
       break;

@@ -23,6 +23,7 @@ const SAFE_FLOORS: Record<string, string> = {
   "@nestjs/platform-express": "11.1.18",
   mongoose: "8.24.1",
   mysql2: "3.23.1",
+  next: "16.3.0", // postcss advisories: every release before 16.3.0 bundles an affected postcss
   tsx: "4.19.3", // bundled esbuild, GHSA-67mh-4wv8-2f99
 };
 

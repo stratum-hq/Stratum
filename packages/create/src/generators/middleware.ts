@@ -45,15 +45,17 @@ const INVALID_TOKEN = `{ error: "Bearer token is invalid or has no tenant_id cla
 const TENANT_REQUIRED = `{ error: "A bearer token with a tenant_id claim is required" }`;
 
 /**
- * Next.js middleware, following examples/with-nextjs: the tenant ID comes only
- * from the tenant_id claim of a verified bearer token and is forwarded as
- * x-tenant-id. The subdomain is forwarded as x-tenant-slug, never as the ID.
+ * The Next.js 16 proxy (src/proxy.ts), following examples/with-nextjs: the
+ * tenant ID comes only from the tenant_id claim of a verified bearer token and
+ * is forwarded as x-tenant-id. The subdomain is forwarded as x-tenant-slug,
+ * never as the ID.
  */
-export function nextjsTenantMiddleware(): string {
-  return `// src/middleware.ts: Next.js middleware for Stratum tenant resolution
+export function nextjsTenantProxy(): string {
+  return `// src/proxy.ts: Next.js proxy for Stratum tenant resolution
 //
-// Next.js runs middleware only from the directory that holds the app
-// directory: src/middleware.ts for src/app, middleware.ts for app.
+// Next.js runs the proxy only from the directory that holds the app
+// directory: src/proxy.ts for src/app, proxy.ts for app. Next.js 16 runs it
+// on the Node.js runtime.
 //
 // The tenant ID comes only from the tenant_id claim of a bearer token that
 // verifies with JWT_SECRET, and is forwarded as x-tenant-id. Any copy of the
@@ -89,8 +91,8 @@ async function verifiedTenantId(token: string): Promise<string | null> {
   }
 }
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
-  // Only this middleware may set the tenant headers.
+export async function proxy(request: NextRequest): Promise<NextResponse> {
+  // Only this proxy may set the tenant headers.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete("x-tenant-id");
   requestHeaders.delete(TENANT_SLUG_HEADER);
@@ -264,8 +266,8 @@ fastify.listen({ port, host: "0.0.0.0" }, (err) => {
 function generateNextjsMiddleware(projectName: string): MiddlewareFile[] {
   return [
     {
-      filename: "src/middleware.ts",
-      content: nextjsTenantMiddleware(),
+      filename: "src/proxy.ts",
+      content: nextjsTenantProxy(),
     },
     {
       filename: "src/app/layout.tsx",
@@ -281,7 +283,7 @@ export default function Home() {
       <p>Multi-tenant app powered by Stratum.</p>
       <ul>
         <li>Configure tenants via the Stratum control plane</li>
-        <li>The tenant comes from a verified JWT in <code>src/middleware.ts</code></li>
+        <li>The tenant comes from a verified JWT in <code>src/proxy.ts</code></li>
         <li>Use <code>@stratum-hq/lib</code> for tenant resolution</li>
       </ul>
     </main>

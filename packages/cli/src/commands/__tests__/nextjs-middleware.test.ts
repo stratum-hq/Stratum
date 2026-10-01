@@ -77,8 +77,8 @@ function sign(payload: Record<string, unknown>, secret: string, alg = "HS256"): 
 
 type Middleware = (request: unknown) => Promise<Outcome> | Outcome;
 
-/** Compiles the generated middleware.ts and returns its `middleware` export. */
-function loadMiddleware(source: string): Middleware {
+/** Compiles the generated file and returns its `middleware` or `proxy` export. */
+function loadMiddleware(source: string, exportName: "middleware" | "proxy" = "middleware"): Middleware {
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -93,7 +93,7 @@ function loadMiddleware(source: string): Middleware {
     throw new Error(`generated middleware imports an unexpected module: ${id}`);
   };
   new Function("require", "module", "exports", outputText)(requireStub, mod, mod.exports);
-  return mod.exports.middleware as Middleware;
+  return mod.exports[exportName] as Middleware;
 }
 
 function request(host: string, headers: Record<string, string> = {}, pathname = "/dashboard"): unknown {
@@ -120,18 +120,36 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-async function initNextjs(integration: "lib" | "sdk"): Promise<string> {
-  const project = path.join(tmp, `init-next-${integration}`);
+/** Creates a project directory whose package.json declares `next` at the given range. */
+function nextProject(name: string, nextRange: string): string {
+  const project = path.join(tmp, name);
   fs.mkdirSync(project, { recursive: true });
   fs.writeFileSync(
     path.join(project, "package.json"),
-    JSON.stringify({ dependencies: { next: "^15", pg: "^8" } }),
+    JSON.stringify({ dependencies: { next: nextRange, pg: "^8" } }),
   );
+  return project;
+}
+
+/** Writes node_modules/next/package.json, as an install of that version does. */
+function installNext(project: string, version: string): void {
+  const dir = path.join(project, "node_modules", "next");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "next", version }));
+}
+
+async function runInit(project: string, integration: "lib" | "sdk" = "lib", flags: Record<string, string | boolean> = {}) {
   process.chdir(project);
   selectAnswers.length = 0;
   selectAnswers.push(integration === "lib" ? 0 : 1);
-  await init({});
-  return fs.readFileSync(path.join(project, "middleware.ts"), "utf8");
+  await init(flags);
+}
+
+async function initNextjs(integration: "lib" | "sdk", nextRange = "^15"): Promise<string> {
+  const project = nextProject(`init-next-${integration}`, nextRange);
+  await runInit(project, integration);
+  const file = nextRange === "^15" ? "middleware.ts" : "proxy.ts";
+  return fs.readFileSync(path.join(project, file), "utf8");
 }
 
 async function scaffoldNextjs(): Promise<string> {
@@ -140,16 +158,27 @@ async function scaffoldNextjs(): Promise<string> {
   return fs.readFileSync(path.join(out, "middleware.ts"), "utf8");
 }
 
-const generators: Array<[string, () => Promise<string>]> = [
-  ["init (Next.js, lib)", () => initNextjs("lib")],
-  ["init (Next.js, sdk)", () => initNextjs("sdk")],
-  ["scaffold nextjs", scaffoldNextjs],
+async function scaffoldNextjs16(): Promise<string> {
+  const out = nextProject("scaffold-next-16", "^16.3.8");
+  await scaffold(["nextjs"], { out });
+  return fs.readFileSync(path.join(out, "proxy.ts"), "utf8");
+}
+
+const generators: Array<[string, () => Promise<string>, "middleware" | "proxy"]> = [
+  ["init (Next.js 15, lib)", () => initNextjs("lib"), "middleware"],
+  ["init (Next.js 15, sdk)", () => initNextjs("sdk"), "middleware"],
+  ["init (Next.js 16, lib)", () => initNextjs("lib", "^16.3.8"), "proxy"],
+  ["init (Next.js 16, sdk)", () => initNextjs("sdk", "^16.3.8"), "proxy"],
+  ["scaffold nextjs (version unknown)", scaffoldNextjs, "middleware"],
+  ["scaffold nextjs (Next.js 16)", scaffoldNextjs16, "proxy"],
 ];
 
-for (const [name, generate] of generators) {
-  describe(`${name} middleware takes the tenant only from a verified token`, () => {
+for (const [name, generateSource, exportName] of generators) {
+  const generate = async () => ({ source: await generateSource(), exportName });
+  describe(`${name} ${exportName} takes the tenant only from a verified token`, () => {
     it("refuses a bearer token signed with a key other than JWT_SECRET", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const forged = sign({ tenant_id: "victim-tenant" }, "attacker-chosen-secret");
       const res = await middleware(
         request("victim-tenant.app.example.com", { authorization: `Bearer ${forged}` }),
@@ -159,7 +188,8 @@ for (const [name, generate] of generators) {
     });
 
     it("refuses an unsigned token with alg none", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const unsigned = sign({ tenant_id: "victim-tenant" }, "", "none");
       const res = await middleware(
         request("app.example.com", { authorization: `Bearer ${unsigned}` }),
@@ -168,21 +198,24 @@ for (const [name, generate] of generators) {
     });
 
     it("refuses a valid token that has no tenant_id claim", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const token = sign({ sub: "user-1" }, SECRET);
       const res = await middleware(request("acme.app.example.com", { authorization: `Bearer ${token}` }));
       expect(res.kind === "json" && res.status).toBe(401);
     });
 
     it("does not set x-tenant-id from the subdomain the client chose", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const res = await middleware(request("victim-tenant.app.example.com"));
       expect(res.kind).toBe("next");
       expect(res.kind === "next" && res.headers.get("x-tenant-id")).toBeNull();
     });
 
     it("drops an x-tenant-id header the client sent", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const res = await middleware(
         request("app.example.com", { "x-tenant-id": "victim-tenant" }),
       );
@@ -190,7 +223,8 @@ for (const [name, generate] of generators) {
     });
 
     it("forwards the tenant_id claim of a valid token, whatever the host or headers say", async () => {
-      const middleware = loadMiddleware(await generate());
+      const { source, exportName: name } = await generate();
+      const middleware = loadMiddleware(source, name);
       const token = sign({ tenant_id: "tenant-a" }, SECRET);
       const res = await middleware(
         request("victim-tenant.app.example.com", {
@@ -212,5 +246,79 @@ describe("init (Next.js) install command", () => {
     );
     const install = logs.find((l) => l.includes("npm install"));
     expect(install).toContain("jose");
+  });
+});
+
+/** All console.log output so far, one string per call. */
+function logged(): string {
+  return (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls
+    .map((c) => c.map(String).join(" "))
+    .join("\n");
+}
+
+describe("the Next.js tenant file follows the Next.js version of the project", () => {
+  it("init writes proxy.ts with a proxy export when the installed next is 16, whatever package.json declares", async () => {
+    const project = nextProject("installed-16", "^15.5.16");
+    installNext(project, "16.3.8");
+    await runInit(project);
+    expect(fs.readFileSync(path.join(project, "proxy.ts"), "utf8")).toContain("export async function proxy(");
+    expect(fs.existsSync(path.join(project, "middleware.ts"))).toBe(false);
+  });
+
+  it("init writes middleware.ts when the installed next is 15, whatever package.json declares", async () => {
+    const project = nextProject("installed-15", "^16.3.8");
+    installNext(project, "15.5.16");
+    await runInit(project);
+    expect(fs.readFileSync(path.join(project, "middleware.ts"), "utf8")).toContain("export async function middleware(");
+    expect(fs.existsSync(path.join(project, "proxy.ts"))).toBe(false);
+  });
+
+  it("init reads the declared range when next is not installed", async () => {
+    const project16 = nextProject("declared-16", "^16.3.8");
+    await runInit(project16);
+    expect(fs.existsSync(path.join(project16, "proxy.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(project16, "middleware.ts"))).toBe(false);
+
+    const project15 = nextProject("declared-15", "~15.5.16");
+    await runInit(project15);
+    expect(fs.existsSync(path.join(project15, "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(project15, "proxy.ts"))).toBe(false);
+  });
+
+  it("init writes middleware.ts and prints the codemod hint when the version is unknown", async () => {
+    const project = nextProject("unknown", "latest");
+    await runInit(project);
+    expect(fs.existsSync(path.join(project, "middleware.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(project, "proxy.ts"))).toBe(false);
+    expect(logged()).toContain("npx @next/codemod@canary middleware-to-proxy .");
+  });
+
+  it("scaffold nextjs writes src/proxy.ts next to src/app on Next.js 16", async () => {
+    const out = nextProject("scaffold-src-16", "^16.3.8");
+    fs.mkdirSync(path.join(out, "src", "app"), { recursive: true });
+    await scaffold(["nextjs"], { out });
+    expect(fs.existsSync(path.join(out, "src", "proxy.ts"))).toBe(true);
+    expect(fs.existsSync(path.join(out, "proxy.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(out, "src", "middleware.ts"))).toBe(false);
+  });
+
+  it("does not write proxy.ts next to an existing middleware.ts, even with --force", async () => {
+    const project = nextProject("existing-middleware", "^16.3.8");
+    fs.writeFileSync(path.join(project, "middleware.ts"), "// the project's own middleware\n");
+    await runInit(project, "lib", { force: true });
+    await scaffold(["nextjs"], { out: project, force: true });
+    expect(fs.existsSync(path.join(project, "proxy.ts"))).toBe(false);
+    expect(fs.readFileSync(path.join(project, "middleware.ts"), "utf8")).toBe("// the project's own middleware\n");
+    expect(logged()).toContain("Skipped proxy.ts");
+  });
+
+  it("does not write middleware.ts next to an existing proxy.ts, even with --force", async () => {
+    const project = nextProject("existing-proxy", "^15.5.16");
+    fs.mkdirSync(path.join(project, "src", "app"), { recursive: true });
+    fs.writeFileSync(path.join(project, "src", "proxy.ts"), "// the project's own proxy\n");
+    await runInit(project, "lib", { force: true });
+    expect(fs.existsSync(path.join(project, "src", "middleware.ts"))).toBe(false);
+    expect(fs.readFileSync(path.join(project, "src", "proxy.ts"), "utf8")).toBe("// the project's own proxy\n");
+    expect(logged()).toContain("Skipped middleware.ts");
   });
 });
