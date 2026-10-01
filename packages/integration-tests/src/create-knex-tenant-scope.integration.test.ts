@@ -58,11 +58,11 @@ beforeAll(async () => {
   compileInPlace(path.join(project, "knexfile.ts"));
   compileInPlace(path.join(project, "src/stratum-knex.ts"));
 
-  // Use the policy expression that the generated init.sql documents, so the
-  // test checks the guidance and not a copy of it.
+  // Use the policy expression of the tenant_isolation policy that the
+  // generated init.sql creates, so the test checks that policy and not a copy.
   const initSql = fs.readFileSync(path.join(project, "init.sql"), "utf8");
-  const policyUsing = initSql.match(/^--\s+USING \((.*)\);$/m)?.[1];
-  expect(policyUsing, "init.sql documents a tenant_isolation policy").toBeDefined();
+  const policyUsing = initSql.match(/^CREATE POLICY tenant_isolation ON \w+\n\s+USING \((.*)\)$/m)?.[1];
+  expect(policyUsing, "init.sql creates a tenant_isolation policy").toBeDefined();
 
   admin = new pg.Client({ connectionString: BASE_URL });
   await admin.connect();
