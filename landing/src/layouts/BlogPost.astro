@@ -61,7 +61,8 @@ const jsonLd = {
     <meta property="article:published_time" content={pubDate.toISOString()} />
     {updated && <meta property="article:modified_time" content={updated.toISOString()} />}
     {tags.map((tag) => <meta property="article:tag" content={tag} />)}
-    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    {/* Escape "<" so a title that contains "</script>" cannot end the tag early. */}
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />
   </Fragment>
 
 <Nav />
