@@ -11,9 +11,47 @@ Three isolation strategies:
 
 `stratumPlugin` scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a change stream that starts with `$match: { "fullDocument.tenant_id": <tenant> }`. `fullDocument` defaults to `"updateLookup"` so update events carry the document. An `Aggregate` cannot be changed after it has run.
 
-**Limitation:** the scoped `watch()` drops every change event that has no `fullDocument`, including delete, drop, rename and invalidate events, because it cannot tell which tenant they belong to. It throws without a tenant context. The plugin refuses a schema that already defines a `watch()` static; a `watch()` static added after the plugin replaces the scoped one.
+**Limitation:** the scoped `watch()` drops every change event that has no `fullDocument`, including delete, drop, rename and invalidate events, because it cannot tell which tenant they belong to. To receive delete events, use the `watchDeletes` option below. It throws without a tenant context. The plugin refuses a schema that already defines a `watch()` static; a `watch()` static added after the plugin replaces the scoped one.
 
 `Model.collection`, `Model.db`, `connection.db` and `connection.watch()` are the raw driver objects and are **not** scoped: they see every tenant's data. Use them only for admin work, never with tenant input.
+
+### Delete events from `watch()`
+
+A delete event has no `fullDocument`. With `watchDeletes: true`, the scoped `watch()` reads the tenant of a delete event from its pre-image, and delivers the event only to the tenant that owned the document. Drop, rename and invalidate events stay dropped.
+
+This option needs:
+
+- MongoDB 6.0 or later, as a replica set or a sharded cluster. Change streams do not run on a standalone server.
+- Change stream pre-images enabled on the collection.
+
+Enable the pre-images on the collection first:
+
+```typescript
+await connection.db.command({
+  collMod: "orders",
+  changeStreamPreAndPostImages: { enabled: true },
+});
+// For a new collection:
+// await connection.createCollection("orders", { changeStreamPreAndPostImages: { enabled: true } });
+```
+
+Then pass the option to the plugin:
+
+```typescript
+orderSchema.plugin(stratumPlugin, { watchDeletes: true });
+
+const stream = Order.watch();
+stream.on("change", (change) => {
+  if (change.operationType === "delete") console.log(change.fullDocumentBeforeChange);
+});
+stream.on("error", (err) => console.error(err));
+```
+
+- The stream always sets `fullDocumentBeforeChange: "required"`. Update and delete events carry the pre-image in `fullDocumentBeforeChange`.
+- If the collection has no pre-images, the stream emits an `error` that names `changeStreamPreAndPostImages`, and then closes.
+- If a pre-image is not available for an event, the server stops the stream with an error. This occurs for a document written before you enabled pre-images, and for a pre-image that has expired.
+- An update event is not delivered if its pre-image belongs to another tenant.
+- On a discriminator model, Mongoose adds a filter on `fullDocument` to the stream, so delete events are not delivered.
 
 ## Installation
 

@@ -37,7 +37,7 @@ List every base collection name in the `baseCollections` option of `MongoCollect
 
 Each tenant gets a dedicated MongoDB database with its own connection pool. This is the strongest isolation available in MongoDB.
 
-**Tradeoff:** Each database requires its own connection pool entry. For large tenant counts, configure the pool manager's `maxPoolSize` and `maxDatabases` to avoid exhausting MongoDB connections.
+**Tradeoff:** Each database requires its own connection pool entry. For large tenant counts, set `maxClients` on `MongoDatabaseAdapter` and `maxPoolSize` on each `MongoClient` to limit the number of MongoDB connections.
 
 <Aside type="tip">
   Prefer `DATABASE_PER_TENANT` when tenants have compliance requirements (healthcare, financial services) or when your threat model requires physical data separation.
@@ -48,15 +48,25 @@ Each tenant gets a dedicated MongoDB database with its own connection pool. This
 Install the package:
 
 ```bash
-npm install @stratum-hq/mongodb mongodb mongoose
+npm install @stratum-hq/mongodb @stratum-hq/sdk @stratum-hq/lib pg mongodb mongoose
 ```
 
-Basic setup for each strategy:
+Each strategy has its own adapter class:
+
+| Strategy | Adapter |
+|---|---|
+| `SHARED_COLLECTION` | `MongoSharedAdapter` |
+| `COLLECTION_PER_TENANT` | `MongoCollectionAdapter` |
+| `DATABASE_PER_TENANT` | `MongoDatabaseAdapter` |
+
+Basic setup for `SHARED_COLLECTION`:
 
 ```typescript
 import { Pool } from "pg";
+import { MongoClient } from "mongodb";
 import { Stratum } from "@stratum-hq/lib";
-import { StratumMongoose } from "@stratum-hq/mongodb";
+import { MongoSharedAdapter } from "@stratum-hq/mongodb";
+import type { MongoClientLike } from "@stratum-hq/mongodb";
 
 // Control plane: always PostgreSQL
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -64,11 +74,13 @@ const stratum = new Stratum({ pool, autoMigrate: true });
 await stratum.initialize();
 
 // MongoDB adapter
-const mongo = new StratumMongoose({
-  uri: process.env.MONGODB_URI,
-  strategy: "SHARED_COLLECTION", // or COLLECTION_PER_TENANT, DATABASE_PER_TENANT
+const client = new MongoClient(process.env.MONGODB_URI!);
+await client.connect();
+const mongo = new MongoSharedAdapter({
+  // The driver's MongoClient type does not match MongoClientLike exactly, so cast it.
+  client: client as unknown as MongoClientLike,
+  databaseName: "app",
 });
-await mongo.connect();
 
 // Create a tenant (stored in PostgreSQL control plane)
 const tenant = await stratum.createTenant({
@@ -77,18 +89,42 @@ const tenant = await stratum.createTenant({
 });
 ```
 
-For `DATABASE_PER_TENANT`, pass a connection string template:
+For `COLLECTION_PER_TENANT`, list every base collection name:
 
 ```typescript
-const mongo = new StratumMongoose({
-  uriTemplate: (tenantSlug: string) =>
-    `mongodb://localhost:27017/app_${tenantSlug}`,
-  strategy: "DATABASE_PER_TENANT",
-  poolOptions: {
-    maxPoolSize: 5,    // per-database connection limit
-    maxDatabases: 100, // evict LRU databases beyond this count
-  },
+import { MongoCollectionAdapter } from "@stratum-hq/mongodb";
+
+const mongo = new MongoCollectionAdapter({
+  client: client as unknown as MongoClientLike,
+  databaseName: "app",
+  baseCollections: ["orders", "invoices"],
 });
+
+// The "orders_acme_corp" collection
+const orders = mongo.scopedCollection("acme_corp", "orders");
+```
+
+For `DATABASE_PER_TENANT`, give a factory that opens a client for a connection URI. The adapter replaces the database name in `baseUri` with `stratum_tenant_{tenantSlug}`, and opens one client for each tenant:
+
+```typescript
+import { MongoDatabaseAdapter } from "@stratum-hq/mongodb";
+
+const mongo = new MongoDatabaseAdapter({
+  createClient: async (uri) => {
+    const tenantClient = new MongoClient(uri, { maxPoolSize: 5 }); // connections per tenant database
+    await tenantClient.connect();
+    return tenantClient as unknown as MongoClientLike;
+  },
+  baseUri: "mongodb://localhost:27017/app",
+  maxClients: 100, // close the least recently used client above this count
+});
+
+const db = await mongo.getDatabase("acme_corp");
+try {
+  await db.collection("orders").insertOne({ total: 10 });
+} finally {
+  mongo.releaseDatabase("acme_corp");
+}
 ```
 
 ## Mongoose Plugin
@@ -106,20 +142,23 @@ const orderSchema = new mongoose.Schema({
 });
 
 // Apply once per schema -- injects tenant_id and auto-filters queries
-orderSchema.plugin(stratumPlugin, { strategy: "SHARED_COLLECTION" });
+orderSchema.plugin(stratumPlugin);
 
 export const Order = mongoose.model("Order", orderSchema);
 ```
 
-The plugin hooks into `find`, `findOne`, `findOneAndUpdate`, `updateMany`, `deleteOne`, `deleteMany`, and `countDocuments`. It reads the current tenant from ALS context set by your request middleware.
+The plugin scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a tenant-scoped change stream. It rejects `estimatedDocumentCount`, because that count cannot be filtered by tenant. It reads the current tenant from ALS context set by your request middleware.
 
 ### ALS Context Setup
 
-Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header:
+Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header.
+
+The plugin reads the context from the ALS store of `@stratum-hq/sdk`. Set the context with `runWithTenantContext` from that package:
 
 ```typescript
 import jwt from "jsonwebtoken";
-import { setTenantContext } from "@stratum-hq/mongodb";
+import { runWithTenantContext } from "@stratum-hq/sdk";
+import type { ResolvedTenantContext } from "@stratum-hq/sdk";
 
 // Express example. jwtSecret is the key that verifies the bearer token.
 app.use(async (req, res, next) => {
@@ -147,7 +186,17 @@ app.use(async (req, res, next) => {
 
   // Resolve tenant from your control plane
   const tenant = await stratum.getTenant(tenantId);
-  setTenantContext({ tenantId: tenant.id, tenantSlug: tenant.slug }, next);
+  const context: ResolvedTenantContext = {
+    tenant_id: tenant.id,
+    ancestry_path: tenant.ancestry_path,
+    depth: tenant.depth,
+    resolved_config: await stratum.resolveConfig(tenant.id),
+    resolved_permissions: await stratum.resolvePermissions(tenant.id),
+    isolation_strategy: tenant.isolation_strategy,
+  };
+
+  // Queries on plugin models inside next() see this tenant.
+  runWithTenantContext(context, next);
 });
 ```
 
@@ -164,40 +213,71 @@ Once the middleware is in place, all Mongoose queries inside the request are aut
 ```typescript
 // No manual where clause needed -- the plugin adds tenant_id automatically
 const orders = await Order.find({ status: "pending" });
-
-// For COLLECTION_PER_TENANT, routes to the right collection automatically
-// For DATABASE_PER_TENANT, routes to the right database connection automatically
 ```
+
+The plugin filters on the `tenant_id` field only. It does not select a collection or a database for the tenant. For `COLLECTION_PER_TENANT` and `DATABASE_PER_TENANT`, get the collection or the database from the adapter.
+
+### Change Streams and Delete Events
+
+The plugin replaces `Model.watch()` with a change stream that delivers only the current tenant's events. It matches each event on `fullDocument.tenant_id`. A delete event has no `fullDocument`, so by default the stream does not deliver it. Drop, rename and invalidate events are never delivered.
+
+To receive delete events, use the `watchDeletes` option. The stream then reads the tenant of a delete event from its pre-image. This option needs:
+
+- MongoDB 6.0 or later, as a replica set or a sharded cluster. Change streams do not run on a standalone server.
+- Change stream pre-images enabled on the collection.
+
+Enable the pre-images on the collection first:
+
+```typescript
+await mongoose.connection.db.command({
+  collMod: "orders",
+  changeStreamPreAndPostImages: { enabled: true },
+});
+```
+
+Then pass the option to the plugin:
+
+```typescript
+orderSchema.plugin(stratumPlugin, { watchDeletes: true });
+
+const stream = Order.watch();
+stream.on("change", (change) => {
+  if (change.operationType === "delete") console.log(change.fullDocumentBeforeChange);
+});
+stream.on("error", (err) => console.error(err));
+```
+
+- The stream always sets `fullDocumentBeforeChange: "required"`.
+- If the collection has no pre-images, the stream emits an `error` that names `changeStreamPreAndPostImages`, and then closes.
+- If a pre-image is not available for an event, the server stops the stream with an error. This occurs for a document written before you enabled pre-images, and for a pre-image that has expired.
+- An update event is not delivered if its pre-image belongs to another tenant.
+- On a discriminator model, Mongoose adds a filter on `fullDocument` to the stream, so delete events are not delivered.
 
 ## GDPR Compliance
 
-`purgeTenantData()` permanently deletes all documents belonging to a tenant. Call this after removing the tenant from the PostgreSQL control plane.
+Each adapter has a `purgeTenantData()` method that permanently deletes the data of a tenant. Call it after you remove the tenant from the PostgreSQL control plane.
+
+| Adapter | Argument | What it deletes |
+|---|---|---|
+| `MongoSharedAdapter` | tenant ID | The documents with that `tenant_id` in every collection of the database |
+| `MongoCollectionAdapter` | tenant slug | All documents in `{base}_{tenantSlug}` for each entry in `baseCollections` |
+| `MongoDatabaseAdapter` | tenant slug | The database `stratum_tenant_{tenantSlug}`, which it drops |
 
 ```typescript
-import { purgeTenantData } from "@stratum-hq/mongodb";
-
-await purgeTenantData(mongo, tenantId, {
-  // Collections to purge (SHARED_COLLECTION and COLLECTION_PER_TENANT)
-  collections: ["orders", "invoices", "activity_logs"],
-  // For DATABASE_PER_TENANT, drops the entire database
-  dropDatabase: true,
-});
+// MongoSharedAdapter: pass the tenant ID
+const result = await mongo.purgeTenantData(tenant.id);
 ```
 
 ### Partial Failure Handling
 
-`purgeTenantData()` runs each collection deletion independently. If one collection fails, the others continue. Check the result for partial failures:
+`MongoSharedAdapter` and `MongoCollectionAdapter` delete from each collection independently. If one collection fails, the others continue. Check the result for partial failures:
 
 ```typescript
-const result = await purgeTenantData(mongo, tenantId, {
-  collections: ["orders", "invoices", "activity_logs"],
-});
-
-if (result.errors.length > 0) {
+if (!result.success) {
   // Log and retry or alert -- partial purge means some data remains
   console.error("Purge incomplete:", result.errors);
-  // result.deleted lists collections that succeeded
-  // result.errors lists collections that failed with the error
+  // result.collectionsProcessed counts the collections that succeeded
+  // result.errors lists { collection, error } for each collection that failed
 }
 ```
 
@@ -242,22 +322,28 @@ The `tenant_id` prefix ensures MongoDB uses the index for all tenant-scoped quer
 
 ### Database-per-Tenant Pool Tuning
 
-Each tenant database gets its own connection pool. Tune `maxPoolSize` and `maxDatabases` based on your active tenant count and MongoDB instance capacity:
+Each tenant database gets its own `MongoClient`, and each client has its own connection pool. Tune these values based on your active tenant count and MongoDB instance capacity:
+
+- `maxClients` and `idleTimeoutMs` on `MongoDatabaseAdapter`.
+- `maxPoolSize` and `minPoolSize` on each `MongoClient`, in your `createClient` factory.
 
 ```typescript
-const mongo = new StratumMongoose({
-  uriTemplate: (slug) => `mongodb://localhost:27017/app_${slug}`,
-  strategy: "DATABASE_PER_TENANT",
-  poolOptions: {
-    maxPoolSize: 5,     // connections per tenant database (default: 5)
-    minPoolSize: 1,     // keep at least 1 connection warm
-    maxDatabases: 200,  // evict LRU after this many active databases
-    idleTimeoutMs: 30000, // close idle connections after 30 seconds
+const mongo = new MongoDatabaseAdapter({
+  createClient: async (uri) => {
+    const tenantClient = new MongoClient(uri, {
+      maxPoolSize: 5, // connections per tenant database
+      minPoolSize: 1, // keep at least 1 connection warm
+    });
+    await tenantClient.connect();
+    return tenantClient as unknown as MongoClientLike;
   },
+  baseUri: "mongodb://localhost:27017/app",
+  maxClients: 200,      // close the least recently used client above this count (default: 20)
+  idleTimeoutMs: 30000, // close a client that no caller holds after 30 seconds unused (default: 60000)
 });
 ```
 
-A rough formula: `maxConnections = activeTenants * maxPoolSize`. For 100 active tenants at `maxPoolSize: 5`, budget 500 connections on your MongoDB instance.
+A rough formula: `maxConnections = maxClients * maxPoolSize`. For `maxClients: 100` at `maxPoolSize: 5`, budget 500 connections on your MongoDB instance. A client that a caller holds is never closed, so the client count can go above `maxClients` for a short time.
 
 ### Collection-per-Tenant
 

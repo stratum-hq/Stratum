@@ -221,6 +221,8 @@ curl -X POST http://localhost:3001/api/v1/maintenance/rotate-encryption-key \
 
 The rotation commits in batches, so it is not atomic. If it fails partway, send the same request again: values already on the new key stay unchanged. The response lists values that decrypt with neither key in `unreadable`. After rotation, update `STRATUM_ENCRYPTION_KEY` and restart.
 
+To move the data to a new HKDF salt, also send `old_salt` and `new_salt` in hex. After that rotation, update `STRATUM_HKDF_SALT` too.
+
 ## Best Practices
 
 1. **Use tenant-scoped keys** for application services that only need one tenant

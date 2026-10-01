@@ -25,6 +25,7 @@ export { MongoPoolManager } from "./pool-manager.js";
 
 // Mongoose plugin
 export { stratumPlugin } from "./mongoose-plugin.js";
+export type { StratumPluginOptions } from "./mongoose-plugin.js";
 
 // Utilities
 export { assertTenantId, aggregatePurgeResults, stripTenantIdFromUpdate, assertSafeAggregatePipeline } from "./utils.js";

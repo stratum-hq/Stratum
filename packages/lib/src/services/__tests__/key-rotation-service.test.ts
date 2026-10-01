@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import pg from "pg";
 import { rotateEncryptionKey } from "../key-rotation-service.js";
 import { ValidationError } from "@stratum-hq/core";
-import { encrypt, decrypt } from "../../crypto.js";
+import { encrypt, decrypt, encryptWithKeyMaterial, decryptWithKeyMaterial } from "../../crypto.js";
 
 // ---------------------------------------------------------------------------
 // In-memory table double
@@ -232,6 +232,83 @@ describe("rotateEncryptionKey batching", () => {
     await expect(run).rejects.toMatchObject({ details: { unreadable: 2 } });
     expect(store.config[0].value).toBe(onUnrelated);
     expect(store.webhooks[0].secret_hash).toBe(onUnrelated);
+  });
+
+  it("re-encrypts values from the old key and old salt to the new key and new salt", async () => {
+    const oldSalt = "a1".repeat(32);
+    const newSalt = "b2".repeat(32);
+    const onOldPair = encryptWithKeyMaterial("on-old-pair", OLD_KEY, oldSalt);
+    const onNewPair = encryptWithKeyMaterial("on-new-pair", NEW_KEY, newSalt);
+    const store: Store = {
+      config: [
+        { id: seedId(0), value: onOldPair, sensitive: true },
+        { id: seedId(1), value: onNewPair, sensitive: true },
+      ],
+      webhooks: [{ id: seedId(2), secret_hash: onOldPair }],
+    };
+
+    const result = await rotateEncryptionKey(makeFakePool(store), OLD_KEY, NEW_KEY, 100, { oldSalt, newSalt });
+
+    expect(result).toEqual({
+      config_entries_rotated: 1,
+      webhooks_rotated: 1,
+      already_rotated: 1,
+      unreadable: [],
+    });
+    const rotated = [store.config[0].value, store.webhooks[0].secret_hash as string];
+    for (const blob of rotated) {
+      expect(decryptWithKeyMaterial(blob, NEW_KEY, newSalt)).toBe("on-old-pair");
+      expect(decryptWithKeyMaterial(blob, OLD_KEY, oldSalt)).toBeNull();
+      expect(decryptWithKeyMaterial(blob, NEW_KEY, oldSalt)).toBeNull();
+    }
+    expect(store.config[1].value).toBe(onNewPair);
+  });
+
+  it("changes only the salt when the old key and the new key are the same", async () => {
+    const oldSalt = "a1".repeat(32);
+    const newSalt = "b2".repeat(32);
+    const store: Store = {
+      config: [{ id: seedId(0), value: encryptWithKeyMaterial("salt-only", OLD_KEY, oldSalt), sensitive: true }],
+      webhooks: [],
+    };
+
+    const result = await rotateEncryptionKey(makeFakePool(store), OLD_KEY, OLD_KEY, 100, { oldSalt, newSalt });
+
+    expect(result.config_entries_rotated).toBe(1);
+    expect(decryptWithKeyMaterial(store.config[0].value, OLD_KEY, newSalt)).toBe("salt-only");
+    expect(decryptWithKeyMaterial(store.config[0].value, OLD_KEY, oldSalt)).toBeNull();
+  });
+
+  it.each([
+    ["an odd-length salt", "abc"],
+    ["a salt with a character that is not hex", "zz11"],
+    ["a salt with a 0x prefix", "0xa1b2"],
+    ["an empty salt", ""],
+  ])("refuses %s before it reads a row", async (_label, badSalt) => {
+    const onOldPair = encryptWithKeyMaterial("untouched", OLD_KEY);
+    const store: Store = {
+      config: [{ id: seedId(0), value: onOldPair, sensitive: true }],
+      webhooks: [],
+    };
+
+    for (const salts of [{ oldSalt: badSalt }, { newSalt: badSalt }]) {
+      const run = rotateEncryptionKey(makeFakePool(store), OLD_KEY, NEW_KEY, 100, salts);
+      await expect(run).rejects.toBeInstanceOf(ValidationError);
+      await expect(run).rejects.toThrow(/even-length hex/);
+    }
+    expect(store.config[0].value).toBe(onOldPair);
+  });
+
+  it("accepts an upper-case hex salt", async () => {
+    const salt = "A1".repeat(32);
+    const store: Store = {
+      config: [{ id: seedId(0), value: encryptWithKeyMaterial("upper", OLD_KEY, salt), sensitive: true }],
+      webhooks: [],
+    };
+
+    const result = await rotateEncryptionKey(makeFakePool(store), OLD_KEY, NEW_KEY, 100, { oldSalt: salt });
+
+    expect(result.config_entries_rotated).toBe(1);
   });
 
   it("returns zero counts when no encrypted value exists", async () => {

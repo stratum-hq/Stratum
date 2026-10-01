@@ -222,9 +222,20 @@ Re-encrypts all sensitive config entries and webhook secrets from the old key to
 ```json
 {
   "old_key": "current-encryption-key",
-  "new_key": "new-encryption-key"
+  "new_key": "new-encryption-key",
+  "old_salt": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "new_salt": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
 }
 ```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `old_key` | Yes | The key that the existing values use. |
+| `new_key` | Yes | The key that the rotation encrypts under. |
+| `old_salt` | No | The HKDF salt, in hex, that the existing values use. Default: `STRATUM_HKDF_SALT`. |
+| `new_salt` | No | The HKDF salt, in hex, that the rotation encrypts under. Default: `STRATUM_HKDF_SALT`. |
+
+A salt must be a non-empty, even-length hex string. To change only the salt, give the same value as `old_key` and `new_key`, and two different salts. The route answers `400 VALIDATION_ERROR` when a salt is not valid hex, or when the key and the salt both stay the same.
 
 **Response:** `200 OK`
 
