@@ -85,6 +85,25 @@ describe("control-plane error responses against real Postgres (integration)", ()
     expect(failures).toEqual([]);
   });
 
+  it("answers 400 VALIDATION_ERROR for a non-UUID query-string tenant id", async () => {
+    const failures: string[] = [];
+    for (const url of [
+      "/api/v1/webhooks?tenant_id=not-a-uuid",
+      "/api/v1/api-keys?tenant_id=not-a-uuid",
+      "/api/v1/roles?tenant_id=not-a-uuid",
+      `/api/v1/config/diff?tenant_a=not-a-uuid&tenant_b=${GOOD_ID}`,
+      `/api/v1/config/diff?tenant_a=${GOOD_ID}&tenant_b=not-a-uuid`,
+    ]) {
+      const res = await send("GET", url);
+      if (res.statusCode !== 400 || res.json().error?.code !== "VALIDATION_ERROR") {
+        failures.push(`${url}: ${res.statusCode} ${res.body}`);
+      }
+    }
+    expect(failures).toEqual([]);
+    const ok = await send("GET", `/api/v1/roles?tenant_id=${GOOD_ID}`);
+    expect(ok.statusCode).toBe(200);
+  });
+
   it("answers an unknown route with the NOT_FOUND envelope", async () => {
     const res = await send("GET", "/api/v1/no-such-route");
     expect(res.statusCode).toBe(404);

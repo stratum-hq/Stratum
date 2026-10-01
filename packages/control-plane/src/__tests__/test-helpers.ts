@@ -2,7 +2,7 @@ import Fastify, { FastifyInstance } from "fastify";
 import { vi } from "vitest";
 import jwt from "jsonwebtoken";
 import { errorHandler, notFoundHandler } from "../middleware/error-handler.js";
-import { registerUuidPathParams, rejectInvalidPathParams } from "../middleware/path-params.js";
+import { registerUuidPathParams, rejectInvalidPathParams, rejectInvalidQueryTenantIds } from "../middleware/path-params.js";
 import { createAuthMiddleware } from "../middleware/auth.js";
 import { createAuthorizeMiddleware } from "../middleware/authorize.js";
 import { createTenantScopeEnforcer } from "../middleware/tenant-scope.js";
@@ -85,6 +85,7 @@ export async function buildTestApp(stratum: Stratum): Promise<FastifyInstance> {
   app.addHook("preHandler", createAuthorizeMiddleware());
   registerUuidPathParams(app);
   app.addHook("preHandler", rejectInvalidPathParams);
+  app.addHook("preHandler", rejectInvalidQueryTenantIds);
   app.addHook("preHandler", createTenantScopeEnforcer(stratum));
   app.setErrorHandler(errorHandler);
   app.setNotFoundHandler(notFoundHandler);

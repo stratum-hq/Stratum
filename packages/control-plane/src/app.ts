@@ -6,7 +6,7 @@ import helmet from "@fastify/helmet";
 import { Stratum } from "@stratum-hq/lib";
 import { registerOpenApi } from "./openapi.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
-import { registerUuidPathParams, rejectInvalidPathParams } from "./middleware/path-params.js";
+import { registerUuidPathParams, rejectInvalidPathParams, rejectInvalidQueryTenantIds } from "./middleware/path-params.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createAuthorizeMiddleware } from "./middleware/authorize.js";
 import { createTenantScopeEnforcer } from "./middleware/tenant-scope.js";
@@ -94,10 +94,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await registerOpenApi(app);
   app.addHook("preHandler", createAuthMiddleware(stratum));
   app.addHook("preHandler", createAuthorizeMiddleware());
-  // A path id that is not a UUID gets 400, after authentication and before
-  // any lookup by that id.
+  // A path id or a query-string tenant id that is not a UUID gets 400, after
+  // authentication and before any lookup by that id.
   registerUuidPathParams(app);
   app.addHook("preHandler", rejectInvalidPathParams);
+  app.addHook("preHandler", rejectInvalidQueryTenantIds);
   // Default-deny: a route that declares no tenant scope is refused.
   app.addHook("preHandler", createTenantScopeEnforcer(stratum));
 
