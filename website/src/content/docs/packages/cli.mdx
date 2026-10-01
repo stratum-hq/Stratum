@@ -50,6 +50,7 @@ Checks:
 - Required extensions: `uuid-ossp` and `ltree`
 - BYPASSRLS privilege (must be disabled for the application role)
 - Stratum schema tables (tenants, config_entries, etc.)
+- The role model of migration 032: whether the control role is applied, and whether the login of `--database-url` is limited to the application's share (see [Hardening: separate admin and app roles](/guides/hardening-roles/))
 - RLS status on all user tables
 
 ### stratum doctor
@@ -60,6 +61,7 @@ Check a database that already runs Stratum for configuration problems and damage
 stratum doctor
 stratum doctor --database-url postgres://user:pass@host:5432/mydb
 stratum doctor --depth-warning 30
+stratum doctor --admin-database-url postgres://stratum_admin:pass@host:5432/mydb
 ```
 
 Checks:
@@ -68,6 +70,11 @@ Checks:
 - Stratum schema tables
 - RLS enabled and forced on every table with a `tenant_id` column
 - RLS policies that filter by tenant
+- Bypass policies: policies that admit `app.bypass_rls` directly
+- Control role: whether migration 032 applied the control role
+- App role: the login of `--database-url` is not a member of the control role, owns no Stratum object or the schema, writes no Stratum table, and reads no credential table
+- Admin role: the login of `--admin-database-url` can act as the control plane
+- Legacy switch: whether `app.bypass_rls` still passes the tenant policies (needs `--admin-database-url`)
 - Indexes on `tenant_id`
 - Orphaned tenants: a parent that is missing or archived
 - Tenant parent cycles: tenants whose parent chain comes back to the same tenant
@@ -76,7 +83,7 @@ Checks:
 - The `STRATUM_ENCRYPTION_KEY` setting
 - Tree depth: the maximum depth of an active tenant (advisory)
 
-The command reads the Stratum tables under the `app.bypass_rls` setting, so it sees every tenant when it connects as the application role. If a check fails, the command exits with code 1. A warning does not change the exit code.
+The data checks read the Stratum tables across tenants. With `--admin-database-url` (or `DATABASE_ADMIN_URL`), a member of the control role, they run on that login and set nothing. Without it, they use the legacy `app.bypass_rls` setting and print a warning; once `stratum db lock` has closed that path, each data check reports that it could not run instead of a pass. The role-model checks are warnings in 1.x. If a check fails, the command exits with code 1. A warning does not change the exit code.
 
 The tree depth check is advisory. Stratum accepts a tenant tree of any depth. Config resolution reads every ancestor of a tenant, so a deep tree makes it slower. If the maximum depth is more than the warning threshold, `doctor` warns and lists the deepest tenants. The check never fails `doctor`. The default threshold is 20. To change it, use the `--depth-warning <n>` option or the `STRATUM_DOCTOR_DEPTH_WARNING` environment variable. The option has priority over the variable. If the value is not a positive integer, `doctor` warns and uses 20.
 
@@ -88,7 +95,7 @@ To repair a cycle, set `parent_id` of one tenant in the cycle to a tenant outsid
 
 Do not use `moveTenant` or `POST /api/v1/tenants/:id/move` for this repair. They compute the new paths from the stored `ancestry_path` of the moved tenant, and in a cycle that value can be wrong. The result can then leave other tenants of the cycle with a wrong `ancestry_path` and `depth`.
 
-Run this SQL as one transaction. Replace the two placeholders first. The advisory lock is the lock that Stratum takes for every change to the tree, so no Stratum write runs at the same time.
+Run this SQL as one transaction, as the admin login (a member of the control role). The `SET LOCAL app.bypass_rls` line serves a login that is not, and works only while the legacy switch is on. Replace the two placeholders first. The advisory lock is the lock that Stratum takes for every change to the tree, so no Stratum write runs at the same time.
 
 ```sql
 BEGIN;
@@ -148,7 +155,9 @@ For each table, migration:
 4. Creates index on `tenant_id`
 5. Adds foreign key to `tenants` table (if it exists)
 
-If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
+The foreign key needs the `REFERENCES` privilege on `tenants`. The role model of migration 032 does not give it to the application login, so after `stratum db roles` the migration stops, changes nothing, and names the grant (`GRANT REFERENCES (id) ON tenants TO <login>`); granting it is your choice.
+
+If the table already has rows, each row needs a tenant. Give that tenant with `--tenant <uuid>`, and the migration assigns every existing row to it. The tenant must exist in the `tenants` table; the command looks it up as the control role with `--admin-database-url` (or `DATABASE_ADMIN_URL`), else through the legacy `app.bypass_rls` path. Without `--tenant`, the migration stops and changes nothing. With `--all`, the same `--tenant` applies to every table that has rows.
 
 The command migrates application tables only. It rejects the name of a table that Stratum's own migrations create, such as `tenants`, and `--all` skips those tables.
 
@@ -163,7 +172,31 @@ stratum generate api-key --name "my-service"
 stratum generate api-key --name "admin" --tenant <tenant-uuid>
 ```
 
-The plaintext key is displayed once and never stored.
+The plaintext key is displayed once and never stored. When `STRATUM_API_KEY_HMAC_SECRET` is set, the key is stored with an HMAC hash, as the library stores it; otherwise with SHA-256. The key is written as the control role with `--admin-database-url` (or `DATABASE_ADMIN_URL`), else through the legacy `app.bypass_rls` path.
+
+### stratum db roles
+
+Print, or apply, the SQL that sets up the role model of migration 032:
+
+```bash
+# Print the SQL to review it, or to run it with psql
+stratum db roles --admin-role stratum_admin --app-role stratum_app
+
+# Apply it as a superuser (or a login with CREATEROLE that owns the Stratum tables)
+stratum db roles --apply --admin-role stratum_admin --app-role stratum_app \
+  --database-url postgres://postgres:pass@host:5432/mydb
+```
+
+The SQL is `bootstrapRolesSql()` from `@stratum-hq/lib`. It first checks that the Stratum tables carry only what the Stratum migrations created, and stops otherwise. Then it creates the NOLOGIN control role, makes the admin login a member, moves the Stratum tables and functions that the application login owns to the admin login (never your application's tables), applies the control role, and limits the application login to `SELECT` on the read-list tables. With `--apply`, the command reports the resulting role model and exits 1 if the control role is not applied. `--control-role` names the control role (default: the connection's `stratum.control_role` setting, else the role the database already uses, else `stratum_control`), and `--schema` the schema of the Stratum tables (default `public`).
+
+### stratum db lock / db unlock
+
+```bash
+stratum db lock   --admin-database-url postgres://stratum_admin:pass@host:5432/mydb
+stratum db unlock --admin-database-url postgres://stratum_admin:pass@host:5432/mydb
+```
+
+`db lock` turns the legacy switch of migration 032 off, so a session that sets `app.bypass_rls` no longer passes the tenant policies; `db unlock` turns it back on. Run them as a member of the control role: the command connects to `--admin-database-url` (or `DATABASE_ADMIN_URL`), else to `--database-url`, and fails when the login cannot change the switch. `db lock` refuses while the control role is not applied. The switch applies to every client of the database. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
 
 ### stratum scaffold
 
@@ -231,6 +264,11 @@ Generates:
 | Flag | Description |
 |------|-------------|
 | `--database-url`, `-d` | PostgreSQL connection string |
+| `--admin-database-url` | Connection of the admin login, a member of the control role (default: `DATABASE_ADMIN_URL`). `doctor`, `generate api-key`, `migrate --tenant` and `db lock` use it for Stratum's tables; without it they fall back to the legacy `app.bypass_rls` path with a warning |
+| `--control-role` | Control role of migration 032 (default: the `stratum.control_role` setting of the connection, else `stratum_control`) |
+| `--admin-role`, `--app-role` | Logins for `db roles` |
+| `--schema` | Schema of the Stratum tables for the `db` commands (default `public`) |
+| `--apply` | Run the `db roles` SQL instead of printing it |
 | `--name` | Name for generated API key |
 | `--tenant` | Tenant ID for generated API key |
 | `--out` | Output directory for scaffolded files |

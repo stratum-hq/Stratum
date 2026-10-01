@@ -115,7 +115,7 @@ If you cloned the Stratum repository, use the included `docker-compose.yml`:
 docker compose up db -d
 ```
 
-This starts PostgreSQL 16 with all extensions pre-configured and creates the `stratum_app` role.
+This starts PostgreSQL 16 with all extensions pre-configured and creates three roles: `stratum_app` for the application, `stratum_admin` for the control plane's migrations and cross-tenant work, and the NOLOGIN control role `stratum_control`. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
 
 ## Environment Variables
 
@@ -129,6 +129,7 @@ For production, you should also set:
 
 | Variable | Description |
 |----------|-------------|
+| `DATABASE_ADMIN_URL` | Optional in 1.x: a separate admin login for Stratum's own cross-tenant work, a member of the control role. The control plane and the CLI read it; with the library, pass it as `adminPool`. See [Hardening: separate admin and app roles](/guides/hardening-roles/) |
 | `JWT_SECRET` | JWT signing secret (required whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder such as `change-me-in-production`) |
 | `JWT_AUDIENCE` | Required `aud` claim for Bearer tokens, for example `stratum-control-plane` |
 | `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required, at least 32 bytes, whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |

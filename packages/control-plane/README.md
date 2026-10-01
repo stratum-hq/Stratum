@@ -20,14 +20,18 @@ JWT_SECRET=your-secret \
 node dist/index.js
 ```
 
-On startup the server runs database migrations, then listens on `PORT` (default `3001`). It handles `SIGTERM`/`SIGINT` for graceful shutdown. OpenAPI docs are served via `@fastify/swagger-ui`.
+On startup the server runs database migrations (on `DATABASE_ADMIN_URL` when set), then listens on `PORT` (default `3001`). It handles `SIGTERM`/`SIGINT` for graceful shutdown. OpenAPI docs are served via `@fastify/swagger-ui`.
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Listen port |
-| `DATABASE_URL` | `postgres://stratum:stratum_dev@localhost:5432/stratum` | PostgreSQL connection string |
+| `DATABASE_URL` | `postgres://stratum:stratum_dev@localhost:5432/stratum` | PostgreSQL connection string of the application login |
+| `DATABASE_ADMIN_URL` | none | Optional admin login, a member of the control role of `@stratum-hq/lib` migration 032. When set, the migrations, the library (`adminPool`) and tenant schema and database provisioning run on it, both logins are checked at startup, and the health check reports `admin_db`. When unset, everything runs on `DATABASE_URL` as before. See the [hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/) |
+| `STRATUM_CONTROL_ROLE` | none | Name of the control role, when it is not the database's or `stratum_control` |
+| `STRATUM_ALLOW_LEGACY_KEY_HASHES` | library default (`true` in 1.x) | `false` accepts only HMAC API key hashes while `STRATUM_API_KEY_HMAC_SECRET` is set; `true` also accepts legacy SHA-256 hashes and re-hashes them on use |
+| `STRATUM_API_KEY_HMAC_SECRET` | none | Optional HMAC secret for API key hashes (at least 32 bytes whenever `NODE_ENV` is not `development` or `test`) |
 | `JWT_SECRET` | dev fallback | JWT signing secret, **required** whenever `NODE_ENV` is not `development` or `test` (server refuses to start without it). There it must also be at least 32 bytes and not a placeholder such as `change-me-in-production` |
 | `JWT_AUDIENCE` | none | Optional; when set, Bearer tokens must carry this `aud` claim (for example `stratum-control-plane`). Recommended whenever `JWT_SECRET` is shared with another application; the server warns at startup when it is unset and `NODE_ENV` is not `development` or `test` |
 | `JWT_ISSUER` | none | Optional; when set, Bearer tokens must carry this `iss` claim |
@@ -60,7 +64,7 @@ All routes are versioned under `/api/v1`:
 | `/api/v1/config` | Config diff |
 | `/api/v1/maintenance` | Retention / purge tasks |
 
-A `/health` endpoint reports server and Redis status.
+A `/health` endpoint reports server, database (and, with `DATABASE_ADMIN_URL`, admin database) and Redis status.
 
 ## Links
 
