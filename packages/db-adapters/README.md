@@ -56,7 +56,13 @@ try {
 }
 ```
 
-`createPolicy` adds the `tenant_isolation` policy if the table does not have one. If a policy with that name exists but does not compare `tenant_id` with the current tenant setting `app.current_tenant_id` for reads and writes, `createPolicy` throws instead of keeping it. The existing policy must be permissive and apply to all commands. The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass. A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
+`createPolicy` checks every row-level security policy already on the table (the table the name resolves to through the `search_path`) before it adds the `tenant_isolation` policy or keeps an existing one, and throws without changing anything if any check fails:
+
+- PostgreSQL ORs permissive policies together, so every permissive policy, whatever its name or roles, must compare `tenant_id` with the current tenant setting `app.current_tenant_id` for the commands it covers (`USING` for reads, updates and deletes; `WITH CHECK` for inserts, and for updates when set). A role-specific permissive policy counts too, because `createPolicy` cannot know which role your application connects as.
+- Restrictive policies can only narrow access, so they may check anything.
+- An existing `tenant_isolation` policy must be permissive, apply to all commands, and apply to `PUBLIC` (no `TO` clause), like the one `createPolicy` generates and every policy Stratum ships.
+
+The check recognizes the form Stratum generates, with the operands in either order, with casts, ANDed with other conditions, or ORed with Stratum's `app.bypass_rls` bypass. A policy that isolates correctly but is written in another form is also refused; replace it with the generated form. This is a breaking change for callers that relied on the old skip, shipped in a minor release.
 
 `isRLSEnabled` reports on the table that the name resolves to through the `search_path`, not on a table with the same name in another schema.
 

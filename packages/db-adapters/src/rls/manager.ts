@@ -1,5 +1,5 @@
 import pg from "pg";
-import { tenantPolicyIssue, type PolicyRow } from "./policy-check.js";
+import { tablePolicyIssues, type PolicyRow } from "./policy-check.js";
 
 const TENANT_FILTER = "tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid";
 
@@ -16,28 +16,29 @@ export async function createPolicy(
   tableName: string,
 ): Promise<void> {
   const safe = validateTableName(tableName);
-  // Look up the policy on the table that the name resolves to, in whichever
-  // schema that is, and check what it filters on: its name proves nothing.
+  // Read every policy on the table that the name resolves to, in whichever
+  // schema that is. PostgreSQL ORs permissive policies together, so each one
+  // must filter by tenant, and a policy's name proves nothing.
   const existing = await client.query<PolicyRow>(
-    `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check
+    `SELECT p.policyname, p.permissive, p.cmd, p.qual, p.with_check, p.roles::text[] AS roles
        FROM pg_policies p
        JOIN pg_class c ON c.relname = p.tablename
        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = p.schemaname
-      WHERE c.oid = to_regclass($1) AND p.policyname = 'tenant_isolation'`,
+      WHERE c.oid = to_regclass($1)`,
     [safe],
   );
-  if (existing.rows.length === 0) {
+  const issues = tablePolicyIssues(existing.rows);
+  if (issues.length > 0) {
+    throw new Error(
+      `[stratum] Table ${safe} has row-level security policies that do not isolate it by tenant: ` +
+        `${issues.join("; ")} (expected ${TENANT_FILTER}). ` +
+        `Drop or correct those policies, then call createPolicy again.`,
+    );
+  }
+  if (!existing.rows.some((p) => p.policyname === "tenant_isolation")) {
     // Cannot use parameterized queries inside DO blocks or for DDL identifiers.
     // Table name is validated via allowlist regex above.
     await client.query(`CREATE POLICY tenant_isolation ON ${safe} USING (${TENANT_FILTER})`);
-    return;
-  }
-  const issue = tenantPolicyIssue(existing.rows[0]);
-  if (issue !== null) {
-    throw new Error(
-      `[stratum] Table ${safe} already has a tenant_isolation policy, but ${issue} ` +
-        `(expected ${TENANT_FILTER}). Drop or correct that policy, then call createPolicy again.`,
-    );
   }
 }
 

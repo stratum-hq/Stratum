@@ -84,7 +84,7 @@ try {
 }
 ```
 
-If the table already has a policy named `tenant_isolation`, `createPolicy` keeps it only when it is a permissive policy for all commands whose `USING` (and `WITH CHECK`, if set) compares `tenant_id` with the current tenant setting `app.current_tenant_id`. Otherwise `createPolicy` throws an error that shows the existing expression, and does not change the policy. Drop or correct that policy, then call `createPolicy` again.
+Before it adds `tenant_isolation`, or keeps an existing policy with that name, `createPolicy` checks every policy already on the table. PostgreSQL ORs permissive policies together, so every permissive policy, whatever its name or roles, must compare `tenant_id` with the current tenant setting `app.current_tenant_id` for the commands it covers. Restrictive policies may check anything. An existing `tenant_isolation` policy must also be permissive, apply to all commands, and apply to `PUBLIC` (no `TO` clause). If any check fails, `createPolicy` throws an error that names each policy and its expression, and changes nothing. A correct policy written in a form the check does not recognize is refused too. Drop or correct those policies, then call `createPolicy` again.
 
 ### Disable RLS
 

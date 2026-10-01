@@ -22,7 +22,7 @@ const GENERATED =
   "(tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid)";
 
 function existingPolicy(qual: string) {
-  return { policyname: "tenant_isolation", permissive: "PERMISSIVE", cmd: "ALL", qual, with_check: null };
+  return { policyname: "tenant_isolation", permissive: "PERMISSIVE", cmd: "ALL", qual, with_check: null, roles: ["public"] };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ describe("RLS Manager", () => {
 
       // First call: check pg_policies
       expect(calls[0][0]).toContain("pg_policies");
-      expect(calls[0][0]).toContain("tenant_isolation");
+      expect(calls[0][0]).toContain("to_regclass");
       expect(calls[0][1]).toEqual(["orders"]);
 
       // Second call: CREATE POLICY
@@ -150,13 +150,13 @@ describe("RLS Manager", () => {
       expect(calls[0][0]).toContain("pg_policies");
     });
 
-    it("throws without creating a policy when the existing policy does not filter by tenant", async () => {
+    it("throws without creating a policy when the existing tenant_isolation policy does not filter by tenant", async () => {
       (client.query as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         rows: [existingPolicy("true")],
       });
 
       await expect(createPolicy(client, "orders")).rejects.toThrow(
-        /orders already has a tenant_isolation policy.*USING \(true\) does not filter by tenant/,
+        /orders has row-level security policies that do not isolate it.*tenant_isolation.*USING \(true\) does not filter by tenant/,
       );
       expect((client.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
     });
