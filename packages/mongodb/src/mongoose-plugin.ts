@@ -56,6 +56,15 @@ export interface StratumPluginOptions {
   watchDeletes?: boolean;
 }
 
+/**
+ * Return the `next` callback and the first argument of a pre hook that
+ * declares parameters. Mongoose 8 calls such a hook with `(next, ...args)`,
+ * and Mongoose 9 calls it with `(...args)` and never passes `next`.
+ */
+function hookArguments(first: unknown, second: unknown): { next?: () => void; payload: unknown } {
+  return typeof first === "function" ? { next: first as () => void, payload: second } : { payload: first };
+}
+
 /** Marks the watch() static this plugin installs, to find Mongoose's own watch() below it. */
 const SCOPED_WATCH = Symbol("stratum.scopedWatch");
 
@@ -156,7 +165,7 @@ function makeScopedWatch(watchDeletes: boolean) {
  * Mongoose plugin that auto-injects tenant_id from ALS context.
  *
  * Adds `tenant_id` field to the schema (if not already present) and
- * registers pre-hooks for save, every Mongoose query operation (find, findOne,
+ * registers pre-hooks for validate, save, every Mongoose query operation (find, findOne,
  * countDocuments, distinct, updateOne, updateMany, replaceOne, deleteOne,
  * deleteMany, findOneAndUpdate, findOneAndReplace, findOneAndDelete),
  * insertMany, bulkWrite, and aggregate, and replaces the model's watch() with
@@ -169,8 +178,9 @@ function makeScopedWatch(watchDeletes: boolean) {
  * them sees all tenants. Use them only for admin work, never with tenant
  * input.
  *
- * Hooks declared with `(...args)` have length 0, so Mongoose runs them
- * synchronously without a `next` callback; `next` is called only if passed.
+ * Supports Mongoose 8 and 9. Most hooks take no parameters, so both versions
+ * run them synchronously without a `next` callback. The insertMany and
+ * bulkWrite hooks need their arguments; see `hookArguments`.
  *
  * Each hook reads the current tenant from ALS via `getTenantContext()` from `@stratum-hq/sdk`.
  * If no ALS context is found, a TenantContextNotFoundError is thrown.
@@ -187,13 +197,11 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
     });
   }
 
-  // Pre-save: inject tenant_id into the document
-  schema.pre("save", function (this: unknown, ...args: unknown[]) {
-    const doc = this as MongooseDocumentLike;
-    const next = args[0] as (() => void) | undefined;
-    const ctx = getTenantContext();
-    doc.tenant_id = ctx.tenant_id;
-    next?.();
+  // Set tenant_id before validation, because the field is required and
+  // Mongoose validates before the pre-save hooks of the schema run. The
+  // pre-save hook also sets it, for a save() with validateBeforeSave: false.
+  schema.pre(["validate", "save"], function (this: unknown) {
+    (this as MongooseDocumentLike).tenant_id = getTenantContext().tenant_id;
   });
 
   // Pre-find/query hooks: merge tenant_id into the query filter
@@ -215,9 +223,8 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
   const replaceHooks = new Set(["replaceOne", "findOneAndReplace"]);
 
   for (const hook of queryHooks) {
-    schema.pre(hook, function (this: unknown, ...args: unknown[]) {
+    schema.pre(hook, function (this: unknown) {
       const query = this as MongooseQueryLike;
-      const next = args[0] as (() => void) | undefined;
       const ctx = getTenantContext();
       const filter = query.getQuery();
       query.setQuery({ ...filter, tenant_id: ctx.tenant_id });
@@ -232,8 +239,6 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
           );
         }
       }
-
-      next?.();
     });
   }
 
@@ -245,7 +250,8 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
   });
 
   // Pre-insertMany: set tenant_id on every document (docs arrive before casting/validation)
-  schema.pre("insertMany", function (this: unknown, next: () => void, docs: unknown) {
+  schema.pre("insertMany", function (this: unknown, first: unknown, second: unknown) {
+    const { next, payload: docs } = hookArguments(first, second);
     const ctx = getTenantContext();
     const list = Array.isArray(docs) ? docs : [docs];
     for (const doc of list) {
@@ -253,16 +259,18 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
         (doc as MongooseDocumentLike).tenant_id = ctx.tenant_id;
       }
     }
-    next();
-  } as (...args: unknown[]) => void);
+    next?.();
+  });
 
   // Pre-bulkWrite: scope every operation in place, rejecting unsupported ones
-  schema.pre("bulkWrite", function (this: unknown, next: () => void, ops: unknown) {
+  schema.pre("bulkWrite", function (this: unknown, first: unknown, second: unknown) {
+    const { next, payload } = hookArguments(first, second);
+    const ops = payload as unknown[];
     const ctx = getTenantContext();
-    const scoped = scopeBulkWriteOperations(ops as unknown[], ctx.tenant_id);
-    (ops as unknown[]).splice(0, (ops as unknown[]).length, ...scoped);
-    next();
-  } as (...args: unknown[]) => void);
+    const scoped = scopeBulkWriteOperations(ops, ctx.tenant_id);
+    ops.splice(0, ops.length, ...scoped);
+    next?.();
+  });
 
   // Pre-aggregate: reject cross-collection stages at any depth, then prepend
   // $match stage. The checked pipeline is a fresh copy. For .cursor() it is
@@ -270,14 +278,12 @@ export function stratumPlugin(schema: SchemaLike, options: StratumPluginOptions 
   // can reach, so an edit made after the check would otherwise run. exec() and
   // explain() keep it unfrozen, because Mongoose edits the pipeline of a
   // discriminator model before this hook each time the Aggregate runs.
-  schema.pre("aggregate", function (this: unknown, ...args: unknown[]) {
+  schema.pre("aggregate", function (this: unknown) {
     const agg = this as MongooseAggregateLike;
-    const next = args[0] as (() => void) | undefined;
     const ctx = getTenantContext();
     const safe = assertSafeAggregatePipeline(agg.pipeline());
     const scoped = [{ $match: { tenant_id: ctx.tenant_id } }, ...safe];
     agg._pipeline = agg.options?.cursor ? freezePipeline(scoped) : scoped;
-    next?.();
   });
 
   // watch(): the change stream is filtered to the current tenant's documents.
