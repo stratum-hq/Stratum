@@ -57,6 +57,7 @@ export {
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
+  DecryptionError,
 } from "@stratum-hq/core";
 
 // Re-export core types for convenience

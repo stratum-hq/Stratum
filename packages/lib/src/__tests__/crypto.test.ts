@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { encrypt, decrypt } from "../crypto.js";
+import { encrypt, decrypt, encryptWithKeyMaterial } from "../crypto.js";
+import { DecryptionError, ErrorCode, StratumError } from "@stratum-hq/core";
 
 describe("crypto", () => {
   it("encrypts and decrypts round-trip", () => {
@@ -25,6 +26,26 @@ describe("crypto", () => {
 
   it("throws on invalid format", () => {
     expect(() => decrypt("invalid")).toThrow("Invalid encrypted value format");
+    expect(() => decrypt("invalid")).toThrow(DecryptionError);
+  });
+
+  it("wraps a wrong key or salt in a DecryptionError instead of the raw Node error", () => {
+    const foreign = encryptWithKeyMaterial("secret-plaintext", "some-other-key-material");
+    let caught: unknown;
+    try {
+      decrypt(foreign);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(DecryptionError);
+    expect(caught).toBeInstanceOf(StratumError);
+    const err = caught as DecryptionError;
+    expect(err.code).toBe(ErrorCode.DECRYPTION_FAILED);
+    expect(err.message).toMatch(/STRATUM_ENCRYPTION_KEY or STRATUM_HKDF_SALT/);
+    expect(err.message).not.toMatch(/Unsupported state/);
+    expect(err.message).not.toContain("secret-plaintext");
+    // The original error stays available for debugging.
+    expect((err.cause as Error).message).toMatch(/Unsupported state or unable to authenticate data/);
   });
 
   it("different plaintexts produce different ciphertexts", () => {
@@ -305,7 +326,10 @@ describe("crypto previous HKDF salt during a salt change", () => {
     process.env.STRATUM_ENCRYPTION_KEY = NEW_KEY;
     process.env.STRATUM_HKDF_SALT = SALT_B;
     process.env.STRATUM_ENCRYPTION_KEY_PREVIOUS = OLD_KEY;
-    await expect(freshCrypto().then((m) => m.decrypt(ciphertext))).rejects.toThrow();
+    await expect(freshCrypto().then((m) => m.decrypt(ciphertext))).rejects.toMatchObject({
+      name: "DecryptionError",
+      code: "DECRYPTION_FAILED",
+    });
   });
 
   it("encrypts and decrypts with an explicit salt instead of the configured salt", async () => {

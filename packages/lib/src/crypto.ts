@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { DecryptionError } from "@stratum-hq/core";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -114,7 +115,7 @@ function decryptWithKey(encrypted: string, key: Buffer): string {
     // Legacy: iv:authTag:ciphertext
     [ivHex, authTagHex, ciphertextHex] = parts as [string, string, string];
   } else {
-    throw new Error("Invalid encrypted value format");
+    throw new DecryptionError("format");
   }
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
@@ -143,10 +144,13 @@ export function decrypt(encrypted: string): string {
       try {
         return decryptWithKey(encrypted, deriveKey(previousKey || getEncryptionKeyMaterial(), previousSalt));
       } catch {
-        // Both pairs failed: throw the original error
+        // Both pairs failed: report the original error
       }
     }
-    throw err;
+    if (err instanceof DecryptionError) throw err;
+    // Node reports a failed GCM authentication as "Unsupported state or
+    // unable to authenticate data", which does not say what to check.
+    throw new DecryptionError("authentication", { cause: err });
   }
 }
 

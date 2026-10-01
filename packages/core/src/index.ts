@@ -192,6 +192,7 @@ export {
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
+  DecryptionError,
 } from "./utils/errors.js";
 
 // Constants
