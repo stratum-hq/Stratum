@@ -117,7 +117,7 @@ async function migrateSchema(
       await client.query("BEGIN");
 
       // Advisory lock scoped to this schema
-      await client.query(`SELECT pg_advisory_xact_lock($1)`, [lockKey]);
+      await client.query(`SELECT pg_catalog.pg_advisory_xact_lock($1::pg_catalog.int8)`, [lockKey]);
 
       // Set search_path to the tenant schema. public stays on the path because
       // the migration SQL uses extension types and functions installed there

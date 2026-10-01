@@ -36,7 +36,7 @@ export function migrationSql(name: string, sql: string, superuser: boolean): str
 /** Whether the role of `client` is a superuser. */
 export async function isSuperuser(client: pg.PoolClient | pg.Pool): Promise<boolean> {
   const res = await client.query<{ rolsuper: boolean }>(
-    "SELECT rolsuper FROM pg_roles WHERE rolname = current_user",
+    "SELECT rolsuper FROM pg_catalog.pg_roles WHERE rolname = current_user",
   );
   return res.rows[0]?.rolsuper === true;
 }
@@ -47,7 +47,7 @@ export async function isSuperuser(client: pg.PoolClient | pg.Pool): Promise<bool
  */
 export async function setControlRole(client: pg.PoolClient, controlRole: string | undefined): Promise<void> {
   if (controlRole === undefined) return;
-  await client.query("SELECT set_config('stratum.control_role', $1, true)", [controlRole]);
+  await client.query("SELECT pg_catalog.set_config('stratum.control_role', $1, true)", [controlRole]);
 }
 
 /**
@@ -59,5 +59,5 @@ export async function setControlRole(client: pg.PoolClient, controlRole: string 
  */
 export async function setApplyControlRole(client: pg.PoolClient, apply: boolean | undefined): Promise<void> {
   if (!apply) return;
-  await client.query("SELECT set_config('stratum.apply_control_role', 'on', true)");
+  await client.query("SELECT pg_catalog.set_config('stratum.apply_control_role', 'on', true)");
 }

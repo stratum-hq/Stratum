@@ -133,7 +133,7 @@ describe("setApplyControlRole", () => {
     await setApplyControlRole(client, false);
     expect(query).not.toHaveBeenCalled();
     await setApplyControlRole(client, true);
-    expect(query).toHaveBeenCalledWith("SELECT set_config('stratum.apply_control_role', 'on', true)");
+    expect(query).toHaveBeenCalledWith("SELECT pg_catalog.set_config('stratum.apply_control_role', 'on', true)");
   });
 });
 

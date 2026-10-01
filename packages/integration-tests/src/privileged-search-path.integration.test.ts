@@ -4,8 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import { inspectRoleModel, migrate, noopLogger, Stratum, stratumPolicyDrift } from "@stratum-hq/lib";
-import { createPolicy, isRLSEnabled } from "@stratum-hq/db-adapters";
+import { inspectRoleModel, migrate, migrateAllSchemas, noopLogger, Stratum, stratumPolicyDrift } from "@stratum-hq/lib";
+import { createPolicy, isRLSEnabled, listTenantSchemas } from "@stratum-hq/db-adapters";
 import { BASE_URL, ROLE_PREFIX, controlRoleName, dropTestRole, scratchDatabase, urlFor } from "./helpers/role-model.js";
 
 /**
@@ -95,6 +95,14 @@ CREATE FUNCTION public.cardinality(text[]) RETURNS integer LANGUAGE plpgsql AS
 
 CREATE FUNCTION public.array_to_string(text[], text) RETURNS text LANGUAGE plpgsql AS
   $$ BEGIN PERFORM public.sp_record('array_to_string(text[],text)'); RETURN pg_catalog.array_to_string($1, $2); END $$;
+
+CREATE FUNCTION public.pg_advisory_xact_lock(integer) RETURNS void LANGUAGE plpgsql AS
+  $$ BEGIN PERFORM public.sp_record('pg_advisory_xact_lock(integer)');
+     PERFORM pg_catalog.pg_advisory_xact_lock($1::pg_catalog.int8); END $$;
+
+CREATE FUNCTION public.sp_name_like(name, name) RETURNS boolean LANGUAGE plpgsql AS
+  $$ BEGIN PERFORM public.sp_record('~~(name,name)'); RETURN $1::text OPERATOR(pg_catalog.~~) $2::text; END $$;
+CREATE OPERATOR public.~~ (LEFTARG = name, RIGHTARG = name, FUNCTION = public.sp_name_like);
 `;
 
 function runCli(args: string[]): { code: number | null; out: string } {
@@ -125,13 +133,15 @@ const LABELS = [
   "format(text,name)",
   "cardinality(text[])",
   "array_to_string(text[],text)",
+  "pg_advisory_xact_lock(integer)",
+  "~~(name,name)",
 ];
 
 let baseline = new Map<string, number>();
 
 async function callCounts(): Promise<Map<string, number>> {
   const res = await suPool.query<{ name: string; n: string | null }>(
-    "SELECT sequencename AS name, last_value AS n FROM pg_sequences WHERE schemaname = 'public' AND sequencename LIKE 'sp_hit %'",
+    "SELECT sequencename AS name, last_value AS n FROM pg_sequences WHERE schemaname = 'public' AND sequencename OPERATOR(pg_catalog.~~) 'sp_hit %'",
   );
   return new Map(res.rows.map((r) => [r.name.slice("sp_hit ".length), Number(r.n ?? 0)]));
 }
@@ -169,6 +179,11 @@ beforeAll(async () => {
   const lib = new Stratum({ pool: suPool, logger: noopLogger });
   const root = await lib.createTenant({ name: "SP Root", slug: "sp_root" });
   await lib.createTenant({ name: "SP Child", slug: "sp_child", parent_id: root.id });
+  // A schema-per-tenant tenant whose schema is migrated before the planting.
+  await lib.createTenant({ name: "SP Schema", slug: "sp_schema", isolation_strategy: "SCHEMA_PER_TENANT" });
+  await suPool.query("CREATE SCHEMA tenant_sp_schema");
+  const first = await migrateAllSchemas({ pool: suPool, controlRole: control });
+  expect(first.failed).toEqual([]);
   await suPool.query("CREATE TABLE public.sp_notes (id serial PRIMARY KEY, body text)");
 
   await suPool.query("CREATE TABLE public.sp_hits (who text, fn text)");
@@ -284,6 +299,24 @@ const PRIVILEGED_PATHS: [string, () => Promise<void>][] = [
   ["stratum health", cli(["health"], null, /RLS/)],
   ["stratum scan", cli(["scan"], 0, /sp_notes/)],
   ["stratum migrate <table>", cli(["migrate", "sp_notes"], 0, /Migration complete/)],
+  [
+    "migrateAllSchemas() as a superuser when every migration has run",
+    async () => {
+      const res = await migrateAllSchemas({ pool: suPool, controlRole: control });
+      expect(res).toEqual({ succeeded: ["tenant_sp_schema"], failed: [] });
+    },
+  ],
+  [
+    "listTenantSchemas() of @stratum-hq/db-adapters as a superuser",
+    async () => {
+      const client = await suPool.connect();
+      try {
+        expect(await listTenantSchemas(client)).toEqual(["tenant_sp_schema"]);
+      } finally {
+        client.release();
+      }
+    },
+  ],
   [
     "createPolicy() and isRLSEnabled() of @stratum-hq/db-adapters as a superuser",
     async () => {

@@ -35,7 +35,7 @@ export interface MigrateOptions {
  */
 export async function assertRoleSubjectToRls(pool: pg.Pool): Promise<void> {
   const { rows } = await pool.query<{ role: string; bypass: boolean }>(
-    "SELECT current_user AS role, rolbypassrls AS bypass FROM pg_roles WHERE rolname = current_user",
+    "SELECT current_user AS role, rolbypassrls AS bypass FROM pg_catalog.pg_roles WHERE rolname = current_user",
   );
   if (rows[0]?.bypass) {
     throw new Error(
@@ -99,7 +99,7 @@ export async function migrate(options: MigrateOptions): Promise<void> {
       await client.query("BEGIN");
 
       // Acquire advisory lock to prevent concurrent migrations
-      await client.query("SELECT pg_advisory_xact_lock(8675309)");
+      await client.query("SELECT pg_catalog.pg_advisory_xact_lock(8675309::pg_catalog.int8)");
 
       // Re-check if already applied (after lock, to prevent TOCTOU race)
       const { rows } = await client.query(
