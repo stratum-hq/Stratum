@@ -72,7 +72,7 @@ describe("init", () => {
     expect(read("stratum.config.ts")).toContain('integration: "sdk"');
   });
 
-  it("writes the Next.js middleware and proxy route into src when the app lives in src/app", async () => {
+  it("writes the Next.js middleware and Stratum API route into src when the app lives in src/app", async () => {
     fs.mkdirSync(path.join(outDir, "src", "app"), { recursive: true });
     fs.writeFileSync(
       path.join(detectDir, "package.json"),
