@@ -446,6 +446,8 @@ h2 {
 }
 .ikey { color: var(--text-primary); }
 .ival { color: var(--flow); font-weight: 600; }
+/* On paper the vein text darkens to hold 4.5:1 on the tinted row (6.5:1). */
+[data-theme="light"] .ival { color: var(--vein-deep); }
 .itag {
   color: var(--text-secondary);
   font-size: 0.6875rem;
