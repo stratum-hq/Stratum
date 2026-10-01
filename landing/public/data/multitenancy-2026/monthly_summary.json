@@ -1,0 +1,90 @@
+{
+ "definition": {
+  "core": "name/description/keywords match /multi[-_ ]?tenan/i",
+  "broad": "match /tenant|tenancy/i (superset)",
+  "name_tenant": "core AND package name contains 'tenan'"
+ },
+ "totals": {
+  "prev_core": {
+   "pkgs": 154,
+   "projects": 135,
+   "publishers": 116,
+   "single_version": 36,
+   "has_github": 108
+  },
+  "prev_broad": {
+   "pkgs": 225,
+   "projects": 187,
+   "publishers": 159,
+   "single_version": 46,
+   "has_github": 140
+  },
+  "prev_name_tenant": {
+   "pkgs": 46,
+   "projects": 42,
+   "publishers": 33,
+   "single_version": 12,
+   "has_github": 28
+  },
+  "cur_core": {
+   "pkgs": 1281,
+   "projects": 894,
+   "publishers": 741,
+   "single_version": 282,
+   "has_github": 1011
+  },
+  "cur_broad": {
+   "pkgs": 2113,
+   "projects": 1408,
+   "publishers": 1129,
+   "single_version": 462,
+   "has_github": 1558
+  },
+  "cur_name_tenant": {
+   "pkgs": 207,
+   "projects": 126,
+   "publishers": 104,
+   "single_version": 59,
+   "has_github": 163
+  }
+ },
+ "core_by_year": {
+  "2013": 9,
+  "2014": 8,
+  "2015": 11,
+  "2016": 10,
+  "2017": 14,
+  "2018": 26,
+  "2019": 16,
+  "2020": 35,
+  "2021": 29,
+  "2022": 41,
+  "2023": 35,
+  "2024": 56,
+  "2025": 303,
+  "2026": 1122
+ },
+ "broad_by_year": {
+  "2013": 10,
+  "2014": 11,
+  "2015": 12,
+  "2016": 13,
+  "2017": 21,
+  "2018": 41,
+  "2019": 29,
+  "2020": 74,
+  "2021": 56,
+  "2022": 74,
+  "2023": 70,
+  "2024": 88,
+  "2025": 401,
+  "2026": 1923
+ },
+ "core_existing_at_2026-03-29": 844,
+ "core_existing_at_2025-10-01": 434,
+ "core_total_now": 1715,
+ "broad_total_now": 2823,
+ "core_stale_24mo_pct": 12.2,
+ "core_pre_window_stale_24mo_pct": 48.4,
+ "core_last_publish_within_12mo_pct": 80.1
+}

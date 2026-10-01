@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import ts from "typescript";
-import { createProject } from "../index.js";
+import { createProject, type Template } from "../index.js";
 import { createPresetProject } from "../preset-project.js";
 import type { Framework } from "../matrix.js";
 
@@ -252,7 +252,7 @@ const runNextjs: Runner = async (files, req) => {
       headers: new Headers(),
     }),
   };
-  const { middleware } = load(files["middleware.ts"], { "next/server": { NextResponse } }) as {
+  const { middleware } = load(files["src/middleware.ts"], { "next/server": { NextResponse } }) as {
     middleware: (request: unknown) => Promise<{ status: number; headers: Headers }>;
   };
   const res = await middleware({
@@ -302,10 +302,10 @@ function presetFiles(framework: Framework): Record<string, string> {
   return readAll(dir);
 }
 
-function nextjsTemplateFiles(): Record<string, string> {
-  const dir = path.join(tmp, "template-nextjs");
+function templateFiles(template: Template): Record<string, string> {
+  const dir = path.join(tmp, `template-${template}`);
   fs.mkdirSync(dir, { recursive: true });
-  createProject("jwt-app", "nextjs", dir, true);
+  createProject("jwt-app", template, dir, true);
   return readAll(dir);
 }
 
@@ -315,7 +315,9 @@ const cases: Array<[string, () => Record<string, string>, Runner]> = [
   ["hono preset", () => presetFiles("hono"), runHono],
   ["nestjs preset", () => presetFiles("nestjs"), runNestjs],
   ["nextjs preset", () => presetFiles("nextjs"), runNextjs],
-  ["nextjs template", nextjsTemplateFiles, runNextjs],
+  ["express template", () => templateFiles("express"), runExpress],
+  ["fastify template", () => templateFiles("fastify"), runFastify],
+  ["nextjs template", () => templateFiles("nextjs"), runNextjs],
 ];
 
 for (const [name, generate, run] of cases) {

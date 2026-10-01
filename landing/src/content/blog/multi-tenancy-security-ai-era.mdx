@@ -1,0 +1,306 @@
+---
+title: 'Multi-Tenancy Security in the AI Era: Who Decides the Tenant?'
+accent: Who Decides the Tenant?
+seoTitle: 'Multi-Tenancy Security in the AI Era: Who Decides the Tenant?'
+description: AI tools multiplied Node.js multi-tenancy libraries. Many look polished, but deciding who the tenant is, and enforcing it, is often wrong. A checklist.
+intro: Multi-tenancy bugs are security bugs, including ours.
+pubDate: 2026-10-02
+draft: false
+tags:
+  - multi-tenancy
+  - security
+  - AI
+  - tenant isolation
+  - Node.js
+  - PostgreSQL
+  - row-level security
+cta:
+  label: Try the playground
+  href: https://docs.stratum-hq.org/playground/
+---
+
+There are many more multi-tenancy libraries for Node.js than there were a year ago, and many
+of them were built in days with AI tools. They often look finished: CI, a test suite, a long
+feature list. The hard part of multi-tenancy is not on that list. It is deciding who the
+tenant is for each request, and then enforcing that decision everywhere. That part is often
+wrong, and when it is wrong, one customer can see another customer's data. A multi-tenancy bug
+is a security bug.
+
+This post covers where that idea comes from, what the numbers say, the flaw we saw most often
+when we read libraries by hand, the flaws we found and fixed in Stratum itself, and a short
+checklist for judging any library, including ours.
+
+## Key points
+
+- New npm packages that call themselves multi-tenant went from 154 to 1,281 a year, and 72% of
+  new dedicated libraries show signs of AI-assisted development. That is a correlation, not a
+  measured cause.
+- We read 21 libraries by hand. 4 take the tenant from a JWT without verifying its signature.
+  At least 3 let a header sent by the client choose the tenant, with no membership check in the
+  library.
+- In a scan of 203 packages, 45 (about 1 in 5) read the tenant from a request header. That is
+  fine only when something you control checks it.
+- Stratum has published 18 security advisories, and every one has a fix in a released version.
+  Seven of them include a version of the same flaw: trusting a tenant the client chose.
+
+## Where this problem comes from
+
+I work at a managed security service provider (MSSP). An MSSP runs security monitoring for
+many customers at once, so its tools are multi-tenant by necessity.
+
+Recently, during a normal workday, I ran into this problem again. We provide security services
+to a managed service provider (MSP). One of that MSP's clients has its own sub-clients, and the
+client manages them itself: each sub-client has its own AWS accounts under the client's AWS
+organization. The client has no XDR coverage of its own for those sub-clients, so the
+monitoring has to come through us. That is four levels with a stake in the same data: us (the
+MSSP), the MSP, the client, and each sub-client.
+
+The extended detection and response (XDR) platform we use cannot create sub-tenants under
+that client. Every sub-client's data would land in the client's one tenant, and once it is
+there, we cannot separate it again:
+
+- An alert does not tell us which sub-client it came from without manual digging.
+- We cannot give the client access to one sub-client's data without showing it all of them.
+- We cannot report, retain, or hand off data per sub-client.
+- A sub-client cannot be given a view of its own data and nothing else.
+
+None of this is exotic. The real structure is a tree: MSSP, then MSP, then client, then
+sub-client. The platform models only part of it. Everything below the client is flattened,
+and the people who need narrow, delegated access get broad access or no access.
+
+That is the kind of problem Stratum is built for. Three things follow from it:
+
+- **Hierarchy.** Tenants form a tree, and real organizations are more than two levels deep.
+  Stratum stores the tree in PostgreSQL, so a tenant can sit under a parent that sits under
+  another parent. See the [tenant hierarchy guide](https://docs.stratum-hq.org/guides/tenant-hierarchy/).
+- **Delegated access.** A party higher in the tree can grant, lock, or delegate a permission
+  to the levels below it, and take it back. See
+  [permission delegation](https://docs.stratum-hq.org/guides/permission-delegation/).
+- **Isolation.** Each level sees its own data and its own subtree, and nothing else. See
+  [isolation strategies](https://docs.stratum-hq.org/guides/isolation-strategies/).
+
+Get the first two wrong and the product is awkward. Get the third wrong and the product leaks.
+
+## What the numbers say
+
+Our companion post,
+[The State of Multi-Tenancy in Node.js, Fall 2026](/blog/state-of-multi-tenancy-nodejs-2026/),
+has the full data, definitions, and methodology. These are the parts that matter here.
+
+**The number of libraries jumped.** New npm packages that describe themselves as multi-tenant
+went from 154 (October 2024 to September 2025) to 1,281 (October 2025 to September 2026), or
+8.3x. The strictest measure, distinct projects that ship a package with "tenant" in its name,
+went from 42 to 126 (3.0x). More such packages were first published from January to September
+2026 (1,122) than in 2013 through 2025 combined (593), counting packages that still exist.
+
+**The new libraries look better on paper.** Of the new dedicated libraries, 84% have CI and 87%
+have test files, against 53% and 62% of older ones. That is real progress.
+
+**They are also younger and thinner.** 49% were built in one short burst. Only 20% have two or
+more human contributors, against 49% of older ones. For only 56% did the latest CI run succeed
+in the last 90 days. And when we checked README claims against the published code by hand, 3
+of 34 libraries (9%) claimed something the code does not back up.
+
+**AI signals line up with the jump.** 72% of new dedicated libraries have an agent
+configuration file or an AI co-author commit trailer, against 11% of older ones. We do not read
+that as proof that AI caused the growth. Signals show use, and their absence proves nothing.
+Those conventions are recent, so the older group could not show them. And with 35 to 75
+repositories per group, the margin is up to about 13 points. The timing lines up, and that is
+all the data can say.
+
+The pattern behind those numbers is simple. AI tools made it cheap to produce the visible
+parts of a library: a README, a CI workflow, a test suite. They did not make it cheap to get
+the tenant boundary right, because that depends on decisions the tool cannot see, about who
+the caller is and what they are allowed to reach.
+
+## The recurring flaw: trusting the tenant the client sends
+
+The companion post measured the registry. For this post, we also read code. We picked 21
+libraries and read their tenant handling by hand. They were chosen, not sampled at random, so
+we give counts, not rates.
+
+- **4 of the 21 take the tenant from a JWT without verifying its signature.** The library
+  decodes the token and reads the tenant claim, but never checks that the token was signed by
+  someone you trust.
+- **At least 3 of the 21 let a header sent by the client choose the tenant**, with no check in
+  the library that the caller belongs to that tenant.
+- **1 of the 21 advertises isolation modes that its code does not implement.**
+
+Separately, we scanned the published code of 203 packages for common patterns. 45 of the 203,
+about 1 in 5, read the tenant from a request header such as `x-tenant-id`. That is not a flaw on
+its own. A header is fine when a gateway you control sets it and strips any copy the client
+sent. It is a flaw when the header comes straight from the client and nothing checks it.
+
+Some things were better than we expected. SQL built by pasting the tenant ID into a string was
+rare. Where a library turns on PostgreSQL row-level security (RLS), it nearly always forces it
+too, so that the table owner is also bound by the policy: 11 of the 12 RLS libraries in our
+scan did. One example of doing this well is
+[`@usebetterdev/tenant`](https://www.npmjs.com/package/@usebetterdev/tenant), whose generated
+policies enable and force RLS, scope the tenant setting to the transaction, and return no rows
+when no tenant is set. Like most designs based on a session setting, it also has a documented
+bypass for admin and background work, so its isolation also depends on the application
+controlling which code can run SQL on its connection. Stratum had the same dependency until
+version 1.8, which adds an opt-in role model to remove it; more on that below.
+
+So the database side is mostly in decent shape. The weak point is earlier: where the tenant ID
+comes from. RLS enforces whatever tenant you hand it. If the client picked that tenant, RLS
+faithfully isolates the wrong customer.
+
+### One example, named
+
+We are naming one package, because its behavior is documented and easy to check, and because
+an abstract warning is easy to ignore.
+[`@lexmata/nestjs-multi-tenant`](https://www.npmjs.com/package/@lexmata/nestjs-multi-tenant)
+(version 0.1.1, the current release when we checked on September 30, 2026) takes the tenant from
+the client-sent `x-tenant-id` header by default. Its JWT mode reads the tenant claim without
+verifying the token: in our test, it accepted an unsigned token and a token with a bad signature.
+
+The README is clear about the JWT mode: "The JWT is decoded but **not verified**. Token
+verification should be handled by your authentication guards." The header default carries no
+similar warning. In both modes the library does not check that the caller belongs to the tenant;
+the application has to.
+
+We classify this as a documented design risk, not a vulnerability in the library. It is an
+extraction library, and binding the tenant to the caller is left to the application. The risk
+is in the default: an application that adds the library and stops there trusts the client to
+say which tenant it is. We hold Stratum to the same standard, and as the next section shows, we
+have not always met it.
+
+## We are not immune: Stratum's own advisories
+
+Stratum is built with heavy AI assistance. Its repository would count toward the 72% above. So
+the question for us is not whether AI-written code has these flaws. Ours did.
+
+As of this post, Stratum has published
+[18 security advisories](https://github.com/stratum-hq/Stratum/security/advisories): 2
+critical, 10 high, and 6 medium. Every one has a fix in a released version, and for the most
+recent one, part of the fix is opt-in until version 2.0. Grouped by release:
+
+- **July 2026** (lib 0.6.0, control-plane 0.4.0), 1 advisory: control-plane route
+  authorization was opt-in, and is now default-deny. The NestJS guard trusted an
+  unauthenticated tenant header over the verified JWT. Also a webhook SSRF and an unvalidated
+  identifier in a schema helper.
+- **v1.3.0**, 10 advisories: tenant-scoped API keys could exceed their scope. Schema- and
+  database-per-tenant isolation failed in some configurations. The SDK middleware could use an
+  unverified client value as the tenant. Tenant filters in the MySQL and MongoDB adapters could
+  be bypassed. Also hierarchy integrity under concurrent writes, policy evaluation and
+  revocation errors, sensitive config in the audit log, webhook delivery and API key lifecycle
+  weaknesses, and insecure defaults in scaffolding.
+- **v1.5.0**, 5 advisories: route authorization relied on a maintained list. The Hono
+  middleware trusted an unverified tenant header by default. JWT verification had no audience
+  binding. Credentials could be stored in audit records, and development encryption defaults
+  applied outside development. Generated middleware trusted the request host. Also writes
+  accepted for inactive tenants, and more adapter tenant filter gaps.
+- **v1.6.0**, 1 advisory: tenant filters for reads and writes in the MySQL TypeORM
+  subscriber. Hono took the tenant from a path parameter without an opt-in. An RLS check
+  accepted a policy by its name alone.
+- **v1.8.0**, 1 advisory: Stratum's internal RLS bypass was a session setting, so SQL that runs
+  as the application's database role could reach Stratum's own tables across tenants. The fix
+  is a role model: Stratum's own cross-tenant work runs on a separate admin login, and the
+  application login cannot act as the control role. It is opt-in in 1.8 and the default in 2.0,
+  and installs that do not opt in behave as before. The
+  [hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/) walks through the
+  setup. The same release masks inherited sensitive config values unless trusted server code
+  asks for them, refuses missing, short, or development key material in production, scopes
+  MySQL (Knex) and MongoDB writes so they cannot move a row into another tenant, places the
+  generated Next.js middleware where Next.js runs it, and lets the control plane resolve a
+  tenant with a read-scoped key instead of an admin key.
+
+The advisories themselves have the affected and patched versions for each package.
+
+Look at how often the same class appears. The NestJS guard (July), the SDK middleware (v1.3.0),
+the Hono middleware's header and path parameter (v1.5.0 and v1.6.0), and the generated
+middleware in our scaffolding (v1.3.0, v1.5.0, and v1.8.0) all trusted a tenant the client
+chose. That
+is the flaw from the previous section, in our own code, more than once. We do not think it is a
+coincidence. Reading the tenant from the request is the shortest path to working code, and both
+people and AI tools take the shortest path when nothing stops them.
+
+What made the difference was not avoiding AI. It was process:
+
+- **Reproduce first.** A fix starts with a test that fails because of the flaw. If we cannot
+  reproduce it, we do not claim it is fixed.
+- **Real-database tests.** Most of Stratum's unit tests check the SQL that the library builds,
+  not what PostgreSQL does with it. That is useful, and it is not proof of isolation. A separate
+  [integration suite](https://github.com/stratum-hq/Stratum/tree/main/packages/integration-tests)
+  runs against a real PostgreSQL database in CI, including cross-tenant isolation and RLS
+  enforcement tests. Database-facing changes are not done until that suite passes.
+- **Independent adversarial reviews before release.** Before a release, a review separate from
+  the work that wrote the code tries to break the tenant boundary, and what it finds is fixed
+  before the tag.
+- **Private advisories.** Flaws are tracked privately until a fix is on npm. Then we publish the
+  advisory with the patched versions. Reports go to security@stratum-hq.org, as
+  [SECURITY.md](https://github.com/stratum-hq/Stratum/blob/main/SECURITY.md) describes.
+
+None of this is special. It is slower than generating a library in a weekend, and it is the part
+that a polished README cannot show you.
+
+## A checklist for any multi-tenancy library
+
+Use these questions on any library, including Stratum. Read the code for the answer, not the
+feature list.
+
+**1. Who decides the tenant?** Find the default source. A verified token claim is the safe
+default. A client header, query parameter, subdomain, or path parameter is only safe behind
+something you control that checks it.
+*Stratum:* the [SDK](https://docs.stratum-hq.org/packages/sdk/) and the
+[NestJS guard](https://docs.stratum-hq.org/packages/nestjs/) read the tenant from a verified JWT
+claim when you configure a key. Without one, they read `X-Tenant-ID`, and the docs say so. The
+[Hono middleware](https://docs.stratum-hq.org/packages/hono/) refuses to start in header or path
+mode unless you set `trustTenantHeader` or `trustPathParam`.
+
+**2. Is the JWT actually verified?** Check the signature, the algorithm, and the audience, not
+just that the token decodes.
+*Stratum:* verification uses your secret or your own verify function. A token that fails
+verification is rejected, and the header is not consulted unless you set `trustTenantHeader`.
+Audience and issuer binding are available.
+
+**3. Does anything check that the caller belongs to the tenant?** If the tenant comes from a
+header, something has to compare it with the authenticated user's memberships.
+*Stratum:* in header mode, that check is yours, and the docs tell you to use header mode only
+behind a gateway that sets the header and strips the client's copy. For API keys, the control
+plane limits each key to its own subtree.
+
+**4. Is RLS forced, and which role runs the queries?** `ENABLE` without `FORCE` exempts the
+table owner. A superuser or a role with `BYPASSRLS` skips RLS entirely.
+*Stratum:* RLS is enabled and forced together, and the application role is meant to be neither
+a superuser nor `BYPASSRLS`. With the 1.8 role model, Stratum's own work runs on a separate
+admin login, and the application login owns none of Stratum's tables. See the
+[hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/) and the
+[db-adapters docs](https://docs.stratum-hq.org/packages/db-adapters/).
+
+**5. Does isolation fail closed?** With no tenant set, a query should return no rows, not all
+of them.
+*Stratum:* policies compare against a transaction-local setting, and an unset tenant matches
+nothing. The MySQL TypeORM adapter refuses tenant reads and writes outside a tenant context.
+
+**6. Is there a bypass, and who can use it?** Admin and background work usually needs one.
+Find it, and find out what can turn it on.
+*Stratum:* up to 1.7, the bypass was a session setting, `app.bypass_rls`, and any code that
+could run SQL on the connection could set it. In 1.8 you can opt in to the role model instead:
+Stratum's cross-tenant work moves to a separate admin login, and `stratum db lock` closes the
+session-setting path. Version 2.0 makes that the default. Until you opt in, the old path stays
+open, so keep raw SQL access in code you trust. See the
+[hardening guide](https://docs.stratum-hq.org/guides/hardening-roles/).
+
+**7. Do the advertised isolation modes exist in the code?** One of the 21 libraries we read did
+not implement modes it advertised.
+*Stratum:* shared tables with RLS, schema-per-tenant, and database-per-tenant are described in
+[isolation strategies](https://docs.stratum-hq.org/guides/isolation-strategies/), and each has
+integration tests.
+
+**8. Are there tests against a real database, including cross-tenant tests?** Tests that
+only check generated SQL cannot prove isolation.
+*Stratum:* see the integration suite above. For your own application,
+[`@stratum-hq/test-utils`](https://docs.stratum-hq.org/packages/test-utils/) asserts that one
+tenant cannot read another's rows.
+
+**9. How are security flaws reported and disclosed?** A private reporting route and published
+advisories with patched versions are a good sign. No advisories at all can mean no flaws, or no
+one looking.
+*Stratum:* security@stratum-hq.org, and 18 published advisories so far.
+
+The fastest way to see hierarchy, delegation, and isolation working together is the
+[browser playground](https://docs.stratum-hq.org/playground/). It runs the real library on
+PostgreSQL in WebAssembly, without an install, and its guided tour walks through an MSSP tree
+much like the one above. Then read the code for the part you depend on. That advice applies to us too.

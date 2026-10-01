@@ -108,7 +108,12 @@ const jsonLd = {
 <Footer />
 
 <style>
+  /* The body is a flex column, so without width and min-width the article
+     grows to the min-content width of a wide table and the page scrolls
+     sideways on phones. */
   .post {
+    width: 100%;
+    min-width: 0;
     max-width: 700px;
     margin: 0 auto;
     padding: calc(var(--space-8) * 4) var(--space-6) var(--space-8);
@@ -194,6 +199,15 @@ const jsonLd = {
 
   .post-body :global(a:hover) {
     color: var(--text-primary);
+  }
+
+  /* A note set off from the body, such as a pointer to a newer edition. */
+  .post-body :global(blockquote) {
+    margin: 0 0 var(--space-6) 0;
+    padding: var(--space-4) var(--space-4) var(--space-1);
+    border-left: 3px solid var(--sandstone);
+    background: var(--surface-1);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
   }
 
   /* Lists */

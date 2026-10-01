@@ -80,4 +80,40 @@ describe("withTenantScope", () => {
     expect(() => scoped()("users").update("tenant_id", "other")).toThrow();
     expect(() => scoped()("users").increment("tenant_id", 1)).toThrow();
   });
+
+  describe("column names outside the ASCII identifier set", () => {
+    const names = [
+      "tenant_id ",
+      " tenant_id",
+      "tenant_id\n",
+      "tenant_id ",
+      "tenant_id﻿",
+      "users . tenant_id",
+      "tenant_İd",
+      "tenant_íd",
+      "ｔｅｎａｎｔ＿ｉｄ",
+      "name as tenant_id",
+      "`tenant_id`",
+      "",
+    ];
+    const refusal = /refuses the column name/;
+
+    it.each(names)("refuses a data key with non-ASCII or non-identifier characters: %j", (name) => {
+      expect(() => scoped()("users").insert({ id: 1, [name]: "x" })).toThrow(refusal);
+      expect(() => scoped()("users").insert([{ id: 1 }, { id: 2, [name]: "x" }])).toThrow(refusal);
+      expect(() => scoped()("users").where("id", 1).update({ [name]: "x" })).toThrow(refusal);
+      expect(() => scoped()("users").where("id", 1).update(name, "x")).toThrow(refusal);
+      expect(() => scoped()("users").increment(name, 1)).toThrow(refusal);
+      expect(() => scoped()("users").decrement({ [name]: 1 })).toThrow(refusal);
+    });
+
+    it("accepts ASCII names, qualified names and $", () => {
+      expect(
+        scoped()("users").where("id", 1).update({ "db.users.first_name": "A", cost$: 1 }).toString(),
+      ).toBe(
+        "update `users` set `db`.`users`.`first_name` = 'A', `cost$` = 1 where `tenant_id` = 'tenant1' and (`id` = 1)",
+      );
+      expect(scoped()("users").increment("visits", 1).toString()).toContain("`visits` = `visits` + 1");
+    });
+  });
 });

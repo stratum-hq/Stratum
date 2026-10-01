@@ -33,6 +33,7 @@ import {
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
+  DecryptionError,
 } from "../index.js";
 
 // [name, construct] for every subclass. `construct` calling `new` at runtime is
@@ -63,6 +64,7 @@ const cases: [string, () => StratumError][] = [
   ["AbacPolicyNotFoundError", () => new AbacPolicyNotFoundError("p-1")],
   ["InvalidAbacOperatorError", () => new InvalidAbacOperatorError("nope")],
   ["AbacPolicyLockedError", () => new AbacPolicyLockedError("policy", "t-1")],
+  ["DecryptionError", () => new DecryptionError("authentication")],
 ];
 
 describe("@stratum-hq/lib public error surface", () => {

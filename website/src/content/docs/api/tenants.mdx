@@ -21,10 +21,14 @@ All endpoints require authentication via `X-API-Key` or `Authorization: Bearer` 
 | `GET` | `/api/v1/tenants/:id/ancestors` | Get ancestors (root to parent) |
 | `GET` | `/api/v1/tenants/:id/descendants` | Get all descendants |
 | `GET` | `/api/v1/tenants/:id/children` | Get direct children |
-| `GET` | `/api/v1/tenants/:id/context` | Resolve full context |
+| `GET` | `/api/v1/tenants/:id/context` | Resolve full context (read) |
 | `GET` | `/api/v1/tenants/:id/export` | Export tenant data (GDPR, admin) |
 | `POST` | `/api/v1/tenants/:id/purge` | Hard-delete tenant data (GDPR, admin) |
 | `POST` | `/api/v1/tenants/:id/migrate-region` | Migrate to region (admin) |
+
+`ancestry_path` lists the IDs of a tenant's ancestors, root first, and not the tenant's own ID. A root tenant has `/`, its child has `/<root-id>`, and a grandchild has `/<root-id>/<child-id>`. `depth` is the number of ancestors.
+
+Suspending, resuming and activating a tenant have no route. Call `suspendTenant`, `resumeTenant` and `activateTenant` of `@stratum-hq/lib` instead (see [Tenant lifecycle](/packages/lib/#tenant-lifecycle)). `POST /api/v1/tenants` activates a tenant with its own schema or database itself, once it has provisioned the storage.
 
 ---
 
@@ -51,7 +55,7 @@ GET /api/v1/tenants?cursor=<uuid>&limit=50
       "parent_id": null,
       "name": "Acme Corp",
       "slug": "acme_corp",
-      "ancestry_path": "/550e8400-e29b-41d4-a716-446655440000",
+      "ancestry_path": "/",
       "depth": 0,
       "config": {},
       "metadata": {},
@@ -232,12 +236,16 @@ GET /api/v1/tenants/:id/context
 
 Returns the full tenant context including resolved config and permissions.
 
+**Scope:** `read`. A tenant-scoped key can resolve its own tenant and its descendants. A global key can resolve any tenant. The SDK middleware, the NestJS guard and the Hono resolver call this route, so an app server needs only a `read` key.
+
+`resolved_config` follows the same masking rule as [`GET /tenants/:id/config`](/api/config/#sensitive-values): a sensitive value inherited from an ancestor comes back as `"value": null` with `"sensitive": true` and `"masked": true`, unless the caller's key belongs to the tenant that set it.
+
 **Response:** `200 OK`
 
 ```json
 {
   "tenant_id": "uuid",
-  "ancestry_path": "/uuid1/uuid2",
+  "ancestry_path": "/parent-uuid",
   "depth": 1,
   "isolation_strategy": "SHARED_RLS",
   "resolved_config": {
@@ -290,6 +298,12 @@ All errors follow this format:
 ```
 
 `error.details` is optional. When it is present, it holds more data about the error. For example, a `REGION_NOT_ACTIVE` error has the `region_id`.
+
+A path id that is not a UUID, such as the `:id` of `/api/v1/tenants/:id`, gets `400 VALIDATION_ERROR` with an issue that names the bad id, for example `{ "path": ["params", "id"], "message": "Invalid uuid", "code": "invalid_string" }`. This holds on every route with an id in its path.
+
+A path that matches no route gets `404 NOT_FOUND` in the same format, once the caller is authenticated. A caller without valid credentials gets `401 UNAUTHORIZED` first.
+
+An unexpected server error gets `500 INTERNAL_SERVER_ERROR` with a generic message and no detail of the cause. The control plane logs the error, with its request id, through its logger in every environment.
 
 An error below 500 that has no Stratum code gets a code from its status: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404), `CONFLICT` (409), `PAYLOAD_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), or `RATE_LIMITED` (429). Any other status below 500 gets `BAD_REQUEST`. For example, a request body that is not valid JSON gets `400 BAD_REQUEST`. Only a failed field check gets `VALIDATION_ERROR`.
 

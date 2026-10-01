@@ -1,8 +1,29 @@
-import { connectDb, checkExtensions, checkBypassRLS, checkStratumTables, scanTables } from "../utils/db.js";
+import type pg from "pg";
+import { inspectRoleModel } from "@stratum-hq/lib";
+import {
+  connectDb,
+  connectAdminDb,
+  controlRoleFlag,
+  checkExtensions,
+  checkBypassRLS,
+  checkStratumTables,
+  scanTables,
+} from "../utils/db.js";
+import { roleModelChecks } from "../utils/role-model.js";
 import * as log from "../utils/log.js";
 
+/**
+ * Checks the database setup. Exits 1 when a check fails, like `doctor`;
+ * warnings keep exit code 0.
+ */
 export async function health(flags: Record<string, string | boolean>): Promise<void> {
   log.heading("Stratum Health Check");
+  const controlRole = controlRoleFlag(flags);
+  let failures = 0;
+  const fail = (msg: string): void => {
+    failures += 1;
+    log.fail(msg);
+  };
 
   // 1. Database connection
   let pool;
@@ -16,6 +37,15 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     process.exit(1);
   }
 
+  let adminPool: pg.Pool | undefined;
+  try {
+    adminPool = await connectAdminDb(flags);
+    if (adminPool) log.success("Admin database connection OK");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    fail(msg);
+  }
+
   try {
     // 2. PostgreSQL version
     const versionResult = await pool.query("SHOW server_version;");
@@ -26,7 +56,7 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     } else if (major >= 14) {
       log.warn(`PostgreSQL ${version} (16+ recommended)`);
     } else {
-      log.fail(`PostgreSQL ${version} (14+ required)`);
+      fail(`PostgreSQL ${version} (14+ required)`);
     }
 
     // 3. Extensions
@@ -34,18 +64,18 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     if (extensions.uuid_ossp) {
       log.success("Extension: uuid-ossp");
     } else {
-      log.fail("Extension: uuid-ossp (missing; run: CREATE EXTENSION \"uuid-ossp\")");
+      fail("Extension: uuid-ossp (missing; run: CREATE EXTENSION \"uuid-ossp\")");
     }
     if (extensions.ltree) {
       log.success("Extension: ltree");
     } else {
-      log.fail("Extension: ltree (missing; run: CREATE EXTENSION ltree)");
+      fail("Extension: ltree (missing; run: CREATE EXTENSION ltree)");
     }
 
     // 4. BYPASSRLS check
     const hasBypass = await checkBypassRLS(pool);
     if (hasBypass) {
-      log.fail("Current role has BYPASSRLS; this bypasses all RLS policies!");
+      fail("Current role has BYPASSRLS; this bypasses all RLS policies!");
       log.info("Fix: ALTER ROLE <your_role> NOBYPASSRLS;");
     } else {
       log.success("Current role does NOT have BYPASSRLS");
@@ -55,12 +85,28 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     const hasStratumTables = await checkStratumTables(pool);
     if (hasStratumTables) {
       log.success("Stratum schema tables found (tenants, config_entries, permission_policies, api_keys)");
+
+      // 5b. Role model of migration 032 (opt-in hardening in 1.x)
+      log.heading("Role Model");
+      try {
+        const report = await inspectRoleModel({ appPool: pool, adminPool, controlRole });
+        for (const check of roleModelChecks(report)) {
+          const line = `${check.label}: ${check.summary}`;
+          if (check.status === "pass") log.success(line);
+          else if (check.status === "warn") log.warn(line);
+          else fail(line);
+          check.details?.forEach((d) => log.dim(`  ${d}`));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log.warn(`Could not check the role model: ${msg}`);
+      }
     } else {
       log.warn("Stratum schema not found. Run the control plane to auto-migrate, or apply 001_init.sql manually");
     }
 
     // 6. User tables RLS scan
-    const tables = await scanTables(pool);
+    const tables = await scanTables(pool, controlRole);
     if (tables.length > 0) {
       log.heading("Table RLS Status");
       const header = ["Table", "tenant_id", "RLS", "FORCE", "Policy"];
@@ -92,5 +138,12 @@ export async function health(flags: Record<string, string | boolean>): Promise<v
     console.log();
   } finally {
     await pool.end();
+    await adminPool?.end();
+  }
+
+  if (failures > 0) {
+    log.fail(`${failures} check(s) failed`);
+    console.log();
+    process.exit(1);
   }
 }

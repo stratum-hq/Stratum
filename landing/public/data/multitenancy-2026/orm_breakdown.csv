@@ -1,0 +1,10 @@
+orm,total,created_before_window,created_in_window,pre_window_abandoned_24mo,pre_window_abandon_pct,all_abandoned_24mo_pct,published_last_12mo
+Mongoose,87,50,37,34,68,39,41
+Prisma,82,29,53,20,69,24,55
+Sequelize,26,16,10,9,56,35,13
+Knex,19,7,12,4,57,21,15
+TypeORM,44,14,30,8,57,18,31
+Drizzle,85,3,82,1,33,1,82
+MikroORM,2,0,2,0,,0,2
+Kysely,12,1,11,0,0,0,12
+Objection,3,1,2,0,0,0,3

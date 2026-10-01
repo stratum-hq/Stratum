@@ -80,7 +80,14 @@ export async function withTenantContext<T>(
   }
 }
 
+let warnedRlsBypass = false;
+
 /**
+ * @deprecated Since 1.8 the library reaches across tenants through the control
+ * role of migration 032 (Stratum's `adminPool`), not through this setting.
+ * Removed in 2.0. Once the stratum_security legacy switch is off, the setting
+ * opens nothing, so this helper sees only what the pool's role sees.
+ *
  * Runs `fn` inside a transaction with the RLS bypass flag set, so control-plane
  * / system operations that legitimately span tenant boundaries (provisioning,
  * cascade ops, ancestry reads) can see and write all rows.
@@ -97,6 +104,14 @@ export async function withRlsBypass<T>(
   pool: pg.Pool,
   fn: (client: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (!warnedRlsBypass) {
+    warnedRlsBypass = true;
+    process.emitWarning(
+      "withRlsBypass is deprecated and will be removed in 2.0. Run cross-tenant work on a pool whose " +
+        "login is a member of the Stratum control role (migration 032) instead.",
+      { type: "DeprecationWarning", code: "STRATUM_WITH_RLS_BYPASS" },
+    );
+  }
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

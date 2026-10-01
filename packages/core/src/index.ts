@@ -102,6 +102,7 @@ export {
   type SetConfigInput,
   type BatchSetConfigEntry,
   type ResolvedConfigEntry,
+  type ResolveConfigOptions,
   type ResolvedConfig,
   type BatchSetConfigKeyResult,
   type BatchSetConfigResult,
@@ -191,6 +192,7 @@ export {
   AbacPolicyNotFoundError,
   InvalidAbacOperatorError,
   AbacPolicyLockedError,
+  DecryptionError,
 } from "./utils/errors.js";
 
 // Constants

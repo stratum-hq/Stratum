@@ -11,6 +11,58 @@ const TEST_DATABASE_URL =
 
 let pool: pg.Pool | null = null;
 
+/**
+ * Admin mode (STRATUM_IT_ADMIN_POOL=1): the suites pass `adminPool` to
+ * Stratum, a login that is NOT a superuser and has no BYPASSRLS, and that
+ * reaches the Stratum tables only as a member of the control role
+ * (migration 032). The library then sets no app.bypass_rls of its own, so
+ * every library call proves the control role is enough. getPool() stays the
+ * superuser connection the suites use for fixtures and assertions.
+ *
+ * The admin login is `<STRATUM_IT_ROLE_PREFIX>lib_admin` (default prefix
+ * stratum_it_). runMigrations() creates it and grants it the control role.
+ * Roles are cluster-wide; drop it after the run.
+ */
+const ADMIN_MODE = process.env.STRATUM_IT_ADMIN_POOL === "1";
+const ADMIN_ROLE = `${process.env.STRATUM_IT_ROLE_PREFIX || "stratum_it_"}lib_admin`;
+const ADMIN_PASSWORD = "lib_admin_pw";
+let adminPool: pg.Pool | null = null;
+let adminReady = false;
+
+/** The admin pool in admin mode, otherwise undefined (Stratum's legacy single-pool mode). */
+export function getAdminPool(): pg.Pool | undefined {
+  if (!ADMIN_MODE) return undefined;
+  if (!adminReady) {
+    throw new Error("STRATUM_IT_ADMIN_POOL=1: call runMigrations() before getAdminPool()");
+  }
+  if (!adminPool) {
+    const u = new URL(TEST_DATABASE_URL);
+    u.username = ADMIN_ROLE;
+    u.password = ADMIN_PASSWORD;
+    adminPool = new pg.Pool({ connectionString: u.toString(), max: 5, idleTimeoutMillis: 5000 });
+  }
+  return adminPool;
+}
+
+/** Creates the admin login and makes it a member of the control role. */
+async function prepareAdminRole(p: pg.Pool): Promise<void> {
+  const db = new URL(TEST_DATABASE_URL).pathname.slice(1);
+  const control = await p.query<{ role: string }>(
+    `SELECT DISTINCT r::text AS role FROM pg_policies p, unnest(p.roles) r
+      WHERE p.policyname = 'stratum_control_plane'`,
+  );
+  if (control.rows.length !== 1) {
+    throw new Error("STRATUM_IT_ADMIN_POOL=1 needs migration 032 and exactly one control role");
+  }
+  await p.query(`DO $$ BEGIN
+    CREATE ROLE "${ADMIN_ROLE}" LOGIN PASSWORD '${ADMIN_PASSWORD}' NOSUPERUSER NOBYPASSRLS CREATEDB;
+  EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await p.query(`GRANT "${control.rows[0].role}" TO "${ADMIN_ROLE}" WITH INHERIT TRUE, SET TRUE`);
+  // Schema-per-tenant isolation creates schemas in this database.
+  await p.query(`GRANT CREATE ON DATABASE "${db}" TO "${ADMIN_ROLE}"`);
+  adminReady = true;
+}
+
 export function getPool(): pg.Pool {
   if (!pool) {
     pool = new pg.Pool({
@@ -23,6 +75,10 @@ export function getPool(): pg.Pool {
 }
 
 export async function closePool(): Promise<void> {
+  if (adminPool) {
+    await adminPool.end();
+    adminPool = null;
+  }
   if (pool) {
     await pool.end();
     pool = null;
@@ -87,6 +143,8 @@ export async function runMigrations(): Promise<void> {
 
     await p.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
   }
+
+  if (ADMIN_MODE && !adminReady) await prepareAdminRole(p);
 }
 
 /**

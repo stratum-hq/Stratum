@@ -174,7 +174,7 @@ describe("Tenant Routes", () => {
 
       const response = await app.inject({
         method: "GET",
-        url: "/api/v1/tenants/nonexistent-id",
+        url: "/api/v1/tenants/00000000-0000-0000-0000-000000000000",
         headers: authHeaders(),
       });
 

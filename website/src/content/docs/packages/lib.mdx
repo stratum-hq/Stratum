@@ -46,23 +46,46 @@ const permissions = await stratum.resolvePermissions(tenant.id);
 
 ```typescript
 const stratum = new Stratum({
-  pool: pgPool,              // Required: pg.Pool instance
+  pool: pgPool,              // Required: pg.Pool instance (the application login)
+  adminPool: adminPgPool,    // Optional in 1.x: the admin login, a member of the control role (see below)
+  controlRole: "stratum_control", // Optional: the control role (default: the database's, else stratum_control)
+  allowLegacyKeyHashes: true, // Optional: accept SHA-256 API key hashes while an HMAC secret is set (default: true in 1.x)
   keyPrefix: "sk_live_",     // Optional: API key prefix (default: "sk_live_")
   logger: myLogger,          // Optional: StratumLogger (default: defaultLogger)
   autoMigrate: false,        // Optional: run migrations on initialize() (default: false)
-  enforceRls: false,         // Optional: hard-fail migration if the PG role has BYPASSRLS (default: false)
+  enforceRls: false,         // Optional: hard-fail initialize() and migrations if the PG role has BYPASSRLS (default: false)
 });
 ```
 
 The pool is **borrowed, not owned**: Stratum never creates or closes the pool. You manage the pool lifecycle.
 
+With `adminPool`, every library query and `autoMigrate` run on the admin login, as a member of the control role of migration 032, and the library sets no `app.bypass_rls`. `initialize()` checks both logins against the role model and warns about each problem (with `enforceRls: true`, a problem with the application login throws). Without `adminPool`, the library uses the legacy `app.bypass_rls` path and logs a one-time deprecation warning; `adminPool` becomes required in 2.0. See [Hardening: separate admin and app roles](/guides/hardening-roles/).
+
 ```typescript
 stratum.initialize(): Promise<void>
 ```
 
-Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so migrations refuse to run under a `BYPASSRLS` role; `initialize()` logs a warning when it is off there.
+Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so `initialize()` and migrations refuse to run under a `BYPASSRLS` role. The role is checked on every `initialize()`, with or without `autoMigrate`, and on every `migrate()` call, not only when a migration is applied. `initialize()` logs a warning when `autoMigrate` is on and `enforceRls` is off there.
 
 ## API Reference
+
+### The `audit` argument
+
+The methods that change tenants, config, permissions, keys, roles, webhooks, consent and regions take an optional `audit` argument, shown as `audit?` in the signatures below. It is an `AuditContext` from `@stratum-hq/core`:
+
+```typescript
+import type { AuditContext } from "@stratum-hq/core";
+
+const audit: AuditContext = {
+  actor_id: "user-123",     // required: who made the change
+  actor_type: "jwt",        // required: "api_key" | "jwt" | "system"
+  source_ip: "203.0.113.7", // optional
+  request_id: "req-42",     // optional
+};
+await stratum.createTenant({ name: "Acme Corp", slug: "acme" }, audit);
+```
+
+With `audit`, the method writes an entry to the audit log with the before and after state. Without it, the change is made and no audit entry is written. The control plane passes an audit context built from the request on its mutating routes.
 
 ### Tenants
 
@@ -80,7 +103,7 @@ stratum.getDescendants(id, includeArchived?): Promise<TenantNode[]>
 stratum.getChildren(id): Promise<TenantNode[]>
 stratum.reorderTenant(id, position, audit?): Promise<TenantNode>
 stratum.batchCreateTenants(inputs, audit?): Promise<BatchCreateResult>
-stratum.getTenantContext(tenantId): Promise<TenantContext>
+stratum.getTenantContext(tenantId, options?): Promise<TenantContext>
 ```
 
 - `getTenantBySlug(slug, includeArchived?)`: resolve a tenant by its globally unique slug in one indexed lookup, the slug-keyed counterpart to `getTenant`. Throws `TenantNotFoundError` when no row matches, and (unless `includeArchived` is set) `TenantArchivedError` / `TenantSuspendedError` for a non-active row.
@@ -96,11 +119,14 @@ Tenants move through an explicit state machine: active to suspended or archived,
 stratum.suspendTenant(id, audit?): Promise<TenantNode>
 stratum.resumeTenant(id, audit?): Promise<TenantNode>
 stratum.archiveTenant(id, audit?): Promise<TenantNode>
+stratum.activateTenant(id, audit?): Promise<TenantNode>
 ```
 
 - `suspendTenant`: a reversible block on access. Rejects if the tenant is not active or has active children (suspend leaf-first). Reverse with `resumeTenant`.
 - `archiveTenant`: a reversible soft delete. Accepts an active or suspended tenant; rejects if already archived or it has active children. Reverse with `resumeTenant`. This is the canonical name for what `deleteTenant` does.
 - `resumeTenant`: returns a suspended or archived tenant to active. Rejects if the tenant is already active or its parent is not active (resume top-down).
+- `activateTenant`: moves a `pending` tenant, created with its own schema or database, to active once its storage exists.
+- The control plane has a route only for archiving (`DELETE /api/v1/tenants/:id`). It has no route to suspend, resume or activate a tenant, so call these methods from the library. (`POST /api/v1/tenants` activates a tenant itself once it has provisioned the storage.)
 - `deleteTenant(id, audit?)` is retained as a **deprecated alias of `archiveTenant`**; prefer `archiveTenant`.
 
 See the [tenant lifecycle guide](/guides/tenant-lifecycle/) for the full state machine and descendant rules.
@@ -118,16 +144,18 @@ stratum.getOrganization(id): Promise<TenantNode>                 // alias for ge
 ### Config
 
 ```typescript
-stratum.resolveConfig(tenantId): Promise<ResolvedConfig>
+stratum.resolveConfig(tenantId, options?): Promise<ResolvedConfig>
 stratum.setConfig(tenantId, key, input, audit?): Promise<ConfigEntry>
 stratum.deleteConfig(tenantId, key, audit?): Promise<void>
-stratum.getConfigWithInheritance(tenantId): Promise<ResolvedConfig>
+stratum.getConfigWithInheritance(tenantId, options?): Promise<ResolvedConfig>
 stratum.batchSetConfig(tenantId, entries, audit?): Promise<BatchSetConfigResult>
-stratum.diffConfig(tenantIdA, tenantIdB): Promise<ConfigDiff>
+stratum.diffConfig(tenantIdA, tenantIdB, options?): Promise<ConfigDiff>
 stratum.computeDrift(parentId, childId): Promise<DriftResult>
 stratum.batchComputeDrift(parentId, childIds): Promise<BatchDriftResult>
 ```
 
+- `resolveConfig(tenantId, options?)`: a sensitive value inherited from an ancestor comes back masked: `value: null`, `sensitive: true`, `masked: true`, with `source_tenant_id` naming the tenant that set it. A tenant's own sensitive values come back decrypted. Pass `{ revealSensitive: true }` in trusted server code that needs the inherited secret itself, and never send that result to a client. Pass `{ viewerTenantId }` to reveal only the values that tenant set. `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take the same options.
+- `batchSetConfig(tenantId, entries, audit?)`: atomic. If any key is locked by an ancestor or invalid, nothing is written and the result has `rolled_back: true` and `succeeded: 0`. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the rest say they were not applied.
 - `computeDrift(parentId, childId)`: classify each resolved config key on the child against the parent as `ok` / `override` / `missing` / `conflict` (a `conflict` is a child value that diverges from a **locked** parent key), with per-key detail and a rolled-up worst status.
 - `batchComputeDrift(parentId, childIds)`: `computeDrift` fanned out over many children, with a per-status summary count.
 
@@ -143,11 +171,11 @@ stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
 ### ABAC (Attribute-Based Access Control)
 
 ```typescript
-stratum.createAbacPolicy(tenantId, input): Promise<AbacPolicy>
+stratum.createAbacPolicy(tenantId, input, audit?): Promise<AbacPolicy>
 stratum.getAbacPolicies(tenantId): Promise<AbacPolicy[]>
 stratum.resolveAbacPolicies(tenantId): Promise<ResolvedAbacPolicy[]>
 stratum.evaluateAbac(tenantId, request): Promise<AbacEvaluationResult>
-stratum.deleteAbacPolicy(tenantId, policyId): Promise<void>
+stratum.deleteAbacPolicy(tenantId, policyId, audit?): Promise<void>
 ```
 
 ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERITED/DELEGATED modes as permissions. See the [ABAC guide](/guides/abac/) for details.
@@ -155,10 +183,10 @@ ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERIT
 ### API Keys
 
 ```typescript
-stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?): Promise<CreatedApiKey>
+stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?, audit?): Promise<CreatedApiKey>
 stratum.validateApiKey(key): Promise<ValidatedApiKey | null>
-stratum.revokeApiKey(keyId): Promise<boolean>
-stratum.rotateApiKey(keyId, newName?): Promise<CreatedApiKey>
+stratum.revokeApiKey(keyId, audit?): Promise<boolean>
+stratum.rotateApiKey(keyId, newName?, audit?): Promise<CreatedApiKey>
 stratum.listApiKeys(tenantId?): Promise<ApiKeyRecord[]>
 stratum.getApiKey(id): Promise<ApiKeyRecord | null>
 stratum.listDormantKeys(dormantDays?): Promise<ApiKeyRecord[]>
@@ -192,7 +220,7 @@ stratum.getAuditEntry(id): Promise<AuditEntry | null>
 stratum.recordAuditEvent(input): Promise<AuditEntry>
 ```
 
-- `recordAuditEvent(input)`: append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`. If the input does not match `RecordAuditEventInputSchema`, `recordAuditEvent` throws a `ValidationError` and writes no row. The error's `details.issues` lists each failed field.
+- `recordAuditEvent(input)`: append a custom event to Stratum's `audit_logs` through the public surface (Stratum owns the table and otherwise exposes only reads). The input is validated and written on the same path the internal services use, so the entry is indistinguishable from one Stratum writes itself and is immediately queryable via `queryAuditLogs`. The row is stamped for `input.tenantId` and no other tenant. The required fields are `tenantId` (a UUID), `actorId`, `action`, `resourceType` and `resourceId` (a string, or `null` for an event about no single resource). `actorType` defaults to `'system'` and `metadata` to `{}`; `before`, `after`, `sourceIp` and `occurredAt` are optional. Pass an optional `occurredAt` (ISO 8601 string or `Date`) to set the row's `created_at` when seeding historical or backdated events; omit it and the row is stamped `now()`. If the input does not match `RecordAuditEventInputSchema`, `recordAuditEvent` throws a `ValidationError` and writes no row. The error's `details.issues` lists each failed field.
 
 ```typescript
 const entry = await stratum.recordAuditEvent({
@@ -251,11 +279,11 @@ stratum.getRole(id): Promise<Role | null>
 stratum.listRoles(tenantId?): Promise<Role[]>
 stratum.updateRole(id, input, audit?): Promise<Role | null>
 stratum.deleteRole(id, audit?): Promise<boolean>
-stratum.assignRoleToKey(keyId, roleId): Promise<boolean>
-stratum.removeRoleFromKey(keyId): Promise<boolean>
+stratum.assignRoleToKey(keyId, roleId, audit?): Promise<boolean>
+stratum.removeRoleFromKey(keyId, audit?): Promise<boolean>
 stratum.resolveKeyScopes(keyId): Promise<string[]>
-stratum.assignRole(principalType, principalId, roleId, tenantId?): Promise<boolean>
-stratum.removeRole(principalType, principalId): Promise<boolean>
+stratum.assignRole(principalType, principalId, roleId, tenantId?, audit?): Promise<boolean>
+stratum.removeRole(principalType, principalId, audit?): Promise<boolean>
 stratum.resolvePrincipalScopes(principalType, principalId, tenantId?): Promise<string[]>
 ```
 
@@ -277,7 +305,7 @@ stratum.listWebhookDeliveries(webhookId): Promise<Record<string, unknown>[]>
 
 ### Encryption
 
-Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. The package does not export the encryption functions; use the `Stratum` method below to change the key.
+Stratum encrypts config values set with `sensitive: true` and webhook secrets with AES-256-GCM. The key comes from `STRATUM_ENCRYPTION_KEY`, with `STRATUM_HKDF_SALT` as the key-derivation salt. Both are required whenever `NODE_ENV` is not `development` or `test` (an unset `NODE_ENV` counts as `development`); only development and test fall back to a built-in key. Outside development and test the library refuses to load unless `STRATUM_ENCRYPTION_KEY` is at least 32 bytes and is not the built-in development key, and `STRATUM_HKDF_SALT` is not the built-in development salt. In every environment, a `STRATUM_HKDF_SALT` that is set must be a non-empty, even-length hex string. The legacy `WEBHOOK_ENCRYPTION_KEY` variable is read only in development and test; elsewhere, set `STRATUM_ENCRYPTION_KEY` to its value. The package does not export the encryption functions; use the `Stratum` method below to change the key.
 
 ```typescript
 stratum.rotateEncryptionKey(oldKey, newKey, audit?, salts?): Promise<KeyRotationResult>
@@ -378,9 +406,13 @@ Beyond the `Stratum` class, `@stratum-hq/lib` exports helpers you can use direct
 
 ```typescript
 import {
-  migrate,             // migrate({ pool, enforceRls? }): run the Stratum migrations
+  migrate,             // migrate({ pool, enforceRls?, controlRole? }): run the Stratum migrations
   migrateAllSchemas,   // migrateAllSchemas(...): multi-schema migration runner
   STRATUM_TABLES,      // readonly string[]: the tables the Stratum migrations create
+  STRATUM_CONTROL_ROLE, // "stratum_control": the default control role
+  APP_READ_TABLES,     // readonly string[]: the Stratum tables the application login may read
+  bootstrapRolesSql,   // bootstrapRolesSql({ adminRole?, appRole?, controlRole?, schema? }): role setup SQL
+  inspectRoleModel,    // inspectRoleModel({ appPool?, adminPool? }): the role-model checks as data
   runScopedJob,        // runScopedJob(pool, tenantId, fn): tenant-scoped background job
   verifyWebhookSignature,
   signWebhookPayload,
@@ -391,6 +423,7 @@ import {
 ```
 
 - `runScopedJob(pool, tenantId, fn)` runs `fn` bound to a single tenant, establishing both the AsyncLocalStorage tenant context and the Postgres RLS context (`SET LOCAL app.current_tenant_id`) for the job's duration and tearing both down afterward, so a job cannot touch another tenant's rows and the context never leaks onto the next job on a pooled connection.
+- `bootstrapRolesSql()` returns the idempotent SQL that `stratum db roles` prints and applies: it checks the Stratum tables for objects the migrations did not create, creates the control role, makes the admin login a member, moves the Stratum objects the application login owns to the admin login, applies the control role, and limits the application login to `SELECT` on `APP_READ_TABLES`.
 - `STRATUM_TABLES` lists the `public` tables that the Stratum migrations create, plus `_migrations`. Use it to tell Stratum's tables from your application tables. The CLI's `scan` and `migrate --all` skip these tables.
 - `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 
@@ -413,15 +446,20 @@ await withTransaction(pool, async (client) => {
 
 ## Prerequisites
 
-`@stratum-hq/lib` assumes the Stratum database schema exists. Run the control plane migrations first, or apply the migration SQL manually:
+`@stratum-hq/lib` needs PostgreSQL with the `uuid-ossp` and `ltree` extensions, and the Stratum tables. Create the extensions as a superuser (or your provider's administrative login). Then create the tables in one of these ways:
 
-```bash
-# Option 1: Start the control plane (runs migrations automatically)
-node packages/control-plane/dist/index.js
+```typescript
+import { migrate } from "@stratum-hq/lib";
 
-# Option 2: Apply SQL directly
-psql -d stratum -f packages/control-plane/src/db/migrations/001_init.sql
+// Option 1: run the migrations when the instance initializes
+const stratum = new Stratum({ adminPool, pool, autoMigrate: true });
+await stratum.initialize();
+
+// Option 2: run them as a deploy step, on the admin login
+await migrate({ pool: adminPool });
 ```
+
+The control plane runs the same migrations when it starts. `npx @stratum-hq/cli migrate` does not create Stratum's tables: it adds `tenant_id` and row-level security to your own tables.
 
 ## Error Handling
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tablePolicyIssues, type PolicyRow } from "../rls/policy-check.js";
+import { tablePolicyIssues, tablePolicyWarnings, type PolicyRow } from "../rls/policy-check.js";
 
 // Expressions below are in the deparsed form PostgreSQL 16 stores in pg_policies.
 const GENERATED =
@@ -197,6 +197,77 @@ describe("tablePolicyIssues", () => {
     it("accepts the unqualified function when the tenants schema is unknown", () => {
       const policies = [policy({}), policy({ policyname: "tenant_subtree_read", cmd: "SELECT", qual: SUBTREE_READ })];
       expect(tablePolicyIssues(policies)).toEqual([]);
+    });
+  });
+});
+
+describe("the control role model of migration 032", () => {
+  const TENANT = "(tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid)";
+  const LEGACY = (fn = "stratum_legacy_bypass") =>
+    `(( SELECT ${fn}() AS stratum_legacy_bypass) OR ${TENANT})`;
+  const control = (overrides: Partial<PolicyRow>) =>
+    policy({ policyname: "stratum_control_plane", qual: "true", with_check: "true", roles: ["stratum_control"], ...overrides });
+
+  it("accepts tenant_isolation in the legacy form of migration 032", () => {
+    expect(tablePolicyIssues([policy({ qual: LEGACY(), with_check: LEGACY() })], "public")).toEqual([]);
+  });
+
+  it("accepts the legacy function qualified with the schema of the tenants table", () => {
+    expect(tablePolicyIssues([policy({ qual: LEGACY("tenancy.stratum_legacy_bypass") })], "tenancy")).toEqual([]);
+  });
+
+  it("rejects the legacy function qualified with another schema", () => {
+    expect(tablePolicyIssues([policy({ qual: LEGACY("public.stratum_legacy_bypass") })], "tenancy").join("; ")).toMatch(
+      /USING/,
+    );
+  });
+
+  it("rejects the legacy function without a tenant match", () => {
+    const qual = "( SELECT stratum_legacy_bypass() AS stratum_legacy_bypass)";
+    expect(tablePolicyIssues([policy({ qual })], "public").join("; ")).toMatch(/USING/);
+  });
+
+  it("accepts stratum_control_plane for exactly the control role", () => {
+    expect(tablePolicyIssues([policy({ qual: LEGACY() }), control({})], "public")).toEqual([]);
+  });
+
+  it("accepts stratum_control_plane for a configured control role", () => {
+    expect(tablePolicyIssues([policy({}), control({ roles: ["acme_control"] })], "public", "acme_control")).toEqual([]);
+  });
+
+  it("rejects stratum_control_plane for PUBLIC, another role, or more than the control role", () => {
+    for (const roles of [["public"], ["stratum_app"], ["stratum_control", "stratum_app"]]) {
+      expect(tablePolicyIssues([policy({}), control({ roles })], "public").join("; ")).toMatch(
+        /"stratum_control_plane" \(ALL\) USING \(true\)/,
+      );
+    }
+  });
+
+  it("rejects stratum_control_plane for the default role when another control role is configured", () => {
+    expect(tablePolicyIssues([policy({}), control({})], "public", "acme_control").join("; ")).toMatch(
+      /stratum_control_plane/,
+    );
+  });
+
+  it("rejects another policy name for the control role that does not filter by tenant", () => {
+    expect(tablePolicyIssues([policy({}), control({ policyname: "admin_all" })], "public").join("; ")).toMatch(
+      /"admin_all"/,
+    );
+  });
+
+  describe("tablePolicyWarnings", () => {
+    it("flags a policy that admits app.bypass_rls directly", () => {
+      expect(tablePolicyWarnings([policy({ qual: WITH_BYPASS })]).join("; ")).toMatch(
+        /"tenant_isolation".*app\.bypass_rls/,
+      );
+    });
+
+    it("flags app.bypass_rls in WITH CHECK too", () => {
+      expect(tablePolicyWarnings([policy({ with_check: WITH_BYPASS })])).toHaveLength(1);
+    });
+
+    it("does not flag the legacy form of migration 032, the generated policy or the control policy", () => {
+      expect(tablePolicyWarnings([policy({ qual: LEGACY() }), policy({ policyname: "g" }), control({})])).toEqual([]);
     });
   });
 });

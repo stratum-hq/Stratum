@@ -13,10 +13,10 @@ npx @stratum-hq/create my-app
 
 This creates a `my-app/` directory with:
 
-- `package.json` with `@stratum-hq/lib`, `pg`, and your chosen framework
+- `package.json` with `@stratum-hq/lib`, `pg`, `jose`, and your chosen framework
 - `docker-compose.yml` with PostgreSQL 16 and pre-loaded extensions (ltree, uuid-ossp)
 - `.env.example` with `DATABASE_URL` and other defaults
-- A starter server file with Stratum middleware
+- A starter server file with tenant middleware that takes the tenant from a verified JWT
 - `README.md` with getting-started instructions
 
 ## Options
@@ -26,9 +26,12 @@ npx @stratum-hq/create my-app [options]
 
 Options:
   --template <name>   Framework template: express (default), fastify, or nextjs
+  --preset <preset>   Full stack preset: {database}-{strategy}-{orm}-{framework}
   --skip-install      Skip npm install after scaffolding
   --force             Overwrite existing directory
 ```
+
+`--template` and `--preset` cannot be used together.
 
 ## Templates
 
@@ -38,7 +41,7 @@ Options:
 npx @stratum-hq/create my-app --template express
 ```
 
-Generates an Express server with Stratum middleware, tenant-aware routes, and TypeScript configuration.
+Generates an Express server in `src/index.ts` with tenant middleware that resolves the tenant from a verified JWT, a tenant-aware `/tenants` route, and TypeScript configuration.
 
 ### Fastify
 
@@ -46,7 +49,7 @@ Generates an Express server with Stratum middleware, tenant-aware routes, and Ty
 npx @stratum-hq/create my-app --template fastify
 ```
 
-Generates a Fastify server with Stratum plugin registration.
+Generates a Fastify server in `src/index.ts` with an `onRequest` hook that resolves the tenant from a verified JWT, a tenant-aware `/tenants` route, and TypeScript configuration.
 
 ### Next.js
 
@@ -55,6 +58,29 @@ npx @stratum-hq/create my-app --template nextjs
 ```
 
 Generates a Next.js project with edge middleware that resolves the tenant from a verified JWT.
+
+## Presets
+
+A preset picks the database, isolation strategy, ORM, and framework in one string, `{database}-{strategy}-{orm}-{framework}`:
+
+```bash
+npx @stratum-hq/create my-app --preset postgres-rls-prisma-express
+npx @stratum-hq/create my-app --preset postgres-schema-drizzle-fastify
+npx @stratum-hq/create my-app --preset mongodb-database-mongoose-hono
+npx @stratum-hq/create my-app --preset mysql-table-prefix-sequelize-nestjs
+```
+
+| Database | Strategies | ORMs |
+|---|---|---|
+| `postgres` | `rls`, `schema`, `database` | `prisma`, `drizzle`, `sequelize`, `knex`, `pg` |
+| `mongodb` | `database`, `collection` | `mongoose` |
+| `mysql` | `database`, `table-prefix` | `sequelize`, `knex`, `pg` |
+
+Every database works with every framework: `express`, `fastify`, `nextjs`, `hono`, `nestjs`, or `none` (database setup only).
+
+A preset generates the ORM setup with Stratum's adapter for that database, a Docker Compose file for the database, and the framework's server with the same verified-JWT tenant resolution as the templates. The Drizzle presets write their table definitions to `src/schema.ts`, which `drizzle.config.ts` points at.
+
+An invalid preset, or a combination the table does not allow, exits with an error before anything is written, so no project directory is left behind.
 
 ## After Scaffolding
 
@@ -75,7 +101,7 @@ The generated starter code does not create a `Stratum` instance, so it does not 
 
 ## Tenant resolution
 
-Generated servers (the Express, Fastify, Hono and NestJS presets) and the Next.js middleware take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js middleware the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
+Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js middleware take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js middleware the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
 
 ## What Gets Generated
 
@@ -87,6 +113,7 @@ my-app/
   .env.example          # DATABASE_URL, JWT_SECRET
   tsconfig.json         # Compiles src/ to dist/ (express and fastify)
   src/
-    index.ts            # Framework-specific starter with Stratum
+    index.ts            # Server with verified-JWT tenant middleware (express and fastify)
+    middleware.ts       # Verified-JWT tenant middleware (nextjs)
   README.md             # Getting started instructions
 ```

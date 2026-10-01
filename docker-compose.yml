@@ -41,6 +41,11 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
+      # The admin login of docker/init-db.sql, a member of stratum_control: the
+      # migrations and the library run on it. A database volume created before
+      # 1.8 has no stratum_admin; recreate the volume, or start with
+      # DATABASE_ADMIN_URL= (empty) to keep the single-pool mode.
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL-postgres://stratum_admin:stratum_dev@db:5432/stratum}
       PORT: "3001"
       NODE_ENV: development
       JWT_SECRET: ${JWT_SECRET:-stratum-demo-secret-do-not-use-in-production}
@@ -73,6 +78,8 @@ services:
       dockerfile: packages/demo/api/Dockerfile.seed
     environment:
       DATABASE_URL: postgres://stratum_app:stratum_dev@db:5432/stratum
+      # The seed inserts the bootstrap API key as the admin login.
+      DATABASE_ADMIN_URL: ${DATABASE_ADMIN_URL-postgres://stratum_admin:stratum_dev@db:5432/stratum}
       CONTROL_PLANE_URL: http://control-plane:3001/api/v1
       DEMO_KEY_FILE: /demo-shared/api-key
     volumes:

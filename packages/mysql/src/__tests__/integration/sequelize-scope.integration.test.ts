@@ -244,6 +244,15 @@ describe("withMysqlTenantScope Sequelize writes", () => {
     expect(await notes()).toEqual(untouched);
   });
 
+  it("an update or create cannot write another tenant through a qualified or cased tenant_id key", async () => {
+    for (const key of ["notes.tenant_id", `${DB}.notes.tenant_id`, "notes.TENANT_ID", "TENANT_ID"]) {
+      await attempt(() => asA(() => Note.update({ [key]: "tenant-b" }, { where: { id: 1 } })));
+      await attempt(() => asA(() => Note.create({ id: 9, name: "z", owner_id: 1, [key]: "tenant-b" })));
+      await pool.query(`DELETE FROM \`${DB}\`.\`notes\` WHERE id = 9 AND tenant_id = 'tenant-a'`);
+    }
+    expect(await notes()).toEqual(untouched);
+  });
+
   it("a bulk destroy cannot remove another tenant's row", async () => {
     await attempt(() => asA(() => Note.destroy({ where: { id: 2 } })));
     expect(await notes()).toEqual(untouched);

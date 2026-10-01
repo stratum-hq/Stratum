@@ -231,3 +231,73 @@ describe(`stratumPlugin document writes (Mongoose ${mongoose.version})`, () => {
     expect(docs.find((d) => d.name === "bulk-insert")?.tenant_id).toBe("tenant-a");
   });
 });
+
+describe(`stratumPlugin document writes on another tenant's _id (Mongoose ${mongoose.version})`, () => {
+  async function expectBUnchanged(): Promise<void> {
+    const docs = await rawOrders();
+    const b = docs.find((d) => String(d._id) === String(bId));
+    expect(b).toBeDefined();
+    expect(b?.name).toBe("b-order");
+    expect(b?.tenant_id).toBe("tenant-b");
+  }
+
+  it("save() on a hydrated document with another tenant's _id is rejected and leaves that document unchanged", async () => {
+    await expect(
+      as("tenant-a", async () => {
+        const doc = OrderModel.hydrate({ _id: bId, name: "b-order", tenant_id: "tenant-b" });
+        doc.name = "hijacked";
+        await doc.save();
+      }),
+    ).rejects.toThrow(/No document found/);
+    await expectBUnchanged();
+  });
+
+  it("save() on a constructed document marked not new with another tenant's _id leaves that document unchanged", async () => {
+    await attempt(() =>
+      as("tenant-a", async () => {
+        const doc = new OrderModel({ _id: bId, name: "hijacked" });
+        doc.isNew = false;
+        doc.markModified("name");
+        await doc.save();
+      }),
+    );
+    await expectBUnchanged();
+  });
+
+  it("save() in one tenant's context of a document loaded in another tenant's context leaves it unchanged", async () => {
+    const doc = await as("tenant-b", () => OrderModel.findById(bId).exec());
+    expect(doc).not.toBeNull();
+    await attempt(() =>
+      as("tenant-a", async () => {
+        doc!.name = "hijacked";
+        await doc!.save();
+      }),
+    );
+    await expectBUnchanged();
+  });
+
+  it("deleteOne() on a document with another tenant's _id does not remove it", async () => {
+    await attempt(() =>
+      as("tenant-a", () => OrderModel.hydrate({ _id: bId, name: "b-order", tenant_id: "tenant-b" }).deleteOne()),
+    );
+    await expectBUnchanged();
+  });
+
+  it("updateOne() and replaceOne() on a document with another tenant's _id do not change it", async () => {
+    await attempt(() =>
+      as("tenant-a", () =>
+        OrderModel.hydrate({ _id: bId, name: "b-order", tenant_id: "tenant-b" })
+          .updateOne({ $set: { name: "hijacked" } })
+          .exec(),
+      ),
+    );
+    await attempt(() =>
+      as("tenant-a", () =>
+        OrderModel.hydrate({ _id: bId, name: "b-order", tenant_id: "tenant-b" })
+          .replaceOne({ name: "hijacked" })
+          .exec(),
+      ),
+    );
+    await expectBUnchanged();
+  });
+});

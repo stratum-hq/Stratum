@@ -147,8 +147,29 @@ import {
 
 await setTenantContext(client, "tenant-uuid");
 const id = await getCurrentTenantId(client);   // "tenant-uuid"
-await resetTenantContext(client);               // RESET app.current_tenant_id
+await resetTenantContext(client);               // clears the tenant and the read scope
 ```
+
+`setTenantContext` sets transaction-local values, so call it inside a transaction. `withTenantContext` does the whole cycle for you: it takes a connection, opens a transaction, sets the tenant, runs your function and commits (or rolls back on an error):
+
+```typescript
+import { withTenantContext } from "@stratum-hq/db-adapters";
+
+const orders = await withTenantContext(pool, "tenant-uuid", (client) =>
+  client.query("SELECT * FROM orders"),
+);
+
+// Also read the rows of every descendant of the tenant. Writes stay limited
+// to the tenant itself.
+const alerts = await withTenantContext(
+  pool,
+  "tenant-uuid",
+  (client) => client.query("SELECT * FROM alerts"),
+  { scope: "subtree" },
+);
+```
+
+The last argument is `{ scope?: "exact" | "subtree" }`, and `setTenantContext` takes the same options. The default, `"exact"`, reads the rows of the tenant only. `"subtree"` needs policies that admit it: see [Subtree Read Scope](/guides/isolation-strategies/#subtree-read-scope). An unknown scope throws before a connection is taken.
 
 ## Drizzle Adapter
 
@@ -204,7 +225,7 @@ const result = await adapter.executeWithTenantContext("tenant-id", async (client
 
 ### How It Works
 
-The Sequelize adapter wraps every `query()` call in a Sequelize transaction that:
+The wrapper scopes `query()` only. It wraps every `query()` call in a Sequelize transaction that:
 
 1. Calls `sequelize.transaction()`
 2. Sets `app.current_tenant_id` via parameterized `set_config()` inside the transaction
@@ -212,6 +233,8 @@ The Sequelize adapter wraps every `query()` call in a Sequelize transaction that
 4. Commits the transaction
 
 This ensures the `set_config` and your query always execute on the same database connection, preventing tenant context leaks in connection-pooled environments.
+
+Nothing else is scoped. Model methods such as `Order.findAll()` run on your original Sequelize instance, and the wrapper's `transaction()` and `addHook()` pass straight through to it, so none of them set the tenant. Run tenant queries through the wrapper's `query()`, or set the tenant yourself inside the transaction. When the tenant function returns an empty string, `query()` throws instead of running the query.
 
 <Aside type="note">
   The Sequelize adapter uses a `SequelizeLike` structural interface, it does not

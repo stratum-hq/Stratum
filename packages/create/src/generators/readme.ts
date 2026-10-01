@@ -73,12 +73,15 @@ npx prisma db push
   }
   if (preset.orm === "drizzle") {
     return `
-### 3b. Run Drizzle migrations
+### 3b. Create the tables
+
+The tables are defined in \`src/schema.ts\`, which \`drizzle.config.ts\` points at.
+drizzle-kit does not read \`.env\`, so load it first:
 
 \`\`\`bash
-npx drizzle-kit push
+node --env-file=.env node_modules/drizzle-kit/bin.cjs push
 \`\`\`
-`;
+${preset.database === "postgres" ? "\nOn PostgreSQL drizzle-kit connects with `DATABASE_SUPERUSER_URL`, the superuser kept for migrations. The app role still reads and writes the new tables, and because it does not own them, their row-level security policies apply to it.\n" : ""}`;
   }
   return "";
 }

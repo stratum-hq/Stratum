@@ -6,6 +6,7 @@ import {
   closePool,
   runMigrations,
   cleanTestData,
+  getAdminPool,
 } from "./helpers/db.js";
 
 // createPermission takes the schema OUTPUT type, so the .default() fields are
@@ -30,7 +31,7 @@ describe("CASCADE revocation after slug rename (integration)", () => {
 
   beforeAll(async () => {
     await runMigrations();
-    stratum = new Stratum({ pool: getPool() });
+    stratum = new Stratum({ pool: getPool(), adminPool: getAdminPool() });
   });
 
   afterEach(async () => {

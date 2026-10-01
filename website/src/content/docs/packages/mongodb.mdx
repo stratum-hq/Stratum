@@ -31,6 +31,8 @@ await orders.insertOne({ product: "Widget", quantity: 5 });
 const results = await orders.find({}).toArray(); // only acme's orders
 ```
 
+A filter may name the current tenant (`tenant_id: "acme"` or `{ $eq: "acme" }`), but any other condition on `tenant_id` throws, whether at the top level or inside `$and`, `$or` or `$nor`: another tenant's ID, a query operator such as `$in` or `$ne`, or a dotted `tenant_id.*` path. This applies to every filter of the scoped collection, including `bulkWrite` filters and a find cursor's `filter()`. Use the raw collection for cross-tenant admin queries.
+
 ## Features
 
 - **Three isolation strategies**: shared collection, collection-per-tenant, database-per-tenant

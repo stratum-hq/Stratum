@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { DecryptionError } from "@stratum-hq/core";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -19,16 +20,53 @@ function nodeEnvRequiringKeyMaterial(): string | null {
 // salt is not secret; the key material is. Every other environment requires an
 // explicit STRATUM_HKDF_SALT.
 const NON_PRODUCTION_DEFAULT_SALT = "stratum-non-production-hkdf-salt-v1";
+// Development and test only fallback key material.
+const NON_PRODUCTION_DEFAULT_KEY = "stratum-dev-key";
+// The shortest STRATUM_ENCRYPTION_KEY accepted outside development and test.
+const MIN_KEY_BYTES = 32;
+// The format of STRATUM_HKDF_SALT. Buffer.from(salt, "hex") silently shortens any other string.
+const HEX_SALT = /^(?:[0-9a-fA-F]{2})+$/;
 
 const HKDF_SALT: Buffer = (() => {
-  if (process.env.STRATUM_HKDF_SALT) {
-    return Buffer.from(process.env.STRATUM_HKDF_SALT, "hex");
-  }
   const strictEnv = nodeEnvRequiringKeyMaterial();
+  const salt = process.env.STRATUM_HKDF_SALT;
+  if (salt) {
+    if (!HEX_SALT.test(salt)) {
+      throw new Error("STRATUM_HKDF_SALT must be a non-empty, even-length hex string");
+    }
+    const bytes = Buffer.from(salt, "hex");
+    if (strictEnv && bytes.equals(Buffer.from(NON_PRODUCTION_DEFAULT_SALT, "utf8"))) {
+      throw new Error(`STRATUM_HKDF_SALT is the built-in development salt; set a random salt in ${strictEnv}`);
+    }
+    return bytes;
+  }
   if (strictEnv) {
     throw new Error(`STRATUM_HKDF_SALT must be set in ${strictEnv}`);
   }
   return Buffer.from(NON_PRODUCTION_DEFAULT_SALT, "utf8");
+})();
+
+// Outside development and test, the key is checked when the module loads, so
+// a deployment without usable key material refuses to start instead of failing
+// on its first sensitive operation.
+(() => {
+  const strictEnv = nodeEnvRequiringKeyMaterial();
+  if (!strictEnv) return;
+  const key = process.env.STRATUM_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error(
+      `STRATUM_ENCRYPTION_KEY must be set in ${strictEnv}` +
+        (process.env.WEBHOOK_ENCRYPTION_KEY
+          ? ". WEBHOOK_ENCRYPTION_KEY is read only in development and test; set STRATUM_ENCRYPTION_KEY to its value"
+          : ""),
+    );
+  }
+  if (key === NON_PRODUCTION_DEFAULT_KEY) {
+    throw new Error(`STRATUM_ENCRYPTION_KEY is the built-in development key; set random key material in ${strictEnv}`);
+  }
+  if (Buffer.byteLength(key, "utf8") < MIN_KEY_BYTES) {
+    throw new Error(`STRATUM_ENCRYPTION_KEY must be at least ${MIN_KEY_BYTES} bytes in ${strictEnv}`);
+  }
 })();
 
 function hkdfDeriveKey(keyMaterial: string, salt: Buffer = HKDF_SALT, info = "stratum-aes-key"): Buffer {
@@ -38,16 +76,16 @@ function hkdfDeriveKey(keyMaterial: string, salt: Buffer = HKDF_SALT, info = "st
 }
 
 function getEncryptionKeyMaterial(): string {
-  const envKey = process.env.STRATUM_ENCRYPTION_KEY ?? process.env.WEBHOOK_ENCRYPTION_KEY;
+  const strictEnv = nodeEnvRequiringKeyMaterial();
+  // WEBHOOK_ENCRYPTION_KEY is a legacy name, read only in development and test.
+  const envKey = process.env.STRATUM_ENCRYPTION_KEY ?? (strictEnv ? undefined : process.env.WEBHOOK_ENCRYPTION_KEY);
   if (envKey) {
     return envKey;
   }
-  const strictEnv = nodeEnvRequiringKeyMaterial();
   if (strictEnv) {
     throw new Error(`STRATUM_ENCRYPTION_KEY must be set in ${strictEnv}`);
   }
-  // Development and test only fallback
-  return "stratum-dev-key";
+  return NON_PRODUCTION_DEFAULT_KEY;
 }
 
 function getEncryptionKey(): Buffer {
@@ -77,7 +115,7 @@ function decryptWithKey(encrypted: string, key: Buffer): string {
     // Legacy: iv:authTag:ciphertext
     [ivHex, authTagHex, ciphertextHex] = parts as [string, string, string];
   } else {
-    throw new Error("Invalid encrypted value format");
+    throw new DecryptionError("format");
   }
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
@@ -106,10 +144,13 @@ export function decrypt(encrypted: string): string {
       try {
         return decryptWithKey(encrypted, deriveKey(previousKey || getEncryptionKeyMaterial(), previousSalt));
       } catch {
-        // Both pairs failed: throw the original error
+        // Both pairs failed: report the original error
       }
     }
-    throw err;
+    if (err instanceof DecryptionError) throw err;
+    // Node reports a failed GCM authentication as "Unsupported state or
+    // unable to authenticate data", which does not say what to check.
+    throw new DecryptionError("authentication", { cause: err });
   }
 }
 

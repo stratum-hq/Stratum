@@ -63,7 +63,7 @@ export async function listTenantSchemas(
   client: pg.PoolClient,
 ): Promise<string[]> {
   const res = await client.query<{ nspname: string }>(
-    `SELECT nspname FROM pg_namespace WHERE nspname LIKE 'tenant_%' ORDER BY nspname`,
+    `SELECT nspname FROM pg_namespace WHERE nspname OPERATOR(pg_catalog.~~) 'tenant_%' ORDER BY nspname`,
   );
   return res.rows.map((r) => r.nspname);
 }

@@ -1,0 +1,424 @@
+---
+title: 'The State of Multi-Tenancy in Node.js, Fall 2026'
+accent: Node.js
+seoTitle: 'Multi-Tenancy in Node.js, 2026: 3x to 8x More npm Packages'
+description: New Node.js multi-tenancy packages on npm grew 3x to 8x in a year. We measured quality, ORMs, and AI signals, and corrected our March numbers.
+intro: Many more packages, the same gaps, and a correction.
+pubDate: 2026-10-01
+draft: false
+tags:
+  - multi-tenancy
+  - Node.js
+  - npm
+  - PostgreSQL
+  - row-level security
+  - research
+cta:
+  label: Try the playground
+  href: https://docs.stratum-hq.org/playground/
+---
+import YearOverYearChart from '../../components/YearOverYearChart.astro';
+import {
+  months,
+  priorLabel,
+  currentLabel,
+  newCorePackages,
+  newDedicatedProjects,
+  coreDownloads,
+} from '../../data/multitenancy-2026';
+
+In March we published
+[The State of Multi-Tenancy in Node.js](/blog/the-state-of-multi-tenancy-in-nodejs/), a survey
+of npm packages, GitHub repositories, and community threads. This follow-up measures
+multi-tenancy in Node.js across a full year: every new npm package from October 2025 to
+September 2026, compared with the 12 months before. It also corrects several numbers from the
+March post that do not hold up.
+
+## Key findings
+
+- **New multi-tenancy packages grew between 3x and 8x.** New packages that describe themselves
+  as multi-tenant went from 154 a year to 1,281 (8.3x). The strictest measure, distinct projects that
+  ship a package with "tenant" in its name, went from 42 to 126 (3.0x).
+- **Downloads grew too, but most new packages see little use.** Excluding the two largest
+  packages, downloads went from 0.73 million to 5.94 million a year. 88% of the new packages
+  had fewer than 1,000 downloads in September 2026.
+- **The new packages have more CI and more tests, and shorter histories.** 84% of new dedicated
+  libraries have CI, against 53% of older ones. 49% were built in one short burst, and only 20%
+  have more than one human contributor.
+- **RLS is the default story. Drizzle is the new default ORM.** Drizzle-related multi-tenancy
+  packages went from 3 to 85. Tenant hierarchy, config inheritance, and audit logs are still
+  rare.
+- **72% of the new dedicated libraries show signs of AI-assisted development, against 11% of
+  older ones.** That is a correlation in time, not a measured cause.
+- **Several March numbers do not reproduce,** including the "204 packages" headline and "65%
+  stale". A corrected table and the full dataset are below.
+
+## How many new multi-tenancy packages appeared on npm?
+
+We counted every npm package first published in each window whose name, description, or
+keywords match "multi-tenant", "multitenant", or "multi tenancy". We call this the **core**
+set. Because many of those are products that only describe themselves as multi-tenant, we also
+track a stricter **dedicated** set: core packages with "tenan" in the package name. Exact
+definitions are in the [methodology](#how-we-measured).
+
+<div class="table-wrapper">
+
+| Measure | Oct 2024 to Sep 2025 | Oct 2025 to Sep 2026 | Change |
+| --- | ---: | ---: | ---: |
+| New core packages | 154 | 1,281 | 8.3x |
+| ...distinct projects | 135 | 894 | 6.6x |
+| ...distinct publishers | 116 | 741 | 6.4x |
+| New dedicated packages | 46 | 207 | 4.5x |
+| ...distinct projects | 42 | 126 | 3.0x |
+| New packages matching "tenant" or "tenancy" anywhere | 225 | 2,113 | 9.4x |
+
+</div>
+
+The growth is not spread evenly across the year. It is a step. From October 2024 to April
+2025 there were 0 to 8 new core packages a month. From May to September 2025 there were 20 to
+32. From March to September 2026 there were about 120 to 190.
+
+<YearOverYearChart
+  title="New core multi-tenancy packages per month"
+  summary="In every month, the October 2025 to September 2026 period has far more new packages than the same month a year earlier, rising from 42 in October 2025 to a peak of 189 in July 2026, against 0 to 32 a month the year before."
+  months={months}
+  prior={newCorePackages.prior}
+  current={newCorePackages.current}
+  priorLabel={priorLabel}
+  currentLabel={currentLabel}
+  note="Packages first published in the month whose name, description, or keywords match /multi[-_ ]?tenan/i. Source: monthly_new_packages.csv."
+/>
+
+Package counts can be inflated by one author publishing many packages. Counting distinct
+projects in the dedicated set is the most conservative view we have, and it still triples.
+
+<YearOverYearChart
+  title="New dedicated multi-tenancy projects per month"
+  summary="Distinct projects shipping a new package with tenant in its name rose from 0 to 11 a month in the earlier period to 4 to 19 a month in the later one."
+  months={months}
+  prior={newDedicatedProjects.prior}
+  current={newDedicatedProjects.current}
+  priorLabel={priorLabel}
+  currentLabel={currentLabel}
+  showTotals={false}
+  note="A project is a package scope, or else its GitHub repository or publisher. A project that adds packages in several months is counted in each month, so the monthly numbers sum to more than the 126 distinct projects for the year. Source: monthly_new_packages.csv."
+/>
+
+The total stock changed just as fast. There were 844 core packages on npm on March 29, 2026,
+the day the first post went out. There are 1,715 now. More core packages were first published
+from January to September 2026 (1,122) than in all of 2013 through 2025 combined (593),
+counting packages that still exist.
+
+One disclosure: Stratum's own 14 packages were first published in March 2026, so they are in
+these counts as one project.
+
+## Are people actually using the new packages?
+
+Downloads rose, but the totals hide a very uneven picture. Two packages dominate:
+`@sap/cds-mtxs`, part of SAP's Cloud Application Programming Model, had about 16.3 million
+downloads over the two years, and `@payloadcms/plugin-multi-tenant` had about 2 million.
+With both included, core downloads went from 8.21 million to 16.76 million a year (2.0x).
+Without them, the rest of the ecosystem went from 0.73 million to 5.94 million (8.2x).
+
+<YearOverYearChart
+  title="Monthly downloads of core packages, excluding SAP CAP and Payload"
+  summary="Monthly downloads stayed between about 47 thousand and 77 thousand in the earlier period, then rose to about 1.1 to 1.3 million a month from July to September 2026."
+  months={months}
+  prior={coreDownloads.prior}
+  current={coreDownloads.current}
+  priorLabel={priorLabel}
+  currentLabel={currentLabel}
+  format="compact"
+  note="npm downloads for all unscoped core packages and the 332 scoped core packages with 200 or more downloads a month, minus @sap/cds-mtxs and @payloadcms/plugin-multi-tenant. Downloads include mirrors, CI, and bots. Sources: downloads_monthly_summary.csv, downloads_monthly_core.json."
+/>
+
+Three things temper that curve:
+
+- **Downloads are concentrated.** In July to September 2026, the ten most downloaded new
+  packages accounted for 37% of all downloads of new packages.
+- **Most new packages see little use.** 88% of core packages first published in the window had
+  fewer than 1,000 downloads in September 2026. 22% have only ever had one published version.
+- **Downloads are noisy.** Mirrors, CI pipelines, and bots download new packages too, and they
+  inflate young packages most. Read the curve as "more activity", not "more production users".
+
+The base did widen: the number of core packages with recorded downloads went from 200 in
+October 2024 to 888 in September 2026. On GitHub, new dedicated libraries have a median of 1 star.
+
+## Are the new packages any good?
+
+To look past the registry, we checked GitHub for four groups: every repository behind a new
+dedicated package (a census of 95 packages), 50 random other new core packages, 50 random older
+dedicated packages, and the repositories from the March post. These are the main results.
+
+<div class="table-wrapper">
+
+| Measure | New dedicated (census) | Other new core (random 50) | Older dedicated (random 50) |
+| --- | ---: | ---: | ---: |
+| Repository still exists | 79% (75 of 95) | 70% | 90% |
+| CI present | 84% | 69% | 53% |
+| CI green in the last 90 days | 56% | 40% | 18% |
+| Test files present | 87% (median 20) | 77% (median 6) | 62% (median 3) |
+| Built in one short burst ("one-shot") | 49% | 31% | 31% |
+| Whole history spans 7 days or less | 32% | 29% | 18% |
+| Developed over time | 33% | 46% | 53% |
+| Two or more human contributors | 20% | 17% | 49% |
+| License | 87% | 69% | 71% |
+| Median stars | 1 | 0 | 3 |
+
+</div>
+
+Percentages after the first row are of repositories that still exist. The good news is real:
+the new libraries are more likely to have CI, more likely to have tests, and more likely to
+have a license than libraries from earlier years. That matches what the March post asked for.
+
+The rest of the table is less encouraging.
+
+- **One-shot histories are common.** Almost half of the new dedicated libraries were built in
+  one burst: 3 or fewer commits, or 80% or more of the code added in the first week. Among
+  repositories that hold a single package, the share is 72%, against 38% for older ones. A short
+  history is not a defect, but it says little about how a library will be maintained.
+- **Most have one contributor.** Only 20% of new dedicated libraries have two or more human
+  contributors, against 49% of older ones. That is partly age: older projects have had more time
+  to attract help.
+- **Links rot fast.** 21% of the new dedicated packages point to a repository that is gone or
+  private. For a library that sits under your data layer, a missing source repository is hard to
+  work around.
+- **CI exists but is often not green.** 84% have CI, but for only 56% did the latest run on the
+  default branch succeed within the last 90 days.
+
+### Do the READMEs match the code?
+
+We compared what each new dedicated library claims in its README (RLS, schema-per-tenant,
+database-per-tenant, hierarchy, permissions, audit, encryption, rate limiting) against its
+published package. 34 of the 95 make at least one such claim.
+
+A keyword heuristic flagged 15 of the 34 (44%) as claiming something with no supporting code.
+We then checked every flagged package by hand, and most flags were wrong: a README that says "this
+is not a replacement for RLS", or a "hierarchy" that turns out to be an error class hierarchy.
+**After the hand check, 3 of 34 (9%) had a claim the code does not back up.** Two packages ship
+no code at all.
+
+The common pattern is not fabrication. It is inflation: an option or enum for a strategy that
+nothing implements yet. If a library matters to you, read the code for the feature you need, not
+the feature list.
+
+## Which ORMs and isolation strategies are the new packages built on?
+
+This is the core set grouped by the ORM each package targets. "Abandoned" means no publish in
+more than 24 months.
+
+<div class="table-wrapper">
+
+| ORM | Core packages now | Created before Oct 2025 | Of those, abandoned | Created Oct 2025 to Sep 2026 |
+| --- | ---: | ---: | ---: | ---: |
+| Mongoose | 87 | 50 | 34 (68%) | 37 |
+| Drizzle | 85 | 3 | 1 | 82 |
+| Prisma | 82 | 29 | 20 (69%) | 53 |
+| TypeORM | 44 | 14 | 8 (57%) | 30 |
+| Sequelize | 26 | 16 | 9 (56%) | 10 |
+| Knex | 19 | 7 | 4 (57%) | 12 |
+| Kysely | 12 | 1 | 0 | 11 |
+
+</div>
+
+Drizzle went from 3 packages to 85, almost all of them new. Prisma and TypeORM roughly tripled,
+and Kysely went from 1 to 12. The older ORM ecosystems still show the pattern the March post
+described: more than half of the pre-window Mongoose, Prisma, TypeORM, Sequelize, and Knex
+packages have not published in two years.
+
+Isolation has a clear default now. Among the 34 new dedicated libraries that make feature
+claims, 19 mention PostgreSQL row-level security (RLS), and 11 each mention schema-per-tenant
+and database-per-tenant. Only 5 mention tenant hierarchy, and in two of those the word turned out
+not to mean a tenant tree. Hierarchy, config inheritance, GDPR tooling, and audit logs are still rare.
+
+## Is AI-assisted development behind the jump?
+
+We looked for two signals in each repository: agent configuration files (such as `AGENTS.md`,
+`CLAUDE.md`, `.claude/`, or `.cursor/`) and AI co-author trailers on commits.
+
+<div class="table-wrapper">
+
+| Signal | New dedicated | Other new core | Older dedicated |
+| --- | ---: | ---: | ---: |
+| Agent configuration files | 37% | 37% | 4% |
+| AI co-author commit trailers | 65% | 51% | 9% |
+| Either signal | 72% | 60% | 11% |
+
+</div>
+
+In the new dedicated libraries, the most common files were `AGENTS.md` (18 repositories),
+`CLAUDE.md` (17), `.claude/` (12), and `.cursor/` (6). In the same group, repositories with an AI
+signal had test files in 98% of cases, against 57% of those without one.
+
+The timing lines up with the spread of agentic coding tools, and the size of the gap is hard to
+ignore. It is still a correlation, and these caveats matter:
+
+- **A signal is evidence of use, and its absence proves nothing.** Many developers use AI tools
+  without committing an agent file or a co-author trailer.
+- **The older group mostly predates these conventions.** Agent files and co-author trailers
+  became common recently, so the 11% is partly a measure of age.
+- **History length biases the comparison.** Repositories without signals were more often
+  one-shot (81% against 37%), but a repository with three commits has few chances to show a
+  trailer at all.
+- **The groups are small.** With 35 to 75 repositories per group, percentages carry a margin of
+  up to about 13 points.
+
+We do not read any of this as a judgment on the people building these libraries. AI tools
+made it cheaper to publish a multi-tenancy library, and many of the results have the CI and
+tests the March post asked for. Stratum is developed with AI agents too, and its repository
+would count toward the 72%. The open questions are the ones in the quality table: who maintains
+a library after the first burst, and whether its claims match its code.
+
+## What about security?
+
+A separate post will cover security. In brief, from 21 libraries read by hand and a pattern scan
+of 203 package tarballs: SQL built from strings with the tenant ID was rare, and where a library
+enables RLS it nearly always forces it too (11 of 12). The most common weakness was trusting
+where the tenant ID comes from: about 22% read it from a request header such as `x-tenant-id`,
+and a few decode a token without verifying it. If you evaluate a library, check how it resolves
+the tenant before you check how it isolates the data.
+
+## What we got wrong in March
+
+The March post asked for libraries that test their claims. This section applies that standard to
+the post itself. When we tried to reproduce its numbers, several did not hold.
+
+- **"204 packages tagged multitenant."** No npm query we tried matches 204. Today, a text search
+  for `multitenant` returns 260 results, a keyword search for `multitenant` returns 79, and a text
+  search for `multitenancy` returns 203. The March post did not record which query it ran.
+- **"65% have not been published in over 24 months."** Rebuilding the package set as it stood on
+  March 29, 2026 and applying the same rule gives between 24% and 40%, depending on which set you
+  start from. None of the sets we tried gives 65%.
+- **The six-repository table.** Several cells conflict with the repositories' own git history. A
+  repository listed with no license has had an Apache-2.0 license since April 2020. Another,
+  listed with a last commit in 2022, was created in June 2025. A third has its first commit in
+  2021, after the "2020" listed as its last commit. We have withdrawn the observations built on
+  that table.
+- **The ORM table.** It counted 3 or 4 packages per ORM, against 12 to 87 in the current data, and
+  the post did not say how they were chosen. Treat it as superseded by the ORM table above.
+- **mongo-tenant, "68 months" without an update.** This one is correct. Its last npm release
+  was 1.8.0 on July 12, 2020, 74 months ago today. It still got between about 14,000 and 23,000
+  downloads a month in 2026.
+
+Why did this happen? npm search is a relevance index of packages that exist right now. Packages
+are added and removed, and results are re-ranked, so a count taken one day may not be
+reproducible the next. The bigger problem was ours: the post did not record the query, the date,
+or the definition behind each number. For this post, every number comes with a definition and a
+data file.
+
+Here is the corrected table for the repositories from the March post, as of September 30, 2026.
+We cannot reconstruct the March star counts, so we show today's and make no comparison.
+
+<div class="table-wrapper">
+
+| Repository | Stars | CI config | Test files | License | First commit | Last commit |
+| --- | ---: | --- | ---: | --- | --- | --- |
+| [deye9/node-multi-tenant](https://github.com/deye9/node-multi-tenant) | 65 | No | 7 | GPL-3.0 | Feb 2019 | Jul 2026 |
+| [AgusRdz/multitenant_demo](https://github.com/AgusRdz/multitenant_demo) | 57 | No | 0 | None | Jan 2021 | Dec 2021 |
+| [lanemc/multi-tenant-saas-toolkit](https://github.com/lanemc/multi-tenant-saas-toolkit) | 16 | Publish workflow, never run | 5 | MIT | Jun 2025 | Jun 2025 |
+| [morka17/multi-tenant-user-role-base-app](https://github.com/morka17/multi-tenant-user-role-base-app) | 4 | No | 0 | None | Sep 2023 | Sep 2023 |
+| [AnishLushte07/multi-tenant-application](https://github.com/AnishLushte07/multi-tenant-application) | 8 | No | 0 | Apache-2.0 | Sep 2019 | Apr 2020 |
+| [daniccan/multi-tenant-node-app](https://github.com/daniccan/multi-tenant-node-app) | 44 | No | 0 | None | Apr 2020 | Sep 2022 |
+| [craftup/node-mongo-tenant](https://github.com/craftup/node-mongo-tenant) (mongo-tenant) | 74 | Yes | 8 | MIT | Jul 2016 | Sep 2023 |
+
+</div>
+
+Definitions: **Stars** as reported by the GitHub API on September 30, 2026. **CI config** means
+a CI configuration file in the repository. **Test files** counts files in the default branch
+whose names mark them as tests or specs; it says nothing about what they test. **License** is the
+license GitHub detects. **First commit** and **Last commit** are dates on the default branch.
+
+`deye9/node-multi-tenant` was rewritten in July 2026 after seven quiet years, so some of its
+differences from March are real changes, not errors.
+
+## How we measured
+
+**Discovery.** We ran 24 npm search queries (keyword and free text) with full pagination,
+which returned 28,477 candidate packages. Past about 5,000 results, each further page added 0 or 1
+relevant packages, so the search is close to saturated. A package's month is the
+`time.created` date in its npm metadata.
+
+**Definitions.**
+
+- **Core:** the name, description, or keywords match `/multi[-_ ]?tenan/i`.
+- **Dedicated:** core, and the package name contains "tenan".
+- **Broad:** matches `/tenant|tenancy/i` anywhere.
+- **Project:** the package scope, or else its GitHub repository, or else its publisher.
+- **Stale or abandoned:** no publish in more than 24 months.
+- **CI present:** a CI workflow file in the repository. **CI green:** the latest default-branch
+  run succeeded within 90 days.
+- **One-shot:** 3 or fewer commits, or 80% or more of additions in the first week.
+- **Developed:** 5 or more active days, a span of 28 days or more, and under 50% of additions in
+  the first week.
+- **AI signal:** an agent configuration file, or an AI co-author trailer on any commit.
+
+**Downloads.** From the npm downloads API, for every unscoped core package and the 332 scoped
+core packages with 200 or more downloads a month, which together cover 97.6% of scoped volume.
+
+**GitHub sample.** About 1,400 GitHub API calls plus the published npm tarballs, for the claim
+checks. Random samples used a fixed seed (42).
+
+**Caveats.**
+
+- npm search only finds packages that describe themselves with these words, and only packages
+  that still exist. Packages removed as spam are not counted. That makes older years look
+  smaller, but it cannot explain a 3x to 8x step within one year.
+- The core set includes products that call themselves multi-tenant. Use the dedicated set when
+  you want libraries.
+- In monorepos, CI and test results describe the whole repository, not one package.
+- One-shot measures are biased by squashed imports, and new repositories have at most 12 months
+  of history.
+- Test file counts say nothing about test quality.
+- About 23% of new core packages are tenancy libraries or tooling, against about 33% the year
+  before, from a hand-classified sample of only 30. Treat that as rough.
+- With 35 to 45 repositories per random group, percentages carry a margin of about 13 points.
+
+**The data.** These files are the raw inputs and summaries behind every chart and table in this
+post. Per-repository assessments are not published, so that no individual project is singled out;
+the aggregate results are in `github_sample_summary.json`.
+
+- [monthly_new_packages.csv](/data/multitenancy-2026/monthly_new_packages.csv): new packages,
+  projects, and publishers per month, both periods, all three sets.
+- [monthly_summary.json](/data/multitenancy-2026/monthly_summary.json): yearly totals, counts by
+  year of first publish, and freshness.
+- [packages.csv](/data/multitenancy-2026/packages.csv): one row per matched package, from npm
+  metadata. We removed one access token that a package had embedded in its repository URL.
+- [downloads_monthly_summary.csv](/data/multitenancy-2026/downloads_monthly_summary.csv) and
+  [downloads_monthly_core.json](/data/multitenancy-2026/downloads_monthly_core.json): monthly
+  downloads, in total and per package.
+- [orm_breakdown.csv](/data/multitenancy-2026/orm_breakdown.csv): the ORM table.
+- [staleness_comparison.json](/data/multitenancy-2026/staleness_comparison.json): the
+  staleness check behind the correction above.
+- [sample_frame.json](/data/multitenancy-2026/sample_frame.json) and
+  [github_sample_summary.json](/data/multitenancy-2026/github_sample_summary.json): which
+  repositories were sampled, and the results for each group.
+
+If you find an error, [open an issue](https://github.com/stratum-hq/Stratum/issues). We will
+correct this post in place and say so.
+
+## Where Stratum fits
+
+Stratum is one of the 894 projects counted above, and the same questions apply to it. It is
+young, it has a small user base, and its development uses AI agents. Here is what it does that
+most of the ecosystem still does not:
+
+- **Tenant hierarchy.** Tenants form a tree stored in PostgreSQL with `ltree`, and creates and
+  moves take an advisory lock so concurrent writes cannot corrupt it. See the
+  [tenant hierarchy guide](https://docs.stratum-hq.org/guides/tenant-hierarchy/).
+- **Config inheritance.** Values resolve from the root to the leaf, and a parent can lock a key
+  so descendants cannot override it. See
+  [config inheritance](https://docs.stratum-hq.org/guides/config-inheritance/).
+- **RLS, with other strategies when you need them.** Shared tables with row-level security,
+  plus schema-per-tenant and database-per-tenant. See
+  [isolation strategies](https://docs.stratum-hq.org/guides/isolation-strategies/) and the
+  [Drizzle](https://docs.stratum-hq.org/guides/drizzle-multitenancy/) and
+  [Prisma](https://docs.stratum-hq.org/guides/prisma-rls/) guides.
+- **Audit log.** Every mutation records who made it, plus the state before and after.
+
+What it does not do is settle the questions in this post. Our unit tests check the SQL Stratum
+builds; the behavior of that SQL against a real database is tested in a separate integration
+suite. Judge it the way this post suggests you judge any library: read the code for the feature
+you need.
+
+The quickest way to see the hierarchy and config inheritance working is the
+[browser playground](https://docs.stratum-hq.org/playground/), which runs without an install.

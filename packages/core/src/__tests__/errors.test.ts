@@ -39,6 +39,15 @@ describe("error hierarchy", () => {
     expect(err.message).toContain("my-slug");
   });
 
+  it("TenantHasChildrenError names the blocked action", () => {
+    expect(new TenantHasChildrenError("p").message).toBe(
+      "Cannot archive tenant p: it has active children. Archive children first.",
+    );
+    expect(new TenantHasChildrenError("p", "suspend").message).toBe(
+      "Cannot suspend tenant p: it has active children. Suspend or archive its children first.",
+    );
+  });
+
   it("TenantHasChildrenError has 409 status", () => {
     const err = new TenantHasChildrenError("parent-id");
     expect(err.code).toBe(ErrorCode.TENANT_HAS_CHILDREN);

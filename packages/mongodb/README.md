@@ -9,6 +9,10 @@ Three isolation strategies:
 - **Collection-per-tenant:** `{collection}_{slug}` naming convention. Pass `baseCollections` (every base collection name) to `MongoCollectionAdapter`; `scopedCollection` and `purgeTenantData` require it, and `purgeTenantData` purges exactly `{base}_{slug}` for each entry
 - **Database-per-tenant:** dedicated database with MongoPoolManager LRU cache
 
+## Shared collection filters
+
+A filter may name the current tenant (`tenant_id: "<tenant>"` or `{ $eq: "<tenant>" }`), but any other condition on `tenant_id` throws, whether at the top level or inside `$and`, `$or` or `$nor`: another tenant's ID, a query operator such as `$in` or `$ne`, or a dotted `tenant_id.*` path. This applies to every filter of the scoped collection, including `bulkWrite` filters and a find cursor's `filter()`. Use the raw collection for cross-tenant admin queries. `$expr`, `$where` and `$elemMatch` are not inspected, and need not be: the current tenant's `tenant_id` is set at the top level of every filter, and MongoDB ANDs it with the rest, so a condition inside them cannot match another tenant's documents (one that names another tenant matches nothing).
+
 ## Mongoose plugin scope
 
 `stratumPlugin` scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a change stream that starts with `$match: { "fullDocument.tenant_id": <tenant> }`. `fullDocument` defaults to `"updateLookup"` so update events carry the document. An `Aggregate` cannot be changed after it has run.
