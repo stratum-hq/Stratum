@@ -80,7 +80,7 @@ const packages = [
 <section class="idx-hero" data-depth="0">
   <div class="idx-hero-inner">
     <div class="idx-hero-content">
-      <h1 class="idx-display">Multi-tenancy<br/>for <span class="accent">Node.js</span></h1>
+      <h1 class="idx-display">Multi-tenancy<br/>for Node.js</h1>
       <p class="idx-hero-sub">
         When customers need tenants <em>inside</em> tenants, resellers, agencies,
         enterprise org trees, a <code>tenant_id</code> column stops working.
@@ -96,17 +96,23 @@ const packages = [
         <code id="install-cmd">npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
         <button class="install-copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
       </div>
-      <div class="badge-row">
-        <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml" class="badge-link" aria-label="CI status">
-          <img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml/badge.svg" alt="CI status" height="20" loading="lazy" />
-        </a>
-        <img class="badge-img" src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 100 percent" height="20" loading="lazy" />
-      </div>
     </div>
 
     <!-- Inheritance flow: each tenant is a rock band colored by its depth. Values
          resolve down the strata in vein unless a parent locks a key; the locked
          key is a magma tag that carries the word LOCKED. -->
+    <!-- The panel below is drawn for sighted visitors and hidden from assistive
+         technology, so this list carries the same facts as text. -->
+    <div class="visually-hidden">
+      <p>Example tenant hierarchy:</p>
+      <ul>
+        <li>d0: AcmeSec, the root tenant.</li>
+        <li>d1: NorthStar MSP, a reseller under AcmeSec.</li>
+        <li>d2: client-alpha, under NorthStar MSP.</li>
+        <li>d3: team-eng, under client-alpha.</li>
+      </ul>
+      <p>max_users is 1000, inherited from d0. data_region is locked: children cannot override it.</p>
+    </div>
     <div class="inherit-panel fade-in" aria-hidden="true">
       <div class="inherit-label">tenant hierarchy</div>
       <div class="inherit-tree">
@@ -129,124 +135,88 @@ const packages = [
   </div>
 </section>
 
-<!-- Features -->
+<!-- Features: one continuous stack of rock, shallow to deep. Each band takes
+     the rock color of its depth (DESIGN.md, Rock bands), so the order of the
+     features is the order of the strata and cannot be shuffled for layout. -->
 <section class="features" data-depth="1">
   <div class="features-heading fade-in">
     <h2>Built for hierarchical tenant architectures</h2>
     <p>Every feature maps to a real problem in multi-tenant SaaS, not a marketing checklist.</p>
   </div>
 
-  <div class="features-row-primary">
-    <div class="feature-block fade-in">
-      <div class="feature-icon">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="3" r="2"/>
-          <circle cx="5" cy="12" r="2"/>
-          <circle cx="19" cy="12" r="2"/>
-          <circle cx="5" cy="21" r="2"/>
-          <circle cx="19" cy="21" r="2"/>
-          <line x1="12" y1="5" x2="5" y2="10"/>
-          <line x1="12" y1="5" x2="19" y2="10"/>
-          <line x1="5" y1="14" x2="5" y2="19"/>
-          <line x1="19" y1="14" x2="19" y2="19"/>
-        </svg>
-      </div>
-      <h3>Tenant Hierarchy</h3>
-      <p>Tree-structured tenants backed by a PostgreSQL ltree materialized path. Advisory locks serialize create and move so concurrent writes cannot corrupt the tree. Ancestor and subtree queries resolve from the path, not recursive joins.</p>
-    </div>
-    <div class="feature-block fade-in">
-      <div class="feature-icon">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="4" y1="21" x2="4" y2="14"/>
-          <line x1="4" y1="10" x2="4" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="12"/>
-          <line x1="12" y1="8" x2="12" y2="3"/>
-          <line x1="20" y1="21" x2="20" y2="16"/>
-          <line x1="20" y1="12" x2="20" y2="3"/>
-          <line x1="1" y1="14" x2="7" y2="14"/>
-          <line x1="9" y1="8" x2="15" y2="8"/>
-          <line x1="17" y1="16" x2="23" y2="16"/>
-        </svg>
-      </div>
-      <h3>Config Inheritance</h3>
-      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by a locked key. Batch updates are atomic: if one key is locked or invalid, nothing is written, and the result names that key.</p>
-    </div>
-  </div>
-
-  <div class="features-row-diagram">
-    <div class="feature-diagram-block fade-in">
-      <div>
-        <div class="feature-icon">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <ellipse cx="12" cy="5" rx="9" ry="3"/>
-            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-          </svg>
+  <ol class="strata fade-in">
+    <li class="stratum-band band-d0">
+      <div class="band-face">
+        <div class="band-head"><span class="band-depth">d0</span><h3>Tenant hierarchy</h3></div>
+        <div class="band-body">
+          <p class="band-lead">Nest tenants as deep as your customers need: resellers, their clients, and the teams inside them. Concurrent writes cannot corrupt the tree.</p>
+          <p>Each tenant stores its path from the root in a PostgreSQL <code>ltree</code> column, a materialized path. Ancestor and subtree queries read that path instead of running recursive joins. Advisory locks, held for one transaction, serialize create and move.</p>
         </div>
-        <h3>Three Isolation Strategies</h3>
-        <p>Shared tables with RLS, schema-per-tenant, or database-per-tenant. Choose per tenant, and mix strategies in a single deployment as compliance requirements evolve.</p>
       </div>
-      <div class="isolation-diagram" aria-label="Isolation strategy comparison">
-        <div class="iso-eyebrow">isolation model</div>
-        <div class="isolation-stack">
-          <div class="isolation-row iso-rls">
-            <div class="isolation-face">
-              <span><span class="isolation-label">Shared RLS</span><span class="isolation-note">row_security = on · lowest cost</span></span>
-              <span class="isolation-mark">shallow</span>
+    </li>
+    <li class="stratum-band band-d1">
+      <div class="band-face">
+        <div class="band-head"><span class="band-depth">d1</span><h3>Config inheritance</h3></div>
+        <div class="band-body">
+          <p class="band-lead">Set a value once and every descendant gets it. A parent can lock a key so that no child can change it.</p>
+          <p>Values flow root to leaf. Children inherit, override, or are blocked by a locked key. Batch updates are atomic: if one key is locked or invalid, nothing is written, and the result names that key.</p>
+        </div>
+      </div>
+    </li>
+    <li class="stratum-band band-d2">
+      <div class="band-face">
+        <div class="band-head"><span class="band-depth">d2</span><h3>Permission delegation</h3></div>
+        <div class="band-body">
+          <p class="band-lead">Decide at every node of the tree what the tenants below it can change.</p>
+          <p>A LOCKED permission holds for every descendant. INHERITED and DELEGATED permissions flow down, and a descendant can override them. Revocation is cascade (remove it from the whole subtree), soft (remove it only where it was set), or permanent (it cannot be revoked).</p>
+        </div>
+      </div>
+    </li>
+    <li class="stratum-band band-d3">
+      <div class="band-face">
+        <div class="band-head"><span class="band-depth">d3</span><h3>Three isolation strategies</h3></div>
+        <div class="band-body">
+          <p class="band-lead">Give each tenant the isolation its compliance requirements call for, and mix strategies in one deployment.</p>
+          <p>Shared tables with RLS (row-level security, where PostgreSQL filters every row by tenant) cost the least. Schema-per-tenant gives a tenant its own schema. Database-per-tenant gives it its own database, the strongest separation.</p>
+          <div class="isolation-diagram" aria-label="Isolation strategy comparison">
+            <div class="isolation-stack">
+              <div class="isolation-row iso-rls">
+                <div class="isolation-face">
+                  <span><span class="isolation-label">Shared RLS</span><span class="isolation-note">row_security = on · lowest cost</span></span>
+                  <span class="isolation-mark">shallow</span>
+                </div>
+              </div>
+              <div class="isolation-row iso-schema is-active">
+                <div class="isolation-face">
+                  <span><span class="isolation-label">Schema</span><span class="isolation-note">search_path = tenant_slug</span></span>
+                  <span class="isolation-mark">in use</span>
+                </div>
+              </div>
+              <div class="isolation-row iso-db">
+                <div class="isolation-face">
+                  <span><span class="isolation-label">Database</span><span class="isolation-note">separate PG instance · strongest</span></span>
+                  <span class="isolation-mark">deepest</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="isolation-row iso-schema is-active">
-            <div class="isolation-face">
-              <span><span class="isolation-label">Schema</span><span class="isolation-note">search_path = tenant_slug</span></span>
-              <span class="isolation-mark">in use</span>
-            </div>
-          </div>
-          <div class="isolation-row iso-db">
-            <div class="isolation-face">
-              <span><span class="isolation-label">Database</span><span class="isolation-note">separate PG instance · strongest</span></span>
-              <span class="isolation-mark">deepest</span>
+            <div class="iso-code">
+              <span class="iso-fn">stratum.createTenant</span>(&#123; ..., isolation_strategy: <span class="iso-accent">"SCHEMA_PER_TENANT"</span> &#125;)<br/>
+              <span class="iso-cm">// each tenant gets its strategy when you create it</span>
             </div>
           </div>
         </div>
-        <div class="iso-code">
-          <span class="iso-fn">stratum.createTenant</span>(&#123; ..., isolation_strategy: <span class="iso-accent">"SCHEMA_PER_TENANT"</span> &#125;)<br/>
-          <span class="iso-cm">// each tenant gets its strategy when you create it</span>
+      </div>
+    </li>
+    <li class="stratum-band band-d4">
+      <div class="band-face">
+        <div class="band-head"><span class="band-depth">d4</span><h3>Audit, GDPR and encryption</h3></div>
+        <div class="band-body">
+          <p class="band-lead">Know who changed what, and answer GDPR export and erasure requests without building the tooling yourself.</p>
+          <p>Every mutation is logged with the actor's identity. Data export (Article 20) and hard purge (Article 17) are built in, with consent tracking and an audit trail. AES-256-GCM encrypts sensitive values at rest. Optional OpenTelemetry tracing, Redis-backed rate limiting, and webhook delivery with a dead-letter queue.</p>
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="features-row-compact">
-    <div class="feature-compact fade-in">
-      <div class="feature-compact-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <polyline points="9 12 11 14 15 10"/>
-        </svg>
-      </div>
-      <h3>Permission Delegation</h3>
-      <p>LOCKED, INHERITED, or DELEGATED modes. Cascade, soft, or permanent revocation. Fine-grained control at every node of the tree.</p>
-    </div>
-    <div class="feature-compact fade-in">
-      <div class="feature-compact-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <h3>Field Encryption + GDPR</h3>
-      <p>AES-256-GCM for sensitive values at rest. Data export (Article 20) and hard purge (Article 17). Consent tracking with an audit trail.</p>
-    </div>
-    <div class="feature-compact fade-in">
-      <div class="feature-compact-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-      </div>
-      <h3>Audit + Observability</h3>
-      <p>Every mutation logged with actor identity. Optional OpenTelemetry tracing. Redis-backed rate limiting and webhook delivery with a dead-letter queue.</p>
-    </div>
-  </div>
+    </li>
+  </ol>
 </section>
 
 <!-- Code Example -->
@@ -262,15 +232,12 @@ const packages = [
     </div>
     <div class="code-block">
       <div class="code-block-header">
-        <span class="code-block-dot"></span>
-        <span class="code-block-dot"></span>
-        <span class="code-block-dot"></span>
         <span class="code-block-filename">setup.ts</span>
       </div>
       <Code code={setupCode} lang="ts" theme="css-variables" />
       <div class="code-output">
         <span class="co-arrow">→</span>
-        <span class="co-text">config.max_users = &#123; value: <span class="co-val">1000</span>, inherited: <span class="co-val">true</span>, source_tenant_id: <span class="co-src">root.id</span> &#125;</span>
+        <span class="co-text">config.max_users = &#123; value: <span class="co-val">1000</span>, inherited: true, source_tenant_id: <span class="co-src">root.id</span> &#125;</span>
         <span class="co-tag">resolved from d0</span>
       </div>
     </div>
@@ -298,11 +265,19 @@ const packages = [
   </div>
 </section>
 
-<!-- CTA -->
+<!-- Close: reassurance from facts a visitor can check (PRODUCT.md, Evidence on
+     Hand). No adoption numbers or logos: the project has none to show. -->
 <section class="cta">
-  <div class="cta-inner fade-in">
-    <h2>Start <span class="accent">building.</span></h2>
-    <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
+  <div class="idx-close fade-in">
+    <h2>Start building.</h2>
+    <div class="idx-close-body">
+      <ul class="idx-proof">
+        <li><a href="https://github.com/stratum-hq/Stratum/blob/main/LICENSE">MIT licensed</a>, with every line of the source on GitHub.</li>
+        <li><a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml">Integration tests</a> run against real PostgreSQL, MongoDB and MySQL in CI.</li>
+        <li>Try it in the <a href="https://docs.stratum-hq.org/playground/">browser Playground</a> before you install anything.</li>
+      </ul>
+      <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
+    </div>
   </div>
 </section>
 
@@ -375,14 +350,68 @@ const packages = [
   .idx-hero-sub code {
     font-family: var(--font-mono);
     font-size: 0.85em;
-    color: var(--accent-text);
+    color: var(--text-primary);
     background: var(--surface-2);
     padding: 1px 6px;
   }
 
+  /* Hidden from sight, still read by screen readers. Clipping the box, not
+     display: none, keeps it in the accessibility tree. */
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Close. The heading takes the left column, the proof and the one magma
+     action the right. The proof is plain prose with links, because each line
+     points at something a visitor can check. */
+  .idx-close {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-8) var(--space-16);
+    align-items: start;
+  }
+  .idx-close h2 {
+    font-size: clamp(2.25rem, 5vw, 3.25rem);
+    line-height: 0.92;
+    color: var(--text-primary);
+    text-wrap: balance;
+  }
+  .idx-proof {
+    list-style: none;
+    margin-bottom: var(--space-8);
+  }
+  .idx-proof li {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .idx-proof li:first-child { border-top: 1px solid var(--border); }
+  .idx-proof a {
+    color: var(--text-primary);
+    text-decoration: underline;
+    text-decoration-color: var(--rule);
+    text-underline-offset: 0.2em;
+    transition: text-decoration-color var(--duration-fast) var(--ease-out);
+  }
+  .idx-proof a:hover { text-decoration-color: var(--text-primary); }
+  @media (max-width: 768px) {
+    .idx-close { grid-template-columns: minmax(0, 1fr); }
+  }
+
   /* One column on small screens. The tenant tree is the pitch, so it moves up
-     to sit directly under the calls to action instead of below the install box
-     and badges, where it fell past the first phone screen. display: contents
+     to sit directly under the calls to action instead of below the install box,
+     where it fell past the first phone screen. display: contents
      lifts the hero copy's children into this grid so they can be reordered. */
   @media (max-width: 900px) {
     .idx-hero-inner {
@@ -392,8 +421,7 @@ const packages = [
     }
     .idx-hero-content { display: contents; }
     .inherit-panel { margin-bottom: var(--space-8); }
-    .install-box,
-    .badge-row { order: 1; }
+    .install-box { order: 1; }
   }
   @media (max-width: 480px) {
     .idx-hero-inner {
