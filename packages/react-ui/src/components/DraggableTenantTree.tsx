@@ -32,7 +32,11 @@ import { useTenantTree, type TenantTreeNode } from "../hooks/use-tenant-tree.js"
 import { useTenant } from "../hooks/use-tenant.js";
 import { useStratum } from "../provider.js";
 import { useMessages } from "../hooks/use-messages.js";
+import { useTreeKeyboard } from "../hooks/use-tree-keyboard.js";
 import type { MessageKey } from "../i18n.js";
+import { isolationBadgeKey } from "./TenantTree.js";
+
+type ItemProps = ReturnType<typeof useTreeKeyboard>["itemProps"];
 
 export interface DraggableTenantTreeProps {
   rootId?: string;
@@ -57,6 +61,8 @@ function DraggableTreeNode({
   onAddChild,
   depth,
   t,
+  activeId,
+  itemProps,
 }: {
   node: TenantTreeNode;
   selectedId?: string;
@@ -67,12 +73,19 @@ function DraggableTreeNode({
   onAddChild?: (parentId: string) => void;
   depth: number;
   t: (key: MessageKey, params?: Record<string, string>) => string;
+  activeId: string | null;
+  itemProps: ItemProps;
 }) {
   const hasChildren = node.children.length > 0;
+  // Row buttons join the tab order only in the active row, so Tab leaves the tree
+  // after one row instead of after every row.
+  const rowTabIndex = node.id === activeId ? 0 : -1;
+  const name = { name: node.name };
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: node.id,
     data: { node },
+    attributes: { tabIndex: rowTabIndex },
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -81,7 +94,12 @@ function DraggableTreeNode({
   });
 
   return (
-    <li role="treeitem" aria-expanded={hasChildren ? node.expanded : undefined}>
+    <li
+      role="treeitem"
+      aria-expanded={hasChildren ? node.expanded : undefined}
+      aria-selected={selectedId === node.id}
+      {...itemProps(node.id)}
+    >
       <div
         ref={setDropRef}
         className={[
@@ -102,6 +120,7 @@ function DraggableTreeNode({
           {...attributes}
           {...listeners}
           className="stratum-tree__drag-handle"
+          aria-label={t("tenantTree.moveTenant", name)}
           title="Drag to reparent or reorder"
           onClick={(e) => e.stopPropagation()}
         >
@@ -112,6 +131,7 @@ function DraggableTreeNode({
           <button
             type="button"
             className="stratum-tree__toggle"
+            tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
             aria-label={node.expanded ? t("tenantTree.collapse") : t("tenantTree.expand")}
           >
@@ -120,16 +140,10 @@ function DraggableTreeNode({
         ) : (
           <span className="stratum-tree__spacer">  </span>
         )}
-        <span
-          className="stratum-tree__label"
-          onClick={() => onSelect?.(node.id)}
-          onKeyDown={(e) => e.key === "Enter" && onSelect?.(node.id)}
-          tabIndex={0}
-          role="button"
-        >
+        <span className="stratum-tree__label" title={node.name} onClick={() => onSelect?.(node.id)}>
           {node.name}
         </span>
-        <span className="stratum-tree__badge">{t("tenantTree.badgeRls")}</span>
+        <span className="stratum-tree__badge">{t(isolationBadgeKey[node.isolation_strategy])}</span>
         <span className="stratum-tree__meta">
           {node.status === "archived" ? t("tenantTree.archived") : ""}
         </span>
@@ -141,8 +155,10 @@ function DraggableTreeNode({
               <button
                 type="button"
                 className="stratum-tree__action-btn"
+                tabIndex={rowTabIndex}
                 onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
-                title="Edit tenant"
+                aria-label={t("tenantTree.editTenant", name)}
+                title={t("tenantTree.editTenant", name)}
               >
                 {"\u270E"}
               </button>
@@ -151,8 +167,10 @@ function DraggableTreeNode({
               <button
                 type="button"
                 className="stratum-tree__action-btn"
+                tabIndex={rowTabIndex}
                 onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
-                title="Add child tenant"
+                aria-label={t("tenantTree.addChild", name)}
+                title={t("tenantTree.addChild", name)}
               >
                 +
               </button>
@@ -161,8 +179,10 @@ function DraggableTreeNode({
               <button
                 type="button"
                 className="stratum-tree__action-btn stratum-tree__action-btn--danger"
+                tabIndex={rowTabIndex}
                 onClick={(e) => { e.stopPropagation(); onArchive(node.id, node.name); }}
-                title="Archive tenant"
+                aria-label={t("tenantTree.archiveTenant", name)}
+                title={t("tenantTree.archiveTenant", name)}
               >
                 &times;
               </button>
@@ -184,6 +204,8 @@ function DraggableTreeNode({
               onAddChild={onAddChild}
               depth={depth + 1}
               t={t}
+              activeId={activeId}
+              itemProps={itemProps}
             />
           ))}
         </ul>
@@ -209,6 +231,7 @@ export function DraggableTenantTree({
   const { apiCall, toast } = useStratum();
   const { t } = useMessages();
   const [activeNode, setActiveNode] = useState<TenantTreeNode | null>(null);
+  const { activeId, itemProps, rootProps } = useTreeKeyboard(tree, tenant?.id, onSelect, toggleExpand);
 
   // Find a node by ID in the tree
   const findNode = useCallback(
@@ -312,7 +335,7 @@ export function DraggableTenantTree({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <ul role="tree" className="stratum-tree__root">
+        <ul role="tree" {...rootProps}>
           {tree.map((node) => (
             <DraggableTreeNode
               key={node.id}
@@ -325,6 +348,8 @@ export function DraggableTenantTree({
               onAddChild={onAddChild}
               depth={0}
               t={t}
+              activeId={activeId}
+              itemProps={itemProps}
             />
           ))}
         </ul>
