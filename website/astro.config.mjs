@@ -72,6 +72,8 @@ export default defineConfig({
       components: {
         ThemeProvider: "./src/components/ThemeProvider.astro",
         ThemeSelect: "./src/components/ThemeSelect.astro",
+        // Adds the marketing site links to the header, ahead of GitHub.
+        SocialIcons: "./src/components/SocialIcons.astro",
       },
       // The code well stays dark in both themes, so Expressive Code renders one
       // dark theme and takes its frame colors from the shared tokens.
@@ -153,13 +155,10 @@ export default defineConfig({
         },
       ],
       sidebar: [
-        { label: 'stratum-hq.org', link: 'https://stratum-hq.org/', attrs: { target: '_blank' } },
-        { label: 'Blog', link: 'https://stratum-hq.org/blog/', attrs: { target: '_blank' } },
-        { label: 'Compare', link: 'https://stratum-hq.org/compare/', attrs: { target: '_blank' } },
-        { label: 'Start Building', link: '/start/' },
+        { label: 'Start building', link: '/start/' },
         { label: 'Playground', link: '/playground/' },
         {
-          label: "Getting Started",
+          label: "Getting started",
           items: [{ autogenerate: { directory: "getting-started" } }],
         },
         {
@@ -167,7 +166,7 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "guides" } }],
         },
         {
-          label: "API Reference",
+          label: "API reference",
           items: [{ autogenerate: { directory: "api" } }],
         },
         {
