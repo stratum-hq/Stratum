@@ -136,21 +136,22 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
   return (
     <div className={`stratum-config-editor ${className || ""}`}>
       <div className="stratum-table-scroll">
-        <table className="stratum-config-editor__table">
-          <thead>
-            <tr>
-              <th>{columns.key}</th>
-              <th>{columns.value}</th>
-              <th>{columns.source}</th>
-              <th>{columns.status}</th>
-              <th>{columns.actions}</th>
+        {/* The explicit roles keep the table semantics when the narrow layout changes the display of the rows. */}
+        <table className="stratum-config-editor__table" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th role="columnheader">{columns.key}</th>
+              <th role="columnheader">{columns.value}</th>
+              <th role="columnheader">{columns.source}</th>
+              <th role="columnheader">{columns.status}</th>
+              <th role="columnheader">{columns.actions}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {config.map((entry) => (
-              <tr key={entry.key} className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
-                <td data-label={columns.key} className="stratum-config-editor__key">{entry.key}</td>
-                <td data-label={columns.value} className="stratum-config-editor__value">
+              <tr key={entry.key} role="row" className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
+                <td role="cell" data-label={columns.key} className="stratum-config-editor__key">{entry.key}</td>
+                <td role="cell" data-label={columns.value} className="stratum-config-editor__value">
                   {editingKey === entry.key ? (
                     <>
                       <input
@@ -177,13 +178,14 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                   )}
                 </td>
                 <td
+                  role="cell"
                   data-label={columns.source}
                   className="stratum-config-editor__source"
                   title={entry.source_tenant_id}
                 >
                   {sourceLabel(entry)}
                 </td>
-                <td data-label={columns.status} className="stratum-config-editor__status">
+                <td role="cell" data-label={columns.status} className="stratum-config-editor__status">
                   {entry.locked && <span className="stratum-badge stratum-badge--locked">{t("configEditor.locked")}</span>}
                   {entry.inherited && !entry.locked && (
                     <span className="stratum-badge stratum-badge--inherited">{t("configEditor.inherited")}</span>
@@ -192,7 +194,7 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                     <span className="stratum-badge stratum-badge--own">{t("configEditor.own")}</span>
                   )}
                 </td>
-                <td data-label={columns.actions} className="stratum-config-editor__actions">
+                <td role="cell" data-label={columns.actions} className="stratum-config-editor__actions">
                   {entry.locked ? (
                     <span className="stratum-config-editor__locked-by">
                       {t("configEditor.lockedBy", { tenant: sourceLabel(entry) })}
