@@ -490,6 +490,27 @@
     box-shadow: inset 4px 0 0 var(--stratum-lock);
   }
 
+  /* Save as string is a second choice: a plain chip, not the magma face of Add. */
+  .stratum-config-editor__add .stratum-config-editor__field-error button {
+    --stratum-btn-face: var(--stratum-surface-3);
+    --stratum-btn-ink: var(--stratum-text-primary);
+    --stratum-btn-lip: var(--stratum-tree-band-0);
+    --stratum-btn-texture: var(--stratum-texture-raised);
+  }
+
+  /* The destructive choice keeps the plain face; the error ink and lip mark it. */
+  .stratum-config-editor .stratum-confirm__yes,
+  .stratum-webhook-editor .stratum-confirm__yes {
+    --stratum-btn-ink: var(--stratum-error);
+    --stratum-btn-lip: var(--stratum-error);
+  }
+
+  .stratum-confirm__prompt,
+  .stratum-config-editor__locked-by {
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-sm);
+  }
+
   /* ============================================================
      Tenant Switcher
      ============================================================ */

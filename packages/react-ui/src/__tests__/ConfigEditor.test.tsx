@@ -166,3 +166,144 @@ describe("ConfigEditor with a masked sensitive value", () => {
     expect(input.value).toBe("");
   });
 });
+
+/** Returns an apiCall mock that knows the config and ancestors routes and records each PUT. */
+function routedApiCall(ancestors: unknown = [{ id: "tenant-parent-1", name: "Parent Org", slug: "parent-org", depth: 0 }]) {
+  return vi.fn(async (path: string, options?: RequestInit) => {
+    if (options?.method && options.method !== "GET") return {};
+    if (path.endsWith("/ancestors")) {
+      if (ancestors instanceof Error) throw ancestors;
+      return ancestors;
+    }
+    if (path.endsWith("/config")) return mockConfigResponse;
+    return {};
+  });
+}
+
+function renderRouted(apiCall: ReturnType<typeof routedApiCall>) {
+  return render(
+    <StratumContext.Provider value={{ ...mockContextValue, apiCall: apiCall as unknown as StratumContextValue["apiCall"] }}>
+      <ConfigEditor />
+    </StratumContext.Provider>,
+  );
+}
+
+function putBodies(apiCall: ReturnType<typeof routedApiCall>) {
+  return apiCall.mock.calls
+    .filter(([, options]) => options?.method === "PUT")
+    .map(([path, options]) => ({ path, body: JSON.parse(String(options?.body)) }));
+}
+
+async function rowFor(container: HTMLElement, key: string) {
+  await waitFor(() => expect(within(container).getByText(key)).toBeInTheDocument());
+  return within(container).getByText(key).closest("tr")!;
+}
+
+describe("ConfigEditor source tenant", () => {
+  it("shows the name of the tenant that set each value instead of its ID", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const inherited = await rowFor(container, "max_users");
+    await waitFor(() => expect(inherited.textContent).toContain("Parent Org"));
+    expect(inherited.textContent).not.toContain("tenant-p");
+    const own = await rowFor(container, "feature_flag");
+    expect(own.querySelector(".stratum-config-editor__source")!.textContent).toBe("Acme Corp");
+  });
+
+  it("says which tenant locked a locked row", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const locked = await rowFor(container, "max_users");
+    await waitFor(() => expect(locked.textContent).toContain("Locked by Parent Org"));
+  });
+
+  it("falls back to a short tenant ID when the ancestors request fails", async () => {
+    const { container } = renderRouted(routedApiCall(new Error("forbidden")));
+    const inherited = await rowFor(container, "max_users");
+    await waitFor(() =>
+      expect(inherited.querySelector(".stratum-config-editor__source")!.textContent).toBe("tenant-p…"),
+    );
+    expect(inherited.textContent).toContain("Locked by tenant-p…");
+  });
+});
+
+describe("ConfigEditor inline edit", () => {
+  async function startEdit() {
+    const apiCall = routedApiCall();
+    const { container } = renderRouted(apiCall);
+    const row = await rowFor(container, "feature_flag");
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    const input = within(row).getByRole("textbox", { name: "Edit feature_flag" }) as HTMLInputElement;
+    return { apiCall, container, row, input };
+  }
+
+  it("saves a valid JSON value as parsed JSON", async () => {
+    const { apiCall, row, input } = await startEdit();
+    fireEvent.change(input, { target: { value: "42" } });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: 42, locked: false });
+  });
+
+  it("does not save invalid JSON and shows an inline message with a save-as-string choice", async () => {
+    const { apiCall, row, input } = await startEdit();
+    fireEvent.change(input, { target: { value: "hello world" } });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    const message = await within(row).findByRole("alert");
+    expect(message.textContent).toContain("not valid JSON");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toBe(message.id);
+    expect(putBodies(apiCall)).toHaveLength(0);
+
+    fireEvent.click(within(row).getByRole("button", { name: "Save as string" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: "hello world", locked: false });
+  });
+
+  it("clears the invalid-JSON message when the user changes the value", async () => {
+    const { row, input } = await startEdit();
+    fireEvent.change(input, { target: { value: "{oops" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await within(row).findByRole("alert");
+    fireEvent.change(input, { target: { value: "{\"ok\":1}" } });
+    expect(within(row).queryByRole("alert")).toBeNull();
+    expect(input).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("cancels the inline edit on Escape without saving", async () => {
+    const { apiCall, row, input } = await startEdit();
+    fireEvent.change(input, { target: { value: "false" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(within(row).queryByRole("textbox")).toBeNull();
+    expect(row.querySelector("code")!.textContent).toBe("true");
+    expect(putBodies(apiCall)).toHaveLength(0);
+  });
+});
+
+describe("ConfigEditor add", () => {
+  it("does not add invalid JSON until the user chooses to save it as a string", async () => {
+    const apiCall = routedApiCall();
+    const { container } = renderRouted(apiCall);
+    await rowFor(container, "feature_flag");
+    fireEvent.change(within(container).getByRole("textbox", { name: "New key" }), { target: { value: "greeting" } });
+    fireEvent.change(within(container).getByRole("textbox", { name: "New value" }), { target: { value: "hi there" } });
+    fireEvent.click(within(container).getByRole("button", { name: "Add" }));
+    const message = await within(container).findByRole("alert");
+    expect(message.textContent).toContain("not valid JSON");
+    expect(putBodies(apiCall)).toHaveLength(0);
+
+    fireEvent.click(within(container).getByRole("button", { name: "Save as string" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0]).toEqual({
+      path: "/api/v1/tenants/tenant-1/config/greeting",
+      body: { value: "hi there", locked: false },
+    });
+  });
+});
+
+describe("ConfigEditor narrow layout", () => {
+  it("labels each cell with its column name so a stacked card stays readable", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const row = await rowFor(container, "feature_flag");
+    const labels = Array.from(row.querySelectorAll("td")).map((td) => td.getAttribute("data-label"));
+    expect(labels).toEqual(["Key", "Value", "Source", "Status", "Actions"]);
+  });
+});

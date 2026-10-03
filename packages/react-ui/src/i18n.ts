@@ -41,6 +41,22 @@ export const defaultMessages = {
   "configEditor.valuePlaceholder": "Value (JSON or string)",
   "configEditor.valueLabel": "New config value",
   "configEditor.addButton": "Add",
+  "configEditor.lockedBy": "Locked by {tenant}",
+  "configEditor.removePrompt": "Remove {key}?",
+  "configEditor.confirmRemoveButton": "Yes, remove",
+  "configEditor.keepButton": "Keep",
+  "configEditor.invalidJson": "Error: This value is not valid JSON. Correct it, or save it as a string.",
+  "configEditor.saveAsStringButton": "Save as string",
+  "configEditor.saveFailed": "Could not save \"{key}\". The value is unchanged.",
+  "configEditor.addFailed": "Could not add \"{key}\".",
+  "configEditor.removeFailed": "Could not remove \"{key}\". The key is unchanged.",
+
+  // WebhookEditor
+  "webhookEditor.deletePrompt": "Delete this webhook?",
+  "webhookEditor.confirmDeleteButton": "Yes, delete",
+  "webhookEditor.keepButton": "Keep",
+  "webhookEditor.createFailed": "Could not create the webhook.",
+  "webhookEditor.deleteFailed": "Could not delete the webhook. It still receives events.",
 
   // PermissionEditor
   "permissionEditor.loading": "Loading permissions...",

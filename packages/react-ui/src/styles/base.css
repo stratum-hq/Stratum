@@ -558,6 +558,141 @@
     padding: var(--stratum-space-2) 0;
   }
 
+  /* The reason a LOCKED row has no actions. */
+  .stratum-config-editor__locked-by {
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  /* Invalid JSON: the message, then the explicit choice to save the text as a string. */
+  .stratum-config-editor__field-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-2);
+    margin-top: var(--stratum-space-2);
+  }
+
+  .stratum-config-editor__add .stratum-config-editor__field-error {
+    flex-basis: 100%;
+    margin-top: 0;
+  }
+
+  .stratum-config-editor__field-error p {
+    margin: 0;
+    color: var(--stratum-error);
+    font-size: var(--stratum-font-size-sm);
+    line-height: 1.4;
+  }
+
+  /* The primary style of the add row is for Add only; Save as string is a second choice. */
+  .stratum-config-editor__add .stratum-config-editor__field-error button {
+    border-color: var(--stratum-border-hover);
+    background: var(--stratum-surface-1);
+    color: var(--stratum-text-primary);
+  }
+
+  /* ============================================================
+     Confirm: the second step of a destructive action.
+     ============================================================ */
+  .stratum-confirm {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-1);
+  }
+
+  .stratum-confirm__prompt {
+    margin-inline-end: var(--stratum-space-1);
+    font-weight: 600;
+  }
+
+  .stratum-config-editor .stratum-confirm__yes,
+  .stratum-webhook-editor .stratum-confirm__yes {
+    border-color: var(--stratum-error);
+    color: var(--stratum-error);
+  }
+
+  /* ============================================================
+     Config editor below 640px: each row is a card. The key and
+     its status Tag share the first line. The other cells show
+     their column name, because the header row is hidden.
+     ============================================================ */
+  @media (max-width: 640px) {
+    .stratum-config-editor__table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .stratum-config-editor__table,
+    .stratum-config-editor__table tbody {
+      display: block;
+    }
+
+    .stratum-config-editor__table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "key status"
+        "value value"
+        "source source"
+        "actions actions";
+      gap: var(--stratum-space-2) var(--stratum-space-3);
+      padding: var(--stratum-space-3) var(--stratum-space-2) var(--stratum-space-3) var(--stratum-space-3);
+      border-bottom: 1px solid var(--stratum-border);
+    }
+
+    .stratum-config-editor__table td {
+      display: block;
+      min-width: 0;
+      padding: 0;
+      border-bottom: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__key {
+      grid-area: key;
+      align-self: center;
+      font-weight: 600;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__status {
+      grid-area: status;
+      align-self: center;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__value { grid-area: value; }
+    .stratum-config-editor__table .stratum-config-editor__source { grid-area: source; }
+    .stratum-config-editor__table .stratum-config-editor__actions { grid-area: actions; }
+
+    .stratum-config-editor__table .stratum-config-editor__value::before,
+    .stratum-config-editor__table .stratum-config-editor__source::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      color: var(--stratum-text-secondary);
+      font-family: var(--stratum-font-body);
+      font-weight: 600;
+      font-size: var(--stratum-font-size-xs);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .stratum-config-editor__value input {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    /* A touch target is at least 44px high on a narrow screen. */
+    .stratum-config-editor button {
+      min-height: 44px;
+    }
+  }
+
   /* ============================================================
      Tenant Switcher
      ============================================================ */
@@ -1064,9 +1199,38 @@
   .stratum-toast--warning { --stratum-toast-status: var(--stratum-warning); }
   .stratum-toast--info { --stratum-toast-status: var(--stratum-info); }
 
+  .stratum-toast__body {
+    flex: 1;
+    min-width: 0;
+  }
+
   .stratum-toast__message {
     flex: 1;
     line-height: 1.4;
+  }
+
+  /* The raw error text. It is closed by default, so the toast reads in plain language. */
+  .stratum-toast__details {
+    margin-top: var(--stratum-space-1);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-toast__details summary {
+    cursor: pointer;
+  }
+
+  .stratum-toast__details summary:focus-visible {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
+  .stratum-toast__details code {
+    display: block;
+    margin-top: var(--stratum-space-1);
+    font-family: var(--stratum-font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .stratum-toast__message::before {

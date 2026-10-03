@@ -459,6 +459,19 @@ export function MockStratumProvider({
       if (path.match(/\/api\/v1\/tenants\/[^/]+\/descendants/)) {
         return tenants as unknown as T;
       }
+      // GET /api/v1/tenants/:id/ancestors: follow parent_id up to the root.
+      if (path.match(/\/api\/v1\/tenants\/[^/]+\/ancestors$/)) {
+        const id = decodeURIComponent(path.split("/")[4]);
+        const ancestors: TenantNode[] = [];
+        let parentId = tenants.find((t) => t.id === id)?.parent_id ?? null;
+        while (parentId) {
+          const parent = tenants.find((t) => t.id === parentId);
+          if (!parent) break;
+          ancestors.unshift(parent);
+          parentId = parent.parent_id;
+        }
+        return ancestors as unknown as T;
+      }
       // GET /api/v1/tenants/:id/config (not config/:key)
       if (path.match(/\/api\/v1\/tenants\/[^/]+\/config$/)) {
         const configMap: Record<string, unknown> = {};

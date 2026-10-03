@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ResolvedConfigEntry } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 import { useTenant } from "./use-tenant.js";
@@ -11,6 +11,11 @@ export interface ConfigWithInheritance {
   locked: boolean;
   /** True when a sensitive value inherited from an ancestor was withheld by the API. */
   masked?: boolean;
+  /**
+   * Name of the tenant that set the value. Absent when the name could not be
+   * loaded, for example when the API key may not read that ancestor.
+   */
+  source_tenant_name?: string;
 }
 
 export function useConfig() {
@@ -19,6 +24,7 @@ export function useConfig() {
   const [config, setConfig] = useState<ConfigWithInheritance[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [ancestorNames, setAncestorNames] = useState<Record<string, string>>({});
 
   const fetchConfig = useCallback(async () => {
     if (!tenant) return;
@@ -49,6 +55,35 @@ export function useConfig() {
     fetchConfig();
   }, [fetchConfig]);
 
+  // A value is set by the tenant itself or by one of its ancestors, so one
+  // ancestors request names every source. The route returns name and id even
+  // for ancestors above a tenant-scoped API key.
+  useEffect(() => {
+    setAncestorNames({});
+    if (!tenant) return;
+    let current = true;
+    apiCall<Array<{ id: string; name: string }>>(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/ancestors`)
+      .then((rows) => {
+        if (current && Array.isArray(rows)) {
+          setAncestorNames(Object.fromEntries(rows.map((row) => [row.id, row.name])));
+        }
+      })
+      // A missing name is not an error: the editor shows the tenant ID instead.
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [apiCall, tenant?.id]);
+
+  const namedConfig = useMemo(
+    () =>
+      config.map((entry) => {
+        const name = entry.source_tenant_id === tenant?.id ? tenant?.name : ancestorNames[entry.source_tenant_id];
+        return name ? { ...entry, source_tenant_name: name } : entry;
+      }),
+    [config, ancestorNames, tenant?.id, tenant?.name],
+  );
+
   const setConfigValue = useCallback(
     async (key: string, value: unknown, locked = false) => {
       if (!tenant) return;
@@ -72,5 +107,5 @@ export function useConfig() {
     [apiCall, tenant, fetchConfig],
   );
 
-  return { config, loading, error, refresh: fetchConfig, setConfigValue, deleteConfigValue };
+  return { config: namedConfig, loading, error, refresh: fetchConfig, setConfigValue, deleteConfigValue };
 }
