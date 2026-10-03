@@ -17,7 +17,7 @@ function visibleItems(nodes: TenantTreeNode[], parentId: string | null, out: Vis
 
 function treeItemId(target: EventTarget): string | null {
   const el = target as HTMLElement;
-  return el.getAttribute?.("role") === "treeitem" ? el.dataset.tenantId ?? null : null;
+  return el.getAttribute("role") === "treeitem" ? el.dataset.tenantId ?? null : null;
 }
 
 /**
