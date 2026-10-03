@@ -34,6 +34,7 @@ const packages = [
   { name: '@stratum-hq/nestjs', desc: 'NestJS guard, @Tenant() decorator, DI module.' },
   { name: '@stratum-hq/hono', desc: 'Hono middleware with AsyncLocalStorage context.' },
   { name: '@stratum-hq/test-utils', desc: 'Cross-tenant isolation test assertions.' },
+  { name: '@stratum-hq/compliance', desc: 'Compliance kernel: coverage scoring, a finding state machine, control types. No runtime dependencies.' },
   { name: '@stratum-hq/react', desc: 'React admin components: tenant tree, config editor, permission editor.' },
   { name: '@stratum-hq/cli', desc: 'Project init, migrate, scaffold, doctor.' },
   { name: '@stratum-hq/create', desc: 'Project scaffolding: npx @stratum-hq/create my-app.' },
@@ -92,7 +93,7 @@ const packages = [
         <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
       </div>
       <div class="install-box">
-        <code id="install-cmd">npm install <span class="pkg">@stratum-hq/lib</span> <span class="pkg">@stratum-hq/core</span> pg</code>
+        <code id="install-cmd">npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
         <button class="install-copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
       </div>
       <div class="badge-row">
@@ -117,7 +118,7 @@ const packages = [
       <div class="inherit-config">
         <div class="icfg icfg-resolved">
           <span class="ikey">max_users: <span class="ival">1000</span></span>
-          <span class="tag tag-inherited"><span class="tag-glyph">↓</span>inherited from d0</span>
+          <span class="tag tag-inherited"><span class="tag-glyph">↓</span>inherited from <span class="depth-ref">d0</span></span>
         </div>
         <div class="icfg icfg-locked">
           <span class="ikey">data_region: <span class="itag">children cannot override</span></span>
@@ -168,7 +169,7 @@ const packages = [
         </svg>
       </div>
       <h3>Config Inheritance</h3>
-      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by a locked key. Batch updates apply with partial success, so one bad key does not abort the whole transaction.</p>
+      <p>Values flow root to leaf automatically. Children inherit, override, or are blocked by a locked key. Batch updates are atomic: if one key is locked or invalid, nothing is written, and the result names that key.</p>
     </div>
   </div>
 
@@ -208,8 +209,8 @@ const packages = [
           </div>
         </div>
         <div class="iso-code">
-          <span class="iso-fn">stratum.setIsolation</span>(tenantId, <span class="iso-accent">"schema"</span>)<br/>
-          <span class="iso-cm">// switch strategies without a data migration</span>
+          <span class="iso-fn">stratum.createTenant</span>(&#123; ..., isolation_strategy: <span class="iso-accent">"SCHEMA_PER_TENANT"</span> &#125;)<br/>
+          <span class="iso-cm">// each tenant gets its strategy when you create it</span>
         </div>
       </div>
     </div>
@@ -252,7 +253,7 @@ const packages = [
 <section class="code-section" data-depth="2">
   <div class="code-section-inner fade-in">
     <div class="code-section-text">
-      <h2>Five lines to a working hierarchy</h2>
+      <h2>Eight lines to a working hierarchy</h2>
       <p>
         Connect a Postgres pool, create tenants with parent references, and config
         resolves automatically up the tree. No migrations to hand-write, no join
@@ -269,7 +270,7 @@ const packages = [
       <Code code={setupCode} lang="ts" theme="css-variables" />
       <div class="code-output">
         <span class="co-arrow">→</span>
-        <span class="co-text">max_users: <span class="co-val">1000</span>, inherited: <span class="co-val">true</span>, source: <span class="co-src">"acmesec"</span></span>
+        <span class="co-text">config.max_users = &#123; value: <span class="co-val">1000</span>, inherited: <span class="co-val">true</span>, source_tenant_id: <span class="co-src">root.id</span> &#125;</span>
         <span class="co-tag">resolved from d0</span>
       </div>
     </div>
