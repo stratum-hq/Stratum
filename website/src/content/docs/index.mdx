@@ -71,12 +71,14 @@ const config = await stratum.resolveConfig(msp.id);
 
 ## Packages
 
-### Start with these two
+### Start here
+
+For the direct library, install `@stratum-hq/lib` and `pg`. `@stratum-hq/core` comes with `@stratum-hq/lib` as a dependency.
 
 | Package | Description |
 |---------|-------------|
 | [`@stratum-hq/lib`](/packages/lib/) | Direct library: embed in Node.js with no HTTP |
-| [`@stratum-hq/core`](/packages/core/) | Shared types, Zod schemas, error classes, constants |
+| [`@stratum-hq/core`](/packages/core/) | Shared types, Zod schemas, error classes, constants. Installed with `@stratum-hq/lib` |
 
 ### Add as needed
 
