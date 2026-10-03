@@ -49,7 +49,8 @@ export const Success: Story = {
  */
 export const Error: Story = {
   args: {
-    message: "Failed to update config: Permission denied. This value is locked by Acme Corp.",
+    message: 'Could not save "max_users". The value is unchanged.',
+    detail: "Permission denied. This value is locked by Acme Corp.",
     type: "error",
     onDismiss: () => console.log("Toast dismissed"),
   },
