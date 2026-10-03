@@ -1,5 +1,5 @@
 ---
-title: GDPR Compliance
+title: GDPR compliance
 description: Data export, hard-purge, consent tracking, and data retention policies.
 ---
 
@@ -7,7 +7,7 @@ import { Aside, Steps } from "@astrojs/starlight/components";
 
 Stratum provides built-in tooling for GDPR compliance: data export (Article 20), hard-purge (Article 17), consent management, audit logging, and configurable data retention policies.
 
-## Data Export (Article 20)
+## Data export (Article 20)
 
 Export all data belonging to a tenant as a structured JSON archive:
 
@@ -38,7 +38,7 @@ The export includes:
 
 API keys are exported without plaintext secrets for security.
 
-## Tenant Purge (Article 17)
+## Tenant purge (Article 17)
 
 Hard-delete **all** data belonging to a tenant. This operation is irreversible.
 For a `SCHEMA_PER_TENANT` tenant it also drops the tenant's schema (`DROP SCHEMA ... CASCADE`,
@@ -58,7 +58,7 @@ curl -X POST http://localhost:3001/api/v1/tenants/TENANT_UUID/purge \
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-### Deletion Order
+### Deletion order
 
 Data is deleted in foreign-key-safe order:
 
@@ -74,7 +74,7 @@ Data is deleted in foreign-key-safe order:
 9. The tenant record itself
 </Steps>
 
-### Hierarchical Constraint
+### Hierarchical constraint
 
 A tenant with active children **cannot** be purged. You must purge children first, working leaf-to-root:
 
@@ -87,11 +87,11 @@ await stratum.purgeTenant("parent");
 
 Attempting to purge a tenant with children returns `409 HAS_CHILDREN`.
 
-## Consent Management
+## Consent management
 
 Track per-tenant, per-subject consent with purpose, expiration, and metadata.
 
-### Grant Consent
+### Grant consent
 
 ```typescript
 await stratum.grantConsent(tenantId, {
@@ -104,7 +104,7 @@ await stratum.grantConsent(tenantId, {
 
 The control plane API requires `expires_at` to be an ISO 8601 datetime with a time zone, either `Z` or an offset such as `+02:00`. It validates the request body with `GrantConsentInputSchema`, and returns `400 VALIDATION_ERROR` for any other string. That includes a date without a time, a datetime without a time zone, and PostgreSQL special values such as `infinity`. The library method `grantConsent` applies the same schema. It throws a `ValidationError` for any other string and writes no row.
 
-### Check Active Consent
+### Check active consent
 
 ```typescript
 const consent = await stratum.getActiveConsent(tenantId, "user-456", "marketing");
@@ -116,13 +116,13 @@ if (consent) {
 
 `getActiveConsent()` returns `null` if consent is revoked or expired.
 
-### Revoke Consent
+### Revoke consent
 
 ```typescript
 await stratum.revokeConsent(tenantId, "user-456", "marketing");
 ```
 
-### Predefined Purposes
+### Predefined purposes
 
 | Constant | Value |
 |----------|-------|
@@ -133,7 +133,7 @@ await stratum.revokeConsent(tenantId, "user-456", "marketing");
 
 You can also use any custom string as a purpose.
 
-## Data Retention
+## Data retention
 
 Automatically purge expired transactional data (audit logs, webhook events, webhook deliveries) older than a configurable retention period.
 
@@ -154,7 +154,7 @@ curl -X POST "http://localhost:3001/api/v1/maintenance/purge-expired?retention_d
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-### What Gets Purged
+### What gets purged
 
 | Table | Records Deleted |
 |-------|-----------------|
@@ -175,7 +175,7 @@ Tenant records, config entries, and permissions are **not** affected by retentio
   daily) to keep your database lean.
 </Aside>
 
-## Recommended GDPR Workflow
+## Recommended GDPR workflow
 
 <Steps>
 1. **Export** the tenant's data and deliver it to the data subject
@@ -194,6 +194,6 @@ All GDPR operations require the `admin` scope:
 | `POST /api/v1/tenants/:id/purge` | `admin` |
 | `POST /api/v1/maintenance/purge-expired` | `admin` |
 
-## Audit Trail
+## Audit trail
 
 All GDPR operations are recorded in the audit log with full context (actor, resource, before/after state). This provides evidence of compliance actions for regulatory audits.

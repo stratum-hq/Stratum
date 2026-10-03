@@ -1,5 +1,5 @@
 ---
-title: Tenant Hierarchy
+title: Tenant hierarchy
 description: Model, navigate, and manipulate tree-structured tenant hierarchies.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Stratum models tenants as a tree using PostgreSQL's `ltree` extension, enabling efficient subtree queries, ancestor lookups, and hierarchy-safe mutations.
 
-## Creating a Hierarchy
+## Creating a hierarchy
 
 Every tenant without a `parent_id` becomes a root. Pass `parent_id` to nest tenants:
 
@@ -41,7 +41,7 @@ AcmeSec                          depth: 0, ancestry_ltree: "acmesec"
     └── Client Alpha             depth: 2, ancestry_ltree: "acmesec.northstar_msp.client_alpha"
 ```
 
-## Ancestry Paths
+## Ancestry paths
 
 Each tenant has two path fields:
 
@@ -54,9 +54,9 @@ The `ancestry_path` encodes the full chain of parent UUIDs. Stratum uses this to
 
 The `ancestry_ltree` is used internally for subtree operations using PostgreSQL's `@>` (ancestor-of) and `<@` (descendant-of) operators, which are indexed and efficient even at millions of rows.
 
-## Navigating the Tree
+## Navigating the tree
 
-### Get Ancestors
+### Get ancestors
 
 Returns all tenants from root down to the direct parent, ordered by depth:
 
@@ -72,7 +72,7 @@ curl http://localhost:3001/api/v1/tenants/CLIENT_UUID/ancestors \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-### Get Descendants
+### Get descendants
 
 Returns the entire subtree below a tenant (uses `ltree` for efficiency):
 
@@ -81,7 +81,7 @@ const descendants = await stratum.getDescendants(root.id);
 // [msp, client]: all tenants below root
 ```
 
-### Get Children
+### Get children
 
 Returns only direct children (one level deep):
 
@@ -90,7 +90,7 @@ const children = await stratum.getChildren(msp.id);
 // [client]: only immediate children
 ```
 
-## Moving Tenants
+## Moving tenants
 
 You can relocate a tenant (and all its descendants) under a new parent:
 
@@ -107,7 +107,7 @@ curl -X POST http://localhost:3001/api/v1/tenants/MSP_UUID/move \
   -d '{"new_parent_id": "OTHER_ROOT_UUID"}'
 ```
 
-### Safety Checks
+### Safety checks
 
 The move operation performs several validations:
 
@@ -121,7 +121,7 @@ The move operation performs several validations:
   ancestors.
 </Aside>
 
-## Batch Creation
+## Batch creation
 
 Create up to 100 tenants in a single atomic transaction:
 
@@ -138,9 +138,9 @@ console.log(result.errors);  // empty if all succeeded
 
 If any tenant fails validation (duplicate slug, missing parent, etc.), the entire batch rolls back.
 
-## Archiving and Purging
+## Archiving and purging
 
-### Soft Delete (Archive)
+### Soft delete (archive)
 
 Archiving sets `status = 'archived'` and `deleted_at` to the current timestamp:
 
@@ -152,7 +152,7 @@ await stratum.deleteTenant(client.id);
   A tenant with active children cannot be archived. Archive children first.
 </Aside>
 
-### Hard Delete (GDPR Purge)
+### Hard delete (GDPR purge)
 
 For GDPR Article 17 compliance, you can permanently erase all tenant data:
 
@@ -162,7 +162,7 @@ await stratum.purgeTenant(client.id);
 
 This deletes config entries, permissions, API keys, webhooks, events, deliveries, audit logs, consent records, and the tenant itself. See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
 
-## Slug Rules
+## Slug rules
 
 Tenant slugs must match the pattern `^[a-z][a-z0-9_]{0,62}$`:
 
@@ -172,11 +172,11 @@ Tenant slugs must match the pattern `^[a-z][a-z0-9_]{0,62}$`:
 
 Slugs must be unique across the entire system. They form part of the `ancestry_ltree` path and are used in PostgreSQL subtree queries.
 
-## Tree Depth
+## Tree depth
 
 Stratum does not enforce a maximum tree depth; tenants can nest as deeply as your data requires. Ancestry and subtree queries walk the full `ancestry_ltree` path, so very deep hierarchies cost more per query; keep nesting reasonable for your workload.
 
-## Concurrency Safety
+## Concurrency safety
 
 Stratum uses PostgreSQL advisory locks to prevent race conditions:
 

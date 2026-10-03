@@ -1,13 +1,15 @@
 ---
-title: Core Concepts
+title: Core concepts
 description: Understand the data model and design principles behind Stratum.
+sidebar:
+  order: 1
 ---
 
 import { Aside } from "@astrojs/starlight/components";
 
 Stratum is built around a few core ideas: tenant trees, config inheritance, permission delegation, and isolation boundaries. This page explains each one.
 
-## Tenant Trees
+## Tenant trees
 
 Tenants are organized as a tree structure using PostgreSQL's `ltree` extension. Every tenant has a parent (except root tenants), forming hierarchies like:
 
@@ -27,7 +29,7 @@ Each tenant stores two paths:
 
 Advisory locks on parent UUIDs prevent race conditions during concurrent modifications.
 
-### Tree Operations
+### Tree operations
 
 | Operation | Description |
 |-----------|-------------|
@@ -46,7 +48,7 @@ Methods marked <span class="badge-verified">verified</span> have a documented, b
   too, query them explicitly rather than assuming the traversal returns them.
 </Aside>
 
-## Config Inheritance
+## Config inheritance
 
 Config values flow **downward** through the tree, from root to leaf. Each tenant can set its own values, but inherits any key it hasn't explicitly set from its nearest ancestor that has.
 
@@ -57,7 +59,7 @@ Root:    max_users = 1000, theme = "dark" (locked)
                                              inherits theme="dark" from Root
 ```
 
-### Resolved Config
+### Resolved config
 
 When you call `resolveConfig(tenantId)`, Stratum walks up the ancestry path and merges config entries. For each key, the resolved entry tells you:
 
@@ -75,15 +77,15 @@ A parent can **lock** a config key to prevent any descendant from overriding it.
   entire subtree, like encryption requirements or compliance flags.
 </Aside>
 
-### Sensitive Values
+### Sensitive values
 
 Config values can be marked `sensitive: true`, which encrypts them at rest using AES-256-GCM before storage. A tenant's own sensitive values are decrypted when resolved. Descendants inherit them masked (`value: null`, `masked: true`) unless the caller asks to reveal them; see [Config Inheritance](/guides/config-inheritance/#sensitive-values). See the [GDPR Compliance](/guides/gdpr-compliance/) guide for details.
 
-## Permission Delegation
+## Permission delegation
 
 Permissions use a policy-based model where each policy has a **mode** and a **revocation mode** that control how the permission flows through the tree.
 
-### Delegation Modes
+### Delegation modes
 
 | Mode | Behavior |
 |------|----------|
@@ -91,7 +93,7 @@ Permissions use a policy-based model where each policy has a **mode** and a **re
 | `INHERITED` | Flows down the tree; descendants can override the value |
 | `DELEGATED` | Flows down; descendants can override and re-delegate to their own children |
 
-### Revocation Modes
+### Revocation modes
 
 | Mode | Behavior |
 |------|----------|
@@ -99,7 +101,7 @@ Permissions use a policy-based model where each policy has a **mode** and a **re
 | `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
 | `PERMANENT` | Permission cannot be deleted (returns `403 PERMISSION_REVOCATION_DENIED`) |
 
-### Resolved Permissions
+### Resolved permissions
 
 When you call `resolvePermissions(tenantId)`, each resolved entry includes:
 
@@ -110,7 +112,7 @@ When you call `resolvePermissions(tenantId)`, each resolved entry includes:
 - **`locked`**: `true` if mode is `LOCKED`
 - **`delegated`**: `true` if mode is `DELEGATED`
 
-## Isolation Strategies
+## Isolation strategies
 
 Stratum supports three isolation levels, configurable per tenant at creation time:
 
@@ -137,7 +139,7 @@ Each tenant gets a separate PostgreSQL database with its own connection pool. Th
   use `SHARED_RLS` while a high-security child uses `DB_PER_TENANT`.
 </Aside>
 
-## Tenant Context
+## Tenant context
 
 A **TenantContext** is the resolved runtime state for a single tenant. It bundles:
 
@@ -154,7 +156,7 @@ interface TenantContext {
 
 In the SDK, the middleware resolves the tenant context from the incoming request (via JWT, header, or custom resolver) and attaches it to `req.tenant`. In the library, you resolve it explicitly with `stratum.resolveConfig()` and `stratum.resolvePermissions()`.
 
-## API Keys and Scopes
+## API keys and scopes
 
 API keys authenticate requests to the control plane. Each key can be:
 
@@ -171,7 +173,7 @@ Keys carry **scopes** that determine what operations they can perform:
 
 Scopes are ranked: `admin` includes `write`, and `write` includes `read`. A new key gets `read` and `write`. To give a key a different set, such as `read` only or `admin`, assign it a role (RBAC), a named set of scopes that replaces the key's own.
 
-## Audit Trail
+## Audit trail
 
 Stratum records a change in the audit log when the call that makes it carries an audit context. The control plane builds one from each request on its mutating routes, so changes made through its API are recorded. In the library, pass the optional `audit` argument (see [the `audit` argument](/packages/lib/#the-audit-argument)); a call without it makes the change and writes no audit entry. Each entry has:
 
@@ -182,7 +184,7 @@ Stratum records a change in the audit log when the call that makes it carries an
 
 Audit logs support cursor-based pagination and filtering by tenant, action, actor, and date range.
 
-## Next Steps
+## Next steps
 
 - [Tenant Hierarchy](/guides/tenant-hierarchy/): advanced tree operations
 - [Config Inheritance](/guides/config-inheritance/): locking, sensitive values, batch updates

@@ -13,7 +13,7 @@ import { Aside } from "@astrojs/starlight/components";
 npm install @stratum-hq/lib @stratum-hq/core pg
 ```
 
-## When to Use
+## When to use
 
 | Use Case | Package |
 |----------|---------|
@@ -23,7 +23,7 @@ npm install @stratum-hq/lib @stratum-hq/core pg
 | Polyglot stack, service separation | `@stratum-hq/sdk` + control plane |
 | React admin UI | `@stratum-hq/sdk` + `@stratum-hq/react` |
 
-## Quick Start
+## Quick start
 
 ```typescript
 import { Pool } from "pg";
@@ -67,7 +67,7 @@ stratum.initialize(): Promise<void>
 
 Call `initialize()` once before using any other method. When `autoMigrate` is enabled it runs migrations (with an advisory lock so concurrent calls are safe); with `autoMigrate: false` it is a cheap no-op that still marks the instance ready. It is safe to call concurrently; every caller awaits the same promise. Set `enforceRls: true` in every deployment other than development and test so `initialize()` and migrations refuse to run under a `BYPASSRLS` role. The role is checked on every `initialize()`, with or without `autoMigrate`, and on every `migrate()` call, not only when a migration is applied. `initialize()` logs a warning when `autoMigrate` is on and `enforceRls` is off there.
 
-## API Reference
+## API reference
 
 ### The `audit` argument
 
@@ -168,7 +168,7 @@ stratum.updatePermission(tenantId, policyId, input, audit?): Promise<PermissionP
 stratum.deletePermission(tenantId, policyId, audit?): Promise<void>
 ```
 
-### ABAC (Attribute-Based Access Control)
+### ABAC (attribute-based access control)
 
 ```typescript
 stratum.createAbacPolicy(tenantId, input, audit?): Promise<AbacPolicy>
@@ -180,7 +180,7 @@ stratum.deleteAbacPolicy(tenantId, policyId, audit?): Promise<void>
 
 ABAC policies inherit through the tenant hierarchy using the same LOCKED/INHERITED/DELEGATED modes as permissions. See the [ABAC guide](/guides/abac/) for details.
 
-### API Keys
+### API keys
 
 ```typescript
 stratum.createApiKey(tenantId, nameOrOptions?, expiresAt?, audit?): Promise<CreatedApiKey>
@@ -212,7 +212,7 @@ stratum.listDeliveriesByEvent(eventId): Promise<WebhookDelivery[]>
 - `listWebhookEvents({ tenantId, type?, from?, to?, limit?, offset? })`: page a tenant's webhook event stream, newest first. Always scoped to `tenantId` (a caller can never page another tenant's events), optionally narrowed by event `type` and a `created_at` window, paginated with `limit` (1-100, default 50) and `offset`.
 - `listDeliveriesByEvent(eventId)`: every delivery attempt recorded for a single webhook event, newest first.
 
-### Audit Logs
+### Audit logs
 
 ```typescript
 stratum.queryAuditLogs(query): Promise<AuditEntry[]>
@@ -247,7 +247,7 @@ stratum.listConsent(tenantId, subjectId?): Promise<ConsentRecord[]>
 stratum.getActiveConsent(tenantId, subjectId, purpose): Promise<ConsentRecord | null>
 ```
 
-### GDPR & Data Retention
+### GDPR & data retention
 
 ```typescript
 stratum.exportTenantData(tenantId): Promise<Record<string, unknown>>
@@ -293,7 +293,7 @@ The `*Key` methods bind a role to an API key. The principal-agnostic trio binds 
 - `removeRole(principalType, principalId)`: clear a principal's role assignment.
 - `resolvePrincipalScopes(principalType, principalId, tenantId?)`: the principal's effective scopes via its assigned role, or `[]` when unassigned (fails closed). With `tenantId`, a role owned by another tenant is ignored while global roles still resolve.
 
-### Webhook Deliveries (DLQ)
+### Webhook deliveries (DLQ)
 
 ```typescript
 stratum.getDeliveryStats(tenantId?): Promise<DeliveryStats>
@@ -427,7 +427,7 @@ import {
 - `STRATUM_TABLES` lists the `public` tables that the Stratum migrations create, plus `_migrations`. Use it to tell Stratum's tables from your application tables. The CLI's `scan` and `migrate --all` skip these tables.
 - `verifyWebhookSignature({ secret, payload, signature, timestamp })` validates an incoming delivery's HMAC signature and timestamp freshness (default window `DEFAULT_WEBHOOK_TOLERANCE_SECONDS`). See the [webhooks guide](/guides/webhooks/).
 
-## Pool Helpers
+## Pool helpers
 
 Low-level helpers for advanced use:
 
@@ -461,7 +461,7 @@ await migrate({ pool: adminPool });
 
 The control plane runs the same migrations when it starts. `npx @stratum-hq/cli migrate` does not create Stratum's tables: it adds `tenant_id` and row-level security to your own tables.
 
-## Error Handling
+## Error handling
 
 All errors come from `@stratum-hq/core`:
 

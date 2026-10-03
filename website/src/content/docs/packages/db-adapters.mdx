@@ -13,7 +13,7 @@ import { Aside } from "@astrojs/starlight/components";
 npm install @stratum-hq/db-adapters @stratum-hq/core pg
 ```
 
-## Raw PostgreSQL Adapter
+## Raw PostgreSQL adapter
 
 For applications using `pg` (node-postgres) directly:
 
@@ -33,7 +33,7 @@ const adapter = new RawAdapter(pool);
 const result = await adapter.query("tenant-id", "SELECT * FROM orders");
 ```
 
-### How It Works
+### How it works
 
 The adapter wraps every query in a transaction that:
 
@@ -43,7 +43,7 @@ The adapter wraps every query in a transaction that:
 4. Calls `COMMIT`
 5. Resets the tenant context and releases the connection
 
-## Prisma Adapter
+## Prisma adapter
 
 For a full tutorial with Docker setup, RLS policies, and Express integration, see the [Prisma + PostgreSQL RLS guide](/guides/prisma-rls/).
 
@@ -116,9 +116,9 @@ const orders = await schemas.getClient("acme").order.findMany();
 
 `SchemaPrismaAdapter` gives the driver adapter the tenant schema. `DatabasePrismaAdapter` gives it the tenant database URL, and the `schema` parameter of your URL when the URL has one. Any driver adapter class with the constructor `new (config, { schema })` works. If you give a Prisma 7 client without `driverAdapter`, `getClient` throws an error that names the `driverAdapter` option, and makes no client.
 
-## RLS Management
+## RLS management
 
-### Enable RLS on a Table
+### Enable RLS on a table
 
 ```typescript
 import { enableRLS, createPolicy } from "@stratum-hq/db-adapters";
@@ -143,7 +143,7 @@ await dropPolicy(client, "orders");
 await disableRLS(client, "orders");
 ```
 
-### Check RLS Status
+### Check RLS status
 
 ```typescript
 import { isRLSEnabled } from "@stratum-hq/db-adapters";
@@ -151,7 +151,7 @@ import { isRLSEnabled } from "@stratum-hq/db-adapters";
 const enabled = await isRLSEnabled(client, "orders"); // true/false
 ```
 
-## Migration Helpers
+## Migration helpers
 
 One-step table migration that adds `tenant_id`, enables RLS, and creates the isolation policy:
 
@@ -182,7 +182,7 @@ await enableRLS(client, "orders");             // ENABLE + FORCE ROW LEVEL SECUR
 await createIsolationPolicy(client, "orders"); // CREATE POLICY tenant_isolation
 ```
 
-## Session Context
+## Session context
 
 Low-level functions for managing the PostgreSQL session variable:
 
@@ -219,7 +219,7 @@ const alerts = await withTenantContext(
 
 The last argument is `{ scope?: "exact" | "subtree" }`, and `setTenantContext` takes the same options. The default, `"exact"`, reads the rows of the tenant only. `"subtree"` needs policies that admit it: see [Subtree Read Scope](/guides/isolation-strategies/#subtree-read-scope). An unknown scope throws before a connection is taken.
 
-## Drizzle Adapter
+## Drizzle adapter
 
 For a full tutorial with Docker setup, RLS policies, and Express integration, see the [Drizzle ORM multi-tenancy guide](/guides/drizzle-multitenancy/).
 
@@ -244,7 +244,7 @@ const tenantDb = drizzleWithTenant(
 const result = await tenantDb.execute(db.select().from(orders));
 ```
 
-## Sequelize Adapter
+## Sequelize adapter
 
 For applications using Sequelize ORM:
 
@@ -271,7 +271,7 @@ const result = await adapter.executeWithTenantContext("tenant-id", async (client
 });
 ```
 
-### How It Works
+### How it works
 
 The wrapper scopes `query()` only. It wraps every `query()` call in a Sequelize transaction that:
 
@@ -290,7 +290,7 @@ Nothing else is scoped. Model methods such as `Order.findAll()` run on your orig
   your project.
 </Aside>
 
-## PGlite Adapter
+## PGlite adapter
 
 The `@stratum-hq/db-adapters/pglite` entry point runs `@stratum-hq/lib` on
 [PGlite](https://pglite.dev), which is PostgreSQL compiled to WebAssembly. It

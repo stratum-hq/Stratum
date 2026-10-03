@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Register webhooks to receive HTTP callbacks when tenants, config, or permissions change. Deliveries include HMAC-SHA256 signatures and automatic retry with exponential backoff.
 
-## Supported Events
+## Supported events
 
 | Event | Trigger |
 |-------|---------|
@@ -26,7 +26,7 @@ Register webhooks to receive HTTP callbacks when tenants, config, or permissions
 | `permission.updated` | Permission policy updated |
 | `permission.deleted` | Permission policy deleted |
 
-## Creating Webhooks
+## Creating webhooks
 
 ```typescript
 const webhook = await stratum.createWebhook({
@@ -53,7 +53,7 @@ curl -X POST http://localhost:3001/api/v1/webhooks \
 
 The `secret` is encrypted at rest using AES-256-GCM. It is used to generate HMAC-SHA256 signatures for each delivery.
 
-## Delivery Format
+## Delivery format
 
 Each webhook delivery is an HTTP POST to your URL with these headers:
 
@@ -87,7 +87,7 @@ The body is the event:
 
 `data` depends on the event. For the tenant events it holds the tenant.
 
-## Verifying Signatures
+## Verifying signatures
 
 The signature is an HMAC-SHA256, keyed with the webhook secret, over the timestamp, a dot and the raw body: `<X-Stratum-Timestamp>.<body>`. Because the timestamp is signed, a captured delivery cannot be sent again with a new timestamp.
 
@@ -126,7 +126,7 @@ app.post("/webhooks/stratum", express.raw({ type: "application/json" }), (req, r
 
 `signWebhookPayload(secret, timestamp, payload)` is exported too, if you need to produce a signature, for example in a test.
 
-## Which Webhooks Receive an Event
+## Which webhooks receive an event
 
 Stratum records each event, then creates its deliveries in the background. An event goes to each webhook that meets all of these conditions:
 
@@ -139,11 +139,11 @@ A webhook that you register after an event gets no delivery for that event, even
 
 Stratum reads the subscription and the `active` flag of a webhook when it creates the deliveries, not as they were at the time of the event. A change to `events` or `active` in that short interval can add or remove a delivery for an event that Stratum recorded just before the change.
 
-## Retry Logic
+## Retry logic
 
 A delivery fails on a non-2xx response or a network error. Stratum makes up to 5 attempts. After a failed attempt `n`, it waits `n² × 5` seconds before the next one (5, 20, 45 and 80 seconds). A delivery that fails its fifth attempt is marked `failed` and lands in the [dead-letter queue](#dead-letter-queue).
 
-## Testing Webhooks
+## Testing webhooks
 
 Send a test event to verify your endpoint:
 
@@ -154,7 +154,7 @@ curl -X POST http://localhost:3001/api/v1/webhooks/WEBHOOK_ID/test \
 
 This sends a synthetic `webhook.test` event, signed and with the same headers as a real delivery, and returns `{ "success": true, "response_code": 200 }` (or the failure). The test is not recorded as a delivery.
 
-## Delivery History
+## Delivery history
 
 View delivery history for a specific webhook:
 
@@ -163,11 +163,11 @@ curl http://localhost:3001/api/v1/webhooks/WEBHOOK_ID/deliveries \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-## Dead-Letter Queue
+## Dead-letter queue
 
 Failed deliveries that exhaust their retry attempts land in the dead-letter queue (DLQ).
 
-### View Delivery Stats
+### View delivery stats
 
 ```bash
 curl http://localhost:3001/api/v1/webhooks/deliveries/stats \
@@ -185,14 +185,14 @@ Response:
 }
 ```
 
-### List Failed Deliveries
+### List failed deliveries
 
 ```bash
 curl "http://localhost:3001/api/v1/webhooks/deliveries/failed?limit=50" \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-### Retry Failed Deliveries
+### Retry failed deliveries
 
 Retry a single failed delivery:
 
@@ -208,7 +208,7 @@ curl -X POST http://localhost:3001/api/v1/webhooks/deliveries/retry-all \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-## Managing Webhooks
+## Managing webhooks
 
 ### Update
 
@@ -226,7 +226,7 @@ curl -X DELETE http://localhost:3001/api/v1/webhooks/WEBHOOK_ID \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-## SSRF Protection
+## SSRF protection
 
 Webhook URLs are validated to prevent Server-Side Request Forgery:
 

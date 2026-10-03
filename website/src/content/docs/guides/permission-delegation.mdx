@@ -1,5 +1,5 @@
 ---
-title: Permission Delegation
+title: Permission delegation
 description: Control how permissions flow through the tenant tree with delegation and revocation modes.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Permissions in Stratum use a policy-based model. Each permission policy defines a key-value pair, a delegation mode that controls how it propagates down the tree, and a revocation mode that controls deletion behavior.
 
-## Creating Permissions
+## Creating permissions
 
 ```typescript
 await stratum.createPermission(tenantId, {
@@ -32,7 +32,7 @@ curl -X POST http://localhost:3001/api/v1/tenants/TENANT_ID/permissions \
   }'
 ```
 
-## Delegation Modes
+## Delegation modes
 
 The mode determines how a permission flows through the hierarchy:
 
@@ -92,7 +92,7 @@ await stratum.createPermission(mspId, {
 });
 ```
 
-## Revocation Modes
+## Revocation modes
 
 The revocation mode controls what happens when a permission is deleted:
 
@@ -102,7 +102,7 @@ The revocation mode controls what happens when a permission is deleted:
 | `SOFT` | Deleting only removes it from the creating tenant; children keep their copies |
 | `PERMANENT` | The permission cannot be deleted, its revocation mode cannot be changed, and an ancestor's CASCADE revocation leaves it in place. Returns `403 PERMISSION_REVOCATION_DENIED` |
 
-### CASCADE Example
+### CASCADE example
 
 ```typescript
 await stratum.createPermission(rootId, {
@@ -116,7 +116,7 @@ await stratum.createPermission(rootId, {
 await stratum.deletePermission(rootId, policyId);
 ```
 
-### SOFT Example
+### SOFT example
 
 ```typescript
 await stratum.createPermission(rootId, {
@@ -132,7 +132,7 @@ await stratum.createPermission(rootId, {
 await stratum.deletePermission(rootId, policyId);
 ```
 
-### PERMANENT Example
+### PERMANENT example
 
 ```typescript
 await stratum.createPermission(rootId, {
@@ -155,7 +155,7 @@ try {
   to purge the entire tenant.
 </Aside>
 
-## Resolving Permissions
+## Resolving permissions
 
 Resolve the effective permissions for a tenant with all delegation applied:
 
@@ -186,7 +186,7 @@ Each resolved entry:
 }
 ```
 
-## Updating Permissions
+## Updating permissions
 
 Update the value, mode, or revocation mode of an existing policy:
 
@@ -206,9 +206,9 @@ curl -X PATCH http://localhost:3001/api/v1/tenants/TENANT_ID/permissions/POLICY_
   -d '{"value": false, "mode": "INHERITED"}'
 ```
 
-## Common Patterns
+## Common patterns
 
-### Role-Based Feature Access
+### Role-based feature access
 
 ```typescript
 // MSSP root defines what MSPs can do
@@ -234,7 +234,7 @@ await stratum.createPermission(rootId, {
 });
 ```
 
-### Compliance Enforcement
+### Compliance enforcement
 
 ```typescript
 // Lock audit logging requirement

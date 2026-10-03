@@ -40,7 +40,7 @@ Never pass a control-plane API key to `StratumProvider` from browser code, inclu
 and forwards the request with the key added. `stratum scaffold nextjs` and `stratum scaffold react`
 generate one.
 
-## useStratum Hook
+## useStratum hook
 
 Access the current tenant context from any child component:
 
@@ -149,7 +149,7 @@ Displays resolved permissions with:
 - Source tenant tracking
 - Add, update, and delete operations
 
-## apiCall Helper
+## apiCall helper
 
 The `apiCall` function from the context is a convenience wrapper that automatically adds authentication headers:
 
@@ -169,7 +169,7 @@ const newTenant = await apiCall<TenantNode>("/api/v1/tenants", {
 });
 ```
 
-## Full Example
+## Full example
 
 ```tsx
 import {

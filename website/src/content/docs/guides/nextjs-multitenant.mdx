@@ -1,5 +1,5 @@
 ---
-title: Next.js Multi-Tenant SaaS
+title: Next.js multi-tenant SaaS
 description: Build a multi-tenant Next.js app with subdomain routing, server components, and PostgreSQL Row-Level Security using Stratum.
 ---
 
@@ -7,7 +7,7 @@ import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
 This guide walks through building a multi-tenant Next.js application where each tenant gets a subdomain (e.g., `acme.yourapp.com`). A Next.js proxy resolves the tenant. Server components read the result from a request header that only the proxy sets. PostgreSQL RLS enforces data isolation at the database level.
 
-## Architecture Overview
+## Architecture overview
 
 The setup has three layers:
 
@@ -19,23 +19,23 @@ The setup has three layers:
 Request → Proxy (resolve tenant) → Server Component / API Route → prismaWithTenant(prisma) → PostgreSQL RLS
 ```
 
-## Project Setup
+## Project setup
 
-### 1. Create the Next.js App
+### 1. Create the Next.js app
 
 ```bash
 npx create-next-app@latest my-saas --typescript --app --src-dir
 cd my-saas
 ```
 
-### 2. Install Dependencies
+### 2. Install dependencies
 
 ```bash
 npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client jose
 npm install -D prisma @types/pg
 ```
 
-### 3. Database Setup
+### 3. Database setup
 
 Start PostgreSQL and create tables with RLS. See the [Prisma + RLS guide](/guides/prisma-rls/) for the full Docker and SQL setup. The short version:
 
@@ -59,7 +59,7 @@ CREATE POLICY tenant_isolation ON orders
   USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 ```
 
-## Tenant Resolution Proxy
+## Tenant resolution proxy
 
 The proxy resolves the tenant in two ways:
 
@@ -155,7 +155,7 @@ export const config = {
   client sent.
 </Aside>
 
-## Stratum Client Library
+## Stratum client library
 
 Create a shared module that initializes Stratum and provides tenant-scoped database access.
 
@@ -198,7 +198,7 @@ export async function getTenantFromHeaders(headers: Headers) {
 }
 ```
 
-## Server Components
+## Server components
 
 Server components read the tenant context from the request headers with Next.js's `headers()` function.
 
@@ -243,7 +243,7 @@ export default async function DashboardPage() {
   client. The tenant-scoped Prisma client only exists in server-side code.
 </Aside>
 
-## API Routes
+## API routes
 
 API routes follow the same pattern: read the tenant ID from headers, create a scoped Prisma client, run queries.
 
@@ -291,7 +291,7 @@ export async function POST(request: Request) {
 }
 ```
 
-## Tenant-Aware Config
+## Tenant-aware config
 
 Use Stratum's config inheritance to control feature flags, limits, and themes per tenant:
 
@@ -326,11 +326,11 @@ export default async function SettingsPage() {
 }
 ```
 
-## Local Development
+## Local development
 
 For local development, you have two options.
 
-### Option 1: Bearer token (no DNS changes)
+### Option 1: bearer token (no DNS changes)
 
 Start the server with `JWT_SECRET` set, for example to the output of `openssl rand -hex 32`. Your identity provider issues the tokens in a real application. For local tests, sign one token for each tenant with the same secret:
 
@@ -357,7 +357,7 @@ Add entries to `/etc/hosts`:
 
 Set `ROOT_DOMAIN=localhost`. Then `http://acme.localhost:3000` sets the tenant slug `acme`. A public page can resolve the slug with `stratum.getTenantBySlug()`. Pages that show tenant data still need a bearer token.
 
-## Production Deployment
+## Production deployment
 
 For production with real subdomains:
 
@@ -392,7 +392,7 @@ This generates the proxy (`middleware.ts` on Next.js 15), Stratum client library
 
 Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
 
-## Next Steps
+## Next steps
 
 - See the [Prisma + RLS guide](/guides/prisma-rls/) for detailed database setup
 - See the [Drizzle guide](/guides/drizzle-multitenancy/) if you prefer Drizzle over Prisma

@@ -1,5 +1,5 @@
 ---
-title: Multi-Tenancy with Drizzle ORM
+title: Multi-tenancy with Drizzle ORM
 description: Add automatic tenant isolation to Drizzle ORM using PostgreSQL Row-Level Security and Stratum's drizzleWithTenant wrapper.
 ---
 
@@ -9,7 +9,7 @@ Drizzle ORM does not have built-in multi-tenancy support. The standard approach 
 
 Stratum's `drizzleWithTenant()` wrapper for Drizzle takes a different approach. It wraps every `execute()` and `transaction()` call so that PostgreSQL's Row-Level Security handles tenant isolation at the database level. No manual `.where()` filters needed.
 
-## The Problem
+## The problem
 
 A typical Drizzle multi-tenancy setup looks like this:
 
@@ -40,7 +40,7 @@ const result = await db
 
 Every query needs the filter. Every join needs it on both sides. Aggregations, subqueries, CTEs... all need manual scoping. One missed filter in a midnight deploy and tenant data leaks.
 
-## The Stratum Approach
+## The Stratum approach
 
 Stratum's Drizzle adapter wraps `execute()` and `transaction()` to inject a `set_config('app.current_tenant_id', tenantId, true)` call before every operation. Combined with PostgreSQL RLS policies on your tables, the database enforces tenant isolation regardless of what queries you write.
 
@@ -67,7 +67,7 @@ const orders = await tenantDb.execute(
   `drizzleWithTenant` for consistency with the Prisma adapter (`prismaWithTenant`).
 </Aside>
 
-## Full Walkthrough
+## Full walkthrough
 
 ### 1. Start PostgreSQL
 
@@ -102,7 +102,7 @@ const orders = await tenantDb.execute(
 
 Write `init.sql` (the next step) before the first start. The image runs it only when it creates the data volume.
 
-### 2. Create Tables with RLS Policies
+### 2. Create tables with RLS policies
 
 ```sql
 -- init.sql
@@ -153,7 +153,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO stratum_app;
   [Hardening: separate admin and app roles](/guides/hardening-roles/).
 </Aside>
 
-### 3. Drizzle Schema
+### 3. Drizzle schema
 
 ```typescript
 // src/schema.ts
@@ -169,14 +169,14 @@ export const orders = pgTable("orders", {
 });
 ```
 
-### 4. Install Dependencies
+### 4. Install dependencies
 
 ```bash
 npm install @stratum-hq/lib @stratum-hq/db-adapters pg drizzle-orm jsonwebtoken
 npm install -D drizzle-kit @types/pg @types/jsonwebtoken
 ```
 
-### 5. Express App with Tenant Middleware
+### 5. Express app with tenant middleware
 
 ```typescript
 // src/index.ts
@@ -278,7 +278,7 @@ main();
   only with `trustTenantHeader: true`.
 </Aside>
 
-### 6. Using Transactions
+### 6. Using transactions
 
 The wrapped Drizzle instance supports transactions. The tenant context is automatically injected before your callback runs:
 
@@ -305,7 +305,7 @@ await req.tenantDb.transaction(async (tx) => {
 });
 ```
 
-### 7. Test Isolation
+### 7. Test isolation
 
 Start the server with `JWT_SECRET` set, for example to the output of `openssl rand -hex 32`. `TENANT_A` and `TENANT_B` hold the IDs of two tenants.
 
@@ -333,7 +333,7 @@ curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_A"
 curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_B"
 ```
 
-## How the Adapter Works
+## How the adapter works
 
 The Drizzle adapter wraps two methods on the Drizzle instance:
 
@@ -343,7 +343,7 @@ The Drizzle adapter wraps two methods on the Drizzle instance:
 
 When `contextFn` returns an empty string, the adapter throws an error rather than silently running without tenant scope. Use the unwrapped Drizzle instance for admin or system operations that intentionally bypass tenant isolation.
 
-## Error Handling
+## Error handling
 
 The adapter throws a clear error if no tenant context is available:
 
@@ -357,7 +357,7 @@ await tenantDb.execute(db.select().from(orders));
 
 This prevents accidental unscoped queries. For system operations (migrations, admin dashboards), use the original `db` instance directly.
 
-## Comparison: Manual Filters vs RLS
+## Comparison: manual filters vs RLS
 
 | Aspect | Manual `.where()` | Stratum + RLS |
 |---|---|---|
@@ -372,7 +372,7 @@ This prevents accidental unscoped queries. For system operations (migrations, ad
 
 Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
 
-## Next Steps
+## Next steps
 
 - Scaffold a complete project: `npx @stratum-hq/create my-app` then `stratum init`
 - Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant

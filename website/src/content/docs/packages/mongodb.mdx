@@ -13,7 +13,7 @@ npm install @stratum-hq/mongodb mongodb
 
 Optional: `mongoose` for the auto-scoping plugin. The plugin supports Mongoose 8 and Mongoose 9 (peer range `^8.0.0 || ^9.0.0`).
 
-## Quick Start
+## Quick start
 
 ```typescript
 import { MongoClient } from "mongodb";
@@ -41,6 +41,6 @@ A filter may name the current tenant (`tenant_id: "acme"` or `{ $eq: "acme" }`),
 - **GDPR purge**: `purgeTenantData()` with `Promise.allSettled` for partial-failure resilience
 - **LRU pool manager**: for database-per-tenant, manages connection pools with configurable eviction
 
-## Full Guide
+## Full guide
 
 See the [MongoDB Multi-Tenancy guide](/guides/mongodb/) for strategy selection, security tradeoffs, Mongoose plugin setup, ALS context wiring, and performance tuning.

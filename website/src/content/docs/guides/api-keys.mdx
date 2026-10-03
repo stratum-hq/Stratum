@@ -1,5 +1,5 @@
 ---
-title: API Keys & Auth
+title: API keys & auth
 description: Manage API keys with scopes, rotation, rate limiting, and RBAC.
 ---
 
@@ -7,9 +7,9 @@ import { Aside } from "@astrojs/starlight/components";
 
 Stratum authenticates requests using API keys or JWT bearer tokens. Each key carries scopes that control what operations it can perform, and keys can optionally be scoped to a specific tenant subtree.
 
-## Authentication Methods
+## Authentication methods
 
-### API Keys
+### API keys
 
 Pass the key in the `X-API-Key` header:
 
@@ -20,7 +20,7 @@ curl http://localhost:3001/api/v1/tenants \
 
 Keys use a recognizable prefix format: `sk_live_` for production, `sk_test_` for development. They are 256-bit random values, stored as HMAC-SHA256 hashes (keyed with `STRATUM_API_KEY_HMAC_SECRET`).
 
-### JWT Bearer Tokens
+### JWT bearer tokens
 
 ```bash
 curl http://localhost:3001/api/v1/tenants \
@@ -49,7 +49,7 @@ A new key gets the scopes `read` and `write`. `createApiKey` and `POST /api/v1/a
 
 The SDK middleware (`expressMiddleware`, `fastifyPlugin`, `resolveTenant`), the NestJS guard and the Hono resolver call `GET /api/v1/tenants/:id/context`. That route needs only the `read` scope. Give an app server a key scoped to the tenant it serves, with a role whose scopes are `["read"]`. The key resolves that tenant and its descendants. Use a global key only when one server serves tenants in more than one subtree.
 
-### Admin-Only Routes
+### Admin-only routes
 
 These always require the `admin` scope:
 
@@ -63,7 +63,7 @@ These always require the `admin` scope:
 | `/api/v1/tenants/:id/export` | GDPR data export |
 | `/api/v1/tenants/:id/migrate-region` | Region migration |
 
-## Creating API Keys
+## Creating API keys
 
 ```typescript
 const { plaintext_key, id } = await stratum.createApiKey(
@@ -87,7 +87,7 @@ curl -X POST http://localhost:3001/api/v1/api-keys \
   securely, it cannot be retrieved again.
 </Aside>
 
-## Tenant-Scoped vs Global Keys
+## Tenant-scoped vs global keys
 
 - **Tenant-scoped** (`tenant_id` set): Can only access data for that tenant and its descendants
 - **Global** (`tenant_id` null): Unrestricted access to all tenants
@@ -101,7 +101,7 @@ const { plaintext_key, tenant_id } = await stratum.createApiKey(null, { name: "a
 
 Tenant scope enforcement checks the ancestry path on every request, a key scoped to tenant A cannot access tenant B's data, even via list endpoints.
 
-## Per-Key Rate Limiting
+## Per-key rate limiting
 
 Keys can specify custom rate limits at creation:
 
@@ -131,7 +131,7 @@ X-RateLimit-Limit: 50
 X-RateLimit-Remaining: 0
 ```
 
-## Key Rotation
+## Key rotation
 
 Rotate a key to issue a new one while revoking the old:
 
@@ -147,7 +147,7 @@ curl -X POST http://localhost:3001/api/v1/api-keys/KEY_UUID/rotate \
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-## Revoking Keys
+## Revoking keys
 
 ```typescript
 await stratum.revokeApiKey("key-uuid");
@@ -160,7 +160,7 @@ curl -X DELETE http://localhost:3001/api/v1/api-keys/KEY_UUID \
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-## Dormant Key Detection
+## Dormant key detection
 
 Find keys that haven't been used recently:
 
@@ -175,11 +175,11 @@ curl "http://localhost:3001/api/v1/api-keys/dormant?days=90" \
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-## Role-Based Access Control (RBAC)
+## Role-based access control (RBAC)
 
 Beyond flat scopes, Stratum supports named roles that bundle scopes into reusable collections.
 
-### Creating Roles
+### Creating roles
 
 ```typescript
 const role = await stratum.createRole({
@@ -191,7 +191,7 @@ const role = await stratum.createRole({
 
 Roles can be global (`tenant_id` null) or tenant-scoped.
 
-### Assigning Roles to Keys
+### Assigning roles to keys
 
 ```typescript
 await stratum.assignRoleToKey("key-uuid", role.id);
@@ -207,7 +207,7 @@ Removing a role reverts the key to its own default scopes:
 await stratum.removeRoleFromKey("key-uuid");
 ```
 
-## Field-Level Encryption
+## Field-level encryption
 
 Sensitive config values and webhook secrets are encrypted at rest using AES-256-GCM:
 
@@ -221,7 +221,7 @@ Set the encryption key:
 export STRATUM_ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
 ```
 
-### Key Rotation
+### Key rotation
 
 Re-encrypt all sensitive data with a new key:
 
@@ -236,7 +236,7 @@ The rotation commits in batches, so it is not atomic. If it fails partway, send 
 
 To move the data to a new HKDF salt, also send `old_salt` and `new_salt` in hex. After that rotation, update `STRATUM_HKDF_SALT` too.
 
-## Best Practices
+## Best practices
 
 1. **Use tenant-scoped keys** for application services that only need one tenant
 2. **Use `read` scope** for app servers that resolve tenants, and for monitoring and analytics

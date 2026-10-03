@@ -118,7 +118,7 @@ The **shared** presets use the shared-table helper of `@stratum-hq/mysql` for th
 
 Run `npm run db:init` once, then `npm run tenant:provision -- <tenant-id> <slug>` for each tenant. Both run as the root user in `MONGODB_ADMIN_URI`. `db:init` creates the app user in `MONGODB_URI`, which the app connects as: it reads and writes tenant data, only reads the routing records, and cannot drop anything or manage users. Provisioning records the slug in the `tenants` collection of the `{database}_routing` database, and refuses a tenant ID or slug that is already provisioned. The helpers take the tenant ID from the verified token and look up the slug there; they never take the slug from the hostname or a header.
 
-## After Scaffolding
+## After scaffolding
 
 ```bash
 cd my-app
@@ -139,7 +139,7 @@ The generated starter code does not create Stratum's tables. To create them, con
 
 Generated servers (the Express and Fastify templates, and the Express, Fastify, Hono and NestJS presets) and the Next.js proxy take the tenant ID only from the `tenant_id` claim of a bearer token that verifies with `JWT_SECRET` (HS256, using `jose`, which the generated `package.json` lists). A token that does not verify, or has no `tenant_id` claim, is rejected with 401. The tenant is never taken from the hostname or from a client-supplied header such as `x-tenant-id`. In the Next.js proxy the subdomain is forwarded as `x-tenant-slug`, a display hint that does not identify the caller's tenant.
 
-## What Gets Generated
+## What gets generated
 
 ```
 my-app/
