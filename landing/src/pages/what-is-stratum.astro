@@ -305,7 +305,10 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
     margin-right: auto;
   }
 
+  /* A full width keeps the section inside the viewport: see "body > main" in
+     global.css for why an auto-margined child of body needs one. */
   .wis-section {
+    width: 100%;
     max-width: 700px;
     margin: 0 auto;
     padding: var(--space-8) var(--space-6);
@@ -429,16 +432,18 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
   }
 
   /* Feature grid */
+  /* minmax(0, 1fr): a plain 1fr column grows to fit the widest diagram line,
+     which pushed the page past the viewport. The diagrams scroll instead. */
   .wis-feature-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--space-4);
     width: 100%;
   }
 
   @media (max-width: 640px) {
     .wis-feature-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 

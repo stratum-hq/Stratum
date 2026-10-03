@@ -25,9 +25,11 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
        preference; Daylight applies only when the visitor picks it with the
        toggle, which stores the choice in localStorage. The docs site does the
        same (website/src/components/ThemeProvider.astro). Kept as is:inline so
-       it runs synchronously in <head>. -->
+       it runs synchronously in <head>. The "js" class tells the nav that its
+       menu button works; without scripts the links stay in the bar. -->
   <script is:inline>
     (() => {
+      document.documentElement.classList.add('js');
       try {
         const theme = localStorage.getItem('stratum-theme') === 'light' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', theme);

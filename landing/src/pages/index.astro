@@ -380,12 +380,20 @@ const packages = [
     padding: 1px 6px;
   }
 
+  /* One column on small screens. The tenant tree is the pitch, so it moves up
+     to sit directly under the calls to action instead of below the install box
+     and badges, where it fell past the first phone screen. display: contents
+     lifts the hero copy's children into this grid so they can be reordered. */
   @media (max-width: 900px) {
     .idx-hero-inner {
-      grid-template-columns: 1fr;
-      gap: var(--space-12);
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
       padding-top: 96px;
     }
+    .idx-hero-content { display: contents; }
+    .inherit-panel { margin-bottom: var(--space-8); }
+    .install-box,
+    .badge-row { order: 1; }
   }
   @media (max-width: 480px) {
     .idx-hero-inner {
