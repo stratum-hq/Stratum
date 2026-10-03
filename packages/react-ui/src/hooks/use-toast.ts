@@ -12,7 +12,8 @@ export interface UseToastReturn {
   toasts: ToastData[];
   toast: {
     success: (message: string) => string;
-    error: (message: string) => string;
+    /** `detail` holds the raw error text; the toast shows it behind a "Details" control. */
+    error: (message: string, detail?: string) => string;
     warning: (message: string) => string;
     info: (message: string) => string;
   };
@@ -42,9 +43,9 @@ export function useToast(): UseToastReturn {
   }, []);
 
   const addToast = useCallback(
-    (message: string, type: ToastType): string => {
+    (message: string, type: ToastType, detail?: string): string => {
       const id = generateId();
-      const newToast: ToastData = { id, message, type };
+      const newToast: ToastData = detail ? { id, message, type, detail } : { id, message, type };
 
       setToasts((prev) => [newToast, ...prev]);
 
@@ -63,7 +64,7 @@ export function useToast(): UseToastReturn {
 
   const toast = {
     success: useCallback((message: string) => addToast(message, "success"), [addToast]),
-    error: useCallback((message: string) => addToast(message, "error"), [addToast]),
+    error: useCallback((message: string, detail?: string) => addToast(message, "error", detail), [addToast]),
     warning: useCallback((message: string) => addToast(message, "warning"), [addToast]),
     info: useCallback((message: string) => addToast(message, "info"), [addToast]),
   };
