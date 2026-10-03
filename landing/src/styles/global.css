@@ -28,6 +28,14 @@ body {
   flex-direction: column;
 }
 
+/* body is a flex column, and the auto side margins that center a page's
+   <main> turn off flex stretch. The <main> then sizes to its content, so one
+   long code line made the whole page wider than a phone screen. A full width
+   (capped by each page's max-width) keeps it inside the viewport. */
+body > main {
+  width: 100%;
+}
+
 /* Push footer to bottom on short pages */
 .footer {
   margin-top: auto;
@@ -105,6 +113,11 @@ h2 {
   height: 28px;
   object-fit: contain;
 }
+.nav-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
 .nav-links {
   display: flex;
   align-items: center;
@@ -122,8 +135,31 @@ h2 {
 .nav-links a:hover {
   color: var(--text-primary);
 }
-/* The full link row is wider than a phone screen. Below this width the row
-   scrolls sideways inside the bar, so the page itself does not overflow. */
+.nav-menu-btn {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.nav-menu-btn:hover,
+.nav-menu-btn[aria-expanded="true"] {
+  border-color: var(--text-primary);
+}
+/* The full link row is wider than a phone screen. Below this width the links
+   collapse into a panel under the bar, opened by the menu button. Without
+   scripts (no "js" class, set in Base.astro) the button cannot work, so the
+   links wrap onto extra rows in the bar instead. */
 @media (max-width: 900px) {
   .nav-inner {
     gap: var(--space-4);
@@ -133,24 +169,57 @@ h2 {
   .nav-logo {
     flex-shrink: 0;
   }
-  .nav-links {
-    min-width: 0;
-    gap: var(--space-4);
-    overflow-x: auto;
-    white-space: nowrap;
-    scrollbar-width: none;
+  .nav-end {
+    gap: var(--space-3);
   }
-  .nav-links::-webkit-scrollbar {
+  /* Match the menu button, so both bar controls are full 44px touch targets. */
+  .theme-toggle {
+    width: 44px;
+    height: 44px;
+  }
+  html:not(.js) .nav-inner,
+  html:not(.js) .nav-end,
+  html:not(.js) .nav-links {
+    flex-wrap: wrap;
+  }
+  html:not(.js) .nav-links {
+    gap: 0 var(--space-4);
+  }
+  /* The wrapped bar is taller than the space pages leave for it, so it takes
+     its own place in the flow rather than covering the page heading. */
+  html:not(.js) .nav {
+    position: relative;
+  }
+  .js .nav-menu-btn {
+    display: inline-flex;
+  }
+  .js .nav-links {
     display: none;
-  }
-  /* Pin the toggle to the right edge of the scrolling row, so it stays
-     on screen while the links scroll beneath it. */
-  .nav-links .theme-toggle {
-    flex-shrink: 0;
-    position: sticky;
+    position: absolute;
+    top: 100%;
+    left: 0;
     right: 0;
-    z-index: 1;
-    box-shadow: calc(-1 * var(--space-4)) 0 var(--space-3) var(--surface-0);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    padding: var(--space-2) var(--space-4) var(--space-4);
+    background: var(--surface-0);
+    border-bottom: 1px solid var(--rule);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
+    font-size: 1rem;
+  }
+  .js .nav.is-open .nav-links {
+    display: flex;
+  }
+  .js .nav-links a {
+    min-height: 48px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  .js .nav-links a:last-child {
+    border-bottom: none;
   }
 }
 
@@ -284,6 +353,13 @@ h2 {
 }
 .install-box code .pkg {
   color: var(--syntax-string);
+  white-space: nowrap;
+}
+/* A package name copied with a line break in it is a broken command, and a
+   name split at its hyphen or slash reads as two words. Install commands wrap
+   between words only. */
+.no-break {
+  white-space: nowrap;
 }
 .install-copy {
   background: transparent;
