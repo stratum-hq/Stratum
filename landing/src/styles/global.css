@@ -403,7 +403,6 @@ h2 {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 .inode {
   font-family: var(--font-display);
@@ -478,6 +477,8 @@ h2 {
   clip-path: var(--edge-chip);
 }
 .tag-glyph { letter-spacing: 0; }
+/* Depth labels read "d0" on every surface, so a tag must not uppercase them. */
+.depth-ref { text-transform: none; }
 .tag-locked { background: var(--magma); color: var(--on-accent); }
 .tag-inherited { background: var(--vein); color: var(--on-vein); }
 .tag-delegated { background: var(--amber-fill); color: var(--on-ember); }
