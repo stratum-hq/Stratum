@@ -1,0 +1,90 @@
+/* The demo's own styles still read the token names that @stratum-hq/react
+ * declared on :root before version 1.0. This file maps those names to the
+ * --stratum- tokens, which the stratum-scope class on <html> puts on the
+ * page root. The demo owns its page, so it may declare tokens on :root.
+ * TODO(#518): Move the demo to the --stratum- tokens and delete this file.
+ */
+:root {
+  --surface-0: var(--stratum-surface-0);
+  --surface-1: var(--stratum-surface-1);
+  --surface-2: var(--stratum-surface-2);
+  --surface-3: var(--stratum-surface-3);
+  --peat: var(--stratum-surface-0);
+
+  --text-primary: var(--stratum-text-primary);
+  --text-secondary: var(--stratum-text-secondary);
+  --text-tertiary: var(--stratum-text-tertiary);
+
+  --accent: var(--stratum-accent);
+  --magma: var(--stratum-accent);
+  --accent-text: var(--stratum-accent-text);
+  --on-accent: var(--stratum-on-accent);
+  --lock: var(--stratum-lock);
+
+  --flow: var(--stratum-flow);
+  --vein: var(--stratum-flow);
+  --flow-muted: var(--stratum-flow-muted);
+  --on-flow: var(--stratum-on-flow);
+  --on-vein: var(--stratum-on-flow);
+  --focus: var(--stratum-focus);
+  --rule: var(--stratum-rule);
+  --border: var(--stratum-border);
+
+  --amber-fill: var(--stratum-warning-fill);
+  --on-ember: var(--stratum-on-warning);
+
+  --topsoil: var(--stratum-tree-band-0);
+  --clay: var(--stratum-tree-band-1);
+  --sandstone-band: var(--stratum-tree-band-2);
+  --limestone: var(--stratum-tree-band-3);
+  --basalt: var(--stratum-tree-band-4);
+  --on-strata-light: var(--stratum-tree-on-band-1);
+
+  --color-primary: var(--stratum-accent);
+  --color-primary-hover: var(--stratum-accent-hover);
+  --color-accent: var(--stratum-accent);
+  --color-accent-hover: var(--stratum-accent-hover);
+  --color-accent-light: var(--stratum-accent-muted);
+  --color-success: var(--stratum-success);
+  --color-success-bg: var(--stratum-success-bg);
+  --color-warning: var(--stratum-warning);
+  --color-warning-bg: var(--stratum-warning-bg);
+  --color-error: var(--stratum-error);
+  --color-error-bg: var(--stratum-error-bg);
+  --color-info: var(--stratum-info);
+  --color-info-bg: var(--stratum-info-bg);
+
+  --font-body: var(--stratum-font-body);
+  --font-display: var(--stratum-font-display);
+  --font-mono: var(--stratum-font-mono);
+
+  --space-2xs: 2px;
+  --space-xs: var(--stratum-space-1);
+  --space-sm: var(--stratum-space-2);
+  --space-md: var(--stratum-space-3);
+  --space-lg: var(--stratum-space-4);
+  --space-xl: var(--stratum-space-6);
+  --space-2xl: 32px;
+  --space-3xl: var(--stratum-space-12);
+
+  --radius-sm: var(--stratum-radius-sm);
+  --radius-md: var(--stratum-radius);
+  --radius-full: var(--stratum-radius);
+
+  --duration-micro: var(--stratum-duration-fast);
+  --duration-short: var(--stratum-duration-fast);
+  --duration-medium: var(--stratum-duration-normal);
+  --ease-enter: var(--stratum-ease-out);
+  --ease-move: var(--stratum-ease-in-out);
+
+  --edge-chip: var(--stratum-edge-chip);
+  --edge-row: var(--stratum-edge-row);
+  --shadow-sunk: var(--stratum-shadow-sunk);
+  --shadow-sm: 0 2px 0 0 #8F5F36, 0 10px 16px -8px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 7px 0 0 #A63A10, 0 30px 40px -8px rgba(0, 0, 0, 0.7);
+}
+
+:root[data-theme="light"] {
+  --shadow-sm: 0 2px 0 0 #8F5F36, 0 8px 14px -8px rgba(60, 30, 10, 0.3);
+  --shadow-xl: 0 7px 0 0 #8A2A04, 0 28px 36px -8px rgba(60, 30, 10, 0.4);
+}

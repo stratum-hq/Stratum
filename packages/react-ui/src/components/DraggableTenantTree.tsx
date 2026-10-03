@@ -307,7 +307,6 @@ export function DraggableTenantTree({
 
   return (
     <div className={`stratum-tree stratum-tree--draggable ${className || ""}`}>
-      <style>{draggableStyles}</style>
       <DndContext
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
@@ -341,79 +340,3 @@ export function DraggableTenantTree({
     </div>
   );
 }
-
-// ── Scoped styles ───────────────────────────────────────────
-
-const draggableStyles = `
-.stratum-tree__node--dragging {
-  opacity: 0.4;
-}
-
-.stratum-tree__node--drop-target {
-  outline: 3px dashed var(--flow);
-  outline-offset: 2px;
-}
-
-.stratum-tree__drag-handle {
-  width: 14px;
-  font-size: 12px;
-  color: inherit;
-  flex-shrink: 0;
-  cursor: grab;
-  line-height: 1;
-  touch-action: none;
-  user-select: none;
-}
-
-.stratum-tree__drag-handle:active {
-  cursor: grabbing;
-}
-
-.stratum-tree__drag-overlay {
-  position: relative;
-  isolation: isolate;
-  padding: 14px 18px 10px;
-  min-width: 140px;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1rem;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--on-accent);
-  cursor: grabbing;
-  white-space: nowrap;
-  filter: drop-shadow(0 4px 0 var(--magma-deep)) drop-shadow(0 14px 16px var(--pool-deep));
-}
-
-.stratum-tree__drag-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: var(--edge-row);
-  background-color: var(--accent);
-  background-image: var(--tex-accent), var(--grain);
-  background-size: auto, 160px 160px;
-  background-blend-mode: normal, multiply;
-}
-
-.stratum-tree__actions {
-  display: inline-flex;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.stratum-tree__action-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0 4px;
-  color: inherit;
-  line-height: 1;
-}
-
-.stratum-tree__action-btn:hover {
-  text-decoration: underline;
-}
-`;

@@ -1,0 +1,9 @@
+/* @stratum-hq/react: the fonts of the Bedrock theme (optional).
+ *
+ * Big Shoulders Display (display), Instrument Sans (body) and Martian Mono
+ * (labels, slugs, code). This file loads them from Google Fonts, so the page
+ * makes requests to fonts.googleapis.com and fonts.gstatic.com. If your
+ * Content Security Policy blocks those origins, do not import this file.
+ * Host the fonts yourself under the same family names instead.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap');
