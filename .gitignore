@@ -60,3 +60,7 @@ TODOS.md
 
 # Design-tool export bundles (reference material, not shipped)
 assets/brand/Stratum Design System * Strata/
+
+# Impeccable: per-developer config and live-mode scratch
+.impeccable/config.local.json
+.impeccable/live/
