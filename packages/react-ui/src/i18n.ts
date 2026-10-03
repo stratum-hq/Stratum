@@ -17,6 +17,12 @@ export const defaultMessages = {
   "tenantTree.collapse": "Collapse",
   "tenantTree.expand": "Expand",
   "tenantTree.badgeRls": "RLS",
+  "tenantTree.badgeSchema": "Schema",
+  "tenantTree.badgeDatabase": "Database",
+  "tenantTree.editTenant": "Edit {name}",
+  "tenantTree.addChild": "Add a child tenant to {name}",
+  "tenantTree.archiveTenant": "Archive {name}",
+  "tenantTree.moveTenant": "Move {name}",
   "tenantTree.archived": " (archived)",
 
   // ConfigEditor

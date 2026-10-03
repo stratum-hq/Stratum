@@ -561,6 +561,23 @@
     margin-top: 0;
   }
 
+  /* The rows settle once, on first mount. A row that an expand adds appears in place. */
+  .stratum-tree__root--settled .stratum-tree__node {
+    animation: none;
+  }
+
+  /* The tree item also holds its child group, so the focus ring goes on its own row. */
+  .stratum-tree [role="treeitem"]:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .stratum-tree [role="treeitem"]:focus-visible > .stratum-tree__node {
+    z-index: 1;
+    outline: 3px solid var(--stratum-focus);
+    outline-offset: 0;
+  }
+
   .stratum-tree__node::before {
     content: "";
     position: absolute;
@@ -580,10 +597,6 @@
     --stratum-tree-texture: var(--stratum-light);
   }
 
-  .stratum-tree__node:hover {
-    transform: translateX(6px);
-  }
-
   /* Selected: a magma bar along the straight start edge of the band, a magma
      lip and a glow. The bar is part of the clipped band, so it follows the edge. */
   .stratum-tree__node--selected {
@@ -601,16 +614,16 @@
     background-blend-mode: normal, normal, multiply, normal;
   }
 
+  /* A tenant name is user data, so it keeps its own case in the body face. */
   .stratum-tree__label {
-    font-weight: 900;
+    font-weight: 700;
     font-size: var(--stratum-font-size-lg);
-    line-height: 1.1;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    line-height: 1.2;
   }
 
   .stratum-tree__badge {
     box-shadow: inset 0 0 0 1.5px currentColor;
+    font-size: var(--stratum-font-size-xs);
   }
 
   .stratum-tree__node--drop-target {
@@ -623,10 +636,8 @@
     padding: 14px 18px 10px;
     background: transparent;
     box-shadow: none;
-    font-weight: 900;
+    font-weight: 700;
     font-size: var(--stratum-font-size-lg);
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
     filter: drop-shadow(0 4px 0 var(--stratum-accent-deep)) drop-shadow(0 14px 16px var(--stratum-shadow-pool-deep));
   }
 

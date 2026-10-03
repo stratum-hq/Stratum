@@ -164,12 +164,15 @@ function Sidebar() {
 }
 ```
 
-Displays the full tenant hierarchy with expandable nodes. Clicking a tenant switches to it. Nodes show:
+Displays the full tenant hierarchy with expandable nodes. Clicking a tenant calls `onSelect` with its id. Nodes show:
 
-- Tenant name and slug
-- Depth indicator
-- Active/archived status
-- Child count
+- The tenant name, in its own case. The `title` holds the full name when the row truncates it.
+- A color band for the depth.
+- A badge for the isolation strategy: `RLS`, `Schema` or `Database`.
+- An archived marker.
+- Edit, add-child and archive buttons, when you pass `onEdit`, `onAddChild` or `onArchive`.
+
+The tree follows the [WAI-ARIA tree pattern](https://www.w3.org/WAI/ARIA/apg/patterns/treeview/). One tree item is in the tab order. ArrowUp, ArrowDown, Home and End move the focus. ArrowRight expands a tenant, then moves to its first child. ArrowLeft collapses a tenant, then moves to its parent. Enter calls `onSelect`. `DraggableTenantTree` works the same way.
 
 ### ConfigEditor
 

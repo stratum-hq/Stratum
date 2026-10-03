@@ -665,7 +665,16 @@
     background: var(--stratum-tree-band);
     color: var(--stratum-tree-on-band-4);
     cursor: default;
-    transition: transform var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  /* The tree item also holds its child group, so the focus ring goes on its own row. */
+  .stratum-tree [role="treeitem"]:focus-visible {
+    outline: none;
+  }
+
+  .stratum-tree [role="treeitem"]:focus-visible > .stratum-tree__node {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
   }
 
   .stratum-tree__node--d0 { --stratum-tree-band: var(--stratum-tree-band-0); color: var(--stratum-tree-on-band-0); }
@@ -693,8 +702,15 @@
     text-underline-offset: 3px;
   }
 
+  /* 24px is the minimum pointer target (WCAG 2.2, 2.5.8). */
   .stratum-tree__toggle {
-    width: var(--stratum-space-4);
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-block: -4px;
     padding: 0;
     border: none;
     background: none;
@@ -705,7 +721,8 @@
 
   .stratum-tree__spacer {
     display: inline-block;
-    width: var(--stratum-space-4);
+    flex-shrink: 0;
+    width: 24px;
   }
 
   .stratum-tree__label {
@@ -714,7 +731,7 @@
     overflow: hidden;
     color: inherit;
     cursor: pointer;
-    font-family: var(--stratum-font-display);
+    font-family: var(--stratum-font-body);
     font-weight: 600;
     font-size: var(--stratum-font-size-md);
     line-height: 1.3;
@@ -770,7 +787,7 @@
     box-shadow: var(--stratum-shadow-raised);
     color: var(--stratum-on-accent);
     cursor: grabbing;
-    font-family: var(--stratum-font-display);
+    font-family: var(--stratum-font-body);
     font-weight: 600;
     font-size: var(--stratum-font-size-md);
     white-space: nowrap;
@@ -783,17 +800,25 @@
   }
 
   .stratum-tree__action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    margin-block: -4px;
     padding: 0 4px;
     border: none;
+    border-radius: var(--stratum-radius-sm);
     background: none;
     color: inherit;
     cursor: pointer;
-    font-size: var(--stratum-font-size-sm);
+    font-size: var(--stratum-font-size-md);
     line-height: 1;
   }
 
+  /* An outline in the text color keeps the band's contrast on every depth. */
   .stratum-tree__action-btn:hover {
-    text-decoration: underline;
+    box-shadow: inset 0 0 0 1px currentColor;
   }
 
   /* ============================================================

@@ -136,7 +136,7 @@ Set a token on a component root, on `TenantThemeProvider` (its `primaryColor` se
 - **`useStratum()`**: `{ currentTenant, tenantContext, loading, error, switchTenant, apiCall }`.
 - **Data hooks:** `useTenant`, `useTenantTree`, `useConfig`, `usePermissions`, `useConfigCascade`, `useWebhooks`, `useAuditLogs`, `useToast`.
 - **`TenantSwitcher`**: dropdown to select the active tenant.
-- **`TenantTree` / `DraggableTenantTree`**: hierarchical tree view (drag-to-reparent in the draggable variant).
+- **`TenantTree` / `DraggableTenantTree`**: hierarchical tree view with an isolation-strategy badge per tenant and WAI-ARIA tree keyboard support (drag-to-reparent in the draggable variant).
 - **`ConfigEditor`**: edit resolved config with lock and inheritance indicators.
 - **`PermissionEditor`**: edit permission policies with mode/revocation selection.
 - **`ConfigInheritanceVisualizer`**, **`WebhookEditor`**, **`AuditLogViewer`**, **`TenantHealthCard`**, plus headless (`HeadlessTenantSwitcher`, …) variants for full styling control.

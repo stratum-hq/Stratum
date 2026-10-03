@@ -16,7 +16,8 @@ const meta: Meta<typeof TenantTree> = {
         component:
           "Interactive tree view of the tenant hierarchy. " +
           "Nodes can be expanded/collapsed to reveal children. " +
-          "Displays RLS badges and archived status indicators.",
+          "Each row shows a badge for the isolation strategy of the tenant, and an archived marker. " +
+          "The tree follows the WAI-ARIA tree pattern: the arrow keys, Home and End move the focus, and Enter selects.",
       },
     },
   },
