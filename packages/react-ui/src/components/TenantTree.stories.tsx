@@ -97,6 +97,19 @@ export const DeepHierarchy: Story = {
 };
 
 /**
+ * The default hierarchy with the edit, add-child and archive buttons on each row.
+ * The tenants use all three isolation strategies, so the badges differ.
+ */
+export const WithActions: Story = {
+  args: {
+    onSelect: (id: string) => console.log("Selected tenant:", id),
+    onEdit: (id: string) => console.log("Edit tenant:", id),
+    onAddChild: (id: string) => console.log("Add child to:", id),
+    onArchive: (id: string) => console.log("Archive tenant:", id),
+  },
+};
+
+/**
  * Single root node with no children. Minimal tree display.
  */
 export const SingleRootNode: Story = {
