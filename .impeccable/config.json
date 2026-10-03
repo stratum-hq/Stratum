@@ -38,7 +38,7 @@
         "rule": "side-tab",
         "value": "*",
         "files": [
-          "packages/react-ui/src/styles/default.css"
+          "packages/react-ui/src/styles/theme-bedrock.css"
         ],
         "createdAt": "2026-10-03T22:44:22.529Z",
         "reason": "false positive: inset bottom shadow on aria-invalid inputs, not a side tab"

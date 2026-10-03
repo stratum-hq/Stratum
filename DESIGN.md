@@ -60,9 +60,10 @@ a component. Add or change a token in `assets/tokens.css` and both sites move
 together. `website/src/styles/custom.css` also maps Starlight's `--sl-*`
 variables onto these tokens with `var()`, never a literal.
 
-`@stratum-hq/react`'s `src/styles/default.css` carries its own copy of the same
-values (it ships independently of the sites), and the demo dashboard
-(`packages/demo/web`) consumes that stylesheet. Keep `default.css` in step with
+`@stratum-hq/react`'s optional Bedrock theme, `src/styles/theme-bedrock.css`,
+carries its own copy of the same values under `--stratum-*` names (it ships
+independently of the sites), and the demo dashboard (`packages/demo/web`)
+consumes that stylesheet. Keep `theme-bedrock.css` in step with
 `assets/tokens.css` by hand when a token changes.
 
 ## Themes

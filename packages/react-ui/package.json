@@ -25,7 +25,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./styles": "./dist/styles/default.css"
+    "./styles": "./dist/styles/base.css",
+    "./styles/base.css": "./dist/styles/base.css",
+    "./styles/theme-bedrock.css": "./dist/styles/theme-bedrock.css",
+    "./styles/fonts.css": "./dist/styles/fonts.css"
   },
   "files": [
     "dist",
