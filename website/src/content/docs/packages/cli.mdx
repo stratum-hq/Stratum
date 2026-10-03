@@ -316,7 +316,7 @@ Generates:
 
 The generated secrets are for development. Outside development and test (any other `NODE_ENV`), Stratum refuses to start without `STRATUM_ENCRYPTION_KEY` (at least 32 bytes) and `STRATUM_HKDF_SALT` (an even-length hex string), and requires `STRATUM_API_KEY_HMAC_SECRET` to be at least 32 bytes when set. Generate new values for each environment, keep them in a secret manager, and keep them stable once data exists: a different key or salt cannot decrypt values encrypted before, and a different HMAC secret no longer matches the API keys hashed with it. The file holds secrets, so keep it out of version control.
 
-## Global Options
+## Global options
 
 | Flag | Description |
 |------|-------------|

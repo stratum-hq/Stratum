@@ -3,7 +3,7 @@ title: Webhooks API
 description: REST API reference for webhook management, deliveries, and the dead-letter queue.
 ---
 
-## Webhook Endpoints
+## Webhook endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -15,7 +15,7 @@ description: REST API reference for webhook management, deliveries, and the dead
 | `POST` | `/api/v1/webhooks/:id/test` | Test webhook delivery |
 | `GET` | `/api/v1/webhooks/:id/deliveries` | List deliveries for webhook |
 
-## Delivery Endpoints (DLQ)
+## Delivery endpoints (DLQ)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -24,7 +24,7 @@ description: REST API reference for webhook management, deliveries, and the dead
 | `POST` | `/api/v1/webhooks/deliveries/retry-all` | Retry all failed |
 | `POST` | `/api/v1/webhooks/deliveries/:deliveryId/retry` | Retry single delivery |
 
-## Other Endpoints
+## Other endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -38,7 +38,7 @@ description: REST API reference for webhook management, deliveries, and the dead
 
 ---
 
-## Create Webhook
+## Create webhook
 
 ```
 POST /api/v1/webhooks
@@ -70,7 +70,7 @@ POST /api/v1/webhooks
 
 ---
 
-## List Webhooks
+## List webhooks
 
 ```
 GET /api/v1/webhooks?tenant_id=<uuid>
@@ -82,7 +82,7 @@ Scoped keys automatically filter to their own tenant's webhooks.
 
 ---
 
-## Update Webhook
+## Update webhook
 
 ```
 PATCH /api/v1/webhooks/:id
@@ -102,7 +102,7 @@ PATCH /api/v1/webhooks/:id
 
 ---
 
-## Test Webhook
+## Test webhook
 
 ```
 POST /api/v1/webhooks/:id/test
@@ -121,7 +121,7 @@ Sends a synthetic test event to the webhook URL and reports the response.
 
 ---
 
-## Delivery Statistics
+## Delivery statistics
 
 ```
 GET /api/v1/webhooks/deliveries/stats
@@ -140,7 +140,7 @@ GET /api/v1/webhooks/deliveries/stats
 
 ---
 
-## List Failed Deliveries
+## List failed deliveries
 
 ```
 GET /api/v1/webhooks/deliveries/failed?limit=100
@@ -156,7 +156,7 @@ Returns failed deliveries (dead-letter queue) with joined webhook and event data
 
 ---
 
-## Retry All Failed
+## Retry all failed
 
 ```
 POST /api/v1/webhooks/deliveries/retry-all
@@ -174,7 +174,7 @@ Resets all failed deliveries for retry (clears attempt counter, sets status to p
 
 ---
 
-## Retry Single Delivery
+## Retry single delivery
 
 ```
 POST /api/v1/webhooks/deliveries/:deliveryId/retry
@@ -184,7 +184,7 @@ POST /api/v1/webhooks/deliveries/:deliveryId/retry
 
 ---
 
-## Audit Logs
+## Audit logs
 
 ```
 GET /api/v1/audit-logs
@@ -209,7 +209,7 @@ Known secrets are redacted in audit entries: sensitive config values and webhook
 
 ---
 
-## Rotate Encryption Key
+## Rotate encryption key
 
 ```
 POST /api/v1/maintenance/rotate-encryption-key

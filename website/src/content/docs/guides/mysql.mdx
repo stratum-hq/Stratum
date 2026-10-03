@@ -1,5 +1,5 @@
 ---
-title: MySQL Multi-Tenancy
+title: MySQL multi-tenancy
 description: Use @stratum-hq/mysql for relational-database tenant isolation alongside the PostgreSQL control plane.
 ---
 
@@ -9,7 +9,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 **How it fits together:** The control plane (tenant hierarchy, config inheritance, audit log, and GDPR operations) always lives in PostgreSQL via `@stratum-hq/lib`. MySQL carries your application data. The two databases are complementary, not competing.
 
-## Choosing a Strategy
+## Choosing a strategy
 
 Three isolation strategies are available, set once per deployment:
 
@@ -19,7 +19,7 @@ Three isolation strategies are available, set once per deployment:
 | `TABLE_PER_TENANT` | Table namespace | Application-enforced | Apps needing separate indexes per tenant |
 | `DATABASE_PER_TENANT` | Separate MySQL database | Connection-level | Compliance requirements, sensitive data |
 
-### Shared Table
+### Shared table
 
 All tenants share the same MySQL tables. A `tenant_id` column on every table scopes queries. The adapter's structured methods (`scopedSelect`, `scopedInsert`, `scopedUpdate`, `scopedDelete`) automatically inject and filter `tenant_id` on every operation.
 
@@ -43,7 +43,7 @@ Each tenant gets a dedicated MySQL database with its own connection pool. This i
   Prefer `DATABASE_PER_TENANT` when tenants have compliance requirements (healthcare, financial services) or when your threat model requires physical data separation.
 </Aside>
 
-## Getting Started
+## Getting started
 
 Install the package:
 
@@ -51,7 +51,7 @@ Install the package:
 npm install @stratum-hq/mysql mysql2
 ```
 
-### Shared Table
+### Shared table
 
 ```typescript
 import mysql from "mysql2/promise";
@@ -123,9 +123,9 @@ const [rows] = await tenantPool.query("SELECT * FROM users");
 await adapter.closeAll();
 ```
 
-## ORM Integrations
+## ORM integrations
 
-### TypeORM Subscriber
+### TypeORM subscriber
 
 Auto-injects `tenant_id` on every insert using AsyncLocalStorage context, and never lets an update change `tenant_id` (`save()` keeps the loaded value; `update()` and query builder updates drop it from the SET values):
 
@@ -182,7 +182,7 @@ A view entity whose `expression` is a query builder is created by `synchronize()
   Not scoped: raw SQL (`dataSource.query()`, `queryRunner.query()`), SQL taken from `getQuery()` / `getQueryAndParameters()` and run by hand (a select builder's SQL includes the tenant condition, but an update or delete builder adds it only when its `execute()` runs), reads from and inserts into a table name that does not exactly match (including letter case) the name or table name of an entity on the data source (such inserts are not given a tenant_id), and many-to-many junction tables. Add the tenant condition to those yourself, or use the shared-table adapter's structured methods.
 </Aside>
 
-### Knex Helper
+### Knex helper
 
 Wraps any Knex query builder with automatic `WHERE tenant_id = ?`:
 
@@ -198,7 +198,7 @@ Your where clauses are always grouped after the tenant filter, including on clon
 
 Joins (`join()`, `leftJoin()`, `crossJoin()`, `joinRaw()` and the other join forms) and `union()` / `unionAll()` also throw, because the tenant filter covers only the builder's own table. To combine tables, use a tenant-scoped builder as a `whereIn()` subquery, or write the query with plain Knex and a `tenant_id` condition on every table.
 
-### Sequelize Adapter
+### Sequelize adapter
 
 Scopes Sequelize models to one tenant for the duration of a callback:
 
@@ -227,11 +227,11 @@ The helper also sets `@stratum_tenant_id` on the transaction's connection and cl
 
 **Not scoped:** raw `sequelize.query()`, `queryInterface` calls by table name, models without a `tenant_id` attribute, the through (junction) model of a many-to-many include, and any code outside the callback. The helper throws when it is given something other than a Sequelize v6 instance.
 
-## MySQL Views (Not Supported)
+## MySQL views (not supported)
 
 `createTenantView()` is deprecated and always throws. MySQL does not allow a view to read a session variable (`ER_VIEW_SELECT_VARIABLE`), so a view filtered on `@stratum_tenant_id` cannot be created. Use the shared-table adapter's structured methods. `setTenantSession()` and `dropTenantView()` remain available.
 
-## GDPR Compliance
+## GDPR compliance
 
 All three adapters implement `purgeTenantData()` to permanently delete tenant data:
 
@@ -259,7 +259,7 @@ if (!result.success) {
   Always check `result.success` after calling `purgeTenantData()`. Partial purges leave tenant data in place. For GDPR compliance, treat any error as a blocking issue.
 </Aside>
 
-## Security Considerations
+## Security considerations
 
 MySQL does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is no database-level mechanism that enforces tenant isolation independent of application code.
 
@@ -281,7 +281,7 @@ MySQL does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is
 
 ## Performance
 
-### Shared Table Index Requirements
+### Shared table index requirements
 
 Add a compound index with `tenant_id` as the leading field on every table:
 
@@ -292,7 +292,7 @@ CREATE INDEX idx_orders_tenant ON orders (tenant_id, status);
 
 Without tenant-prefixed indexes, every scoped query does a full table scan.
 
-### Database-per-Tenant Pool Tuning
+### Database-per-Tenant pool tuning
 
 Each tenant database gets its own connection pool. Tune `maxPools` and `idleTimeoutMs` based on your active tenant count and MySQL instance capacity:
 
@@ -307,7 +307,7 @@ const adapter = new MysqlDatabaseAdapter({
 
 A rough formula: `maxConnections = activeTenants * connectionsPerPool`. For 50 active tenants at mysql2's default `connectionLimit: 10`, budget 500 connections on your MySQL instance.
 
-### MySQL Views Performance
+### MySQL views performance
 
 Views referencing session variables (`@stratum_tenant_id`) may not use indexes efficiently because MySQL treats session variables as opaque runtime values. The optimizer cannot push them into index lookups.
 

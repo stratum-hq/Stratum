@@ -1,5 +1,5 @@
 ---
-title: Multi-Tenancy with Prisma and PostgreSQL RLS
+title: Multi-tenancy with Prisma and PostgreSQL RLS
 description: Add automatic Row-Level Security to Prisma using Stratum's prismaWithTenant wrapper so every query is tenant-scoped without manual WHERE clauses.
 ---
 
@@ -9,7 +9,7 @@ Prisma has no built-in support for PostgreSQL Row-Level Security. Most tutorials
 
 Stratum's `prismaWithTenant()` wrapper takes a different approach. Instead of filtering at the application layer, it sets a PostgreSQL session variable (`app.current_tenant_id`) inside a transaction before every query. Combined with RLS policies on your tables, the database itself enforces tenant isolation. No middleware hacks, no missed queries.
 
-## The Problem
+## The problem
 
 A typical Prisma multi-tenancy guide will suggest middleware like this:
 
@@ -32,7 +32,7 @@ This breaks in several ways:
 - **Bulk operations** (`createMany`, `updateMany`, `deleteMany`) need their own filter logic
 - **New Prisma versions** deprecated `$use` middleware in favor of `$extends`, breaking existing implementations
 
-## The Stratum Approach
+## The Stratum approach
 
 Stratum's Prisma adapter is a thin wrapper (under 40 lines) that uses `prisma.$extends` with `$allOperations` to wrap every query in a transaction. Before the query executes, it calls `set_config('app.current_tenant_id', tenantId, true)` to set the tenant context. PostgreSQL RLS policies handle the rest.
 
@@ -57,7 +57,7 @@ That is the entire integration. Three arguments: your Prisma client, a function 
   that resolves the tenant ID at runtime.
 </Aside>
 
-## Full Walkthrough
+## Full walkthrough
 
 This section walks through a complete setup: PostgreSQL with RLS, Prisma schema, Express middleware, and Stratum integration.
 
@@ -94,7 +94,7 @@ This section walks through a complete setup: PostgreSQL with RLS, Prisma schema,
 
 Write `init.sql` (the next step) before the first start. The image runs it only when it creates the data volume.
 
-### 2. Create Tables with RLS Policies
+### 2. Create tables with RLS policies
 
 Create an `init.sql` file (or run these statements against your database):
 
@@ -151,7 +151,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO stratum_app;
 
 The key line is the `CREATE POLICY`. It tells PostgreSQL: "For every SELECT, INSERT, UPDATE, and DELETE on this table, only allow rows where `tenant_id` matches the value stored in the `app.current_tenant_id` session variable." Stratum's adapter sets that variable before every query.
 
-### 3. Prisma Schema
+### 3. Prisma schema
 
 ```prisma
 // prisma/schema.prisma
@@ -194,14 +194,14 @@ npx prisma generate
   from existing tables.
 </Aside>
 
-### 4. Install Dependencies
+### 4. Install dependencies
 
 ```bash
 npm install @stratum-hq/lib @stratum-hq/db-adapters pg @prisma/client jsonwebtoken
 npm install -D prisma @types/pg @types/jsonwebtoken
 ```
 
-### 5. Express App with Tenant Middleware
+### 5. Express app with tenant middleware
 
 ```typescript
 // src/index.ts
@@ -304,7 +304,7 @@ main();
   only with `trustTenantHeader: true`.
 </Aside>
 
-### 6. Test with Multiple Tenants
+### 6. Test with multiple tenants
 
 Create two tenants, insert data for each, and verify isolation. Start the server with `JWT_SECRET` set, for example to the output of `openssl rand -hex 32`. Then sign one token for each tenant with the same secret:
 
@@ -341,7 +341,7 @@ curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_A"
 curl http://localhost:3000/orders -H "Authorization: Bearer $TOKEN_B"
 ```
 
-## Adding RLS to More Tables
+## Adding RLS to more tables
 
 Use Stratum's migration helpers to add RLS to existing tables without writing SQL manually:
 
@@ -365,7 +365,7 @@ Or use the CLI:
 npx @stratum-hq/cli migrate invoices products
 ```
 
-## How the Adapter Works Internally
+## How the adapter works internally
 
 The Prisma adapter is intentionally minimal. Here is what it does on every query:
 
@@ -384,7 +384,7 @@ The `true` argument to `set_config` makes the value transaction-local, so it is 
   above) for isolation to work.
 </Aside>
 
-## Comparison: Middleware vs RLS
+## Comparison: middleware vs RLS
 
 | Aspect | Prisma Middleware | Stratum + RLS |
 |---|---|---|
@@ -399,7 +399,7 @@ The `true` argument to `set_config` makes the value transaction-local, so it is 
 
 Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
 
-## Next Steps
+## Next steps
 
 - Scaffold a complete project: `npx @stratum-hq/create my-app` then `stratum init`
 - Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant

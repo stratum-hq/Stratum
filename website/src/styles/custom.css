@@ -74,9 +74,11 @@
    --sl-* map above adapts to them automatically through var(). */
 
 /* --------------------------------------------------------------------------
-   Typography. Big Shoulders Display is condensed and heavy, so h1 and h2 are
-   set uppercase with tight leading and larger sizes. h3 and below stay in
-   Instrument Sans so long reference pages stay readable.
+   Typography. Big Shoulders Display is condensed and heavy, so h1 and h2 get
+   tight leading and larger sizes. Content headings keep the case they are
+   written in, because package names such as @stratum-hq/sdk are
+   case-sensitive. Only the splash hero title is set uppercase. h3 and below
+   stay in Instrument Sans so long reference pages stay readable.
    -------------------------------------------------------------------------- */
 body {
   font-family: var(--sl-font);
@@ -90,7 +92,6 @@ h2,
 .sl-markdown-content h1,
 .sl-markdown-content h2 {
   font-family: var(--__sl-font-heading);
-  text-transform: uppercase;
   text-wrap: balance;
   letter-spacing: 0.01em;
 }
@@ -143,11 +144,16 @@ h4,
   line-height: 1.3;
 }
 
-/* Splash hero title */
+/* Splash hero title: the one uppercase heading on the site. */
 .hero h1,
 .hero #_top {
   font-size: clamp(2.75rem, calc(0.5rem + 6vw), 4.5rem);
   line-height: 0.92;
+  text-transform: uppercase;
+}
+
+.hero-accent {
+  color: var(--sl-color-accent);
 }
 
 /* --------------------------------------------------------------------------
@@ -260,9 +266,9 @@ nav a[aria-current="page"]:hover {
    Buttons: rock chips. The face is a ::before clipped to --edge-chip with
    grain; the lip and pool are drop-shadows on the unclipped link, because
    clip-path removes box-shadow, borders and outlines. Keeping the link itself
-   unclipped keeps the keyboard focus ring visible. The first primary action
-   is magma; a second primary next to it is vein, so only one magma button
-   shows per view. Secondary actions are "scratch" links with a rule underline.
+   unclipped keeps the keyboard focus ring visible. A view has one primary
+   action, in magma. Secondary actions are "scratch" links with a rule
+   underline.
    -------------------------------------------------------------------------- */
 .sl-link-button {
   border-radius: 0;
@@ -287,11 +293,6 @@ nav a[aria-current="page"]:hover {
   transition: transform var(--duration-fast) var(--ease-out),
               filter var(--duration-fast) var(--ease-out);
 }
-.sl-link-button.primary + .sl-link-button.primary {
-  --btn-lip: var(--vein-deep);
-  --btn-face: var(--vein);
-  color: var(--on-vein);
-}
 .sl-link-button.primary::before {
   content: "";
   position: absolute;
@@ -307,9 +308,6 @@ nav a[aria-current="page"]:hover {
   color: var(--on-accent);
   transform: translateY(-3px);
   filter: drop-shadow(0 7px 0 var(--btn-lip)) drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
-}
-.sl-link-button.primary + .sl-link-button.primary:hover {
-  color: var(--on-vein);
 }
 .sl-link-button.primary:active {
   transform: translateY(2px);
@@ -498,4 +496,177 @@ starlight-menu-button button {
    drawn inside the button where the clip cannot reach it. */
 .sl-markdown-content .expressive-code .copy button:focus-visible {
   outline-offset: -4px;
+}
+
+/* --------------------------------------------------------------------------
+   Splash tenant tree (src/components/TenantTree.astro). The same inheritance
+   flow as the landing hero: each tenant is a rock band colored by its depth,
+   indented 28px per level, and each row overlaps the ragged top of the row
+   above. The resolved value is vein. Tenant names keep their written case,
+   because they are data.
+   -------------------------------------------------------------------------- */
+.tenant-tree {
+  position: relative;
+  isolation: isolate;
+  max-width: 36rem;
+  margin: 0 0 var(--space-8);
+  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
+  font-family: var(--font-mono);
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
+}
+:root[data-theme="light"] .tenant-tree {
+  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
+}
+.tenant-tree::before,
+.tenant-tree::after {
+  content: "";
+  position: absolute;
+}
+.tenant-tree::before {
+  inset: 0;
+  z-index: -2;
+  clip-path: var(--edge-ledge);
+  background-color: var(--magma-deep);
+  background-image: var(--shade), var(--lam);
+}
+.tenant-tree::after {
+  inset: 10px 0 0;
+  z-index: -1;
+  clip-path: var(--edge-ledge-b);
+  background: var(--surface-1);
+}
+.sl-markdown-content .tenant-tree-label {
+  margin: 0 0 var(--space-4);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.sl-markdown-content .tenant-tree-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sl-markdown-content .tenant-row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: -9px 0 0;
+  padding: 18px 22px 11px 14px;
+  clip-path: var(--edge-row);
+  background-size: auto, 160px 160px, auto;
+  background-blend-mode: normal, multiply, normal;
+  white-space: nowrap;
+}
+.sl-markdown-content .tenant-row:first-child {
+  margin-top: 0;
+}
+.sl-markdown-content .tenant-row.d0 {
+  z-index: 1;
+  background-color: var(--topsoil);
+  background-image: var(--shade), var(--grain), var(--lam);
+  color: var(--on-strata-dark);
+}
+.sl-markdown-content .tenant-row.d1 {
+  z-index: 2;
+  margin-left: 28px;
+  background-color: var(--clay);
+  background-image: var(--lit), var(--grain), var(--lam);
+  color: var(--on-strata-light);
+}
+.tenant-depth {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tenant-name {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.375rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+.tenant-meta {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+}
+.sl-markdown-content .tenant-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-6) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--flow);
+  background: var(--flow-muted);
+  font-size: 0.78rem;
+}
+.tenant-config-key {
+  color: var(--text-primary);
+}
+.tenant-config-value {
+  color: var(--flow);
+  font-weight: 600;
+}
+/* On paper the vein text darkens to hold 4.5:1 on the tinted row. */
+:root[data-theme="light"] .tenant-config-value {
+  color: var(--vein-deep);
+}
+.sl-markdown-content .tenant-tree-note {
+  margin: var(--space-4) 0 0;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .tenant-tree {
+    padding: calc(var(--space-6) + 10px) var(--space-4) var(--space-6);
+  }
+  .sl-markdown-content .tenant-row {
+    padding: 16px 12px 10px 10px;
+    gap: var(--space-2);
+  }
+  .sl-markdown-content .tenant-row.d1 {
+    margin-left: 14px;
+  }
+  .tenant-name {
+    font-size: 1.125rem;
+  }
+  .tenant-meta {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Header site links (src/components/SocialIcons.astro). The marketing pages
+   live in the header, not in the docs sidebar. They open in a new tab, so
+   each one shows the external icon and tells screen readers about the tab.
+   -------------------------------------------------------------------------- */
+.site-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.site-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--sl-color-gray-1);
+  text-decoration: none;
+}
+.site-links a:hover {
+  color: var(--sl-color-white);
 }

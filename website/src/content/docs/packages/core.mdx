@@ -80,7 +80,7 @@ interface ResolvedPermission {
 }
 ```
 
-### Input Types
+### Input types
 
 ```typescript
 interface CreateTenantInput {
@@ -106,7 +106,7 @@ interface CreatePermissionInput {
 }
 ```
 
-### Audit Types
+### Audit types
 
 ```typescript
 interface AuditContext {
@@ -133,7 +133,7 @@ interface AuditEntry {
 }
 ```
 
-### Consent Types
+### Consent types
 
 ```typescript
 interface ConsentRecord {
@@ -149,7 +149,7 @@ interface ConsentRecord {
 }
 ```
 
-### Region Types
+### Region types
 
 ```typescript
 interface Region {
@@ -186,7 +186,7 @@ enum RevocationMode {
 }
 ```
 
-## Validation Schemas (Zod)
+## Validation schemas (Zod)
 
 ```typescript
 import {
@@ -208,9 +208,9 @@ PaginationSchema.parse({ limit: 50 });    // passes
 PaginationSchema.parse({ limit: 200 });   // throws (max 100)
 ```
 
-## Utility Functions
+## Utility functions
 
-### Ancestry Helpers
+### Ancestry helpers
 
 ```typescript
 import {
@@ -233,7 +233,7 @@ isAncestorOf("/a/b", "/a/b/c");
 // true
 ```
 
-## Error Classes
+## Error classes
 
 All errors extend `StratumError`, which extends `Error`:
 

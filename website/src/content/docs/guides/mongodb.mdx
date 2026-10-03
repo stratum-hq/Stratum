@@ -1,5 +1,5 @@
 ---
-title: MongoDB Multi-Tenancy
+title: MongoDB multi-tenancy
 description: Use @stratum-hq/mongodb for document-database tenant isolation alongside the PostgreSQL control plane.
 ---
 
@@ -9,7 +9,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 **How it fits together:** The control plane (tenant hierarchy, config inheritance, audit log, and GDPR operations) always lives in PostgreSQL via `@stratum-hq/lib`. MongoDB carries your application documents. The two databases are complementary, not competing.
 
-## Choosing a Strategy
+## Choosing a strategy
 
 Three isolation strategies are available, set once per deployment:
 
@@ -19,7 +19,7 @@ Three isolation strategies are available, set once per deployment:
 | `COLLECTION_PER_TENANT` | Collection namespace | Application-enforced | Apps needing separate indexes per tenant |
 | `DATABASE_PER_TENANT` | Separate MongoDB database | Connection-level | Compliance requirements, sensitive data |
 
-### Shared Collection
+### Shared collection
 
 All tenants share the same MongoDB collections. A `tenant_id` field on every document scopes queries. The Mongoose plugin or adapter automatically injects and filters `tenant_id` on every operation.
 
@@ -43,7 +43,7 @@ Each tenant gets a dedicated MongoDB database with its own connection pool. This
   Prefer `DATABASE_PER_TENANT` when tenants have compliance requirements (healthcare, financial services) or when your threat model requires physical data separation.
 </Aside>
 
-## Getting Started
+## Getting started
 
 Install the package:
 
@@ -127,7 +127,7 @@ try {
 }
 ```
 
-## Mongoose Plugin
+## Mongoose plugin
 
 Apply the Stratum plugin to your Mongoose schemas to enable automatic tenant scoping via AsyncLocalStorage (ALS):
 
@@ -149,7 +149,7 @@ export const Order = mongoose.model("Order", orderSchema);
 
 The plugin scopes every Mongoose query, `insertMany`, `bulkWrite`, `aggregate` and `save` to the current tenant, and replaces the model's `watch()` with a tenant-scoped change stream. It rejects `estimatedDocumentCount`, because that count cannot be filtered by tenant. It reads the current tenant from ALS context set by your request middleware.
 
-### ALS Context Setup
+### ALS context setup
 
 Wire the ALS context in your web framework middleware. Read the tenant from a verified JWT, not from a request header.
 
@@ -217,7 +217,7 @@ const orders = await Order.find({ status: "pending" });
 
 The plugin filters on the `tenant_id` field only. It does not select a collection or a database for the tenant. For `COLLECTION_PER_TENANT` and `DATABASE_PER_TENANT`, get the collection or the database from the adapter.
 
-### Change Streams and Delete Events
+### Change streams and delete events
 
 The plugin replaces `Model.watch()` with a change stream that delivers only the current tenant's events. It matches each event on `fullDocument.tenant_id`. A delete event has no `fullDocument`, so by default the stream does not deliver it. Drop, rename and invalidate events are never delivered.
 
@@ -253,7 +253,7 @@ stream.on("error", (err) => console.error(err));
 - An update event is not delivered if its pre-image belongs to another tenant.
 - On a discriminator model, Mongoose adds a filter on `fullDocument` to the stream, so delete events are not delivered.
 
-## GDPR Compliance
+## GDPR compliance
 
 Each adapter has a `purgeTenantData()` method that permanently deletes the data of a tenant. Call it after you remove the tenant from the PostgreSQL control plane.
 
@@ -268,7 +268,7 @@ Each adapter has a `purgeTenantData()` method that permanently deletes the data 
 const result = await mongo.purgeTenantData(tenant.id);
 ```
 
-### Partial Failure Handling
+### Partial failure handling
 
 `MongoSharedAdapter` and `MongoCollectionAdapter` delete from each collection independently. If one collection fails, the others continue. Check the result for partial failures:
 
@@ -285,7 +285,7 @@ if (!result.success) {
   Always verify `result.errors` after calling `purgeTenantData()`. Partial purges leave tenant data in place. For GDPR compliance, treat any error as a blocking issue requiring manual remediation.
 </Aside>
 
-## Security Considerations
+## Security considerations
 
 MongoDB does not have a Row-Level Security equivalent. Unlike PostgreSQL, there is no database-level mechanism that enforces tenant isolation independent of application code. This is an important tradeoff to understand for your threat model.
 
@@ -308,7 +308,7 @@ MongoDB does not have a Row-Level Security equivalent. Unlike PostgreSQL, there 
 
 ## Performance
 
-### Shared Collection Index Requirements
+### Shared collection index requirements
 
 Without the right indexes, every query in `SHARED_COLLECTION` mode does a full collection scan. Add a compound index with `tenant_id` as the leading field:
 
@@ -320,7 +320,7 @@ orderSchema.index({ tenant_id: 1, status: 1 });
 
 The `tenant_id` prefix ensures MongoDB uses the index for all tenant-scoped queries. Without it, queries are `O(n)` across all tenants' documents.
 
-### Database-per-Tenant Pool Tuning
+### Database-per-Tenant pool tuning
 
 Each tenant database gets its own `MongoClient`, and each client has its own connection pool. Tune these values based on your active tenant count and MongoDB instance capacity:
 
