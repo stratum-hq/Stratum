@@ -6,6 +6,8 @@ export interface ToastData {
   id: string;
   message: string;
   type: ToastType;
+  /** The raw error text. The toast shows it only when the user opens its details. */
+  detail?: string;
 }
 
 export interface ToastProps {
@@ -13,6 +15,11 @@ export interface ToastProps {
   message: string;
   /** Semantic type controlling color and behavior */
   type: ToastType;
+  /**
+   * Technical text for the user who needs it, such as the raw API error.
+   * The toast keeps it behind a "Details" control so the message stays plain language.
+   */
+  detail?: string;
   /** Called when toast should be removed */
   onDismiss: () => void;
   /** Auto-dismiss delay in ms. Set to 0 to disable. Error toasts never auto-dismiss. Default: 4000 */
@@ -29,6 +36,7 @@ const TYPE_CLASSES: Record<ToastType, string> = {
 export function Toast({
   message,
   type,
+  detail,
   onDismiss,
   autoDismiss = 4000,
 }: ToastProps) {
@@ -45,12 +53,22 @@ export function Toast({
   }, [type, autoDismiss, handleDismiss]);
 
   return (
+    // Each toast is its own live region. An error interrupts (alert); any other
+    // type waits for the screen reader to finish (status). An explicit aria-live
+    // here would contradict the role.
     <div
       className={`stratum-toast ${TYPE_CLASSES[type]}`}
-      role="alert"
-      aria-live="polite"
+      role={type === "error" ? "alert" : "status"}
     >
-      <span className="stratum-toast__message">{message}</span>
+      <div className="stratum-toast__body">
+        <span className="stratum-toast__message">{message}</span>
+        {detail && (
+          <details className="stratum-toast__details">
+            <summary>Details</summary>
+            <code>{detail}</code>
+          </details>
+        )}
+      </div>
       <button
         type="button"
         className="stratum-toast__dismiss"

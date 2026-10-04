@@ -116,6 +116,7 @@ function Dashboard() {
     error,           // Error | null
     switchTenant,    // (id: string) => Promise<void>
     apiCall,         // <T>(path, options?) => Promise<T>
+    toast,           // { success, error, warning, info }; error(message, detail?)
   } = useStratum();
 
   if (loading) return <div>Loading...</div>;
@@ -131,6 +132,8 @@ function Dashboard() {
   );
 }
 ```
+
+`toast.error(message, detail)` shows `message` and keeps `detail`, for example the raw API error, behind a **Details** control. Write `message` in plain language. Each toast is its own live region: an error toast has the `alert` role, and the other types have the `status` role.
 
 ## Components
 
@@ -189,8 +192,12 @@ function ConfigPage() {
 Displays the resolved config for the current tenant with:
 
 - Key-value editing with type-appropriate inputs
-- Lock status indicators (locked keys are read-only)
-- Inheritance source information (which ancestor set each value)
+- Lock status indicators (locked keys are read-only, and the row says "Locked by" and the name of the tenant that locked the key)
+- Inheritance source information: the name of the tenant that set each value, read from `GET /api/v1/tenants/:id/ancestors`. If that request fails, the editor shows the first 8 characters of the tenant ID.
+- Confirmation before Remove. The first click shows "Remove {key}?" with **Yes, remove** and **Keep**. Escape or **Keep** cancels. `WebhookEditor` uses the same confirmation for Delete.
+- JSON validation. A value that is not valid JSON is not saved. The editor shows an inline error and a **Save as string** button that saves the text as a string.
+- Escape cancels an inline edit.
+- Below 640px wide, each row shows as a card, with the status tag next to the key.
 - Masked sensitive values: a sensitive value inherited from an ancestor shows as "Sensitive value set by an ancestor", never its value, unless the API key belongs to the tenant that set it
 - Add, update, and delete operations
 

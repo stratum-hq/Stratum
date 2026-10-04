@@ -1,11 +1,31 @@
-import React, { useState } from "react";
-import { useConfig } from "../hooks/use-config.js";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { useConfig, type ConfigWithInheritance } from "../hooks/use-config.js";
 import { useMessages } from "../hooks/use-messages.js";
 import { useStratum } from "../provider.js";
+import { ConfirmAction } from "./ConfirmAction.js";
 import { TableSkeleton } from "./TableSkeleton.js";
 
 export interface ConfigEditorProps {
   className?: string;
+}
+
+type ParsedValue = { ok: true; value: unknown } | { ok: false };
+
+function parseJson(text: string): ParsedValue {
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** The source tenant's name, or a short ID when the name could not be loaded. */
+function sourceLabel(entry: ConfigWithInheritance): string {
+  return entry.source_tenant_name ?? `${entry.source_tenant_id.slice(0, 8)}…`;
 }
 
 export function ConfigEditor({ className }: ConfigEditorProps) {
@@ -14,8 +34,21 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
   const { t } = useMessages();
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [editInvalid, setEditInvalid] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [newInvalid, setNewInvalid] = useState(false);
+  const errorId = useId();
+  const editButtons = useRef(new Map<string, HTMLButtonElement>());
+  // The Edit button to focus after an edit is cancelled, so keyboard focus is not lost.
+  const focusAfterEdit = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (editingKey === null && focusAfterEdit.current) {
+      editButtons.current.get(focusAfterEdit.current)?.focus();
+      focusAfterEdit.current = null;
+    }
+  }, [editingKey]);
 
   if (loading) {
     return (
@@ -26,19 +59,33 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
   }
   if (error) return <div className={className}>{t("configEditor.error", { message: error.message })}</div>;
 
-  const handleSave = async (key: string) => {
+  const startEdit = (entry: ConfigWithInheritance) => {
+    setEditingKey(entry.key);
+    setEditValue(entry.masked ? "" : JSON.stringify(entry.value));
+    setEditInvalid(false);
+  };
+
+  const cancelEdit = (key: string) => {
+    focusAfterEdit.current = key;
+    setEditingKey(null);
+    setEditInvalid(false);
+  };
+
+  // Text that is not JSON is saved only when the user asks for a string,
+  // because a typo in JSON would otherwise change the value's type silently.
+  const handleSave = async (key: string, asString = false) => {
+    const parsed: ParsedValue = asString ? { ok: true, value: editValue } : parseJson(editValue);
+    if (!parsed.ok) {
+      setEditInvalid(true);
+      return;
+    }
     try {
-      let value: unknown;
-      try {
-        value = JSON.parse(editValue);
-      } catch {
-        value = editValue;
-      }
-      await setConfigValue(key, value);
+      await setConfigValue(key, parsed.value);
       setEditingKey(null);
+      setEditInvalid(false);
       toast.success(`Config "${key}" saved successfully`);
     } catch (err) {
-      toast.error(`Failed to save config "${key}": ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("configEditor.saveFailed", { key }), errorText(err));
     }
   };
 
@@ -47,64 +94,98 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
       await deleteConfigValue(key);
       toast.success(`Config "${key}" removed`);
     } catch (err) {
-      toast.error(`Failed to remove config "${key}": ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("configEditor.removeFailed", { key }), errorText(err));
     }
   };
 
-  const handleAdd = async () => {
+  const handleAdd = async (asString = false) => {
     if (!newKey) return;
+    const parsed: ParsedValue = asString ? { ok: true, value: newValue } : parseJson(newValue);
+    if (!parsed.ok) {
+      setNewInvalid(true);
+      return;
+    }
     try {
-      let value: unknown;
-      try {
-        value = JSON.parse(newValue);
-      } catch {
-        value = newValue;
-      }
-      await setConfigValue(newKey, value);
+      await setConfigValue(newKey, parsed.value);
       toast.success(`Config "${newKey}" added`);
       setNewKey("");
       setNewValue("");
+      setNewInvalid(false);
     } catch (err) {
-      toast.error(`Failed to add config "${newKey}": ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("configEditor.addFailed", { key: newKey }), errorText(err));
     }
+  };
+
+  const invalidJsonMessage = (id: string, onSaveAsString: () => void) => (
+    <div className="stratum-config-editor__field-error">
+      <p id={id} role="alert">{t("configEditor.invalidJson")}</p>
+      <button type="button" onClick={onSaveAsString}>{t("configEditor.saveAsStringButton")}</button>
+    </div>
+  );
+
+  const editErrorId = `${errorId}-edit`;
+  const addErrorId = `${errorId}-add`;
+  const columns = {
+    key: t("configEditor.columnKey"),
+    value: t("configEditor.columnValue"),
+    source: t("configEditor.columnSource"),
+    status: t("configEditor.columnStatus"),
+    actions: t("configEditor.columnActions"),
   };
 
   return (
     <div className={`stratum-config-editor ${className || ""}`}>
       <div className="stratum-table-scroll">
-        <table className="stratum-config-editor__table">
-          <thead>
-            <tr>
-              <th>{t("configEditor.columnKey")}</th>
-              <th>{t("configEditor.columnValue")}</th>
-              <th>{t("configEditor.columnSource")}</th>
-              <th>{t("configEditor.columnStatus")}</th>
-              <th>{t("configEditor.columnActions")}</th>
+        {/* The explicit roles keep the table semantics when the narrow layout changes the display of the rows. */}
+        <table className="stratum-config-editor__table" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th role="columnheader">{columns.key}</th>
+              <th role="columnheader">{columns.value}</th>
+              <th role="columnheader">{columns.source}</th>
+              <th role="columnheader">{columns.status}</th>
+              <th role="columnheader">{columns.actions}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {config.map((entry) => (
-              <tr key={entry.key} className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
-                <td>{entry.key}</td>
-                <td>
+              <tr key={entry.key} role="row" className={entry.locked ? "stratum-config-editor__row--locked" : ""}>
+                <td role="cell" data-label={columns.key} className="stratum-config-editor__key">{entry.key}</td>
+                <td role="cell" data-label={columns.value} className="stratum-config-editor__value">
                   {editingKey === entry.key ? (
-                    <input
-                      type="text"
-                      value={editValue}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditValue(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSave(entry.key)}
-                      aria-label={t("configEditor.editLabel", { key: entry.key })}
-                    />
+                    <>
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          setEditValue(e.target.value);
+                          setEditInvalid(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSave(entry.key);
+                          else if (e.key === "Escape") cancelEdit(entry.key);
+                        }}
+                        aria-label={t("configEditor.editLabel", { key: entry.key })}
+                        aria-invalid={editInvalid || undefined}
+                        aria-describedby={editInvalid ? editErrorId : undefined}
+                      />
+                      {editInvalid && invalidJsonMessage(editErrorId, () => handleSave(entry.key, true))}
+                    </>
                   ) : entry.masked ? (
                     <span className="stratum-config-editor__masked">{t("configEditor.masked")}</span>
                   ) : (
                     <code>{JSON.stringify(entry.value)}</code>
                   )}
                 </td>
-                <td className="stratum-config-editor__source">
-                  {entry.source_tenant_id.slice(0, 8)}...
+                <td
+                  role="cell"
+                  data-label={columns.source}
+                  className="stratum-config-editor__source"
+                  title={entry.source_tenant_id}
+                >
+                  {sourceLabel(entry)}
                 </td>
-                <td>
+                <td role="cell" data-label={columns.status} className="stratum-config-editor__status">
                   {entry.locked && <span className="stratum-badge stratum-badge--locked">{t("configEditor.locked")}</span>}
                   {entry.inherited && !entry.locked && (
                     <span className="stratum-badge stratum-badge--inherited">{t("configEditor.inherited")}</span>
@@ -113,31 +194,36 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                     <span className="stratum-badge stratum-badge--own">{t("configEditor.own")}</span>
                   )}
                 </td>
-                <td>
-                  {!entry.locked && (
+                <td role="cell" data-label={columns.actions} className="stratum-config-editor__actions">
+                  {entry.locked ? (
+                    <span className="stratum-config-editor__locked-by">
+                      {t("configEditor.lockedBy", { tenant: sourceLabel(entry) })}
+                    </span>
+                  ) : editingKey === entry.key ? (
                     <>
-                      {editingKey === entry.key ? (
-                        <>
-                          <button type="button" onClick={() => handleSave(entry.key)}>{t("configEditor.saveButton")}</button>
-                          <button type="button" onClick={() => setEditingKey(null)}>{t("configEditor.cancelButton")}</button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingKey(entry.key);
-                              setEditValue(entry.masked ? "" : JSON.stringify(entry.value));
-                            }}
-                          >
-                            {t("configEditor.editButton")}
-                          </button>
-                          {!entry.inherited && (
-                            <button type="button" onClick={() => handleDelete(entry.key)}>
-                              {t("configEditor.removeButton")}
-                            </button>
-                          )}
-                        </>
+                      <button type="button" onClick={() => handleSave(entry.key)}>{t("configEditor.saveButton")}</button>
+                      <button type="button" onClick={() => cancelEdit(entry.key)}>{t("configEditor.cancelButton")}</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        ref={(el) => {
+                          if (el) editButtons.current.set(entry.key, el);
+                          else editButtons.current.delete(entry.key);
+                        }}
+                        onClick={() => startEdit(entry)}
+                      >
+                        {t("configEditor.editButton")}
+                      </button>
+                      {!entry.inherited && (
+                        <ConfirmAction
+                          label={t("configEditor.removeButton")}
+                          prompt={t("configEditor.removePrompt", { key: entry.key })}
+                          confirmLabel={t("configEditor.confirmRemoveButton")}
+                          cancelLabel={t("configEditor.keepButton")}
+                          onConfirm={() => handleDelete(entry.key)}
+                        />
                       )}
                     </>
                   )}
@@ -159,13 +245,19 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
         <input
           type="text"
           value={newValue}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewValue(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setNewValue(e.target.value);
+            setNewInvalid(false);
+          }}
           placeholder={t("configEditor.valuePlaceholder")}
           aria-label={t("configEditor.valueLabel")}
+          aria-invalid={newInvalid || undefined}
+          aria-describedby={newInvalid ? addErrorId : undefined}
         />
-        <button type="button" onClick={handleAdd} disabled={!newKey}>
+        <button type="button" onClick={() => handleAdd()} disabled={!newKey}>
           {t("configEditor.addButton")}
         </button>
+        {newInvalid && invalidJsonMessage(addErrorId, () => handleAdd(true))}
       </div>
     </div>
   );
