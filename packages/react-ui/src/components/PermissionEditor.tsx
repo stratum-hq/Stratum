@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { usePermissions } from "../hooks/use-permissions.js";
 import { useMessages } from "../hooks/use-messages.js";
 import { useStratum } from "../provider.js";
+import { ConfirmAction } from "./ConfirmAction.js";
 import { TableSkeleton } from "./TableSkeleton.js";
 
 export interface PermissionEditorProps {
@@ -41,9 +42,9 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
     }
   };
 
-  const handleDelete = async (key: string, sourceTenantId: string) => {
+  const handleDelete = async (key: string, policyId: string) => {
     try {
-      await deletePermission(sourceTenantId);
+      await deletePermission(policyId);
       toast.success(`Permission "${key}" removed`);
     } catch (err) {
       toast.error(`Failed to remove permission "${key}": ${err instanceof Error ? err.message : String(err)}`);
@@ -83,9 +84,13 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
                 </td>
                 <td>
                   {!perm.locked && (
-                    <button type="button" onClick={() => handleDelete(perm.key, perm.source_tenant_id)}>
-                      {t("permissionEditor.removeButton")}
-                    </button>
+                    <ConfirmAction
+                      label={t("permissionEditor.removeButton")}
+                      prompt={t("permissionEditor.removePrompt", { key: perm.key })}
+                      confirmLabel={t("permissionEditor.confirmRemoveButton")}
+                      cancelLabel={t("permissionEditor.keepButton")}
+                      onConfirm={() => handleDelete(perm.key, perm.policy_id)}
+                    />
                   )}
                 </td>
               </tr>
