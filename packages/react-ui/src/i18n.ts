@@ -85,9 +85,6 @@ export const defaultMessages = {
   "permissionEditor.modeLabel": "Permission mode",
   "permissionEditor.revocationModeLabel": "Revocation mode",
   "permissionEditor.addButton": "Add",
-
-  // Toast
-  "toast.details": "Details",
 } as const;
 
 export type MessageKey = keyof typeof defaultMessages;

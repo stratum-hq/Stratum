@@ -1,6 +1,4 @@
-import React, { useEffect, useCallback, useContext } from "react";
-import { StratumContext } from "../provider.js";
-import { defaultMessages } from "../i18n.js";
+import React, { useEffect, useCallback } from "react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -42,11 +40,6 @@ export function Toast({
   onDismiss,
   autoDismiss = 4000,
 }: ToastProps) {
-  // A toast can render outside a StratumProvider, so it reads the messages
-  // without useMessages, which would throw there.
-  const messages = useContext(StratumContext)?.messages;
-  const detailsLabel = messages?.["toast.details"] ?? defaultMessages["toast.details"];
-
   const handleDismiss = useCallback(() => {
     onDismiss();
   }, [onDismiss]);
@@ -71,7 +64,7 @@ export function Toast({
         <span className="stratum-toast__message">{message}</span>
         {detail && (
           <details className="stratum-toast__details">
-            <summary>{detailsLabel}</summary>
+            <summary>Details</summary>
             <code>{detail}</code>
           </details>
         )}

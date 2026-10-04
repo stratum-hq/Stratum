@@ -202,7 +202,7 @@ describe("theme-bedrock.css", () => {
     },
   );
 
-  // A tint or a raised face plus the state word carries a row's state.
+  // State rides a tint, a raised face, or the selected tree row's vein bar, never an inset shadow.
   it("draws no start-edge stripe with an inset box-shadow", () => {
     const text = stripComments(read("theme-bedrock.css"));
     expect(text).not.toMatch(/inset\s+[1-9]\d*px\s+0\s+0/);
