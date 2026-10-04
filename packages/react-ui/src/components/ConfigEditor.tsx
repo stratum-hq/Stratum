@@ -89,8 +89,8 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
     try {
       // A save keeps the lock and the sensitive flag of a key this tenant owns.
       // An override of an inherited key starts unlocked.
-      if (entry.inherited) await setConfigValue(entry.key, parsed.value);
-      else await setConfigValue(entry.key, parsed.value, entry.locked, entry.sensitive ?? false);
+      if (entry.inherited) await setConfigValue(key, parsed.value);
+      else await setConfigValue(key, parsed.value, entry.locked, entry.sensitive ?? false);
       setEditingKey(null);
       setEditInvalid(false);
       toast.success(`Config "${key}" saved successfully`);
