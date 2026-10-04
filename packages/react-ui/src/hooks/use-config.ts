@@ -10,6 +10,8 @@ export interface ConfigWithInheritance {
   source_tenant_id: string;
   inherited: boolean;
   locked: boolean;
+  /** True when the value was set as sensitive. The API stores it encrypted. */
+  sensitive?: boolean;
   /** True when a sensitive value inherited from an ancestor was withheld by the API. */
   masked?: boolean;
   /**
@@ -42,6 +44,7 @@ export function useConfig() {
           source_tenant_id: entry.source_tenant_id,
           inherited: entry.inherited,
           locked: entry.locked,
+          ...(entry.sensitive ? { sensitive: true } : {}),
           ...(entry.masked ? { masked: true } : {}),
         })),
       );
@@ -65,12 +68,20 @@ export function useConfig() {
     [config, sourceNames],
   );
 
+  /**
+   * Writes `value` to `key` on the current tenant, then reloads the config.
+   *
+   * The API replaces the whole entry, so a caller that changes one flag must
+   * send the others again. `locked` blocks overrides in descendant tenants;
+   * `false` clears a lock that this tenant set. `sensitive` stores the value
+   * encrypted.
+   */
   const setConfigValue = useCallback(
-    async (key: string, value: unknown, locked = false) => {
+    async (key: string, value: unknown, locked = false, sensitive = false) => {
       if (!tenant) return;
       await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/config/${encodeURIComponent(key)}`, {
         method: "PUT",
-        body: JSON.stringify({ value, locked }),
+        body: JSON.stringify({ value, locked, ...(sensitive ? { sensitive: true } : {}) }),
       });
       await fetchConfig();
     },

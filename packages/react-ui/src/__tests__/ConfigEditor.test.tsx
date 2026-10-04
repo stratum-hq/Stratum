@@ -168,14 +168,17 @@ describe("ConfigEditor with a masked sensitive value", () => {
 });
 
 /** Returns an apiCall mock that knows the config and ancestors routes and records each PUT. */
-function routedApiCall(ancestors: unknown = [{ id: "tenant-parent-1", name: "Parent Org", slug: "parent-org", depth: 0 }]) {
+function routedApiCall(
+  ancestors: unknown = [{ id: "tenant-parent-1", name: "Parent Org", slug: "parent-org", depth: 0 }],
+  configResponse: unknown = mockConfigResponse,
+) {
   return vi.fn(async (path: string, options?: RequestInit) => {
     if (options?.method && options.method !== "GET") return {};
     if (path.endsWith("/ancestors")) {
       if (ancestors instanceof Error) throw ancestors;
       return ancestors;
     }
-    if (path.endsWith("/config")) return mockConfigResponse;
+    if (path.endsWith("/config")) return configResponse;
     return {};
   });
 }
@@ -305,5 +308,95 @@ describe("ConfigEditor narrow layout", () => {
     const row = await rowFor(container, "feature_flag");
     const labels = Array.from(row.querySelectorAll("td")).map((td) => td.getAttribute("data-label"));
     expect(labels).toEqual(["Key", "Value", "Source", "Status", "Actions"]);
+  });
+});
+
+describe("ConfigEditor lock", () => {
+  const lockResponse = {
+    ...mockConfigResponse,
+    region: { value: "eu", source_tenant_id: "tenant-1", inherited: false, locked: true },
+    api_key: { value: "s3cret", source_tenant_id: "tenant-1", inherited: false, locked: false, sensitive: true },
+    theme: { value: "dark", source_tenant_id: "tenant-parent-1", inherited: true, locked: false },
+  };
+
+  function renderLock() {
+    const apiCall = routedApiCall(undefined, lockResponse);
+    const { container } = renderRouted(apiCall);
+    return { apiCall, container };
+  }
+
+  it("locks a key that the current tenant owns", async () => {
+    const { apiCall, container } = renderLock();
+    const row = await rowFor(container, "feature_flag");
+    fireEvent.click(within(row).getByRole("button", { name: "Lock" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0]).toEqual({
+      path: "/api/v1/tenants/tenant-1/config/feature_flag",
+      body: { value: true, locked: true },
+    });
+  });
+
+  it("unlocks a key that the current tenant locked", async () => {
+    const { apiCall, container } = renderLock();
+    const row = await rowFor(container, "region");
+    expect(row.textContent).not.toContain("Locked by");
+    fireEvent.click(within(row).getByRole("button", { name: "Unlock" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0]).toEqual({
+      path: "/api/v1/tenants/tenant-1/config/region",
+      body: { value: "eu", locked: false },
+    });
+  });
+
+  it("keeps the lock when the current tenant edits a key it locked", async () => {
+    const { apiCall, container } = renderLock();
+    const row = await rowFor(container, "region");
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(row).getByRole("textbox", { name: "Edit region" }), { target: { value: "\"us\"" } });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: "us", locked: true });
+  });
+
+  it("keeps a sensitive key sensitive when it locks the key", async () => {
+    const { apiCall, container } = renderLock();
+    const row = await rowFor(container, "api_key");
+    fireEvent.click(within(row).getByRole("button", { name: "Lock" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: "s3cret", locked: true, sensitive: true });
+  });
+
+  it("shows no lock control and no edit on a key that an ancestor locked", async () => {
+    const { container } = renderLock();
+    const row = await rowFor(container, "max_users");
+    await waitFor(() => expect(row.textContent).toContain("Locked by Parent Org"));
+    expect(within(row).queryByRole("button")).toBeNull();
+  });
+
+  it("shows no lock control on a key that the current tenant inherits", async () => {
+    const { container } = renderLock();
+    const row = await rowFor(container, "theme");
+    expect(within(row).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /lock/i })).toBeNull();
+  });
+
+  it("adds a key locked for descendants when the user selects the lock option", async () => {
+    const { apiCall, container } = renderLock();
+    await rowFor(container, "feature_flag");
+    fireEvent.change(within(container).getByRole("textbox", { name: "New key" }), { target: { value: "tier" } });
+    fireEvent.change(within(container).getByRole("textbox", { name: "New value" }), { target: { value: "\"gold\"" } });
+    const lockOption = within(container).getByRole("checkbox", { name: "Lock for descendants" });
+    expect(lockOption).not.toBeChecked();
+    fireEvent.click(lockOption);
+    fireEvent.click(within(container).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0]).toEqual({
+      path: "/api/v1/tenants/tenant-1/config/tier",
+      body: { value: "gold", locked: true },
+    });
+    // The reload replaces the form, so read the checkbox again.
+    await waitFor(() =>
+      expect(within(container).getByRole("checkbox", { name: "Lock for descendants" })).not.toBeChecked(),
+    );
   });
 });
