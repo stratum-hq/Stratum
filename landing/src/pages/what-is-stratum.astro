@@ -101,13 +101,13 @@ import RockTable from '../components/RockTable.astro';
         Set a value on the root tenant and every child inherits it automatically.
         Lock a key so children can't override it. Override it at any level when needed.
       </p>
-      <div class="wis-diagram">
-<pre>
-root: <span class="tree-root">max_users = 1000</span>        <span class="tree-meta">&larr; set once</span>
-  &boxvr;&boxh; child-a: <span class="tree-mid">inherits 1000</span>    <span class="tree-meta">&larr; automatic</span>
-  &boxur;&boxh; child-b: <span class="tree-leaf">max_users = 500</span>  <span class="tree-meta">&larr; override</span>
-
-root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta">&larr; children cannot change</span></pre>
+      <!-- The homepage config rows (.icfg): the inherited value is vein, the
+           locked key is magma. The child rows indent under the root. -->
+      <div class="inherit-config wis-config">
+        <div class="icfg"><span class="ikey">root: max_users = 1000</span><span class="itag">&larr; set once</span></div>
+        <div class="icfg icfg-resolved wis-cfg-child"><span class="ikey">&boxvr;&boxh; child-a: <span class="ival">inherits 1000</span></span><span class="itag">&larr; automatic</span></div>
+        <div class="icfg wis-cfg-child"><span class="ikey">&boxur;&boxh; child-b: max_users = 500</span><span class="itag">&larr; override</span></div>
+        <div class="icfg icfg-locked"><span class="ikey">root: <span class="accent">region = "eu" (locked)</span></span><span class="itag">&larr; children cannot change</span></div>
       </div>
     </div>
 
@@ -432,19 +432,24 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
     grid-column: 1 / -1;
   }
 
-  .wis-diagram {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    padding: var(--space-4);
-    overflow-x: auto;
+  /* The config rows reuse .icfg from global.css without its 3px left border:
+     the tint and the vein or magma text carry the state. */
+  .wis-config {
+    font-family: var(--font-mono);
   }
 
-  .wis-diagram pre {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    line-height: 1.6;
-    margin: 0;
-    color: var(--text-secondary);
+  .wis-config .icfg {
+    border-left: 0;
+  }
+
+  .wis-cfg-child {
+    margin-left: 28px;
+  }
+
+  @media (max-width: 480px) {
+    .wis-cfg-child {
+      margin-left: 14px;
+    }
   }
 
   .wis-tree,
