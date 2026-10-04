@@ -27,6 +27,7 @@ const mockTenant = {
 
 const mockPermissionsResponse = {
   "can_export": {
+    policy_id: "policy-export-1",
     key: "can_export",
     value: true,
     mode: "INHERITED",
@@ -37,6 +38,7 @@ const mockPermissionsResponse = {
     revocation_mode: "CASCADE",
   },
   "can_delete": {
+    policy_id: "policy-delete-1",
     key: "can_delete",
     value: false,
     mode: "LOCKED",
@@ -133,5 +135,53 @@ describe("PermissionEditor", () => {
     fireEvent.change(keyInput, { target: { value: "can_read" } });
     const addButton = within(container).getByRole("button", { name: /add/i });
     expect(addButton).not.toBeDisabled();
+  });
+});
+
+describe("PermissionEditor remove", () => {
+  /** Answers the permission list and records every mutation. */
+  async function renderEditor() {
+    const apiCall = vi.fn(async (_path: string, options?: RequestInit) =>
+      (options?.method ?? "GET") === "GET" ? mockPermissionsResponse : {},
+    );
+    const value: StratumContextValue = {
+      ...mockContextValue,
+      apiCall: apiCall as unknown as StratumContextValue["apiCall"],
+      messages: {},
+    };
+    const view = render(
+      <StratumContext.Provider value={value}>
+        <PermissionEditor />
+      </StratumContext.Provider>,
+    );
+    await waitFor(() => expect(view.getByText("can_export")).toBeInTheDocument());
+    const deleteCalls = () => apiCall.mock.calls.filter(([, options]) => options?.method === "DELETE");
+    return { ...view, deleteCalls };
+  }
+
+  it("asks for confirmation and sends no request on the first click", async () => {
+    const { getByRole, getByText, deleteCalls } = await renderEditor();
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    expect(getByText("Remove can_export?")).toBeInTheDocument();
+    expect(deleteCalls()).toHaveLength(0);
+  });
+
+  it("sends the policy ID of the row, not the source tenant ID, after the confirmation", async () => {
+    const { getByRole, deleteCalls } = await renderEditor();
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    fireEvent.click(getByRole("button", { name: "Yes, remove" }));
+    await waitFor(() => expect(deleteCalls()).toHaveLength(1));
+    expect(deleteCalls()[0][0]).toBe("/api/v1/tenants/tenant-1/permissions/policy-export-1");
+  });
+
+  it("keeps the permission and returns focus to Remove when the user selects Keep", async () => {
+    const { getByRole, queryByText, deleteCalls } = await renderEditor();
+    fireEvent.click(getByRole("button", { name: "Remove" }));
+    const keep = getByRole("button", { name: "Keep" });
+    expect(keep).toHaveFocus();
+    fireEvent.click(keep);
+    expect(queryByText("Remove can_export?")).toBeNull();
+    expect(getByRole("button", { name: "Remove" })).toHaveFocus();
+    expect(deleteCalls()).toHaveLength(0);
   });
 });
