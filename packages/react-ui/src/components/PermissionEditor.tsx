@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { usePermissions } from "../hooks/use-permissions.js";
+import { usePermissions, type PermissionWithSource } from "../hooks/use-permissions.js";
 import { useMessages } from "../hooks/use-messages.js";
+import { useTenant } from "../hooks/use-tenant.js";
 import { useStratum } from "../provider.js";
 import { ConfirmAction } from "./ConfirmAction.js";
 import { TableSkeleton } from "./TableSkeleton.js";
@@ -12,8 +13,19 @@ export interface PermissionEditorProps {
 const MODES = ["LOCKED", "INHERITED", "DELEGATED"] as const;
 const REVOCATION_MODES = ["CASCADE", "SOFT", "PERMANENT"] as const;
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** The source tenant's name, or a short ID when the name could not be loaded. */
+function sourceLabel(perm: PermissionWithSource): string {
+  return perm.source_tenant_name ?? `${perm.source_tenant_id.slice(0, 8)}…`;
+}
+
 export function PermissionEditor({ className }: PermissionEditorProps) {
   const { permissions, loading, error, createPermission, deletePermission } = usePermissions();
+  // The API deletes only the current tenant's own policies, so Remove shows only on those rows.
+  const { tenant } = useTenant();
   const { toast } = useStratum();
   const { t } = useMessages();
   const [newKey, setNewKey] = useState("");
@@ -38,7 +50,7 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
       setNewMode("INHERITED");
       setNewRevocationMode("CASCADE");
     } catch (err) {
-      toast.error(`Failed to add permission "${newKey}": ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("permissionEditor.addFailed", { key: newKey }), errorText(err));
     }
   };
 
@@ -47,7 +59,7 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
       await deletePermission(policyId);
       toast.success(`Permission "${key}" removed`);
     } catch (err) {
-      toast.error(`Failed to remove permission "${key}": ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("permissionEditor.removeFailed", { key }), errorText(err));
     }
   };
 
@@ -75,15 +87,19 @@ export function PermissionEditor({ className }: PermissionEditorProps) {
                     {perm.mode}
                   </span>
                 </td>
-                <td className="stratum-permission-editor__source">
-                  {perm.source_tenant_id.slice(0, 8)}...
+                <td className="stratum-permission-editor__source" title={perm.source_tenant_id}>
+                  {sourceLabel(perm)}
                 </td>
                 <td>
                   {perm.locked && <span className="stratum-badge stratum-badge--locked">{t("permissionEditor.locked")}</span>}
                   {perm.delegated && <span className="stratum-badge stratum-badge--delegated">{t("permissionEditor.delegated")}</span>}
                 </td>
                 <td>
-                  {!perm.locked && (
+                  {perm.source_tenant_id !== tenant?.id ? (
+                    <span className="stratum-permission-editor__set-by">
+                      {t("permissionEditor.setBy", { tenant: sourceLabel(perm) })}
+                    </span>
+                  ) : !perm.locked && (
                     <ConfirmAction
                       label={t("permissionEditor.removeButton")}
                       prompt={t("permissionEditor.removePrompt", { key: perm.key })}
