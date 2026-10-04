@@ -64,3 +64,6 @@ assets/brand/Stratum Design System * Strata/
 # Impeccable: per-developer config and live-mode scratch
 .impeccable/config.local.json
 .impeccable/live/
+
+# Playwright MCP browser session output (screenshots, snapshots)
+.playwright-mcp/
