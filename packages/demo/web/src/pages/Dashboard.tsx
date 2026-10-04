@@ -12,7 +12,7 @@ import type { TenantTreeNode } from "@stratum-hq/react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type TenantSummary = NonNullable<ReturnType<typeof useTenant>["tenant"]>;
+type TenantRecord = NonNullable<ReturnType<typeof useTenant>["tenant"]>;
 
 // Loose shapes for the untyped context payload.
 type ContextConfigEntry = { value: unknown; locked?: boolean; inherited?: boolean };
@@ -218,7 +218,7 @@ function useSummaryCounts(tenantId: string): SummaryCounts | null {
   return counts;
 }
 
-function TenantContextTable({ tenant }: { tenant: TenantSummary }) {
+function TenantContextTable({ tenant }: { tenant: TenantRecord }) {
   const rows: [string, string, boolean][] = [
     ["Name", tenant.name, false],
     ["ID", tenant.id, true],
@@ -250,7 +250,7 @@ function TenantContextTable({ tenant }: { tenant: TenantSummary }) {
   );
 }
 
-function OverviewTab({ tenant, onOpenTab }: { tenant: TenantSummary; onOpenTab: (tab: TabId) => void }) {
+function OverviewTab({ tenant, onOpenTab }: { tenant: TenantRecord; onOpenTab: (tab: TabId) => void }) {
   const counts = useSummaryCounts(tenant.id);
 
   // A figure of undefined means that count did not load.
@@ -643,7 +643,7 @@ interface ResolvedContext {
  * the Close button and a click on the backdrop call onClose. The caller moves
  * focus back to the control that opened it.
  */
-function ResolvedContextDialog({ tenant, onClose }: { tenant: TenantSummary; onClose: () => void }) {
+function ResolvedContextDialog({ tenant, onClose }: { tenant: TenantRecord; onClose: () => void }) {
   const { apiCall } = useStratum();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -785,7 +785,7 @@ function ResolvedContextDialog({ tenant, onClose }: { tenant: TenantSummary; onC
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
-function TabPanel({ tab, tenant, onOpenTab }: { tab: TabId; tenant: TenantSummary; onOpenTab: (tab: TabId) => void }) {
+function TabPanel({ tab, tenant, onOpenTab }: { tab: TabId; tenant: TenantRecord; onOpenTab: (tab: TabId) => void }) {
   switch (tab) {
     case "overview":
       return <OverviewTab tenant={tenant} onOpenTab={onOpenTab} />;
