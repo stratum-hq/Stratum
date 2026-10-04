@@ -136,6 +136,47 @@ export async function resolveConfig(
 }
 
 /**
+ * Load which of `keys` are marked sensitive, inside the write's transaction:
+ * by an ancestor of the tenant (archived ancestors included), or by the
+ * tenant's own stored entry.
+ */
+async function loadSensitiveKeys(
+  client: pg.PoolClient,
+  tenantId: string,
+  ancestorIds: string[],
+  keys: string[],
+): Promise<{ byAncestor: Set<string>; own: Set<string> }> {
+  const byAncestor = new Set<string>();
+  const own = new Set<string>();
+  if (keys.length === 0) return { byAncestor, own };
+  const res = await client.query<{ tenant_id: string; key: string }>(
+    `SELECT ce.tenant_id, ce.key FROM config_entries ce
+     WHERE ce.tenant_id = ANY($1)
+       AND ce.key = ANY($2)
+       AND ce.sensitive = true`,
+    [[...ancestorIds, tenantId], keys],
+  );
+  for (const row of res.rows) {
+    (row.tenant_id === tenantId ? own : byAncestor).add(row.key);
+  }
+  return { byAncestor, own };
+}
+
+/**
+ * The sensitive flag a write stores. A key that an ancestor marked sensitive
+ * stays sensitive whatever the write asks. A key the tenant itself marked
+ * sensitive stays sensitive unless the write passes `sensitive: false`.
+ */
+function effectiveSensitive(
+  key: string,
+  requested: boolean | undefined,
+  sensitiveKeys: { byAncestor: Set<string>; own: Set<string> },
+): boolean {
+  if (sensitiveKeys.byAncestor.has(key)) return true;
+  return requested ?? sensitiveKeys.own.has(key);
+}
+
+/**
  * Set (upsert) a config key for a tenant.
  * Rejects if the key is locked by an ancestor.
  */
@@ -167,7 +208,8 @@ export async function setConfig(
       }
     }
 
-    const sensitive = input.sensitive ?? false;
+    const sensitiveKeys = await loadSensitiveKeys(client, tenantId, ancestorIds, [key]);
+    const sensitive = effectiveSensitive(key, input.sensitive, sensitiveKeys);
     const storedValue = sensitive
       ? JSON.stringify(encrypt(JSON.stringify(input.value)))
       : JSON.stringify(input.value);
@@ -279,11 +321,12 @@ export async function batchSetConfig(
       };
     }
 
+    const sensitiveKeys = await loadSensitiveKeys(client, tenantId, ancestorIds, keys);
     const results: BatchSetConfigKeyResult[] = [];
     let succeeded = 0;
 
     for (const entry of entries) {
-      const sensitive = entry.sensitive ?? false;
+      const sensitive = effectiveSensitive(entry.key, entry.sensitive, sensitiveKeys);
       const storedValue = sensitive
         ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
         : JSON.stringify(entry.value);

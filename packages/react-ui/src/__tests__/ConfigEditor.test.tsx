@@ -302,6 +302,62 @@ describe("ConfigEditor add", () => {
   });
 });
 
+describe("ConfigEditor override of an inherited sensitive key", () => {
+  const sensitiveResponse = {
+    ...mockConfigResponse,
+    api_secret: {
+      key: "api_secret",
+      value: null,
+      source_tenant_id: "tenant-parent-1",
+      inherited: true,
+      locked: false,
+      sensitive: true,
+      masked: true,
+    },
+  };
+
+  it("sends sensitive: true when it overrides an inherited sensitive value", async () => {
+    const apiCall = routedApiCall(undefined, sensitiveResponse);
+    const { container } = renderRouted(apiCall);
+    const row = await rowFor(container, "api_secret");
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(row).getByRole("textbox", { name: "Edit api_secret" }), {
+      target: { value: "\"child-value\"" },
+    });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0]).toEqual({
+      path: "/api/v1/tenants/tenant-1/config/api_secret",
+      body: { value: "child-value", locked: false, sensitive: true },
+    });
+  });
+
+  it("sends sensitive: true when the add row names an inherited sensitive key", async () => {
+    const apiCall = routedApiCall(undefined, sensitiveResponse);
+    const { container } = renderRouted(apiCall);
+    await rowFor(container, "api_secret");
+    fireEvent.change(within(container).getByRole("textbox", { name: "New key" }), { target: { value: "api_secret" } });
+    fireEvent.change(within(container).getByRole("textbox", { name: "New value" }), { target: { value: "\"x\"" } });
+    fireEvent.click(within(container).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: "x", locked: false, sensitive: true });
+  });
+
+  it("sends no sensitive flag when it overrides an inherited value that is not sensitive", async () => {
+    const apiCall = routedApiCall(undefined, {
+      ...sensitiveResponse,
+      theme: { value: "dark", source_tenant_id: "tenant-parent-1", inherited: true, locked: false },
+    });
+    const { container } = renderRouted(apiCall);
+    const row = await rowFor(container, "theme");
+    fireEvent.click(within(row).getByRole("button", { name: "Edit" }));
+    fireEvent.change(within(row).getByRole("textbox", { name: "Edit theme" }), { target: { value: "\"light\"" } });
+    fireEvent.click(within(row).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(putBodies(apiCall)).toHaveLength(1));
+    expect(putBodies(apiCall)[0].body).toEqual({ value: "light", locked: false });
+  });
+});
+
 describe("ConfigEditor narrow layout", () => {
   it("labels each cell with its column name so a stacked card stays readable", async () => {
     const { container } = renderRouted(routedApiCall());

@@ -477,7 +477,7 @@ export class Stratum {
       if (audit) {
         await auditService.createAuditEntry(
           this.pool, audit, "config.updated", "config", key, tenantId,
-          null, (input.sensitive ? { ...input, value: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
+          null, (entry.sensitive ? { ...input, sensitive: true, value: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
         );
       }
       return entry;
