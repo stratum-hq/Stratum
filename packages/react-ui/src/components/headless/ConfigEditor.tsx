@@ -4,7 +4,7 @@ export interface HeadlessConfigEditorAPI {
   config: ConfigWithInheritance[];
   loading: boolean;
   error: Error | null;
-  setConfigValue: (key: string, value: unknown, locked?: boolean) => Promise<void>;
+  setConfigValue: (key: string, value: unknown, locked?: boolean, sensitive?: boolean) => Promise<void>;
   deleteConfigValue: (key: string) => Promise<void>;
   refresh: () => Promise<void>;
 }

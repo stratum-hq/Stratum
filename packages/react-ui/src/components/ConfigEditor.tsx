@@ -28,6 +28,11 @@ function sourceLabel(entry: ConfigWithInheritance): string {
   return entry.source_tenant_name ?? `${entry.source_tenant_id.slice(0, 8)}…`;
 }
 
+/** True when an ancestor locked the key, so the current tenant cannot write it. */
+function lockedByAncestor(entry: ConfigWithInheritance): boolean {
+  return entry.locked && entry.inherited;
+}
+
 export function ConfigEditor({ className }: ConfigEditorProps) {
   const { config, loading, error, setConfigValue, deleteConfigValue } = useConfig();
   const { toast } = useStratum();
@@ -38,6 +43,7 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newInvalid, setNewInvalid] = useState(false);
+  const [newLocked, setNewLocked] = useState(false);
   const errorId = useId();
   const editButtons = useRef(new Map<string, HTMLButtonElement>());
   // The Edit button to focus after an edit is cancelled, so keyboard focus is not lost.
@@ -73,19 +79,33 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
 
   // Text that is not JSON is saved only when the user asks for a string,
   // because a typo in JSON would otherwise change the value's type silently.
-  const handleSave = async (key: string, asString = false) => {
+  const handleSave = async (entry: ConfigWithInheritance, asString = false) => {
+    const { key } = entry;
     const parsed: ParsedValue = asString ? { ok: true, value: editValue } : parseJson(editValue);
     if (!parsed.ok) {
       setEditInvalid(true);
       return;
     }
     try {
-      await setConfigValue(key, parsed.value);
+      // A save keeps the lock and the sensitive flag of a key this tenant owns.
+      // An override of an inherited key starts unlocked.
+      if (entry.inherited) await setConfigValue(entry.key, parsed.value);
+      else await setConfigValue(entry.key, parsed.value, entry.locked, entry.sensitive ?? false);
       setEditingKey(null);
       setEditInvalid(false);
       toast.success(`Config "${key}" saved successfully`);
     } catch (err) {
       toast.error(t("configEditor.saveFailed", { key }), errorText(err));
+    }
+  };
+
+  const handleToggleLock = async (entry: ConfigWithInheritance) => {
+    const locked = !entry.locked;
+    try {
+      await setConfigValue(entry.key, entry.value, locked, entry.sensitive ?? false);
+      toast.success(`Config "${entry.key}" ${locked ? "locked" : "unlocked"}`);
+    } catch (err) {
+      toast.error(t("configEditor.lockFailed", { key: entry.key }), errorText(err));
     }
   };
 
@@ -106,10 +126,11 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
       return;
     }
     try {
-      await setConfigValue(newKey, parsed.value);
+      await setConfigValue(newKey, parsed.value, newLocked);
       toast.success(`Config "${newKey}" added`);
       setNewKey("");
       setNewValue("");
+      setNewLocked(false);
       setNewInvalid(false);
     } catch (err) {
       toast.error(t("configEditor.addFailed", { key: newKey }), errorText(err));
@@ -162,14 +183,14 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                           setEditInvalid(false);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSave(entry.key);
+                          if (e.key === "Enter") handleSave(entry);
                           else if (e.key === "Escape") cancelEdit(entry.key);
                         }}
                         aria-label={t("configEditor.editLabel", { key: entry.key })}
                         aria-invalid={editInvalid || undefined}
                         aria-describedby={editInvalid ? editErrorId : undefined}
                       />
-                      {editInvalid && invalidJsonMessage(editErrorId, () => handleSave(entry.key, true))}
+                      {editInvalid && invalidJsonMessage(editErrorId, () => handleSave(entry, true))}
                     </>
                   ) : entry.masked ? (
                     <span className="stratum-config-editor__masked">{t("configEditor.masked")}</span>
@@ -195,13 +216,13 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                   )}
                 </td>
                 <td role="cell" data-label={columns.actions} className="stratum-config-editor__actions">
-                  {entry.locked ? (
+                  {lockedByAncestor(entry) ? (
                     <span className="stratum-config-editor__locked-by">
                       {t("configEditor.lockedBy", { tenant: sourceLabel(entry) })}
                     </span>
                   ) : editingKey === entry.key ? (
                     <>
-                      <button type="button" onClick={() => handleSave(entry.key)}>{t("configEditor.saveButton")}</button>
+                      <button type="button" onClick={() => handleSave(entry)}>{t("configEditor.saveButton")}</button>
                       <button type="button" onClick={() => cancelEdit(entry.key)}>{t("configEditor.cancelButton")}</button>
                     </>
                   ) : (
@@ -216,6 +237,11 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
                       >
                         {t("configEditor.editButton")}
                       </button>
+                      {!entry.inherited && (
+                        <button type="button" onClick={() => handleToggleLock(entry)}>
+                          {entry.locked ? t("configEditor.unlockButton") : t("configEditor.lockButton")}
+                        </button>
+                      )}
                       {!entry.inherited && (
                         <ConfirmAction
                           label={t("configEditor.removeButton")}
@@ -254,6 +280,14 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
           aria-invalid={newInvalid || undefined}
           aria-describedby={newInvalid ? addErrorId : undefined}
         />
+        <label className="stratum-config-editor__lock-option">
+          <input
+            type="checkbox"
+            checked={newLocked}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLocked(e.target.checked)}
+          />
+          {t("configEditor.lockNewLabel")}
+        </label>
         <button type="button" onClick={() => handleAdd()} disabled={!newKey}>
           {t("configEditor.addButton")}
         </button>

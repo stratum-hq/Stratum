@@ -575,6 +575,22 @@
     min-width: 0;
   }
 
+  /* The lock option of the add row: a checkbox and its label, not a text field. */
+  .stratum-config-editor__lock-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--stratum-space-1);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-config-editor__add .stratum-config-editor__lock-option input {
+    flex: none;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--stratum-lock);
+  }
+
   /* The reason a row has no Remove action: a lock, or a policy that an ancestor set. */
   .stratum-config-editor__locked-by,
   .stratum-permission-editor__set-by {
