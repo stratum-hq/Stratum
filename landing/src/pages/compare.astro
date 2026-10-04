@@ -35,13 +35,10 @@ import RockTable from '../components/RockTable.astro';
       <p>
         On day one, rolling your own looks correct. A <code>tenant_id</code> column is simple,
         understood by every developer on your team, and requires no dependencies. You're not
-        over-engineering. Good instinct.
+        over-engineering.
       </p>
       <p>
-        The issue isn't day one. It's month 18.
-      </p>
-      <p>
-        By month 18, your hand-rolled solution has accumulated: a config table with no inheritance
+        The cost comes later. As the product grows, a hand-rolled solution tends to accumulate: a config table with no inheritance
         model, audit logging added retroactively and missing half the mutation points, no isolation
         options beyond the shared schema you started with, and GDPR compliance that lives in a
         Notion doc but not in code. When an enterprise customer demands a separate database for their
@@ -49,7 +46,7 @@ import RockTable from '../components/RockTable.astro';
         you create the tenant, so that customer can start on a database of its own.
       </p>
       <p>
-        Stratum gives you month-18 features on day one. Not because you need them all immediately,
+        Stratum puts that structure in place from the start. Not because you need every piece immediately,
         but because the architecture is already in place when you do.
       </p>
     </div>
@@ -58,14 +55,14 @@ import RockTable from '../components/RockTable.astro';
       label="Stratum vs rolling your own"
       columns={["Capability", "Rolling your own", "Stratum"]}
       rows={[
-        { feat: "Setup time", cells: [["neutral", "1-2 days"], ["good", "5 minutes"]] },
+        { feat: "Setup", cells: [["neutral", "A column and a filter on every query"], ["good", "npm install and initialize()"]] },
         { feat: "Tenant hierarchy", cells: [["bad", "Build it yourself (weeks)"], ["good", "Built-in (ltree)"]] },
         { feat: "Config inheritance", cells: [["bad", "Build it yourself"], ["good", "Built-in, root-to-leaf"]] },
         { feat: "Isolation strategies", cells: [["neutral", "Manual RLS only"], ["good", "RLS, schema, database · per tenant"]] },
         { feat: "Audit logging", cells: [["bad", "Bolt on later"], ["good", "Every mutation, actor-attributed"]] },
         { feat: "GDPR (Art. 17 + 20)", cells: [["bad", "Build it yourself"], ["good", "Export + purge, built-in"]] },
         { feat: "Field encryption", cells: [["bad", "Build it yourself"], ["good", "AES-256-GCM, transparent"]] },
-        { feat: "Month-18 cost", cells: [["bad", "3+ months engineering"], ["good", "Already done"]] },
+        { feat: "Later cost", cells: [["bad", "Engineering time for each piece"], ["good", "Included in the library"]] },
       ]}
     />
   </section>
@@ -127,8 +124,8 @@ import RockTable from '../components/RockTable.astro';
     <div class="cmp-section-header">
       <h2>Stratum vs ABP Framework</h2>
       <p class="cmp-section-intro">
-        ABP is the gold standard for multi-tenancy in the .NET ecosystem. Stratum is the
-        equivalent for Node.js, the library that should have existed years ago.
+        ABP is the gold standard for multi-tenancy in the .NET ecosystem. Stratum fills the
+        same role for Node.js.
       </p>
     </div>
 
@@ -348,7 +345,7 @@ import RockTable from '../components/RockTable.astro';
     <ul class="rock-rows cmp-summary-rows" role="list">
       <li class="rock-row cmp-summary-row">
         <span class="cmp-summary-label">vs tenant_id</span>
-        <p>The DIY approach works until it doesn't. Stratum gives you the infrastructure you'll need at month 18, from day one.</p>
+        <p>The DIY approach works until it doesn't. Stratum gives you the infrastructure you would otherwise build later.</p>
       </li>
       <li class="rock-row cmp-summary-row">
         <span class="cmp-summary-label">vs WorkOS / Frontegg</span>
@@ -356,7 +353,7 @@ import RockTable from '../components/RockTable.astro';
       </li>
       <li class="rock-row cmp-summary-row">
         <span class="cmp-summary-label">vs ABP Framework</span>
-        <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent, until now.</p>
+        <p>ABP is great for .NET. Stratum fills the same role for Node.js.</p>
       </li>
       <li class="rock-row cmp-summary-row">
         <span class="cmp-summary-label">vs Clerk / Auth0 Orgs</span>
