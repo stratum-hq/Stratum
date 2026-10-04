@@ -17,7 +17,8 @@ const meta: Meta<typeof ConfigEditor> = {
           "Table-based editor for tenant configuration values. " +
           "Displays each key's value, source tenant, and inheritance status " +
           "(Own, Inherited, Locked). Each value shows the name of the tenant that set it. " +
-          "Locked values cannot be edited or deleted, and say which tenant locked them. " +
+          "The current tenant can edit, unlock and remove its own locked keys. " +
+          "Keys locked by an ancestor are read-only and say \"Locked by {tenant}\". " +
           "Remove asks for confirmation, and text that is not valid JSON is saved only on request.",
       },
     },

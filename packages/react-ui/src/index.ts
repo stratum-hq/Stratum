@@ -14,6 +14,7 @@ export type { TenantTreeNode } from "./hooks/use-tenant-tree.js";
 export { useConfig } from "./hooks/use-config.js";
 export type { ConfigWithInheritance } from "./hooks/use-config.js";
 export { usePermissions } from "./hooks/use-permissions.js";
+export type { PermissionWithSource } from "./hooks/use-permissions.js";
 export { useToast } from "./hooks/use-toast.js";
 export type { UseToastReturn } from "./hooks/use-toast.js";
 export { useWebhooks } from "./hooks/use-webhooks.js";

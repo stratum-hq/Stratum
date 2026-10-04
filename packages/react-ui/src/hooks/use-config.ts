@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ResolvedConfigEntry } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 import { useTenant } from "./use-tenant.js";
+import { useAncestorNames } from "./use-ancestor-names.js";
 
 export interface ConfigWithInheritance {
   key: string;
@@ -9,6 +10,8 @@ export interface ConfigWithInheritance {
   source_tenant_id: string;
   inherited: boolean;
   locked: boolean;
+  /** True when the value was set as sensitive. The API stores it encrypted. */
+  sensitive?: boolean;
   /** True when a sensitive value inherited from an ancestor was withheld by the API. */
   masked?: boolean;
   /**
@@ -24,7 +27,7 @@ export function useConfig() {
   const [config, setConfig] = useState<ConfigWithInheritance[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [ancestorNames, setAncestorNames] = useState<Record<string, string>>({});
+  const sourceNames = useAncestorNames();
 
   const fetchConfig = useCallback(async () => {
     if (!tenant) return;
@@ -41,6 +44,7 @@ export function useConfig() {
           source_tenant_id: entry.source_tenant_id,
           inherited: entry.inherited,
           locked: entry.locked,
+          ...(entry.sensitive ? { sensitive: true } : {}),
           ...(entry.masked ? { masked: true } : {}),
         })),
       );
@@ -55,41 +59,29 @@ export function useConfig() {
     fetchConfig();
   }, [fetchConfig]);
 
-  // A value is set by the tenant itself or by one of its ancestors, so one
-  // ancestors request names every source. The route returns name and id even
-  // for ancestors above a tenant-scoped API key.
-  useEffect(() => {
-    setAncestorNames({});
-    if (!tenant) return;
-    let current = true;
-    apiCall<Array<{ id: string; name: string }>>(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/ancestors`)
-      .then((rows) => {
-        if (current && Array.isArray(rows)) {
-          setAncestorNames(Object.fromEntries(rows.map((row) => [row.id, row.name])));
-        }
-      })
-      // A missing name is not an error: the editor shows the tenant ID instead.
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [apiCall, tenant?.id]);
-
   const namedConfig = useMemo(
     () =>
       config.map((entry) => {
-        const name = entry.source_tenant_id === tenant?.id ? tenant?.name : ancestorNames[entry.source_tenant_id];
+        const name = sourceNames[entry.source_tenant_id];
         return name ? { ...entry, source_tenant_name: name } : entry;
       }),
-    [config, ancestorNames, tenant?.id, tenant?.name],
+    [config, sourceNames],
   );
 
+  /**
+   * Writes `value` to `key` on the current tenant, then reloads the config.
+   *
+   * The API replaces the whole entry, so a caller that changes one flag must
+   * send the others again. `locked` blocks overrides in descendant tenants;
+   * `false` clears a lock that this tenant set. `sensitive` stores the value
+   * encrypted.
+   */
   const setConfigValue = useCallback(
-    async (key: string, value: unknown, locked = false) => {
+    async (key: string, value: unknown, locked = false, sensitive = false) => {
       if (!tenant) return;
       await apiCall(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/config/${encodeURIComponent(key)}`, {
         method: "PUT",
-        body: JSON.stringify({ value, locked }),
+        body: JSON.stringify({ value, locked, ...(sensitive ? { sensitive: true } : {}) }),
       });
       await fetchConfig();
     },

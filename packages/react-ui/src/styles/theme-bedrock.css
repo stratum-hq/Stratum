@@ -387,6 +387,19 @@
     box-shadow: var(--stratum-shadow-sunk), inset 0 -3px 0 0 var(--stratum-accent-text);
   }
 
+  /* The field edge above is for text fields. The lock checkbox keeps its own shape and a plain focus ring. */
+  .stratum-config-editor__lock-option input {
+    padding: 0;
+    clip-path: none;
+    box-shadow: none;
+  }
+
+  .stratum-config-editor__lock-option input:focus-visible {
+    box-shadow: none;
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
   /* ============================================================
      Tag: the chip edge, mono, uppercase, glyph plus word.
      ============================================================ */
@@ -503,7 +516,8 @@
   }
 
   .stratum-confirm__prompt,
-  .stratum-config-editor__locked-by {
+  .stratum-config-editor__locked-by,
+  .stratum-permission-editor__set-by {
     font-family: var(--stratum-font-mono);
     font-size: var(--stratum-font-size-sm);
   }

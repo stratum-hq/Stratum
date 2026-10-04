@@ -1,7 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ResolvedPermission } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 import { useTenant } from "./use-tenant.js";
+import { useAncestorNames } from "./use-ancestor-names.js";
+
+export interface PermissionWithSource extends ResolvedPermission {
+  /**
+   * Name of the tenant that set the policy. Absent while the ancestors request
+   * is pending, or when it failed.
+   */
+  source_tenant_name?: string;
+}
 
 export function usePermissions() {
   const { apiCall } = useStratum();
@@ -9,6 +18,7 @@ export function usePermissions() {
   const [permissions, setPermissions] = useState<ResolvedPermission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const sourceNames = useAncestorNames();
 
   const fetchPermissions = useCallback(async () => {
     if (!tenant) return;
@@ -29,6 +39,15 @@ export function usePermissions() {
   useEffect(() => {
     fetchPermissions();
   }, [fetchPermissions]);
+
+  const namedPermissions = useMemo<PermissionWithSource[]>(
+    () =>
+      permissions.map((perm) => {
+        const name = sourceNames[perm.source_tenant_id];
+        return name ? { ...perm, source_tenant_name: name } : perm;
+      }),
+    [permissions, sourceNames],
+  );
 
   const createPermission = useCallback(
     async (key: string, value: unknown, mode: string, revocationMode: string) => {
@@ -53,5 +72,5 @@ export function usePermissions() {
     [apiCall, tenant, fetchPermissions],
   );
 
-  return { permissions, loading, error, refresh: fetchPermissions, createPermission, deletePermission };
+  return { permissions: namedPermissions, loading, error, refresh: fetchPermissions, createPermission, deletePermission };
 }
