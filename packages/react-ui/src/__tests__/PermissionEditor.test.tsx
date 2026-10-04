@@ -48,6 +48,17 @@ const mockPermissionsResponse = {
     delegated: false,
     revocation_mode: "PERMANENT",
   },
+  "can_invite": {
+    policy_id: "policy-invite-1",
+    key: "can_invite",
+    value: true,
+    mode: "INHERITED",
+    source_tenant_id: "tenant-1",
+    inherited: false,
+    locked: false,
+    delegated: false,
+    revocation_mode: "CASCADE",
+  },
 };
 
 const mockApiCall = vi.fn().mockResolvedValue(mockPermissionsResponse);
@@ -154,7 +165,7 @@ describe("PermissionEditor remove", () => {
         <PermissionEditor />
       </StratumContext.Provider>,
     );
-    await waitFor(() => expect(view.getByText("can_export")).toBeInTheDocument());
+    await waitFor(() => expect(view.getByText("can_invite")).toBeInTheDocument());
     const deleteCalls = () => apiCall.mock.calls.filter(([, options]) => options?.method === "DELETE");
     return { ...view, deleteCalls };
   }
@@ -162,7 +173,7 @@ describe("PermissionEditor remove", () => {
   it("asks for confirmation and sends no request on the first click", async () => {
     const { getByRole, getByText, deleteCalls } = await renderEditor();
     fireEvent.click(getByRole("button", { name: "Remove" }));
-    expect(getByText("Remove can_export?")).toBeInTheDocument();
+    expect(getByText("Remove can_invite?")).toBeInTheDocument();
     expect(deleteCalls()).toHaveLength(0);
   });
 
@@ -171,7 +182,7 @@ describe("PermissionEditor remove", () => {
     fireEvent.click(getByRole("button", { name: "Remove" }));
     fireEvent.click(getByRole("button", { name: "Yes, remove" }));
     await waitFor(() => expect(deleteCalls()).toHaveLength(1));
-    expect(deleteCalls()[0][0]).toBe("/api/v1/tenants/tenant-1/permissions/policy-export-1");
+    expect(deleteCalls()[0][0]).toBe("/api/v1/tenants/tenant-1/permissions/policy-invite-1");
   });
 
   it("keeps the permission and returns focus to Remove when the user selects Keep", async () => {
@@ -180,8 +191,111 @@ describe("PermissionEditor remove", () => {
     const keep = getByRole("button", { name: "Keep" });
     expect(keep).toHaveFocus();
     fireEvent.click(keep);
-    expect(queryByText("Remove can_export?")).toBeNull();
+    expect(queryByText("Remove can_invite?")).toBeNull();
     expect(getByRole("button", { name: "Remove" })).toHaveFocus();
     expect(deleteCalls()).toHaveLength(0);
+  });
+});
+
+/** Returns an apiCall mock that knows the permission and ancestors routes and records each mutation. */
+function routedApiCall({
+  ancestors = [{ id: "tenant-parent-1", name: "Parent Org", slug: "parent-org", depth: 0 }] as unknown,
+  mutationError = null as Error | null,
+} = {}) {
+  return vi.fn(async (path: string, options?: RequestInit) => {
+    if (options?.method && options.method !== "GET") {
+      if (mutationError) throw mutationError;
+      return {};
+    }
+    if (path.endsWith("/ancestors")) {
+      if (ancestors instanceof Error) throw ancestors;
+      return ancestors;
+    }
+    if (path.endsWith("/permissions")) return mockPermissionsResponse;
+    return {};
+  });
+}
+
+function renderRouted(apiCall: ReturnType<typeof routedApiCall>) {
+  const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
+  const view = render(
+    <StratumContext.Provider
+      value={{ ...mockContextValue, messages: {}, toast, apiCall: apiCall as unknown as StratumContextValue["apiCall"] }}
+    >
+      <PermissionEditor />
+    </StratumContext.Provider>,
+  );
+  return { ...view, toast };
+}
+
+async function rowFor(container: HTMLElement, key: string) {
+  await waitFor(() => expect(within(container).getByText(key)).toBeInTheDocument());
+  return within(container).getByText(key).closest("tr")!;
+}
+
+describe("PermissionEditor row ownership", () => {
+  it("offers Remove on a policy that the current tenant owns", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const own = await rowFor(container, "can_invite");
+    expect(within(own).getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("offers no Remove on a policy that an ancestor set, and names that ancestor", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const inherited = await rowFor(container, "can_export");
+    expect(within(inherited).queryByRole("button", { name: "Remove" })).toBeNull();
+    await waitFor(() => expect(inherited.textContent).toContain("Set by Parent Org"));
+  });
+
+  it("offers no Remove on a locked policy", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const locked = await rowFor(container, "can_delete");
+    expect(within(locked).queryByRole("button", { name: "Remove" })).toBeNull();
+  });
+});
+
+describe("PermissionEditor source tenant", () => {
+  it("shows the name of the tenant that set each policy instead of its ID", async () => {
+    const { container } = renderRouted(routedApiCall());
+    const inherited = await rowFor(container, "can_export");
+    await waitFor(() =>
+      expect(inherited.querySelector(".stratum-permission-editor__source")!.textContent).toBe("Parent Org"),
+    );
+    const own = await rowFor(container, "can_invite");
+    expect(own.querySelector(".stratum-permission-editor__source")!.textContent).toBe("Acme Corp");
+  });
+
+  it("falls back to a short tenant ID when the ancestors request fails", async () => {
+    const { container } = renderRouted(routedApiCall({ ancestors: new Error("forbidden") }));
+    const inherited = await rowFor(container, "can_export");
+    await waitFor(() =>
+      expect(inherited.querySelector(".stratum-permission-editor__source")!.textContent).toBe("tenant-p…"),
+    );
+    expect(inherited.textContent).toContain("Set by tenant-p…");
+  });
+});
+
+describe("PermissionEditor error toasts", () => {
+  it("states a failed add in plain language and puts the raw message in the detail", async () => {
+    const { container, toast } = renderRouted(routedApiCall({ mutationError: new Error("HTTP 409: conflict") }));
+    await rowFor(container, "can_invite");
+    fireEvent.change(within(container).getByRole("textbox", { name: "New permission key" }), {
+      target: { value: "can_read" },
+    });
+    fireEvent.click(within(container).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith('Could not add "can_read".', "HTTP 409: conflict");
+  });
+
+  it("states a failed remove in plain language and puts the raw message in the detail", async () => {
+    const { container, toast } = renderRouted(routedApiCall({ mutationError: new Error("HTTP 404: not found") }));
+    const own = await rowFor(container, "can_invite");
+    fireEvent.click(within(own).getByRole("button", { name: "Remove" }));
+    fireEvent.click(within(own).getByRole("button", { name: "Yes, remove" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith(
+      'Could not remove "can_invite". The permission is unchanged.',
+      "HTTP 404: not found",
+    );
   });
 });
