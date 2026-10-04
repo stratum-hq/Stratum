@@ -87,4 +87,16 @@ describe("config writes over the API keep the sensitive flag (integration)", () 
     expect(row.sensitive).toBe(true);
     expect(JSON.stringify(row.value)).not.toContain("batch-value");
   });
+
+  it("a batch that names the same key twice returns 400 and writes nothing", async () => {
+    const res = await put(`/api/v1/tenants/${tenantId}/config/batch`, {
+      entries: [
+        { key: "dup_key", value: "a", sensitive: true },
+        { key: "dup_key", value: "b" },
+      ],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("VALIDATION_ERROR");
+    expect(await storedRow("dup_key")).toBeUndefined();
+  });
 });

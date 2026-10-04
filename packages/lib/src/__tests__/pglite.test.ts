@@ -136,6 +136,120 @@ describe("Stratum on PGlite", () => {
     expect(row.rows[0]).toEqual({ value: "third", sensitive: false });
   });
 
+  it("redacts the audit entry when a write that passes sensitive: false is stored sensitive", async () => {
+    const root = await stratum.createTenant({ name: "Audit root", slug: "sa_root" });
+    const child = await stratum.createTenant({ name: "Audit child", slug: "sa_child", parent_id: root.id });
+    await stratum.setConfig(root.id, "api_secret", { value: "root-value", sensitive: true });
+
+    const audit = { actor_id: "pglite-test", actor_type: "system" as const };
+    await stratum.setConfig(child.id, "api_secret", { value: "child-value", sensitive: false }, audit);
+
+    const auditRows = await pool.query<{ after_state: Record<string, unknown> }>(
+      "SELECT after_state FROM audit_logs WHERE tenant_id = $1 AND action = 'config.updated'",
+      [child.id],
+    );
+    expect(auditRows.rows.map((r) => r.after_state)).toEqual([
+      { value: "[REDACTED]", sensitive: true },
+    ]);
+  });
+
+  it("stores a write sensitive when an archived ancestor marks the key sensitive", async () => {
+    const root = await stratum.createTenant({ name: "Archived root", slug: "sx_root" });
+    const mid = await stratum.createTenant({ name: "Archived mid", slug: "sx_mid", parent_id: root.id });
+    const leaf = await stratum.createTenant({ name: "Archived leaf", slug: "sx_leaf", parent_id: mid.id });
+    await stratum.setConfig(mid.id, "api_secret", { value: "mid-value", sensitive: true });
+    // The library does not archive a tenant with active children, so this state is set in SQL.
+    await pool.query("UPDATE tenants SET status = 'archived' WHERE id = $1", [mid.id]);
+
+    await stratum.setConfig(leaf.id, "api_secret", { value: "leaf-value", sensitive: false });
+
+    const row = await pool.query<{ value: unknown; sensitive: boolean }>(
+      "SELECT value, sensitive FROM config_entries WHERE tenant_id = $1 AND key = 'api_secret'",
+      [leaf.id],
+    );
+    expect(row.rows[0].sensitive).toBe(true);
+    expect(JSON.stringify(row.rows[0].value)).not.toContain("leaf-value");
+  });
+
+  it("applies the sensitive flag to existing descendant overrides when an ancestor stores the key as sensitive", async () => {
+    const root = await stratum.createTenant({ name: "Apply root", slug: "sp_root" });
+    const child = await stratum.createTenant({ name: "Apply child", slug: "sp_child", parent_id: root.id });
+    const grandchild = await stratum.createTenant({ name: "Apply grandchild", slug: "sp_gc", parent_id: child.id });
+    const other = await stratum.createTenant({ name: "Apply other", slug: "sp_other" });
+    await stratum.setConfig(child.id, "api_secret", { value: "child-value" });
+    await stratum.setConfig(grandchild.id, "batch_secret", { value: "gc-value" });
+    await stratum.setConfig(other.id, "api_secret", { value: "other-value" });
+
+    const audit = { actor_id: "pglite-test", actor_type: "system" as const };
+    await stratum.setConfig(root.id, "api_secret", { value: "root-value", sensitive: true }, audit);
+    await stratum.batchSetConfig(root.id, [{ key: "batch_secret", value: "root-batch", sensitive: true }], audit);
+
+    const rows = await pool.query<{ tenant_id: string; key: string; value: unknown; sensitive: boolean }>(
+      "SELECT tenant_id, key, value, sensitive FROM config_entries WHERE tenant_id = ANY($1)",
+      [[child.id, grandchild.id, other.id]],
+    );
+    const byTenant = Object.fromEntries(rows.rows.map((r) => [r.tenant_id, r]));
+    expect(byTenant[child.id].sensitive).toBe(true);
+    expect(JSON.stringify(byTenant[child.id].value)).not.toContain("child-value");
+    expect(byTenant[grandchild.id].sensitive).toBe(true);
+    expect(JSON.stringify(byTenant[grandchild.id].value)).not.toContain("gc-value");
+    expect(byTenant[other.id]).toMatchObject({ value: "other-value", sensitive: false });
+
+    expect((await stratum.resolveConfig(child.id)).api_secret).toMatchObject({ value: "child-value", sensitive: true });
+    expect((await stratum.resolveConfig(grandchild.id)).api_secret).toMatchObject({ value: null, masked: true });
+
+    const auditRows = await pool.query<{ after_state: unknown }>(
+      "SELECT after_state FROM audit_logs WHERE tenant_id = $1 AND action = 'config.sensitive_applied'",
+      [root.id],
+    );
+    expect(auditRows.rows.length).toBe(2);
+    const auditText = JSON.stringify(auditRows.rows);
+    expect(auditText).toContain(child.id);
+    expect(auditText).not.toContain("child-value");
+    expect(auditText).not.toContain("gc-value");
+  });
+
+  it("applySensitiveConfigFlags stores existing overrides of ancestor-sensitive keys as sensitive, once", async () => {
+    const root = await stratum.createTenant({ name: "Helper root", slug: "sh_root" });
+    const child = await stratum.createTenant({ name: "Helper child", slug: "sh_child", parent_id: root.id });
+    const grandchild = await stratum.createTenant({ name: "Helper grandchild", slug: "sh_gc", parent_id: child.id });
+    await stratum.setConfig(root.id, "api_secret", { value: "root-value", sensitive: true });
+    // An override stored before the flag was applied to overrides.
+    await pool.query(
+      `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
+       VALUES ($1, 'api_secret', $2, false, false, $1, false), ($3, 'api_secret', $4, false, false, $3, false)`,
+      [child.id, JSON.stringify("child-value"), grandchild.id, JSON.stringify("gc-value")],
+    );
+
+    const first = await stratum.applySensitiveConfigFlags();
+    expect(first).toBeGreaterThanOrEqual(2);
+
+    const rows = await pool.query<{ value: unknown; sensitive: boolean }>(
+      "SELECT value, sensitive FROM config_entries WHERE tenant_id = ANY($1) AND key = 'api_secret'",
+      [[child.id, grandchild.id]],
+    );
+    for (const row of rows.rows) {
+      expect(row.sensitive).toBe(true);
+      expect(JSON.stringify(row.value)).not.toMatch(/child-value|gc-value/);
+    }
+    expect((await stratum.resolveConfig(child.id)).api_secret).toMatchObject({ value: "child-value" });
+    expect((await stratum.resolveConfig(grandchild.id)).api_secret).toMatchObject({ value: "gc-value" });
+
+    expect(await stratum.applySensitiveConfigFlags()).toBe(0);
+  });
+
+  it("rejects a batch that names the same key twice and writes nothing", async () => {
+    const t = await stratum.createTenant({ name: "Dup batch", slug: "sd_dup" });
+    const result = await stratum.batchSetConfig(t.id, [
+      { key: "api_secret", value: "a", sensitive: true },
+      { key: "api_secret", value: "b" },
+    ]);
+    expect(result.rolled_back).toBe(true);
+    expect(result.results[1].error).toContain("'api_secret'");
+    const rows = await pool.query("SELECT 1 FROM config_entries WHERE tenant_id = $1", [t.id]);
+    expect(rows.rows).toHaveLength(0);
+  });
+
   it("resolves inherited permissions and rejects an override of a locked permission", async () => {
     const root = await stratum.createTenant({ name: "Perm root", slug: "p_root" });
     const leaf = await stratum.createTenant({ name: "Perm leaf", slug: "p_leaf", parent_id: root.id });

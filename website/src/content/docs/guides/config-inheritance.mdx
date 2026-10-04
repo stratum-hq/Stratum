@@ -171,8 +171,11 @@ The flag belongs to the key, not to a single write:
 - An override of a key that an ancestor marked sensitive is stored sensitive, even when the write passes `sensitive: false`.
 - A write that leaves out `sensitive` keeps the key's current flag. A new key starts not sensitive.
 - An explicit `sensitive: false` clears a flag that the tenant set itself.
+- When a tenant stores a key as sensitive, the overrides of that key in its descendants are stored sensitive and encrypted in the same transaction.
 
-`batchSetConfig` follows the same rules for each entry.
+`batchSetConfig` follows the same rules for each entry, and rejects a batch that names the same key more than once.
+
+After upgrading from a version that did not apply the flag to overrides, run `stratum.applySensitiveConfigFlags()` once. See [Applying the sensitive flag to existing overrides](/packages/lib/#applying-the-sensitive-flag-to-existing-overrides).
 
 Descendants inherit a sensitive value, but a read of a descendant's config returns it masked:
 

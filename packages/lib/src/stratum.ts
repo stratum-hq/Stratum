@@ -471,7 +471,8 @@ export class Stratum {
   }
   async setConfig(tenantId: string, key: string, input: SetConfigInput, audit?: AuditContext): Promise<ConfigEntry> {
     return traced("config.set", { tenant_id: tenantId, config_key: key }, async (span) => {
-      const entry = await configService.setConfig(this.pool, tenantId, key, input);
+      const applied: configService.AppliedSensitiveFlag[] = [];
+      const entry = await configService.setConfig(this.pool, tenantId, key, input, applied);
       this.logger.info("config set", { tenant_id: tenantId, key });
       this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key, entry }, span);
       if (audit) {
@@ -480,6 +481,7 @@ export class Stratum {
           null, (entry.sensitive ? { ...input, sensitive: true, value: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
         );
       }
+      await this.auditSensitiveApplied(tenantId, key, applied, audit);
       return entry;
     });
   }
@@ -1153,7 +1155,8 @@ export class Stratum {
     audit?: AuditContext,
   ): Promise<BatchSetConfigResult> {
     return traced("config.batch_set", { tenant_id: tenantId, entry_count: entries.length }, async (span) => {
-      const batchResult = await configService.batchSetConfig(this.pool, tenantId, entries);
+      const applied: configService.AppliedSensitiveFlag[] = [];
+      const batchResult = await configService.batchSetConfig(this.pool, tenantId, entries, applied);
       const succeededResults = batchResult.results.filter((r) => r.status === "ok" && r.entry);
       for (const r of succeededResults) {
         this.emitEvent(TenantEvent.CONFIG_UPDATED, tenantId, { key: r.key, entry: r.entry }, span);
@@ -1168,8 +1171,49 @@ export class Stratum {
           } as Record<string, unknown>,
         );
       }
+      if (succeededResults.length > 0) {
+        await this.auditSensitiveApplied(tenantId, succeededResults[0].key, applied, audit);
+      }
       return batchResult;
     });
+  }
+
+  /**
+   * Records which descendant config entries a write stored as sensitive:
+   * tenant IDs and keys only, never values.
+   */
+  private async auditSensitiveApplied(
+    tenantId: string,
+    key: string,
+    applied: configService.AppliedSensitiveFlag[],
+    audit?: AuditContext,
+  ): Promise<void> {
+    if (applied.length === 0) return;
+    this.logger.info("config sensitive flag applied to descendant entries", { tenant_id: tenantId, count: applied.length });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "config.sensitive_applied", "config", key, tenantId,
+        null, { count: applied.length, entries: applied } as unknown as Record<string, unknown>,
+      );
+    }
+  }
+
+  /**
+   * Stores as sensitive, and encrypts, every config entry whose key an
+   * ancestor of its tenant marks sensitive. Run it once after upgrading, to
+   * apply the flag to overrides stored before writes did so. Safe to repeat.
+   * Returns the number of entries changed.
+   */
+  async applySensitiveConfigFlags(audit?: AuditContext): Promise<number> {
+    const updated = await configService.applySensitiveConfigFlags(this.pool);
+    this.logger.info("config sensitive flags applied", { config_entries_updated: updated });
+    if (audit) {
+      await auditService.createAuditEntry(
+        this.pool, audit, "config.sensitive_flags_applied", "system", "config_entries", null,
+        null, { config_entries_updated: updated },
+      );
+    }
+    return updated;
   }
 
   // Encryption key rotation
