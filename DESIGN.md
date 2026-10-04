@@ -204,7 +204,9 @@ styles.
   past depth 4), indented 28px per level, each row overlapping the one above by
   9px, clipped to `--edge-row`. The selected tenant gets a vein bar on the
   straight start edge, a vein lip and an underlined name. A tenant switcher
-  marks its active item in vein too.
+  marks its active item with a raised face, not a color.
+- **Rows with state.** A LOCKED row in a react table is a magma tint plus the
+  LOCKED tag. Rows carry no colored side stripe.
 - **Field.** A sunk face (`--shadow-sunk`) clipped to `--edge-slab`, with a
   fault line under it that turns `--focus` on focus. The error state adds the
   word "Error:".
@@ -229,7 +231,7 @@ a `--rule` hairline, and no focusable element is itself clipped.
   the top few px, so the horizontal scrollbar is never clipped), a mono filename
   tab, and one glowing token. On the docs, a 3px `--rule` left edge continues
   the depth rail and turns vein on hover.
-- **Config rows.** The homepage and `/what-is-stratum` config rows carry their
+- **Config rows.** The homepage, `/what-is-stratum` and docs splash config rows carry their
   state in a tint, a tag and the value color: vein for the resolved value,
   magma for a locked key. They have no side stripe.
 

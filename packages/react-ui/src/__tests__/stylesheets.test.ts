@@ -202,6 +202,12 @@ describe("theme-bedrock.css", () => {
     },
   );
 
+  // A tint or a raised face plus the state word carries a row's state.
+  it("draws no colored stripe on the start edge of a row", () => {
+    const text = stripComments(read("theme-bedrock.css"));
+    expect(text).not.toMatch(/inset\s+[1-9]\d*px\s+0\s+0/);
+  });
+
   it("sorts after the base layer whatever the import order", () => {
     const first = topLevelStatements(read("theme-bedrock.css"))[0];
     expect(first).toBe("@layer stratum.base, stratum.theme");

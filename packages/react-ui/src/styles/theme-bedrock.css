@@ -487,11 +487,6 @@
     letter-spacing: 0.14em;
   }
 
-  .stratum-config-editor__row--locked,
-  .stratum-cascade-row--locked {
-    box-shadow: inset 4px 0 0 var(--stratum-lock);
-  }
-
   /* Save as string is a second choice: a plain chip, not the magma face of Add. */
   .stratum-config-editor__add .stratum-config-editor__field-error button {
     --stratum-btn-face: var(--stratum-surface-3);
@@ -559,9 +554,9 @@
     filter: drop-shadow(0 3px 0 var(--stratum-tree-band-4)) drop-shadow(0 14px 16px var(--stratum-shadow-pool));
   }
 
+  /* The raised face and the base theme's weight mark the active item. */
   .stratum-tenant-switcher__item--active {
     background: var(--stratum-surface-3);
-    box-shadow: inset 4px 0 0 var(--stratum-flow);
   }
 
   /* ============================================================
@@ -720,10 +715,6 @@
     font-family: var(--stratum-font-mono);
     font-size: 0.625rem;
     letter-spacing: 0.14em;
-  }
-
-  .stratum-cascade-row--highlight {
-    box-shadow: inset 4px 0 0 var(--stratum-flow);
   }
 
   /* ============================================================
