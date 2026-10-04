@@ -48,6 +48,8 @@ describe("App tenant drawer", () => {
   it("shows the tenant list without a drawer on a wide screen", () => {
     setViewportWidth(1440);
     const { container } = render(<App />);
+    const tenants = screen.getByRole("complementary", { name: "Tenants" });
+    expect(tenants.closest("[inert]")).toBeNull();
     expect(container.querySelector("#tenant-drawer")).toBeNull();
     expect(screen.queryByRole("button", { name: "Open tenant list" })).toBeNull();
   });
