@@ -33,6 +33,11 @@ function lockedByAncestor(entry: ConfigWithInheritance): boolean {
   return entry.locked && entry.inherited;
 }
 
+/** True when the key is sensitive, so a write to it must keep the flag. */
+function isSensitive(entry: ConfigWithInheritance): boolean {
+  return entry.sensitive === true || entry.masked === true;
+}
+
 export function ConfigEditor({ className }: ConfigEditorProps) {
   const { config, loading, error, setConfigValue, deleteConfigValue } = useConfig();
   const { toast } = useStratum();
@@ -88,8 +93,9 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
     }
     try {
       // A save keeps the lock and the sensitive flag of a key this tenant owns.
-      // An override of an inherited key starts unlocked.
-      if (entry.inherited) await setConfigValue(key, parsed.value);
+      // An override of an inherited key starts unlocked and keeps the key's
+      // sensitive flag.
+      if (entry.inherited) await setConfigValue(key, parsed.value, false, isSensitive(entry));
       else await setConfigValue(key, parsed.value, entry.locked, entry.sensitive ?? false);
       setEditingKey(null);
       setEditInvalid(false);
@@ -126,7 +132,8 @@ export function ConfigEditor({ className }: ConfigEditorProps) {
       return;
     }
     try {
-      await setConfigValue(newKey, parsed.value, newLocked);
+      const existing = config.find((entry) => entry.key === newKey);
+      await setConfigValue(newKey, parsed.value, newLocked, existing ? isSensitive(existing) : false);
       toast.success(`Config "${newKey}" added`);
       setNewKey("");
       setNewValue("");

@@ -99,7 +99,9 @@ PUT /api/v1/tenants/:id/config/:key
 |-------|------|---------|-------------|
 | `value` | any | Required | The config value (string, number, boolean, object, array) |
 | `locked` | boolean | `false` | Prevent descendants from overriding |
-| `sensitive` | boolean | `false` | Encrypt at rest with AES-256-GCM |
+| `sensitive` | boolean | Key's current flag | Encrypt at rest with AES-256-GCM. When omitted, the key keeps its current flag (`false` for a new key). |
+
+A key that an ancestor marked sensitive is always stored sensitive, even when the request sends `sensitive: false`. An explicit `sensitive: false` clears a flag that this tenant set itself. When a key is stored as sensitive, the overrides of that key in the tenant's descendants are stored sensitive too.
 
 Returns `403 CONFIG_LOCKED` if the key is locked by an ancestor.
 
@@ -139,7 +141,7 @@ Sets up to 200 config keys in a single atomic transaction. If any key is locked 
 }
 ```
 
-Each entry in the `entries` array supports the same fields as the single `PUT` endpoint (value, locked, sensitive), plus a `key` field.
+Each entry in the `entries` array supports the same fields as the single `PUT` endpoint (value, locked, sensitive), plus a `key` field. A key may appear only once; a batch that names a key twice returns `400 VALIDATION_ERROR` and writes nothing.
 
 **Limits:**
 

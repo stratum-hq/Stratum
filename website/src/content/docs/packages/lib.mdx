@@ -155,7 +155,8 @@ stratum.batchComputeDrift(parentId, childIds): Promise<BatchDriftResult>
 ```
 
 - `resolveConfig(tenantId, options?)`: a sensitive value inherited from an ancestor comes back masked: `value: null`, `sensitive: true`, `masked: true`, with `source_tenant_id` naming the tenant that set it. A tenant's own sensitive values come back decrypted. Pass `{ revealSensitive: true }` in trusted server code that needs the inherited secret itself, and never send that result to a client. Pass `{ viewerTenantId }` to reveal only the values that tenant set. `getConfigWithInheritance`, `getTenantContext` and `diffConfig` take the same options.
-- `batchSetConfig(tenantId, entries, audit?)`: atomic. If any key is locked by an ancestor or invalid, nothing is written and the result has `rolled_back: true` and `succeeded: 0`. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the rest say they were not applied.
+- `setConfig(tenantId, key, input, audit?)`: an override of a key that an ancestor marked sensitive is stored sensitive whatever `input.sensitive` says. When `input.sensitive` is omitted, the key keeps its current flag; an explicit `false` clears a flag that the tenant set itself. `batchSetConfig` applies the same rules to each entry. When a key is stored as sensitive, the overrides of that key in the tenant's descendants are stored sensitive and encrypted in the same transaction; with `audit`, a `config.sensitive_applied` entry lists their tenant IDs and keys, never their values.
+- `batchSetConfig(tenantId, entries, audit?)`: atomic. If any key is locked by an ancestor, invalid, or named more than once, nothing is written and the result has `rolled_back: true` and `succeeded: 0`. Every result then has status `error`: the keys that caused the rollback carry their own reason, and the rest say they were not applied.
 - `computeDrift(parentId, childId)`: classify each resolved config key on the child against the parent as `ok` / `override` / `missing` / `conflict` (a `conflict` is a child value that diverges from a **locked** parent key), with per-key detail and a rolled-up worst status.
 - `batchComputeDrift(parentId, childIds)`: `computeDrift` fanned out over many children, with a per-status summary count.
 
@@ -377,6 +378,16 @@ interface KeyRotationUnreadableRow {
 A value in `unreadable` stays unchanged, and the run continues. Examine each one before you remove the old key. When some values are unreadable, the run logs the warning `encryption key rotation left unreadable rows`.
 
 If encrypted values exist and none of them decrypts with the old key or the new key, `rotateEncryptionKey` throws a `ValidationError` and changes no row. This result almost always means that the old key or the old salt is wrong.
+
+### Applying the sensitive flag to existing overrides
+
+```typescript
+stratum.applySensitiveConfigFlags(audit?): Promise<number>
+```
+
+`applySensitiveConfigFlags` finds every config entry that is not sensitive while an ancestor of its tenant (archived ancestors included) marks the same key sensitive, and stores it sensitive and encrypted. It returns the number of entries it changed. It works in batches of 100, and each batch commits in its own transaction. A second run changes nothing, so it is safe to run again after a failure.
+
+Writes made with this version already apply the flag to overrides, so run it once after upgrading, to cover overrides stored by an earlier version. With `audit`, it records one `config.sensitive_flags_applied` entry with the count.
 
 ### Usage metering
 

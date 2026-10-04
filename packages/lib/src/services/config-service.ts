@@ -14,6 +14,7 @@ import {
   TenantNotFoundError,
   TenantArchivedError,
   parseAncestryPath,
+  appendToPath,
 } from "@stratum-hq/core";
 import { encrypt, decrypt } from "../crypto.js";
 import { loadActiveTenant } from "./tenant-service.js";
@@ -136,14 +137,103 @@ export async function resolveConfig(
 }
 
 /**
+ * Load which of `keys` are marked sensitive, inside the write's transaction:
+ * by an ancestor of the tenant (archived ancestors included), or by the
+ * tenant's own stored entry.
+ */
+async function loadSensitiveKeys(
+  client: pg.PoolClient,
+  tenantId: string,
+  ancestorIds: string[],
+  keys: string[],
+): Promise<{ byAncestor: Set<string>; own: Set<string> }> {
+  const byAncestor = new Set<string>();
+  const own = new Set<string>();
+  if (keys.length === 0) return { byAncestor, own };
+  const res = await client.query<{ tenant_id: string; key: string }>(
+    `SELECT ce.tenant_id, ce.key FROM config_entries ce
+     WHERE ce.tenant_id = ANY($1)
+       AND ce.key = ANY($2)
+       AND ce.sensitive = true`,
+    [[...ancestorIds, tenantId], keys],
+  );
+  for (const row of res.rows) {
+    (row.tenant_id === tenantId ? own : byAncestor).add(row.key);
+  }
+  return { byAncestor, own };
+}
+
+/**
+ * The sensitive flag a write stores. A key that an ancestor marked sensitive
+ * stays sensitive whatever the write asks. A key the tenant itself marked
+ * sensitive stays sensitive unless the write passes `sensitive: false`.
+ */
+function effectiveSensitive(
+  key: string,
+  requested: boolean | undefined,
+  sensitiveKeys: { byAncestor: Set<string>; own: Set<string> },
+): boolean {
+  if (sensitiveKeys.byAncestor.has(key)) return true;
+  return requested ?? sensitiveKeys.own.has(key);
+}
+
+/** A config entry of a descendant tenant that a write stored as sensitive. */
+export interface AppliedSensitiveFlag {
+  tenant_id: string;
+  key: string;
+}
+
+function encryptStoredValue(value: unknown): string {
+  return JSON.stringify(encrypt(JSON.stringify(value)));
+}
+
+/**
+ * Store as sensitive every entry of `keys` in the subtree below `tenantId`
+ * (archived tenants included) that is not sensitive yet. Runs in the caller's
+ * transaction, and appends each changed entry to `applied`.
+ */
+async function applySensitiveToDescendants(
+  client: pg.PoolClient,
+  tenantId: string,
+  ancestryPath: string,
+  keys: string[],
+  applied: AppliedSensitiveFlag[],
+): Promise<void> {
+  if (keys.length === 0) return;
+  const subtreePath = appendToPath(ancestryPath, tenantId);
+  const res = await client.query<{ id: string; tenant_id: string; key: string; value: unknown }>(
+    `SELECT ce.id, ce.tenant_id, ce.key, ce.value FROM config_entries ce
+     JOIN tenants t ON t.id = ce.tenant_id
+     WHERE (t.ancestry_path = $1 OR t.ancestry_path LIKE $2)
+       AND ce.key = ANY($3)
+       AND ce.sensitive = false
+     ORDER BY ce.id
+     FOR UPDATE OF ce`,
+    [subtreePath, `${subtreePath}/%`, keys],
+  );
+  for (const row of res.rows) {
+    await client.query(
+      `UPDATE config_entries SET value = $2, sensitive = true, updated_at = now() WHERE id = $1`,
+      [row.id, encryptStoredValue(row.value)],
+    );
+    applied.push({ tenant_id: row.tenant_id, key: row.key });
+  }
+}
+
+/**
  * Set (upsert) a config key for a tenant.
  * Rejects if the key is locked by an ancestor.
+ *
+ * When the key is stored as sensitive, the overrides of the key in the
+ * tenant's descendants are stored as sensitive in the same transaction, and
+ * each one is appended to `applied`.
  */
 export async function setConfig(
   pool: pg.Pool,
   tenantId: string,
   key: string,
   input: SetConfigInput,
+  applied: AppliedSensitiveFlag[] = [],
 ): Promise<ConfigEntry> {
   return withTransaction(pool, async (client) => {
     const tenant = await loadActiveTenant(client, tenantId);
@@ -167,10 +257,9 @@ export async function setConfig(
       }
     }
 
-    const sensitive = input.sensitive ?? false;
-    const storedValue = sensitive
-      ? JSON.stringify(encrypt(JSON.stringify(input.value)))
-      : JSON.stringify(input.value);
+    const sensitiveKeys = await loadSensitiveKeys(client, tenantId, ancestorIds, [key]);
+    const sensitive = effectiveSensitive(key, input.sensitive, sensitiveKeys);
+    const storedValue = sensitive ? encryptStoredValue(input.value) : JSON.stringify(input.value);
 
     const res = await client.query<ConfigEntry>(
       `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
@@ -184,6 +273,10 @@ export async function setConfig(
        RETURNING *`,
       [tenantId, key, storedValue, input.locked ?? false, sensitive],
     );
+
+    if (sensitive) {
+      await applySensitiveToDescendants(client, tenantId, tenant.ancestry_path, [key], applied);
+    }
 
     return res.rows[0];
   });
@@ -216,12 +309,16 @@ function invalidBatchEntryReason(entry: BatchSetConfigEntry): string | null {
  * an active ancestor or is invalid, the whole batch is rolled back: nothing is
  * written, `rolled_back` is true, and each result has status "error". The
  * offending keys carry their own reason; the rest name the keys that caused
- * the rollback.
+ * the rollback. A key may appear only once in a batch.
+ *
+ * Keys stored as sensitive are applied to descendant overrides as in
+ * {@link setConfig}.
  */
 export async function batchSetConfig(
   pool: pg.Pool,
   tenantId: string,
   entries: BatchSetConfigEntry[],
+  applied: AppliedSensitiveFlag[] = [],
 ): Promise<BatchSetConfigResult> {
   return withTransaction(pool, async (client) => {
     const tenant = await loadActiveTenant(client, tenantId);
@@ -249,12 +346,18 @@ export async function batchSetConfig(
 
     // Check every entry before writing anything.
     const failures = new Map<number, string>();
+    const seen = new Set<string>();
     entries.forEach((entry, i) => {
       const invalid = invalidBatchEntryReason(entry);
       if (invalid) {
         failures.set(i, invalid);
         return;
       }
+      if (seen.has(entry.key)) {
+        failures.set(i, `Config '${entry.key}' appears more than once in the batch`);
+        return;
+      }
+      seen.add(entry.key);
       const lockerTenantId = lockedKeys.get(entry.key);
       if (lockerTenantId) {
         failures.set(
@@ -279,14 +382,15 @@ export async function batchSetConfig(
       };
     }
 
+    const sensitiveKeys = await loadSensitiveKeys(client, tenantId, ancestorIds, keys);
     const results: BatchSetConfigKeyResult[] = [];
+    const storedSensitive: string[] = [];
     let succeeded = 0;
 
     for (const entry of entries) {
-      const sensitive = entry.sensitive ?? false;
-      const storedValue = sensitive
-        ? JSON.stringify(encrypt(JSON.stringify(entry.value)))
-        : JSON.stringify(entry.value);
+      const sensitive = effectiveSensitive(entry.key, entry.sensitive, sensitiveKeys);
+      const storedValue = sensitive ? encryptStoredValue(entry.value) : JSON.stringify(entry.value);
+      if (sensitive) storedSensitive.push(entry.key);
 
       const res = await client.query<ConfigEntry>(
         `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
@@ -308,8 +412,56 @@ export async function batchSetConfig(
       succeeded++;
     }
 
+    await applySensitiveToDescendants(client, tenantId, tenant.ancestry_path, storedSensitive, applied);
+
     return { results, succeeded, failed: 0, rolled_back: false };
   });
+}
+
+// Lowest possible UUID; a keyset cursor starting here precedes every real row.
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Store as sensitive, and encrypt, every config entry that is not sensitive
+ * while an ancestor of its tenant (archived ancestors included) marks the
+ * same key sensitive. Walks the rows in batches by id; each batch is its own
+ * transaction. Safe to repeat: a second run finds nothing to change.
+ *
+ * Returns the number of entries changed.
+ */
+export async function applySensitiveConfigFlags(pool: pg.Pool, batchSize: number = 100): Promise<number> {
+  let updated = 0;
+  let lastId = ZERO_UUID;
+  while (true) {
+    const count = await withTransaction(pool, async (client) => {
+      const batch = await client.query<{ id: string; value: unknown }>(
+        `SELECT ce.id, ce.value FROM config_entries ce
+         JOIN tenants t ON t.id = ce.tenant_id
+         WHERE ce.sensitive = false
+           AND ce.id > $1
+           AND EXISTS (
+             SELECT 1 FROM config_entries a
+             WHERE a.key = ce.key
+               AND a.sensitive = true
+               AND a.tenant_id::text = ANY(string_to_array(t.ancestry_path, '/'))
+           )
+         ORDER BY ce.id LIMIT $2
+         FOR UPDATE OF ce`,
+        [lastId, batchSize],
+      );
+      for (const row of batch.rows) {
+        await client.query(
+          `UPDATE config_entries SET value = $2, sensitive = true, updated_at = now() WHERE id = $1`,
+          [row.id, encryptStoredValue(row.value)],
+        );
+      }
+      if (batch.rows.length > 0) lastId = batch.rows[batch.rows.length - 1].id;
+      return batch.rows.length;
+    });
+    updated += count;
+    if (count < batchSize) break;
+  }
+  return updated;
 }
 
 /**

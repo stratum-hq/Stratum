@@ -4,6 +4,7 @@ import type {
   BatchSetConfigKeyResult,
   ConfigEntry,
 } from "../types/config.js";
+import { SetConfigInputSchema } from "../types/config.js";
 
 describe("BatchSetConfigResult shape validation", () => {
   it("has results array, succeeded count, and failed count", () => {
@@ -163,3 +164,17 @@ function makeMinimalEntry(key: string): ConfigEntry {
     updated_at: "2024-01-01T00:00:00.000Z",
   };
 }
+
+describe("SetConfigInputSchema sensitive flag", () => {
+  it("leaves sensitive undefined when the input omits it", () => {
+    const parsed = SetConfigInputSchema.parse({ value: 1 });
+    expect(parsed.sensitive).toBeUndefined();
+    expect("sensitive" in parsed).toBe(false);
+    expect(parsed.locked).toBe(false);
+  });
+
+  it("keeps an explicit sensitive flag", () => {
+    expect(SetConfigInputSchema.parse({ value: 1, sensitive: false }).sensitive).toBe(false);
+    expect(SetConfigInputSchema.parse({ value: 1, sensitive: true }).sensitive).toBe(true);
+  });
+});

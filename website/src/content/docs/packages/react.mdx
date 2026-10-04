@@ -193,7 +193,7 @@ Displays the resolved config for the current tenant with:
 
 - Key-value editing with type-appropriate inputs
 - Lock status indicators. A key that an ancestor locked is read-only, and the row says "Locked by" and the name of the tenant that locked the key.
-- Lock control. On a key that the current tenant owns, **Lock** blocks overrides in descendant tenants and **Unlock** removes that lock. The add row has a **Lock for descendants** option. An edit keeps the lock and the sensitive flag of the key.
+- Lock control. On a key that the current tenant owns, **Lock** blocks overrides in descendant tenants and **Unlock** removes that lock. The add row has a **Lock for descendants** option. An edit keeps the lock and the sensitive flag of the key. An override of an inherited sensitive key, from an edit or from the add row, is saved as sensitive.
 - Inheritance source information: the name of the tenant that set each value, read from `GET /api/v1/tenants/:id/ancestors`. If that request fails, the editor shows the first 8 characters of the tenant ID.
 - Confirmation before Remove. The first click shows "Remove \{key\}?" with **Yes, remove** and **Keep**. Escape or **Keep** cancels. `PermissionEditor` uses the same confirmation for Remove, and `WebhookEditor` uses it for Delete.
 - JSON validation. A value that is not valid JSON is not saved. The editor shows an inline error and a **Save as string** button that saves the text as a string.

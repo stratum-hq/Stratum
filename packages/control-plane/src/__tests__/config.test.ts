@@ -126,6 +126,50 @@ describe("Config Routes", () => {
     });
   });
 
+  describe("PUT config passes the sensitive flag only when the request sets it", () => {
+    const putConfig = (payload: unknown) =>
+      app.inject({
+        method: "PUT",
+        url: `/api/v1/tenants/${tenantId}/config/api_secret`,
+        headers: authHeaders(),
+        payload: payload as Record<string, unknown>,
+      });
+
+    beforeEach(() => {
+      (stratum.setConfig as Mock).mockResolvedValue({ tenant_id: tenantId, key: "api_secret" });
+      (stratum.batchSetConfig as Mock).mockResolvedValue({
+        results: [{ key: "api_secret", status: "ok" }],
+        succeeded: 1,
+        failed: 0,
+        rolled_back: false,
+      });
+    });
+
+    it("leaves sensitive out when the request omits it", async () => {
+      const response = await putConfig({ value: "v" });
+      expect(response.statusCode).toBe(200);
+      const input = (stratum.setConfig as Mock).mock.calls[0][2];
+      expect(input.sensitive).toBeUndefined();
+    });
+
+    it("passes an explicit sensitive: false", async () => {
+      await putConfig({ value: "v", sensitive: false });
+      expect((stratum.setConfig as Mock).mock.calls[0][2].sensitive).toBe(false);
+    });
+
+    it("leaves sensitive out of a batch entry that omits it", async () => {
+      const response = await app.inject({
+        method: "PUT",
+        url: `/api/v1/tenants/${tenantId}/config/batch`,
+        headers: authHeaders(),
+        payload: { entries: [{ key: "api_secret", value: "v" }] },
+      });
+      expect(response.statusCode).toBe(200);
+      const [entry] = (stratum.batchSetConfig as Mock).mock.calls[0][1];
+      expect(entry.sensitive).toBeUndefined();
+    });
+  });
+
   // ── PUT /api/v1/tenants/:id/config/batch ────────────────────────────
 
   describe("PUT /api/v1/tenants/:id/config/batch", () => {

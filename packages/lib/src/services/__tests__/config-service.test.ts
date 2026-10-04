@@ -465,7 +465,10 @@ describe("batchSetConfig", () => {
     // Query 2: no locked keys
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
-    // Query 3 & 4: two INSERT queries succeed
+    // Query 3: no sensitive keys
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // Query 4 & 5: two INSERT queries succeed
     const makeEntry = (key: string) => ({
       id: `entry-${key}`,
       tenant_id: "child-id",
@@ -553,7 +556,10 @@ describe("batchSetConfig", () => {
     });
 
     // No lock query issued for root (ancestorIds.length === 0)
-    // Direct to INSERT
+    // Sensitive-key lookup: none
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    // INSERT
     mockQuery.mockResolvedValueOnce({
       rows: [
         {
@@ -582,8 +588,9 @@ describe("batchSetConfig", () => {
 
     expect(result.succeeded).toBe(1);
     expect(result.failed).toBe(0);
-    // Only 2 queries: ancestry_path + INSERT (no lock check)
-    expect(mockQuery).toHaveBeenCalledTimes(2);
+    // 3 queries: ancestry_path + sensitive-key lookup + INSERT (no lock check)
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("locked = true"))).toBe(false);
   });
 });
 
@@ -651,5 +658,226 @@ describe("deleteConfig", () => {
     await expect(
       configService.deleteConfig(pool, "tenant-id", "existing_key"),
     ).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sensitive flag on writes
+// ---------------------------------------------------------------------------
+describe("config writes keep the sensitive flag of the key", () => {
+  type Row = { tenant_id: string; key: string };
+
+  // Answers each query by its SQL: the tenant row, no locks, the given
+  // sensitive rows, and an INSERT that echoes its parameters.
+  function mockWrite(ancestryPath: string, sensitiveRows: Row[]) {
+    const mockQuery = vi.fn(async (sql: string, params: unknown[]) => {
+      if (sql.includes("FROM tenants")) {
+        return { rows: [{ id: "child-id", status: "active", ancestry_path: ancestryPath }] };
+      }
+      if (sql.includes("INSERT INTO config_entries")) {
+        const [tenant_id, key, value, locked, sensitive] = params;
+        return { rows: [{ tenant_id, key, value, locked, sensitive, source_tenant_id: tenant_id }] };
+      }
+      if (sql.includes("sensitive = true")) {
+        return { rows: sensitiveRows };
+      }
+      return { rows: [] };
+    });
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+    return mockQuery;
+  }
+
+  function insertParams(mockQuery: ReturnType<typeof mockWrite>) {
+    return mockQuery.mock.calls
+      .filter(([sql]) => sql.includes("INSERT INTO config_entries"))
+      .map(([, params]) => params);
+  }
+
+  it("stores an override of a key an ancestor marked sensitive as sensitive and encrypted", async () => {
+    const mockQuery = mockWrite("/parent-id", [{ tenant_id: "parent-id", key: "api_secret" }]);
+
+    const entry = await configService.setConfig(makeMockPool(), "child-id", "api_secret", { value: "child-value" });
+
+    expect(entry.sensitive).toBe(true);
+    const [params] = insertParams(mockQuery);
+    expect(params[1]).toBe("api_secret");
+    expect(params[2]).toBe(JSON.stringify(`encrypted:${JSON.stringify("child-value")}`));
+    expect(params[4]).toBe(true);
+  });
+
+  it("keeps the flag when the override passes sensitive: false for a key an ancestor marked sensitive", async () => {
+    const mockQuery = mockWrite("/root-id/parent-id", [{ tenant_id: "root-id", key: "api_secret" }]);
+
+    await configService.setConfig(makeMockPool(), "child-id", "api_secret", { value: "v", sensitive: false });
+
+    const [params] = insertParams(mockQuery);
+    expect(params[2]).toBe(JSON.stringify(`encrypted:${JSON.stringify("v")}`));
+    expect(params[4]).toBe(true);
+  });
+
+  it("keeps the tenant's own sensitive flag when the write omits it", async () => {
+    const mockQuery = mockWrite("/", [{ tenant_id: "child-id", key: "own_secret" }]);
+
+    await configService.setConfig(makeMockPool(), "child-id", "own_secret", { value: "v" });
+
+    const [params] = insertParams(mockQuery);
+    expect(params[2]).toBe(JSON.stringify(`encrypted:${JSON.stringify("v")}`));
+    expect(params[4]).toBe(true);
+  });
+
+  it("clears the tenant's own sensitive flag on an explicit sensitive: false", async () => {
+    const mockQuery = mockWrite("/", [{ tenant_id: "child-id", key: "own_secret" }]);
+
+    await configService.setConfig(makeMockPool(), "child-id", "own_secret", { value: "v", sensitive: false });
+
+    const [params] = insertParams(mockQuery);
+    expect(params[2]).toBe(JSON.stringify("v"));
+    expect(params[4]).toBe(false);
+  });
+
+  it("stores a key that no tenant marked sensitive as before", async () => {
+    const mockQuery = mockWrite("/parent-id", []);
+
+    await configService.setConfig(makeMockPool(), "child-id", "plain", { value: 1 });
+
+    const [params] = insertParams(mockQuery);
+    expect(params[2]).toBe(JSON.stringify(1));
+    expect(params[4]).toBe(false);
+  });
+
+  it("batchSetConfig stores overrides of keys an ancestor marked sensitive as sensitive", async () => {
+    const mockQuery = mockWrite("/parent-id", [{ tenant_id: "parent-id", key: "api_secret" }]);
+
+    const result = await configService.batchSetConfig(makeMockPool(), "child-id", [
+      { key: "api_secret", value: "a", sensitive: false },
+      { key: "plain", value: "b" },
+    ]);
+
+    expect(result.succeeded).toBe(2);
+    const [secretParams, plainParams] = insertParams(mockQuery);
+    expect(secretParams[2]).toBe(JSON.stringify(`encrypted:${JSON.stringify("a")}`));
+    expect(secretParams[4]).toBe(true);
+    expect(plainParams[2]).toBe(JSON.stringify("b"));
+    expect(plainParams[4]).toBe(false);
+  });
+
+  it("batchSetConfig keeps the tenant's own flag when omitted and clears it on explicit false", async () => {
+    const mockQuery = mockWrite("/", [
+      { tenant_id: "child-id", key: "kept" },
+      { tenant_id: "child-id", key: "cleared" },
+    ]);
+
+    await configService.batchSetConfig(makeMockPool(), "child-id", [
+      { key: "kept", value: 1 },
+      { key: "cleared", value: 2, sensitive: false },
+    ]);
+
+    const [keptParams, clearedParams] = insertParams(mockQuery);
+    expect(keptParams[4]).toBe(true);
+    expect(clearedParams[4]).toBe(false);
+    expect(clearedParams[2]).toBe(JSON.stringify(2));
+  });
+});
+
+describe("storing a key as sensitive applies the flag to descendant overrides", () => {
+  type DescendantRow = { id: string; tenant_id: string; key: string; value: unknown };
+
+  function mockTree(ancestryPath: string, descendantRows: DescendantRow[]) {
+    const mockQuery = vi.fn(async (sql: string, params: unknown[]) => {
+      if (sql.includes("FROM tenants WHERE id")) {
+        return { rows: [{ id: "mid-id", status: "active", ancestry_path: ancestryPath }] };
+      }
+      if (sql.includes("INSERT INTO config_entries")) {
+        const [tenant_id, key, value, locked, sensitive] = params;
+        return { rows: [{ tenant_id, key, value, locked, sensitive, source_tenant_id: tenant_id }] };
+      }
+      if (sql.includes("sensitive = false")) {
+        const keys = params[2] as string[];
+        return { rows: descendantRows.filter((r) => keys.includes(r.key)) };
+      }
+      return { rows: [] };
+    });
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) => {
+      const client = { query: mockQuery } as unknown as import("pg").PoolClient;
+      return fn(client);
+    });
+    return mockQuery;
+  }
+
+  const updates = (mockQuery: ReturnType<typeof mockTree>) =>
+    mockQuery.mock.calls.filter(([sql]) => sql.includes("UPDATE config_entries")).map(([, params]) => params);
+
+  it("encrypts and flags descendant overrides of the key in the same transaction", async () => {
+    const mockQuery = mockTree("/root-id", [
+      { id: "row-1", tenant_id: "leaf-id", key: "api_secret", value: "leaf-value" },
+    ]);
+    const applied: Array<{ tenant_id: string; key: string }> = [];
+
+    await configService.setConfig(makeMockPool(), "mid-id", "api_secret", { value: "v", sensitive: true }, applied);
+
+    const descendantQuery = mockQuery.mock.calls.find(([sql]) => sql.includes("sensitive = false"))!;
+    expect(descendantQuery[1]).toEqual(["/root-id/mid-id", "/root-id/mid-id/%", ["api_secret"]]);
+    expect(updates(mockQuery)).toEqual([["row-1", JSON.stringify(`encrypted:${JSON.stringify("leaf-value")}`)]]);
+    expect(applied).toEqual([{ tenant_id: "leaf-id", key: "api_secret" }]);
+  });
+
+  it("leaves descendants alone when the key is not stored as sensitive", async () => {
+    const mockQuery = mockTree("/root-id", [
+      { id: "row-1", tenant_id: "leaf-id", key: "plain", value: "leaf-value" },
+    ]);
+
+    await configService.setConfig(makeMockPool(), "mid-id", "plain", { value: 1 });
+
+    expect(mockQuery.mock.calls.some(([sql]) => sql.includes("sensitive = false"))).toBe(false);
+    expect(updates(mockQuery)).toEqual([]);
+  });
+
+  it("batchSetConfig applies the flag to descendant overrides of each sensitive key", async () => {
+    const mockQuery = mockTree("/", [
+      { id: "row-1", tenant_id: "leaf-id", key: "a_secret", value: 1 },
+      { id: "row-2", tenant_id: "leaf-id", key: "plain", value: 2 },
+    ]);
+    const applied: Array<{ tenant_id: string; key: string }> = [];
+
+    const result = await configService.batchSetConfig(
+      makeMockPool(),
+      "mid-id",
+      [
+        { key: "a_secret", value: "x", sensitive: true },
+        { key: "plain", value: "y" },
+      ],
+      applied,
+    );
+
+    expect(result.succeeded).toBe(2);
+    expect(updates(mockQuery)).toEqual([["row-1", JSON.stringify(`encrypted:${JSON.stringify(1)}`)]]);
+    expect(applied).toEqual([{ tenant_id: "leaf-id", key: "a_secret" }]);
+  });
+});
+
+describe("batchSetConfig with a key that appears more than once", () => {
+  it("rolls back the batch and names the repeated key", async () => {
+    const mockQuery = vi.fn(async (sql: string) => {
+      if (sql.includes("FROM tenants WHERE id")) return { rows: [{ id: "t", status: "active", ancestry_path: "/" }] };
+      return { rows: [] };
+    });
+    vi.mocked(poolHelpers.withTransaction).mockImplementation(async (_pool, fn) =>
+      fn({ query: mockQuery } as unknown as import("pg").PoolClient),
+    );
+
+    const result = await configService.batchSetConfig(makeMockPool(), "t", [
+      { key: "api_secret", value: "a", sensitive: true },
+      { key: "api_secret", value: "b" },
+    ]);
+
+    expect(result.rolled_back).toBe(true);
+    expect(result.succeeded).toBe(0);
+    expect(result.results[1].error).toContain("'api_secret'");
+    expect(result.results[1].error).toContain("more than once");
+    expect(result.results[0].error).toContain("rolled back");
+    expect(mockQuery.mock.calls.some(([sql]) => String(sql).includes("INSERT"))).toBe(false);
   });
 });
