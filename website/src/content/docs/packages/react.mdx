@@ -218,7 +218,8 @@ Displays resolved permissions with:
 
 - Mode selection (LOCKED / INHERITED / DELEGATED)
 - Revocation mode selection (CASCADE / SOFT / PERMANENT)
-- Source tenant tracking
+- Source tenant tracking. The Source column shows the name of the tenant that set each policy, with the same ancestors lookup as `ConfigEditor`. It shows a short tenant ID when that request fails.
+- Remove only on the current tenant's own policies, because the API deletes only those. A policy set by an ancestor has no Remove, and the row says "Set by" and the name of that tenant.
 - Confirmation before Remove, the same as in `ConfigEditor`: "Remove \{key\}?" with **Yes, remove** and **Keep**
 - Add, update, and delete operations
 

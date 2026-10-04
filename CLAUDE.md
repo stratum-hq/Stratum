@@ -209,6 +209,8 @@ these steps:
 1. **Version on a branch.** On a branch off up-to-date `main`, run `npx changeset version`,
    check the resulting version bumps and CHANGELOG entries, and open a
    `chore: version packages` pull request. Squash-merge it only once it is green.
+   Run `npx changeset version` on Node 22.11 or later: the release tool needs it, while
+   the library itself still supports Node >= 20.
 2. **Gate on the merged commit.** On the merged `main` commit, run `npm run verify`,
    `npm run lint:secrets`, `npm run lint:deps`, and the integration suites, and read the
    output. Do not tag a commit you have not verified.
