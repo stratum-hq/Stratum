@@ -5,16 +5,26 @@
       <img src="/favicon.svg" alt="Stratum" class="nav-logo-img" width="28" height="28" />
       Stratum
     </a>
-    <div class="nav-links">
-      <a href="/what-is-stratum/">What is Stratum?</a>
-      <a href="/compare/">Compare</a>
-      <a href="/blog/">Blog</a>
-      <a href="https://docs.stratum-hq.org/">Docs</a>
-      <a href="https://docs.stratum-hq.org/playground/">Playground</a>
-      <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
-      <a href="/about/">About Us</a>
-      <a href="/contact/">Contact</a>
-      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+    <div class="nav-end">
+      <button class="nav-menu-btn" id="nav-menu-btn" type="button" aria-expanded="false" aria-controls="nav-menu">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+        Menu
+      </button>
+      <div class="nav-links" id="nav-menu">
+        <a href="/what-is-stratum/">What is Stratum?</a>
+        <a href="/compare/">Compare</a>
+        <a href="/blog/">Blog</a>
+        <a href="https://docs.stratum-hq.org/">Docs</a>
+        <a href="https://docs.stratum-hq.org/playground/">Playground</a>
+        <a href="https://github.com/stratum-hq/Stratum">GitHub</a>
+        <a href="/about/">About Us</a>
+        <a href="/contact/">Contact</a>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="5"/>
           <line x1="12" y1="1" x2="12" y2="3"/>
@@ -56,5 +66,37 @@
       /* storage unavailable, theme still applies for this page */
     }
     syncIcon();
+  });
+
+  // Below 900px the links collapse behind the menu button (global.css, NAV).
+  // The button is a disclosure: aria-expanded carries the state, Escape and a
+  // click outside close the panel, and Escape returns focus to the button so
+  // keyboard users do not lose their place.
+  const nav = document.querySelector<HTMLElement>('.nav');
+  const menuBtn = document.getElementById('nav-menu-btn');
+
+  const setMenu = (open: boolean) => {
+    nav?.classList.toggle('is-open', open);
+    menuBtn?.setAttribute('aria-expanded', String(open));
+  };
+
+  menuBtn?.addEventListener('click', () => {
+    setMenu(menuBtn.getAttribute('aria-expanded') !== 'true');
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || menuBtn?.getAttribute('aria-expanded') !== 'true') return;
+    setMenu(false);
+    menuBtn.focus();
+  });
+
+  document.addEventListener('click', (event) => {
+    if (nav && !nav.contains(event.target as Node)) setMenu(false);
+  });
+
+  // A panel left open on a phone must not stay open when the window grows
+  // into the desktop layout, where the links show in the bar.
+  matchMedia('(min-width: 901px)').addEventListener('change', (event) => {
+    if (event.matches) setMenu(false);
   });
 </script>

@@ -16,7 +16,7 @@ Permission endpoints are nested under tenants. All endpoints require authenticat
 
 ---
 
-## Get Resolved Permissions
+## Get resolved permissions
 
 ```
 GET /api/v1/tenants/:id/permissions
@@ -60,7 +60,7 @@ Each resolved entry:
 
 ---
 
-## Create Permission
+## Create permission
 
 ```
 POST /api/v1/tenants/:id/permissions
@@ -84,7 +84,7 @@ POST /api/v1/tenants/:id/permissions
 | `mode` | `LOCKED`, `INHERITED`, `DELEGATED` | `INHERITED` | How the permission flows down the tree |
 | `revocation_mode` | `CASCADE`, `SOFT`, `PERMANENT` | `CASCADE` | What happens when deleted |
 
-### Delegation Modes
+### Delegation modes
 
 | Mode | Behavior |
 |------|----------|
@@ -92,7 +92,7 @@ POST /api/v1/tenants/:id/permissions
 | `INHERITED` | Flows down, descendants can override the value |
 | `DELEGATED` | Flows down, descendants can override and re-delegate |
 
-### Revocation Modes
+### Revocation modes
 
 | Mode | Behavior |
 |------|----------|
@@ -104,7 +104,7 @@ POST /api/v1/tenants/:id/permissions
 
 ---
 
-## Update Permission
+## Update permission
 
 ```
 PATCH /api/v1/tenants/:id/permissions/:policyId
@@ -124,7 +124,7 @@ PATCH /api/v1/tenants/:id/permissions/:policyId
 
 ---
 
-## Delete Permission
+## Delete permission
 
 ```
 DELETE /api/v1/tenants/:id/permissions/:policyId
@@ -140,7 +140,7 @@ Behavior depends on the policy's revocation mode:
 
 ---
 
-## Error Responses
+## Error responses
 
 | Code | Status | Description |
 |------|--------|-------------|

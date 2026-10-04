@@ -1,5 +1,5 @@
 ---
-title: Config Inheritance
+title: Config inheritance
 description: Manage configuration that flows from parent tenants to children with locking and encryption.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Config inheritance is one of Stratum's defining features. Parent tenants set defaults, children inherit or override them, and locked keys enforce consistency across the tree.
 
-## How Inheritance Works
+## How inheritance works
 
 Config values flow **root to leaf**. When you resolve config for a tenant, Stratum walks up the ancestry path and merges entries. For each key:
 
@@ -22,9 +22,9 @@ Root:    max_users = 1000 (unlocked), theme = "dark" (locked)
     Client B: max_users = 100           ← overrides MSP
 ```
 
-## Setting Config
+## Setting config
 
-### Single Key
+### Single key
 
 ```typescript
 await stratum.setConfig(tenantId, "max_users", {
@@ -42,7 +42,7 @@ curl -X PUT http://localhost:3001/api/v1/tenants/TENANT_ID/config/max_users \
   -d '{"value": 1000, "locked": false}'
 ```
 
-### Batch Set
+### Batch set
 
 Set up to 200 keys in a single atomic transaction:
 
@@ -74,9 +74,9 @@ curl -X PUT http://localhost:3001/api/v1/tenants/TENANT_ID/config/batch \
 
 If any key is locked by an ancestor, the entire batch rolls back and nothing is written. The API then answers `403 CONFIG_LOCKED`, with the per-key result in `error.details`.
 
-## Resolving Config
+## Resolving config
 
-### Merged View
+### Merged view
 
 Returns the effective config for a tenant with all inheritance applied:
 
@@ -98,7 +98,7 @@ Each entry in the result:
 }
 ```
 
-### Inheritance View
+### Inheritance view
 
 Returns the full ancestry-aware view showing where each key is set at every level:
 
@@ -113,7 +113,7 @@ curl http://localhost:3001/api/v1/tenants/TENANT_ID/config/inheritance \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-## Locking Keys
+## Locking keys
 
 When a key is locked, no descendant can override it:
 
@@ -137,7 +137,7 @@ try {
   that should be uniform across the entire subtree.
 </Aside>
 
-## Deleting Config
+## Deleting config
 
 Remove a tenant's override for a key. If an ancestor has set the key, the tenant reverts to inheriting that value:
 
@@ -152,7 +152,7 @@ curl -X DELETE http://localhost:3001/api/v1/tenants/TENANT_ID/config/max_users \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-## Sensitive Values
+## Sensitive values
 
 Mark a config value as `sensitive` to encrypt it at rest with AES-256-GCM:
 
@@ -181,7 +181,7 @@ const forServer = await stratum.resolveConfig(childId, { revealSensitive: true }
 
 A tenant's own sensitive values are decrypted when resolved. The control plane API and the React `ConfigEditor` reveal an inherited sensitive value only to a key of the tenant that set it; see [Config API](/api/config/#sensitive-values). See the [field-level encryption documentation](/guides/api-keys/) for key rotation procedures.
 
-## Config Values
+## Config values
 
 Config values can be any JSON type: strings, numbers, booleans, objects, or arrays:
 
@@ -199,9 +199,9 @@ await stratum.setConfig(tenantId, "allowed_domains", {
 });
 ```
 
-## Common Patterns
+## Common patterns
 
-### Feature Flags
+### Feature flags
 
 ```typescript
 // Root enables a feature for the entire tree
@@ -216,7 +216,7 @@ await stratum.setConfig(mspId, "feature_audit_log", {
 });
 ```
 
-### Tiered Limits
+### Tiered limits
 
 ```typescript
 // Set defaults at root
@@ -228,7 +228,7 @@ await stratum.setConfig(premiumMspId, "max_api_calls", { value: 100000 });
 await stratum.setConfig(premiumMspId, "max_storage_gb", { value: 500 });
 ```
 
-### Compliance Settings
+### Compliance settings
 
 ```typescript
 // Lock encryption requirement across the tree

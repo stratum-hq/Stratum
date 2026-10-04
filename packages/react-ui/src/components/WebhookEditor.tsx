@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useWebhooks } from "../hooks/use-webhooks.js";
+import { useMessages } from "../hooks/use-messages.js";
 import { useStratum } from "../provider.js";
+import { ConfirmAction } from "./ConfirmAction.js";
 import { TableSkeleton } from "./TableSkeleton.js";
 
 export interface WebhookEditorProps {
@@ -10,6 +12,7 @@ export interface WebhookEditorProps {
 export function WebhookEditor({ className }: WebhookEditorProps) {
   const { webhooks, loading, error, createWebhook, deleteWebhook, testWebhook } = useWebhooks();
   const { toast } = useStratum();
+  const { t } = useMessages();
   const [newUrl, setNewUrl] = useState("");
   const [newEvents, setNewEvents] = useState("tenant.created,tenant.updated,config.updated");
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
@@ -34,7 +37,7 @@ export function WebhookEditor({ className }: WebhookEditorProps) {
       toast.success("Webhook created");
       setNewUrl("");
     } catch (err) {
-      toast.error(`Failed to create webhook: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("webhookEditor.createFailed"), err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -43,7 +46,7 @@ export function WebhookEditor({ className }: WebhookEditorProps) {
       await deleteWebhook(id);
       toast.success("Webhook deleted");
     } catch (err) {
-      toast.error(`Failed to delete webhook: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(t("webhookEditor.deleteFailed"), err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -94,7 +97,13 @@ export function WebhookEditor({ className }: WebhookEditorProps) {
                 </td>
                 <td>
                   <button type="button" onClick={() => handleTest(wh.id)}>Test</button>
-                  <button type="button" onClick={() => handleDelete(wh.id)}>Delete</button>
+                  <ConfirmAction
+                    label={t("webhookEditor.deleteButton")}
+                    prompt={t("webhookEditor.deletePrompt")}
+                    confirmLabel={t("webhookEditor.confirmDeleteButton")}
+                    cancelLabel={t("webhookEditor.keepButton")}
+                    onConfirm={() => handleDelete(wh.id)}
+                  />
                 </td>
               </tr>
             ))}

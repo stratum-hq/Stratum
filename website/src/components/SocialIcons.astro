@@ -1,0 +1,28 @@
+---
+// Replaces Starlight's SocialIcons. It adds text links to the marketing site
+// ahead of the social icons, so the docs sidebar holds only docs. Starlight
+// renders this component in the desktop header and in the mobile menu footer.
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+import { Icon } from '@astrojs/starlight/components';
+
+const siteLinks = [
+	{ label: 'stratum-hq.org', href: 'https://stratum-hq.org/' },
+	{ label: 'Blog', href: 'https://stratum-hq.org/blog/' },
+	{ label: 'Compare', href: 'https://stratum-hq.org/compare/' },
+];
+---
+
+<ul class="site-links">
+	{
+		siteLinks.map(({ label, href }) => (
+			<li>
+				<a {href} target="_blank" rel="noopener">
+					{label}
+					<Icon name="external" size="0.875em" />
+					<span class="sr-only">(opens in a new tab)</span>
+				</a>
+			</li>
+		))
+	}
+</ul>
+<Default />

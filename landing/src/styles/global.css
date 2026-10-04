@@ -28,6 +28,14 @@ body {
   flex-direction: column;
 }
 
+/* body is a flex column, and the auto side margins that center a page's
+   <main> turn off flex stretch. The <main> then sizes to its content, so one
+   long code line made the whole page wider than a phone screen. A full width
+   (capped by each page's max-width) keeps it inside the viewport. */
+body > main {
+  width: 100%;
+}
+
 /* Push footer to bottom on short pages */
 .footer {
   margin-top: auto;
@@ -105,6 +113,11 @@ h2 {
   height: 28px;
   object-fit: contain;
 }
+.nav-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
 .nav-links {
   display: flex;
   align-items: center;
@@ -122,8 +135,31 @@ h2 {
 .nav-links a:hover {
   color: var(--text-primary);
 }
-/* The full link row is wider than a phone screen. Below this width the row
-   scrolls sideways inside the bar, so the page itself does not overflow. */
+.nav-menu-btn {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.nav-menu-btn:hover,
+.nav-menu-btn[aria-expanded="true"] {
+  border-color: var(--text-primary);
+}
+/* The full link row is wider than a phone screen. Below this width the links
+   collapse into a panel under the bar, opened by the menu button. Without
+   scripts (no "js" class, set in Base.astro) the button cannot work, so the
+   links wrap onto extra rows in the bar instead. */
 @media (max-width: 900px) {
   .nav-inner {
     gap: var(--space-4);
@@ -133,24 +169,57 @@ h2 {
   .nav-logo {
     flex-shrink: 0;
   }
-  .nav-links {
-    min-width: 0;
-    gap: var(--space-4);
-    overflow-x: auto;
-    white-space: nowrap;
-    scrollbar-width: none;
+  .nav-end {
+    gap: var(--space-3);
   }
-  .nav-links::-webkit-scrollbar {
+  /* Match the menu button, so both bar controls are full 44px touch targets. */
+  .theme-toggle {
+    width: 44px;
+    height: 44px;
+  }
+  html:not(.js) .nav-inner,
+  html:not(.js) .nav-end,
+  html:not(.js) .nav-links {
+    flex-wrap: wrap;
+  }
+  html:not(.js) .nav-links {
+    gap: 0 var(--space-4);
+  }
+  /* The wrapped bar is taller than the space pages leave for it, so it takes
+     its own place in the flow rather than covering the page heading. */
+  html:not(.js) .nav {
+    position: relative;
+  }
+  .js .nav-menu-btn {
+    display: inline-flex;
+  }
+  .js .nav-links {
     display: none;
-  }
-  /* Pin the toggle to the right edge of the scrolling row, so it stays
-     on screen while the links scroll beneath it. */
-  .nav-links .theme-toggle {
-    flex-shrink: 0;
-    position: sticky;
+    position: absolute;
+    top: 100%;
+    left: 0;
     right: 0;
-    z-index: 1;
-    box-shadow: calc(-1 * var(--space-4)) 0 var(--space-3) var(--surface-0);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-height: calc(100dvh - 100%);
+    overflow-y: auto;
+    padding: var(--space-2) var(--space-4) var(--space-4);
+    background: var(--surface-0);
+    border-bottom: 1px solid var(--rule);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
+    font-size: 1rem;
+  }
+  .js .nav.is-open .nav-links {
+    display: flex;
+  }
+  .js .nav-links a {
+    min-height: 48px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+  .js .nav-links a:last-child {
+    border-bottom: none;
   }
 }
 
@@ -160,7 +229,8 @@ h2 {
    clip-path removes box-shadow, borders and outlines. Keeping the element
    itself unclipped also keeps the keyboard focus ring visible.
    .btn-primary is the one magma action; .btn-vein is the cool second action;
-   .btn-secondary is the "scratch" text button with a rule underline. */
+   .btn-secondary is the "scratch" text button with a rule underline, in ink
+   rather than magma so that it does not compete with the primary action. */
 .btn-primary,
 .btn-vein {
   --btn-lip: var(--magma-deep);
@@ -219,7 +289,7 @@ h2 {
 }
 .btn-secondary {
   background: linear-gradient(var(--rule), var(--rule)) no-repeat 0 100% / 100% 2px;
-  color: var(--accent-text);
+  color: var(--text-primary);
   padding: 11px 4px;
   font-family: var(--font-display);
   font-weight: 900;
@@ -284,6 +354,13 @@ h2 {
 }
 .install-box code .pkg {
   color: var(--syntax-string);
+  white-space: nowrap;
+}
+/* A package name copied with a line break in it is a broken command, and a
+   name split at its hyphen or slash reads as two words. Install commands wrap
+   between words only. */
+.no-break {
+  white-space: nowrap;
 }
 .install-copy {
   background: transparent;
@@ -315,9 +392,7 @@ h2 {
    layers through isolation. Set --layer-band to pick the rock by depth. */
 .layer,
 .inherit-panel,
-.feature-block,
-.feature-diagram-block,
-.feature-compact {
+.post-body blockquote {
   --layer-band: var(--topsoil);
   position: relative;
   isolation: isolate;
@@ -326,9 +401,7 @@ h2 {
 }
 .layer::before,
 .inherit-panel::before,
-.feature-block::before,
-.feature-diagram-block::before,
-.feature-compact::before {
+.post-body blockquote::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -339,9 +412,7 @@ h2 {
 }
 .layer::after,
 .inherit-panel::after,
-.feature-block::after,
-.feature-diagram-block::after,
-.feature-compact::after {
+.post-body blockquote::after {
   content: "";
   position: absolute;
   inset: 10px 0 0;
@@ -351,9 +422,7 @@ h2 {
 }
 [data-theme="light"] .layer,
 [data-theme="light"] .inherit-panel,
-[data-theme="light"] .feature-block,
-[data-theme="light"] .feature-diagram-block,
-[data-theme="light"] .feature-compact {
+[data-theme="light"] .post-body blockquote {
   filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
 }
 
@@ -361,9 +430,9 @@ h2 {
    The signature graphic. Each tenant is a rock band colored by depth (topsoil,
    clay, sandstone, limestone), indented 28px per level, each row overlapping the
    ragged top of the one above. A config value resolves down the strata in vein;
-   a locked key is a magma tag that carries the word LOCKED. */
+   a locked key is a magma tag that carries the word LOCKED. The panel lip is
+   topsoil, not magma: the hero spends magma on Get Started and LOCKED only. */
 .inherit-panel {
-  --layer-band: var(--magma-deep);
   padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
   font-family: var(--font-mono);
 }
@@ -403,7 +472,6 @@ h2 {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.14em;
-  text-transform: uppercase;
 }
 .inode {
   font-family: var(--font-display);
@@ -439,17 +507,12 @@ h2 {
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--rule);
   font-size: 0.78rem;
 }
-.icfg-resolved {
-  border-left-color: var(--flow);
-  background: var(--flow-muted);
-}
-.icfg-locked {
-  border-left-color: var(--lock);
-  background: var(--lock-muted);
-}
+/* The tint, the tag and the vein or magma text carry the state. A colored
+   side stripe would repeat the tag and read as a callout. */
+.icfg-resolved { background: var(--flow-muted); }
+.icfg-locked { background: var(--lock-muted); }
 .ikey { color: var(--text-primary); }
 .ival { color: var(--flow); font-weight: 600; }
 /* On paper the vein text darkens to hold 4.5:1 on the tinted row (6.5:1). */
@@ -478,24 +541,12 @@ h2 {
   clip-path: var(--edge-chip);
 }
 .tag-glyph { letter-spacing: 0; }
+/* Depth labels read "d0" on every surface, so a tag must not uppercase them. */
+.depth-ref { text-transform: none; }
 .tag-locked { background: var(--magma); color: var(--on-accent); }
 .tag-inherited { background: var(--vein); color: var(--on-vein); }
 .tag-delegated { background: var(--amber-fill); color: var(--on-ember); }
 .tag-override { background: var(--text-primary); color: var(--surface-0); }
-
-/* ===== HERO: BADGE ROW ===== */
-.badge-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-6);
-  flex-wrap: wrap;
-}
-.badge-link { display: inline-flex; }
-.badge-row img {
-  height: 20px;
-  display: block;
-}
 
 /* ===== FEATURES ===== */
 .features {
@@ -524,58 +575,98 @@ h2 {
   max-width: 55ch;
 }
 
-/* Row 1: 2-col feature + code */
-.features-row-primary {
+/* The feature stack: one band of rock per feature, shallow to deep, in the
+   band order of DESIGN.md (topsoil, clay, sandstone, limestone, basalt). Each
+   band overlaps the ragged top of the one above. The li carries the upward
+   shadow and the face inside it is clipped, because clip-path would remove a
+   filter on the same element. Text takes the band's own ink, never gray. */
+.strata {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.stratum-band {
+  position: relative;
+  margin-top: -14px;
+  filter: drop-shadow(0 -3px 4px rgba(0, 0, 0, 0.35));
+}
+.stratum-band:first-child {
+  margin-top: 0;
+  filter: none;
+}
+.band-d0 { z-index: 1; --band: var(--topsoil); --band-ink: var(--on-strata-dark); --band-light: var(--shade); }
+.band-d1 { z-index: 2; --band: var(--clay); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
+.band-d2 { z-index: 3; --band: var(--sandstone-band); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
+.band-d3 { z-index: 4; --band: var(--limestone); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
+.band-d4 { z-index: 5; --band: var(--basalt); --band-ink: var(--on-strata-dark); --band-light: var(--shade); }
+.band-face {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-6);
-  margin-bottom: var(--space-8);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-4) var(--space-12);
+  padding: calc(var(--space-8) + 6px) var(--space-8) calc(var(--space-8) + 4px);
+  clip-path: var(--edge-ledge);
+  background-color: var(--band);
+  background-image: var(--band-light), var(--grain), var(--lam);
+  background-size: auto, 160px 160px, auto;
+  background-blend-mode: normal, multiply, normal;
+  color: var(--band-ink);
 }
-@media (max-width: 768px) {
-  .features-row-primary { grid-template-columns: 1fr; }
+.stratum-band:last-child .band-face { padding-bottom: var(--space-12); }
+.band-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
 }
-
-.feature-block {
-  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
+.band-depth {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
 }
-.feature-icon {
-  width: 36px;
-  height: 36px;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-4);
-}
-/* Type scale: a card heading is always at least body size (16px), so hierarchy
-   never inverts. Body copy inside a card may be smaller; the heading may not. */
-.feature-block h3,
-.feature-diagram-block h3 {
+.band-head h3 {
   font-family: var(--font-body);
-  font-size: 1.125rem;
+  font-size: 1.375rem;
   font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
+  line-height: 1.2;
   text-wrap: balance;
 }
-.feature-block p {
+.band-body {
+  max-width: 64ch;
+}
+.band-body p {
   font-size: 0.9375rem;
-  color: var(--text-secondary);
   line-height: 1.65;
-  max-width: 48ch;
 }
-
-/* Row 2: full-width diagram */
-.features-row-diagram {
-  margin-bottom: var(--space-8);
+.band-body p + p {
+  margin-top: var(--space-3);
 }
-.feature-diagram-block {
-  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: var(--space-12);
-  align-items: start;
+.band-body .band-lead {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.band-body code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.band-body .isolation-diagram {
+  margin-top: var(--space-6);
 }
 @media (max-width: 768px) {
-  .feature-diagram-block { grid-template-columns: 1fr; gap: var(--space-6); }
+  .band-face {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
 }
+@media (max-width: 480px) {
+  .band-face {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .band-body .band-lead { font-size: 1.0625rem; }
+}
+
 /* Depth gauge: the three isolation strategies as one continuous stack of rock,
    shallow to deep. Each layer overlaps the ragged top of the one above. The
    strategy in use gets a magma rim along its top and a drill marker. */
@@ -583,15 +674,6 @@ h2 {
   display: flex;
   flex-direction: column;
   padding-bottom: var(--space-3);
-}
-.iso-eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  margin-bottom: var(--space-3);
 }
 .isolation-stack {
   display: flex;
@@ -685,41 +767,10 @@ h2 {
   overflow-x: auto;
 }
 .iso-fn { color: var(--syntax-function); }
-.iso-accent { color: var(--syntax-accent); }
+/* A string, not magma: the magma rim on the gauge already marks the strategy
+   in use, and one view spends magma once. */
+.iso-accent { color: var(--syntax-string); }
 .iso-cm { color: var(--syntax-comment); }
-
-/* Row 3: 3 compact items */
-.features-row-compact {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-6);
-  margin-top: var(--space-8);
-}
-@media (max-width: 768px) {
-  .features-row-compact { grid-template-columns: 1fr; }
-}
-.feature-compact {
-  padding: calc(var(--space-8) + 10px) var(--space-6) var(--space-8);
-}
-.feature-compact-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-3);
-}
-.feature-compact h3 {
-  font-family: var(--font-body);
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
-}
-.feature-compact p {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  max-width: 38ch;
-}
 
 /* ===== CODE SECTION ===== */
 .code-section {
@@ -770,15 +821,6 @@ h2 {
   padding: calc(var(--space-3) + 6px) var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--seam);
 }
-/* Three small square core samples in the rock colors (no circles: Stratum has
-   no rounded corners and these carry no function). */
-.code-block-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--topsoil);
-}
-.code-block-dot + .code-block-dot { background: var(--clay); }
-.code-block-dot + .code-block-dot + .code-block-dot { background: var(--sandstone-band); }
 .code-block-filename {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -812,7 +854,8 @@ h2 {
   color: var(--code-text);
 }
 /* Resolved output: the one value that glows, in magma. Ties the code well
-   to the inheritance thesis. */
+   to the inheritance thesis. The arrow stays quiet so the value is the only
+   magma in the well. */
 .code-output {
   display: flex;
   align-items: baseline;
@@ -824,7 +867,7 @@ h2 {
   font-size: 0.6875rem;
   color: var(--syntax-comment);
 }
-.co-arrow { color: var(--syntax-accent); }
+.co-arrow { color: var(--syntax-comment); }
 .co-text { color: var(--code-text); }
 .co-val { color: var(--syntax-accent); font-weight: 600; }
 .co-src { color: var(--syntax-string); }
@@ -894,7 +937,7 @@ h2 {
 }
 .pkg-tag {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 3px 9px;
   margin-left: var(--space-2);
@@ -945,9 +988,6 @@ h2 {
   .cta {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
-  }
-  .feature-block {
-    padding: var(--space-6);
   }
   .code-block pre {
     padding: var(--space-4);
@@ -1023,25 +1063,25 @@ h2 {
   color: var(--text-primary);
 }
 
-/* ===== SCROLL ANIMATIONS ===== */
+/* ===== SCROLL ANIMATIONS =====
+   Only a page that runs scripts hides content before the reveal. The "js"
+   class is set in Base.astro. Without scripts nothing adds "visible", so the
+   content must not start hidden. */
 .fade-in {
-  opacity: 0;
-  transform: translateY(20px);
   transition: opacity var(--duration-slow) var(--ease-out),
               transform var(--duration-slow) var(--ease-out);
 }
-.fade-in.visible {
+.js .fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.js .fade-in.visible {
   opacity: 1;
   transform: translateY(0);
 }
 .fade-in-delay-1 { transition-delay: 100ms; }
 .fade-in-delay-2 { transition-delay: 200ms; }
 .fade-in-delay-3 { transition-delay: 300ms; }
-
-/* Stagger children in feature rows */
-.features-row-primary .fade-in:nth-child(2) { transition-delay: 120ms; }
-.features-row-compact .fade-in:nth-child(2) { transition-delay: 100ms; }
-.features-row-compact .fade-in:nth-child(3) { transition-delay: 200ms; }
 
 /* ===== DEPTH RAIL (persistent stratigraphic signature) =====
    A thin left axis marked with tenant depth d0..d3. The vein cursor tracks scroll
@@ -1106,7 +1146,7 @@ h2 {
   transition: background var(--duration-fast) var(--ease-out);
 }
 .dm-label {
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
   transition: color var(--duration-fast) var(--ease-out);
@@ -1114,16 +1154,99 @@ h2 {
 .dm.active .dm-dot { background: var(--flow); }
 .dm.active .dm-label { color: var(--flow); }
 
-/* Feature blocks hover lift */
-.feature-block:hover,
-.feature-compact:hover {
-  transform: translateY(-3px);
-  transition: transform var(--duration-normal) var(--ease-out);
-}
-
 /* Packages table row highlight */
 .packages-table tr:hover .pkg-name {
   color: var(--text-primary);
+}
+
+/* ===== ROCK ROWS (inner pages) =====
+   A comparison table is a stack of thin slabs (components/RockTable.astro).
+   Each row is clipped to --edge-row, so its top edge is ragged. The first 7px
+   of the face are a --border lip, and the ragged clip makes that lip 1px to
+   7px thick. --border is the seam color and is lighter on paper. Each row
+   overlaps the row above by 4px, and DOM order puts the later row on top.
+   Rows carry no depth, so they use surfaces, never the depth bands. */
+.rock-table {
+  margin: var(--space-6) 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.rock-head,
+.rock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) repeat(var(--rock-cols, 2), minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.rock-head {
+  padding: 0 var(--space-6) var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.rock-rows {
+  display: flex;
+  flex-direction: column;
+}
+.rock-row {
+  position: relative;
+  margin-top: -4px;
+  padding: calc(var(--space-3) + 7px) var(--space-6) var(--space-3) var(--space-4);
+  clip-path: var(--edge-row);
+  background-color: var(--surface-1);
+  background-image: linear-gradient(180deg, var(--border) 0 7px, transparent 7px);
+}
+.rock-row:first-child { margin-top: 0; }
+.rock-row:nth-child(even) { background-color: var(--surface-2); }
+.rock-feat {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.rock-good { color: var(--success); font-weight: 500; }
+.rock-neutral { color: var(--warning); }
+.rock-bad { color: var(--text-secondary); }
+.rock-plain { color: var(--text-secondary); }
+/* On paper the vein text darkens to hold 4.5:1 on both row surfaces. */
+[data-theme="light"] .rock-good { color: var(--vein-deep); }
+.rock-cell-label { display: none; }
+/* A phone has no room for three columns. Each row stacks: the capability
+   spans the row, and each cell shows its column name above its value. */
+@media (max-width: 640px) {
+  .rock-head {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .rock-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .rock-feat { grid-column: 1 / -1; }
+  .rock-cell-label {
+    display: block;
+    margin-bottom: 2px;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+}
+
+/* A tenant tree outside the hero is a real list, read in order. Its row
+   notes name the tenants, so a phone keeps them; the hero hides its notes. */
+ol.inherit-tree {
+  list-style: none;
+}
+@media (max-width: 480px) {
+  ol.inherit-tree .imeta { display: inline; }
 }
 
 /* ===== LIGHT MODE =====

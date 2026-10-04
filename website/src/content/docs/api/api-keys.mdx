@@ -1,11 +1,11 @@
 ---
-title: API Keys API
+title: API keys API
 description: REST API reference for API key management, rotation, rate limiting, and RBAC.
 ---
 
 API key endpoints require the `admin` scope. All responses redact the plaintext key (it is only returned at creation time).
 
-## Key Endpoints
+## Key endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -15,7 +15,7 @@ API key endpoints require the `admin` scope. All responses redact the plaintext 
 | `POST` | `/api/v1/api-keys/:id/rotate` | Rotate API key |
 | `GET` | `/api/v1/api-keys/dormant` | List dormant keys |
 
-## Role Endpoints (RBAC)
+## Role endpoints (RBAC)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -29,7 +29,7 @@ API key endpoints require the `admin` scope. All responses redact the plaintext 
 
 ---
 
-## Create API Key
+## Create API key
 
 ```
 POST /api/v1/api-keys
@@ -70,7 +70,7 @@ The `plaintext_key` is only returned in this response and cannot be retrieved ag
 
 ---
 
-## List API Keys
+## List API keys
 
 ```
 GET /api/v1/api-keys?tenant_id=<uuid>
@@ -86,7 +86,7 @@ GET /api/v1/api-keys?tenant_id=<uuid>
 
 ---
 
-## Revoke API Key
+## Revoke API key
 
 ```
 DELETE /api/v1/api-keys/:id
@@ -98,7 +98,7 @@ Returns `404` if the key does not exist or is already revoked.
 
 ---
 
-## Rotate API Key
+## Rotate API key
 
 ```
 POST /api/v1/api-keys/:id/rotate
@@ -118,7 +118,7 @@ Revokes the existing key and creates a new one. Optionally update the name.
 
 ---
 
-## List Dormant Keys
+## List dormant keys
 
 ```
 GET /api/v1/api-keys/dormant?days=90
@@ -134,7 +134,7 @@ Returns keys that have not been used in the specified number of days.
 
 ---
 
-## Create Role
+## Create role
 
 ```
 POST /api/v1/roles
@@ -162,7 +162,7 @@ POST /api/v1/roles
 
 ---
 
-## List Roles
+## List roles
 
 ```
 GET /api/v1/roles?tenant_id=<uuid>
@@ -172,7 +172,7 @@ GET /api/v1/roles?tenant_id=<uuid>
 
 ---
 
-## Update Role
+## Update role
 
 ```
 PATCH /api/v1/roles/:id
@@ -191,7 +191,7 @@ PATCH /api/v1/roles/:id
 
 ---
 
-## Assign Role to API Key
+## Assign role to API key
 
 ```
 POST /api/v1/roles/assign/:keyId
@@ -211,7 +211,7 @@ When a role is assigned, the role's scopes override the key's default scopes.
 
 ---
 
-## Remove Role from API Key
+## Remove role from API key
 
 ```
 DELETE /api/v1/roles/assign/:keyId
@@ -223,7 +223,7 @@ Removes the role, reverting the key to its own default scopes.
 
 ---
 
-## Error Responses
+## Error responses
 
 | Code | Status | Description |
 |------|--------|-------------|

@@ -1,5 +1,5 @@
 ---
-title: Express Multi-Tenant API with RLS
+title: Express multi-tenant API with RLS
 description: Build a multi-tenant Express API using PostgreSQL Row-Level Security and Stratum for automatic tenant isolation on every query.
 ---
 
@@ -7,14 +7,14 @@ import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
 This is the simplest path to a multi-tenant API. Express handles HTTP, `pg` handles queries, and PostgreSQL Row-Level Security enforces tenant isolation at the database level. No ORM required.
 
-## What You Get
+## What you get
 
 - Tenant resolution from the `tenant_id` claim of a verified JWT
 - Every SQL query automatically scoped to the current tenant
 - No manual `WHERE tenant_id = ?` clauses
 - Config and permissions resolved per-tenant from the Stratum control plane
 
-## Project Setup
+## Project setup
 
 ### 1. Initialize
 
@@ -62,7 +62,7 @@ npm install -D typescript @types/express @types/pg @types/jsonwebtoken tsx
 
 Write `init.sql` (the next step) before the first start. The image runs it only when it creates the data volume.
 
-### 3. Create Tables with RLS
+### 3. Create tables with RLS
 
 ```sql
 -- init.sql
@@ -114,9 +114,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON orders TO stratum_app;
   [Hardening: separate admin and app roles](/guides/hardening-roles/).
 </Aside>
 
-## The Application
+## The application
 
-### Tenant Middleware
+### Tenant middleware
 
 The middleware reads the tenant ID from the `tenant_id` claim of a verified JWT. Then it creates a tenant-scoped connection pool for the request:
 
@@ -170,7 +170,7 @@ export function tenantMiddleware(pool: Pool, jwtSecret: string) {
 
 `createTenantPool` returns a pool wrapper that automatically calls `set_config('app.current_tenant_id', tenantId, true)` inside a transaction before every query. RLS policies do the rest.
 
-### Express App
+### Express app
 
 ```typescript
 // src/index.ts
@@ -264,7 +264,7 @@ async function main() {
 main();
 ```
 
-### TypeScript Declarations
+### TypeScript declarations
 
 Add type declarations for the request properties:
 
@@ -282,14 +282,14 @@ declare global {
 }
 ```
 
-## Running the App
+## Running the app
 
 ```bash
 export JWT_SECRET=$(openssl rand -hex 32)
 npx tsx src/index.ts
 ```
 
-## Testing Isolation
+## Testing isolation
 
 Create two tenants and verify they cannot see each other's data. Your identity provider issues the tokens in a real application. For local tests, sign one token for each tenant with the same `JWT_SECRET` as the server:
 
@@ -336,7 +336,7 @@ curl -X DELETE "http://localhost:3000/api/orders/$ORDER_A_ID" \
 
 The last test is the important one. Tenant B tries to delete Tenant A's order by ID. RLS filters the DELETE query, so no row matches, and the API returns 404. The tenant never knows the order exists.
 
-## Adding More Tables
+## Adding more tables
 
 Use Stratum's migration helpers to add RLS to new tables:
 
@@ -360,7 +360,7 @@ Or use the CLI:
 npx @stratum-hq/cli migrate invoices products
 ```
 
-## Using an ORM Instead
+## Using an ORM instead
 
 If you prefer an ORM over raw SQL:
 
@@ -386,7 +386,7 @@ This generates the middleware, route templates, and environment configuration. T
 
 Skip the manual setup. The [Stack Wizard](/start/) configures your database, ORM, and framework, then gives you a single command to scaffold the whole project.
 
-## Next Steps
+## Next steps
 
 - Learn about [isolation strategies](/guides/isolation-strategies/) to choose between RLS, schema-per-tenant, and database-per-tenant
 - Build a [Next.js multi-tenant app](/guides/nextjs-multitenant/) with subdomain routing

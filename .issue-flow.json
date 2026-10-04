@@ -1,4 +1,5 @@
 {
+  "pluginVersion": "0.16.0",
   "concurrency": 3,
   "batchSize": 4,
   "runLength": "until-backlog-empty",

@@ -11,7 +11,7 @@ description: MySQL tenant isolation with three strategies, ORM integrations, and
 npm install @stratum-hq/mysql mysql2
 ```
 
-## Quick Start
+## Quick start
 
 ```typescript
 import mysql from "mysql2/promise";
@@ -36,6 +36,6 @@ await adapter.scopedInsert("acme", "users", { name: "Alice" });
 - **GDPR purge**: `purgeTenantData()` across all three strategies
 - **LRU pool manager**: active query tracking, idle timeout, configurable eviction
 
-## Full Guide
+## Full guide
 
 See the [MySQL Multi-Tenancy guide](/guides/mysql/) for strategy selection, ORM integration details, security considerations, and performance tuning.

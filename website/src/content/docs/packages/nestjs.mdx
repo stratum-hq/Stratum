@@ -15,7 +15,7 @@ npm install @stratum-hq/nestjs @stratum-hq/sdk @stratum-hq/core
 
 Peer dependencies: `@nestjs/common >= 10`, `@nestjs/core >= 10`, `reflect-metadata`.
 
-## Quick Start
+## Quick start
 
 ```typescript
 import { Module } from "@nestjs/common";
@@ -132,7 +132,7 @@ export class ApiController {
 | `req.impersonating` | `boolean` | Whether this is an impersonated request |
 | `req.originalTenantId` | `string?` | Original tenant ID if impersonating |
 
-## @Tenant() Decorator
+## @Tenant() decorator
 
 Parameter decorator that extracts `req.tenant` from the request:
 
@@ -164,7 +164,7 @@ StratumModule.forRoot({
 })
 ```
 
-## Custom Resolvers
+## Custom resolvers
 
 Add custom tenant resolution logic (e.g., subdomain-based):
 

@@ -1,5 +1,5 @@
 ---
-title: Isolation Strategies
+title: Isolation strategies
 description: Choose between Shared RLS, Schema-per-Tenant, and Database-per-Tenant isolation.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Stratum supports three isolation strategies, configurable per tenant at creation time. You can mix strategies within the same hierarchy.
 
-## Strategy Comparison
+## Strategy comparison
 
 | Strategy | Boundary | Shared Pool | Cost | Use Case |
 |----------|----------|-------------|------|----------|
@@ -15,7 +15,7 @@ Stratum supports three isolation strategies, configurable per tenant at creation
 | `SCHEMA_PER_TENANT` | PostgreSQL schema | Yes | Medium | Mid-tier, logical separation |
 | `DB_PER_TENANT` | Dedicated database | No | Highest | Maximum isolation, compliance |
 
-## Shared RLS (Default)
+## Shared RLS (default)
 
 All tenants share the same tables. PostgreSQL Row-Level Security policies filter rows based on a session variable set per-transaction.
 
@@ -29,7 +29,7 @@ const tenant = await stratum.createTenant({
 
 For a complete tutorial on setting up RLS with Prisma or Drizzle, see the [Prisma + PostgreSQL RLS guide](/guides/prisma-rls/) or the [Drizzle ORM guide](/guides/drizzle-multitenancy/).
 
-### How RLS Works
+### How RLS works
 
 Every tenant-scoped table has an RLS policy that compares `tenant_id` with the `app.current_tenant_id` setting. The policy reads the setting with `NULLIF(current_setting('app.current_tenant_id', true), '')`. A connection with no tenant context then matches no rows instead of raising an error. On a pooled connection, the setting reads as `''` after the transaction that set it ends.
 
@@ -49,7 +49,7 @@ COMMIT;
 
 The `FORCE ROW LEVEL SECURITY` flag ensures even table owners cannot bypass policies.
 
-### Setting Up RLS on Your Tables
+### Setting up RLS on your tables
 
 Use the `@stratum-hq/db-adapters` package or the CLI:
 
@@ -88,7 +88,7 @@ const tenantPool = createTenantPool(pool, () => getTenantContext().tenant_id);
 const orders = await tenantPool.query("SELECT * FROM orders");
 ```
 
-### Subtree Read Scope
+### Subtree read scope
 
 By default, a tenant context reads the rows of one tenant only. A parent can opt in to also read the rows of all its descendants. This is the subtree read scope. Use it when a parent must see a roll-up of its tree, for example an MSSP that monitors its MSPs and their clients.
 
@@ -236,7 +236,7 @@ The control plane provisions a database named `stratum_tenant_{slug}` (here `str
   services, healthcare) where you need to prove physical data separation.
 </Aside>
 
-## Mixing Strategies
+## Mixing strategies
 
 You can mix isolation strategies within the same hierarchy:
 
@@ -271,7 +271,7 @@ const regulatedMsp = await stratum.createTenant({
   specify a different one.
 </Aside>
 
-## Security Properties
+## Security properties
 
 | Property | RLS | Schema | Database |
 |----------|-----|--------|----------|

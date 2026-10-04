@@ -49,7 +49,7 @@ export function TenantThemeProvider({
 
   const cssVars: React.CSSProperties & Record<string, string> = {};
   if (branding.primaryColor) {
-    cssVars["--color-primary"] = branding.primaryColor;
+    cssVars["--stratum-accent"] = branding.primaryColor;
   }
   if (branding.logoUrl) {
     cssVars["--stratum-logo-url"] = `url(${branding.logoUrl})`;

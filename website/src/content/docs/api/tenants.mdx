@@ -32,7 +32,7 @@ Suspending, resuming and activating a tenant have no route. Call `suspendTenant`
 
 ---
 
-## List Tenants
+## List tenants
 
 ```
 GET /api/v1/tenants?cursor=<uuid>&limit=50
@@ -73,7 +73,7 @@ GET /api/v1/tenants?cursor=<uuid>&limit=50
 
 ---
 
-## Create Tenant
+## Create tenant
 
 ```
 POST /api/v1/tenants
@@ -105,7 +105,7 @@ POST /api/v1/tenants
 
 ---
 
-## Get Tenant
+## Get tenant
 
 ```
 GET /api/v1/tenants/:id
@@ -115,7 +115,7 @@ GET /api/v1/tenants/:id
 
 ---
 
-## Update Tenant
+## Update tenant
 
 ```
 PATCH /api/v1/tenants/:id
@@ -136,7 +136,7 @@ PATCH /api/v1/tenants/:id
 
 ---
 
-## Archive Tenant
+## Archive tenant
 
 ```
 DELETE /api/v1/tenants/:id
@@ -148,7 +148,7 @@ Soft-deletes the tenant (sets `status = 'archived'`). Fails with `409 HAS_CHILDR
 
 ---
 
-## Move Tenant
+## Move tenant
 
 ```
 POST /api/v1/tenants/:id/move
@@ -168,7 +168,7 @@ Moves the tenant (and all descendants) under a new parent. Performs cycle detect
 
 ---
 
-## Batch Create Tenants
+## Batch create tenants
 
 ```
 POST /api/v1/tenants/batch
@@ -198,7 +198,7 @@ Creates up to 100 tenants in a single atomic transaction. If any tenant fails va
 
 ---
 
-## Get Ancestors
+## Get ancestors
 
 ```
 GET /api/v1/tenants/:id/ancestors
@@ -208,7 +208,7 @@ GET /api/v1/tenants/:id/ancestors
 
 ---
 
-## Get Descendants
+## Get descendants
 
 ```
 GET /api/v1/tenants/:id/descendants
@@ -218,7 +218,7 @@ GET /api/v1/tenants/:id/descendants
 
 ---
 
-## Get Children
+## Get children
 
 ```
 GET /api/v1/tenants/:id/children
@@ -228,7 +228,7 @@ GET /api/v1/tenants/:id/children
 
 ---
 
-## Resolve Context
+## Resolve context
 
 ```
 GET /api/v1/tenants/:id/context
@@ -272,7 +272,7 @@ Returns the full tenant context including resolved config and permissions.
 
 ---
 
-## Error Responses
+## Error responses
 
 | Code | Status | Description |
 |------|--------|-------------|

@@ -1,5 +1,5 @@
 ---
-title: Multi-Region
+title: Multi-region
 description: Assign tenants to geographic regions for data residency compliance and latency optimization.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 Regions represent geographic or logical deployment zones. Each region can have its own database URL, control plane URL, and lifecycle status. Tenants can be migrated between regions to satisfy compliance requirements or optimize latency.
 
-## Region Model
+## Region model
 
 ```typescript
 interface Region {
@@ -22,7 +22,7 @@ interface Region {
 }
 ```
 
-## Region Lifecycle
+## Region lifecycle
 
 ```
 active  ──>  draining  ──>  inactive
@@ -34,7 +34,7 @@ active  ──>  draining  ──>  inactive
 | `draining` | No new tenants, existing tenants being migrated out |
 | `inactive` | Empty, can be safely deleted |
 
-## Creating Regions
+## Creating regions
 
 ```typescript
 const eu = await stratum.createRegion({
@@ -67,7 +67,7 @@ curl -X POST http://localhost:3001/api/v1/regions \
   }'
 ```
 
-## Migrating Tenants
+## Migrating tenants
 
 Move a tenant to a different region:
 
@@ -84,7 +84,7 @@ curl -X POST http://localhost:3001/api/v1/tenants/TENANT_UUID/migrate-region \
   -d '{"region_id": "EU_REGION_UUID"}'
 ```
 
-### Migration Validations
+### Migration validations
 
 The migration checks:
 
@@ -94,7 +94,7 @@ The migration checks:
 
 If the target region is not `active`, the migration throws `RegionNotActiveError`. The control plane answers `409` with the code `REGION_NOT_ACTIVE`.
 
-## Managing Regions
+## Managing regions
 
 ### List
 
@@ -103,7 +103,7 @@ curl http://localhost:3001/api/v1/regions \
   -H "X-API-Key: YOUR_KEY"
 ```
 
-### Update Status
+### Update status
 
 Drain a region before decommissioning:
 
@@ -123,7 +123,7 @@ curl -X DELETE http://localhost:3001/api/v1/regions/REGION_UUID \
   -H "X-API-Key: YOUR_ADMIN_KEY"
 ```
 
-## Data Residency Example
+## Data residency example
 
 For GDPR data residency compliance, create regions per jurisdiction and assign tenants accordingly:
 
@@ -157,7 +157,7 @@ await stratum.migrateRegion("us-tenant-uuid", us.id);
   ```
 </Aside>
 
-## Region Slug Rules
+## Region slug rules
 
 Region slugs follow the same rules as tenant slugs:
 

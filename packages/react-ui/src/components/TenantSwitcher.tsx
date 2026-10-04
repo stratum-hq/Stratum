@@ -78,7 +78,7 @@ export function TenantSwitcher({ rootId, onTenantChange, className }: TenantSwit
                 role="option"
                 aria-selected={tenant?.id === node.id}
                 className={`stratum-tenant-switcher__item ${tenant?.id === node.id ? "stratum-tenant-switcher__item--active" : ""}`}
-                style={{ paddingInlineStart: `calc(${depth} * var(--space-lg) + var(--space-sm))` }}
+                style={{ paddingInlineStart: `calc(${depth} * var(--stratum-space-4) + var(--stratum-space-2))` }}
                 onClick={() => handleSelect(node.id)}
                 onKeyDown={(e) => e.key === "Enter" && handleSelect(node.id)}
                 tabIndex={0}

@@ -1,40 +1,32 @@
-import React, { useEffect, useState, useMemo } from "react";
-import ReactDOM from "react-dom";
-import { useTenant, useStratum, useTenantTree, ConfigInheritanceVisualizer } from "@stratum-hq/react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useTenant,
+  useStratum,
+  useTenantTree,
+  ConfigEditor,
+  ConfigInheritanceVisualizer,
+  PermissionEditor,
+  WebhookEditor,
+} from "@stratum-hq/react";
 import type { TenantTreeNode } from "@stratum-hq/react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface ConfigInheritanceEntry {
-  key: string;
-  value: unknown;
-  source_tenant_id: string;
+type TenantRecord = NonNullable<ReturnType<typeof useTenant>["tenant"]>;
+
+// Loose shapes for the untyped context payload.
+type ContextConfigEntry = { value: unknown; locked?: boolean; inherited?: boolean };
+type ContextPermissionEntry = { value: unknown; mode?: string };
+type ContextTenant = { id?: string; name?: string };
+
+interface ResolvedConfigEntry {
   inherited: boolean;
   locked: boolean;
 }
 
-// Loose shapes for the untyped context-inspector modal payload.
-type ContextConfigEntry = { value: unknown; locked?: boolean; inherited?: boolean };
-type ContextPermissionEntry = { value: unknown; mode?: string };
-type ContextTenant = { id?: string; name?: string; parent_id?: string };
-
-interface ConfigInheritanceResponse {
-  data?: ConfigInheritanceEntry[];
-  inheritance?: ConfigInheritanceEntry[];
-}
-
 interface PermissionEntry {
-  policy_id: string;
-  key: string;
-  value: unknown;
-  mode: string;
-  source_tenant_id: string;
   locked: boolean;
   delegated: boolean;
-}
-
-interface PermissionsResponse {
-  [key: string]: PermissionEntry;
 }
 
 interface SecurityEvent {
@@ -67,2162 +59,892 @@ interface ApiKeyEntry {
   expires_at: string | null;
 }
 
-// ── Tab definitions ──────────────────────────────────────────────────────────
+interface WebhookEntry {
+  id: string;
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
 
 type TabId = "overview" | "config" | "permissions" | "events" | "audit" | "api-keys" | "webhooks";
 
-interface TabDef {
-  id: TabId;
-  label: string;
-  icon: string;
-}
-
-const TABS: TabDef[] = [
-  { id: "overview", label: "Overview", icon: "◫" },
-  { id: "config", label: "Config", icon: "⚙" },
-  { id: "permissions", label: "Permissions", icon: "🔑" },
-  { id: "events", label: "Events", icon: "⚡" },
-  { id: "audit", label: "Audit", icon: "📋" },
-  { id: "api-keys", label: "API Keys", icon: "🗝" },
-  { id: "webhooks", label: "Webhooks", icon: "🔗" },
+const TABS: { id: TabId; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "config", label: "Config" },
+  { id: "permissions", label: "Permissions" },
+  { id: "events", label: "Events" },
+  { id: "audit", label: "Audit" },
+  { id: "api-keys", label: "API keys" },
+  { id: "webhooks", label: "Webhooks" },
 ];
 
-// ── CSS-in-JS with design tokens ─────────────────────────────────────────────
-
-const cssVars = `
-/* Colors, type, spacing and motion come from @stratum-hq/react's stylesheet
-   (imported in main.tsx), which mirrors the shared Stratum tokens. These are
-   the demo's local aliases onto those tokens. */
-:root,
-[data-theme] {
-  --bg-page: var(--surface-0);
-  --bg-card: var(--surface-1);
-  --bg-input: var(--surface-2);
-  --border-strong: var(--rule);
-}
-
-body {
-  margin: 0;
-  background: var(--bg-page);
-  color: var(--text-primary);
-  transition: background var(--duration-medium) var(--ease-move), color var(--duration-medium) var(--ease-move);
-}
-
-/* Dashboard responsive styles */
-.stratum-dashboard {
-  max-width: 1120px;
-  font-family: var(--font-body);
-}
-
-.stratum-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) 0;
-  font-size: 0.8125rem;
-  color: var(--text-tertiary);
-  font-family: var(--font-body);
-  flex-wrap: wrap;
-}
-
-.stratum-breadcrumb-segment {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.stratum-breadcrumb-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.stratum-breadcrumb-name {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.stratum-breadcrumb-name.active {
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.stratum-breadcrumb-sep {
-  color: var(--text-tertiary);
-  font-size: 0.75rem;
-}
-
-/* Dashboard header */
-.stratum-dash-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  margin-bottom: var(--space-xl);
-  flex-wrap: wrap;
-}
-
-.stratum-dash-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: var(--font-display);
-}
-
-.stratum-dash-slug {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.stratum-dash-depth {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  background: var(--bg-card);
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  border: 1px solid var(--border);
-}
-
-.stratum-view-as-btn {
-  padding: var(--space-xs) var(--space-md);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: var(--flow-muted);
-  border: 2px solid var(--flow);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: var(--font-body);
-  transition: background var(--duration-micro) var(--ease-enter),
-              color var(--duration-micro) var(--ease-enter);
-  white-space: nowrap;
-}
-
-.stratum-view-as-btn:hover {
-  background: var(--flow);
-  color: var(--on-flow);
-}
-
-.stratum-view-as-btn:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-
-/* Tab bar */
-.stratum-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-xl);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.stratum-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.stratum-tab {
-  padding: var(--space-sm) var(--space-lg);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: var(--font-body);
-  transition: color var(--duration-short) var(--ease-enter),
-              border-color var(--duration-short) var(--ease-enter);
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
-.stratum-tab:hover {
-  color: var(--text-primary);
-}
-
-.stratum-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
-}
-
-.stratum-tab:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: -2px;
-}
-
-.stratum-tab-icon {
-  font-size: 0.875rem;
-}
-
-/* Tab content area */
-.stratum-tab-content {
-  animation: stratum-fade-in var(--duration-medium) var(--ease-enter);
-}
-
-@keyframes stratum-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stratum-tab-content { animation: none; }
-  .stratum-tab { transition: none; }
-  .stratum-view-as-btn { transition: none; }
-}
-
-/* Stat cards row */
-.stratum-stat-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--space-md);
-  margin-bottom: var(--space-xl);
-}
-
-.stratum-stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-md) var(--space-lg);
-  box-shadow: var(--shadow-sm);
-}
-
-.stratum-stat-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: var(--space-xs);
-  font-family: var(--font-body);
-}
-
-.stratum-stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-variant-numeric: tabular-nums;
-}
-
-.stratum-stat-value.accent {
-  color: var(--color-accent);
-}
-
-.stratum-stat-value.primary {
-  color: var(--color-primary);
-}
-
-.stratum-stat-value.warning {
-  color: var(--color-warning);
-}
-
-.stratum-stat-value.success {
-  color: var(--color-success);
-}
-
-.stratum-stat-value.error {
-  color: var(--color-error);
-}
-
-/* Section card */
-.stratum-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.stratum-section-header {
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
-
-.stratum-section-title {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-  font-family: var(--font-display);
-}
-
-.stratum-section-desc {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  font-style: italic;
-  margin: 0;
-  font-family: var(--font-body);
-}
-
-/* Table styles */
-.stratum-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8125rem;
-  font-family: var(--font-body);
-}
-
-.stratum-table thead tr {
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-}
-
-.stratum-table th {
-  padding: var(--space-sm) var(--space-lg);
-  text-align: left;
-  font-weight: 600;
-  color: var(--text-secondary);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.stratum-table td {
-  padding: var(--space-sm) var(--space-lg);
-  color: var(--text-primary);
-}
-
-.stratum-table tbody tr {
-  border-bottom: 1px solid var(--border);
-  transition: background var(--duration-micro) var(--ease-enter);
-}
-
-.stratum-table tbody tr:hover {
-  background: var(--bg-card);
-}
-
-.stratum-mono {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-}
-
-/* Badge styles */
-.stratum-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2xs);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-full);
-}
-
-/* Tag fills, each with its paired ink. The shape comes from the library. */
-.stratum-badge.inherited {
-  color: var(--on-flow);
-  background: var(--flow);
-}
-
-.stratum-badge.locked {
-  color: var(--on-accent);
-  background: var(--lock);
-}
-
-.stratum-badge.own {
-  color: var(--surface-0);
-  background: var(--text-primary);
-}
-
-.stratum-badge.success {
-  color: var(--on-vein);
-  background: var(--vein);
-}
-
-.stratum-badge.error {
-  color: var(--on-accent);
-  background: var(--magma);
-}
-
-.stratum-badge.info {
-  color: var(--on-strata-light);
-  background: var(--sandstone-band);
-}
-
-/* Button styles */
-.stratum-btn {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  padding: var(--space-2xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: var(--font-body);
-  transition: background var(--duration-micro) var(--ease-enter);
-}
-
-.stratum-btn:hover {
-  background: var(--bg-input);
-}
-
-.stratum-btn:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
-
-.stratum-btn.primary {
-  background: var(--color-primary);
-  color: var(--on-accent);
-  border-color: var(--color-primary);
-}
-
-.stratum-btn.primary:hover {
-  background: var(--color-primary-hover);
-}
-
-.stratum-btn.accent {
-  background: var(--color-accent);
-  color: var(--on-accent);
-  border-color: var(--color-accent);
-}
-
-.stratum-btn.accent:hover {
-  background: var(--color-accent-hover);
-}
-
-.stratum-btn.success {
-  background: var(--color-success);
-  color: var(--on-vein);
-  border-color: var(--color-success);
-}
-
-.stratum-btn.destructive {
-  color: var(--color-error);
-  border-color: var(--color-error-bg);
-}
-
-.stratum-btn.destructive:hover {
-  background: var(--color-error-bg);
-}
-
-.stratum-btn.small {
-  padding: 2px 6px;
-  font-size: 0.625rem;
-}
-
-.stratum-btn.danger {
-  color: var(--color-error);
-  border-color: var(--color-error);
-}
-
-.stratum-btn.danger:hover {
-  background: var(--color-error-bg);
-}
-
-.stratum-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Input styles */
-.stratum-input {
-  font-size: 0.75rem;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-  background: var(--bg-card);
-  transition: border-color var(--duration-micro) var(--ease-enter);
-}
-
-.stratum-input:focus {
-  outline: 3px solid var(--focus);
-  outline-offset: 0;
-  border-color: var(--focus);
-}
-
-.stratum-select {
-  font-size: 0.75rem;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  font-family: var(--font-mono);
-  color: var(--text-primary);
-  background: var(--bg-card);
-}
-
-/* Checkbox styling for dark mode */
-input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: 3px;
-  background: var(--bg-input);
-  cursor: pointer;
-  position: relative;
-  vertical-align: middle;
-}
-
-input[type="checkbox"]:checked {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-input[type="checkbox"]:checked::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid var(--on-accent);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-
-input[type="checkbox"]:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* Form row */
-.stratum-form-row {
-  padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--border);
-}
-
-.stratum-form-hint {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-sm);
-}
-
-.stratum-form-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-/* Loading / Error / Empty */
-.stratum-loading {
-  padding: var(--space-md) var(--space-lg);
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
-.stratum-error {
-  padding: var(--space-md) var(--space-lg);
-  font-size: 0.8125rem;
-  color: var(--color-error);
-}
-
-.stratum-empty {
-  padding: var(--space-xl) var(--space-lg);
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-}
-
-/* Overview quick actions */
-.stratum-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-lg);
-  margin-bottom: var(--space-xl);
-}
-
-.stratum-overview-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.stratum-overview-card-title {
-  font-family: var(--font-display);
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.stratum-overview-card-value {
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.stratum-overview-card-desc {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-}
-
-/* Severity colors */
-.severity-critical { background: var(--magma); color: var(--on-accent); }
-.severity-high { background: var(--clay); color: var(--on-strata-light); }
-.severity-medium { background: var(--amber-fill); color: var(--on-ember); }
-.severity-low { background: var(--vein); color: var(--on-vein); }
-.severity-info { background: var(--limestone); color: var(--on-strata-light); }
-
-/* Edit row */
-.stratum-edit-row {
-  background: var(--color-warning-bg);
-}
-
-.stratum-edit-row td {
-  padding: var(--space-sm) var(--space-lg);
-}
-
-/* Key created banner */
-.stratum-key-banner {
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-success-bg);
-  border-bottom: 1px solid var(--border);
-  font-size: 0.75rem;
-}
-
-.stratum-key-banner code {
-  font-family: var(--font-mono);
-  display: block;
-  margin-top: var(--space-xs);
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-card);
-  border-radius: var(--radius-sm);
-  word-break: break-all;
-}
-
-/* Responsive breakpoints */
-@media (max-width: 1024px) {
-  .stratum-stat-cards {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Returns the first 8 characters of a UUID, which is enough to tell two rows
+ * apart on screen. Any other ID, such as an email address that names an actor,
+ * comes back whole, because a cut-off name is ambiguous.
+ */
+function shortId(id: string): string {
+  return UUID.test(id) ? id.slice(0, 8) : id;
+}
+
+// ── Shared pieces ────────────────────────────────────────────────────────────
+
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const titleId = useId();
+  return (
+    <section className="demo-section" aria-labelledby={titleId}>
+      <div className="demo-section-header">
+        <h3 id={titleId} className="demo-section-title">{title}</h3>
+        {description && <p className="demo-section-desc">{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// ── Breadcrumb ───────────────────────────────────────────────────────────────
+
+const bandForDepth = (depth: number) => `var(--stratum-tree-band-${Math.min(depth, 4)})`;
+
+function findAncestry(tree: TenantTreeNode[], targetId: string): TenantTreeNode[] {
+  for (const node of tree) {
+    if (node.id === targetId) return [node];
+    const below = findAncestry(node.children, targetId);
+    if (below.length > 0) return [node, ...below];
   }
-  .stratum-overview-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  return [];
 }
-
-@media (max-width: 768px) {
-  .stratum-tabs {
-    flex-wrap: nowrap;
-    gap: 0;
-    padding: 0 var(--space-sm);
-  }
-  .stratum-tab {
-    padding: var(--space-sm) var(--space-md);
-    font-size: 0.75rem;
-  }
-  .stratum-tab-icon {
-    display: none;
-  }
-  .stratum-stat-cards {
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-sm);
-  }
-  .stratum-stat-card {
-    padding: var(--space-sm) var(--space-md);
-  }
-  .stratum-stat-value {
-    font-size: 1.25rem;
-  }
-  .stratum-overview-grid {
-    grid-template-columns: 1fr;
-  }
-  .stratum-dash-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-sm);
-  }
-  .stratum-view-as-btn {
-    margin-left: 0;
-    align-self: flex-start;
-  }
-  .stratum-table {
-    font-size: 0.75rem;
-  }
-  .stratum-table th,
-  .stratum-table td {
-    padding: var(--space-xs) var(--space-sm);
-  }
-  .stratum-section-header {
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-  .stratum-form-controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .stratum-form-controls .stratum-input,
-  .stratum-form-controls .stratum-select {
-    width: 100%;
-  }
-  .stratum-breadcrumb {
-    font-size: 0.75rem;
-  }
-}
-`;
-
-// ── Breadcrumb helper ────────────────────────────────────────────────────────
-
-// Depth swatches use the rock bands, shallow to deep (DESIGN.md).
-const depthDotColors: Record<number, string> = {
-  0: "var(--topsoil)", // root / MSSP
-  1: "var(--clay)", // MSP
-  2: "var(--sandstone-band)", // client
-  3: "var(--limestone)",
-  4: "var(--basalt)",
-};
-
-function findAncestryNames(
-  tree: TenantTreeNode[],
-  targetId: string,
-): { name: string; depth: number }[] {
-  const path: { name: string; depth: number }[] = [];
-
-  function walk(nodes: TenantTreeNode[], trail: { name: string; depth: number }[]): boolean {
-    for (const node of nodes) {
-      const currentTrail = [...trail, { name: node.name, depth: node.depth }];
-      if (node.id === targetId) {
-        path.push(...currentTrail);
-        return true;
-      }
-      if (node.children.length > 0 && walk(node.children, currentTrail)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  walk(tree, []);
-  return path;
-}
-
-// ── Breadcrumb component ─────────────────────────────────────────────────────
 
 function Breadcrumb({ tenantId }: { tenantId: string }) {
   const { tree } = useTenantTree();
-  const ancestry = useMemo(() => findAncestryNames(tree, tenantId), [tree, tenantId]);
+  const ancestry = useMemo(() => findAncestry(tree, tenantId), [tree, tenantId]);
 
   if (ancestry.length === 0) return null;
 
   return (
-    <nav className="stratum-breadcrumb" aria-label="Tenant hierarchy">
-      {ancestry.map((seg, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <span className="stratum-breadcrumb-sep">/</span>}
-          <span className="stratum-breadcrumb-segment">
-            <span
-              className="stratum-breadcrumb-dot"
-              style={{ background: depthDotColors[seg.depth] || "var(--basalt)" }}
-            />
-            <span className={`stratum-breadcrumb-name${i === ancestry.length - 1 ? " active" : ""}`}>
-              {seg.name}
-            </span>
-          </span>
-        </React.Fragment>
-      ))}
+    <nav aria-label="Tenant path">
+      <ol className="demo-breadcrumb">
+        {ancestry.map((node, i) => (
+          <li key={node.id} aria-current={i === ancestry.length - 1 ? "page" : undefined}>
+            <span className="demo-swatch" style={{ background: bandForDepth(node.depth) }} />
+            {node.name}
+          </li>
+        ))}
+      </ol>
     </nav>
   );
 }
 
-// ── Stat card ────────────────────────────────────────────────────────────────
+// ── Overview ─────────────────────────────────────────────────────────────────
 
-function StatCard({
-  label,
-  value,
-  variant,
-}: {
-  label: string;
-  value: string | number;
-  variant?: "accent" | "primary" | "warning" | "success" | "error";
-}) {
-  return (
-    <div className="stratum-stat-card">
-      <div className="stratum-stat-label">{label}</div>
-      <div className={`stratum-stat-value${variant ? ` ${variant}` : ""}`}>{value}</div>
-    </div>
-  );
+interface SummaryCounts {
+  config: { total: number; inherited: number; locked: number } | null;
+  permissions: { total: number; locked: number; delegated: number } | null;
+  events: number | null;
+  audit: number | null;
+  keys: { total: number; active: number; revoked: number } | null;
+  webhooks: number | null;
 }
 
-// ── Section: Tenant Context (used in Overview) ──────────────────────────────
+/**
+ * Return the counts for the Overview, fetched directly.
+ *
+ * The Overview used to mount every section out of sight to read their counts,
+ * which loaded six tables nobody saw. A count that fails to load is null.
+ */
+function useSummaryCounts(tenantId: string): SummaryCounts | null {
+  const { apiCall } = useStratum();
+  const [counts, setCounts] = useState<SummaryCounts | null>(null);
 
-function TenantContextSection() {
-  const { tenant } = useTenant();
-  if (!tenant) return null;
+  useEffect(() => {
+    let current = true;
+    setCounts(null);
+    const id = encodeURIComponent(tenantId);
+    Promise.allSettled([
+      apiCall<Record<string, ResolvedConfigEntry>>(`/api/v1/tenants/${id}/config`),
+      apiCall<Record<string, PermissionEntry>>(`/api/v1/tenants/${id}/permissions`),
+      fetch(`/api/events/${id}`).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<SecurityEvent[]>;
+      }),
+      apiCall<AuditEntry[]>(`/api/v1/audit-logs?tenant_id=${id}&limit=20`),
+      apiCall<ApiKeyEntry[]>(`/api/v1/api-keys?tenant_id=${id}`),
+      apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${id}`),
+    ]).then(([config, permissions, events, audit, keys, webhooks]) => {
+      if (!current) return;
+      const value = <T,>(r: PromiseSettledResult<T>) => (r.status === "fulfilled" ? r.value : null);
+      const length = (r: PromiseSettledResult<unknown>) => {
+        const v = value(r);
+        return Array.isArray(v) ? v.length : null;
+      };
+      const configEntries = value(config) ? Object.values(value(config)!) : null;
+      const permissionEntries = value(permissions) ? Object.values(value(permissions)!) : null;
+      const keyList = value(keys);
+      setCounts({
+        config: configEntries && {
+          total: configEntries.length,
+          inherited: configEntries.filter((e) => e.inherited).length,
+          locked: configEntries.filter((e) => e.locked).length,
+        },
+        permissions: permissionEntries && {
+          total: permissionEntries.length,
+          locked: permissionEntries.filter((p) => p.locked).length,
+          delegated: permissionEntries.filter((p) => p.delegated).length,
+        },
+        events: length(events),
+        audit: length(audit),
+        keys: Array.isArray(keyList)
+          ? {
+              total: keyList.length,
+              active: keyList.filter((k) => !k.revoked_at).length,
+              revoked: keyList.filter((k) => k.revoked_at).length,
+            }
+          : null,
+        webhooks: length(webhooks),
+      });
+    });
+    return () => {
+      current = false;
+    };
+  }, [apiCall, tenantId]);
 
-  const rows = [
+  return counts;
+}
+
+function TenantContextTable({ tenant }: { tenant: TenantRecord }) {
+  const rows: [string, string, boolean][] = [
     ["Name", tenant.name, false],
     ["ID", tenant.id, true],
     ["Slug", tenant.slug, true],
-    ["Ancestry Path", tenant.ancestry_path, true],
+    ["Ancestry path", tenant.ancestry_path, true],
     ["Depth", String(tenant.depth), false],
-    ["Isolation Strategy", tenant.isolation_strategy, true],
+    ["Isolation strategy", tenant.isolation_strategy, true],
     ["Status", tenant.status, false],
-  ] as [string, string, boolean][];
+  ];
 
   return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Tenant Context</span>
-        <span className="stratum-section-desc">
-          Position in the hierarchy. The ancestry_path traces the UUID chain from root to this tenant. RLS uses this to scope queries.
-        </span>
-      </div>
-      <table className="stratum-table">
-        <tbody>
-          {rows.map(([label, value, isMono]) => (
-            <tr key={label}>
-              <td style={{ color: "var(--text-tertiary)", fontWeight: 500, width: 160, whiteSpace: "nowrap" }}>{label}</td>
-              <td className={isMono ? "stratum-mono" : ""} style={{ wordBreak: "break-all" }}>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Section: Config Inheritance ──────────────────────────────────────────────
-
-function ConfigInheritanceSection({ onStats }: { onStats?: (stats: { total: number; inherited: number; locked: number }) => void }) {
-  const { tenant } = useTenant();
-  const { apiCall } = useStratum();
-  const [data, setData] = useState<ConfigInheritanceEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-  const [editLocked, setEditLocked] = useState(false);
-  const [mutating, setMutating] = useState(false);
-
-  const [addKey, setAddKey] = useState("");
-  const [addValue, setAddValue] = useState("");
-  const [addLocked, setAddLocked] = useState(false);
-
-  const fetchConfig = () => {
-    if (!tenant) { setData([]); return; }
-    setLoading(true);
-    setError(null);
-    apiCall<ConfigInheritanceResponse>(`/api/v1/tenants/${tenant.id}/config/inheritance`)
-      .then((res) => {
-        if (Array.isArray(res)) {
-          setData(res as ConfigInheritanceEntry[]);
-        } else if (res && typeof res === "object") {
-          const obj = (res as { data?: unknown; inheritance?: unknown });
-          const source = obj.data ?? obj.inheritance ?? res;
-          if (Array.isArray(source)) {
-            setData(source as ConfigInheritanceEntry[]);
-          } else if (source && typeof source === "object") {
-            setData(Object.values(source) as ConfigInheritanceEntry[]);
-          } else {
-            setData([]);
-          }
-        } else {
-          setData([]);
-        }
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchConfig(); }, [tenant?.id]);
-
-  useEffect(() => {
-    if (onStats) {
-      onStats({
-        total: data.length,
-        inherited: data.filter((d) => d.inherited).length,
-        locked: data.filter((d) => d.locked).length,
-      });
-    }
-  }, [data, onStats]);
-
-  const handleEdit = (entry: ConfigInheritanceEntry) => {
-    setEditingKey(entry.key);
-    setEditValue(JSON.stringify(entry.value));
-    setEditLocked(entry.locked);
-  };
-
-  const handleEditSubmit = (key: string) => {
-    if (!tenant) return;
-    setMutating(true);
-    let parsedValue: unknown;
-    try { parsedValue = JSON.parse(editValue); } catch { parsedValue = editValue; }
-    apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: parsedValue, locked: editLocked }),
-    })
-      .then(() => { setEditingKey(null); fetchConfig(); })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  const handleDelete = (key: string) => {
-    if (!tenant) return;
-    setMutating(true);
-    apiCall(`/api/v1/tenants/${tenant.id}/config/${key}`, { method: "DELETE" })
-      .then(() => fetchConfig())
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  const handleAdd = () => {
-    if (!tenant || !addKey.trim()) return;
-    setMutating(true);
-    let parsedValue: unknown;
-    try { parsedValue = JSON.parse(addValue); } catch { parsedValue = addValue; }
-    apiCall(`/api/v1/tenants/${tenant.id}/config/${addKey.trim()}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: parsedValue, locked: addLocked }),
-    })
-      .then(() => { setAddKey(""); setAddValue(""); setAddLocked(false); fetchConfig(); })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  const isLocal = (entry: ConfigInheritanceEntry) => tenant && entry.source_tenant_id === tenant.id;
-
-  return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Config Inheritance</span>
-        <span className="stratum-section-desc">
-          Config values flow root&rarr;leaf. Children inherit parent values unless they override.
-          Parents can lock a key to prevent descendants from overriding.
-        </span>
-      </div>
-      {loading && <div className="stratum-loading">Loading...</div>}
-      {error && <div className="stratum-error">Error: {error}</div>}
-      {!loading && !error && data.length === 0 && (
-        <div className="stratum-empty">No config entries. Add one below to get started.</div>
-      )}
-      {!loading && data.length > 0 && (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Resolved Value</th>
-              <th>Source</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+    <Section
+      title="Tenant context"
+      description="Position in the hierarchy. The ancestry_path traces the UUID chain from root to this tenant. RLS uses this to scope queries."
+    >
+      <div className="demo-table-scroll">
+        <table className="demo-table">
           <tbody>
-            {data.map((entry) => (
-              <React.Fragment key={entry.key}>
-                <tr>
-                  <td className="stratum-mono">{entry.key}</td>
-                  <td className="stratum-mono" style={{ maxWidth: 260, wordBreak: "break-all" }}>
-                    {JSON.stringify(entry.value)}
-                  </td>
-                  <td>
-                    {entry.inherited ? (
-                      <span className="stratum-badge inherited">&uarr; inherited ({entry.source_tenant_id?.slice(0, 8) || "\u2014"})</span>
-                    ) : (
-                      <span className="stratum-badge own">&bull; local</span>
-                    )}
-                  </td>
-                  <td>
-                    {entry.locked ? (
-                      <span className="stratum-badge locked">&darr; LOCKED</span>
-                    ) : (
-                      <span style={{ color: "var(--text-tertiary)", fontSize: "0.6875rem" }}>&mdash;</span>
-                    )}
-                  </td>
-                  <td>
-                    {isLocal(entry) && (
-                      <span style={{ display: "flex", gap: "var(--space-xs)" }}>
-                        <button className="stratum-btn" disabled={mutating} onClick={() => handleEdit(entry)}>Edit</button>
-                        <button className="stratum-btn destructive" disabled={mutating} onClick={() => handleDelete(entry.key)}>Delete</button>
-                      </span>
-                    )}
-                  </td>
-                </tr>
-                {editingKey === entry.key && (
-                  <tr className="stratum-edit-row">
-                    <td colSpan={5}>
-                      <div className="stratum-form-controls">
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>Value:</span>
-                        <input className="stratum-input" style={{ width: 200 }} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-                        <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
-                          <input type="checkbox" checked={editLocked} onChange={(e) => setEditLocked(e.target.checked)} />
-                          Locked
-                        </label>
-                        <button className="stratum-btn primary" disabled={mutating} onClick={() => handleEditSubmit(entry.key)}>Save</button>
-                        <button className="stratum-btn" onClick={() => setEditingKey(null)}>Cancel</button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {tenant && (
-        <div className="stratum-form-row">
-          <div className="stratum-form-hint">
-            Add a config override for this tenant. The value is JSON-parsed (falls back to string). Locking prevents descendants from overriding.
-          </div>
-          <div className="stratum-form-controls">
-            <input className="stratum-input" style={{ width: 140 }} placeholder="key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
-            <input className="stratum-input" style={{ width: 200 }} placeholder="value (JSON or string)" value={addValue} onChange={(e) => setAddValue(e.target.value)} />
-            <label style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", display: "flex", alignItems: "center", gap: "var(--space-xs)" }}>
-              <input type="checkbox" checked={addLocked} onChange={(e) => setAddLocked(e.target.checked)} />
-              Locked
-            </label>
-            <button className="stratum-btn success" disabled={mutating || !addKey.trim()} onClick={handleAdd}>Add Config</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Section: Permissions ─────────────────────────────────────────────────────
-
-function PermissionsSection({ onStats }: { onStats?: (stats: { total: number; locked: number; delegated: number }) => void }) {
-  const { tenant } = useTenant();
-  const { apiCall } = useStratum();
-  const [data, setData] = useState<PermissionEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [addKey, setAddKey] = useState("");
-  const [addMode, setAddMode] = useState("INHERITED");
-  const [addRevocationMode, setAddRevocationMode] = useState("CASCADE");
-  const [mutating, setMutating] = useState(false);
-
-  const fetchPermissions = () => {
-    if (!tenant) { setData([]); return; }
-    setLoading(true);
-    setError(null);
-    apiCall<PermissionsResponse>(`/api/v1/tenants/${tenant.id}/permissions`)
-      .then((res) => {
-        setData(
-          Object.entries(res).map(([k, val]) => ({ ...val, key: k }))
-        );
-      })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchPermissions(); }, [tenant?.id]);
-
-  useEffect(() => {
-    if (onStats) {
-      onStats({
-        total: data.length,
-        locked: data.filter((d) => d.locked).length,
-        delegated: data.filter((d) => d.delegated).length,
-      });
-    }
-  }, [data, onStats]);
-
-  const handleAdd = () => {
-    if (!tenant || !addKey.trim()) return;
-    setMutating(true);
-    apiCall(`/api/v1/tenants/${tenant.id}/permissions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: addKey.trim(), value: true, mode: addMode, revocation_mode: addRevocationMode }),
-    })
-      .then(() => { setAddKey(""); setAddMode("INHERITED"); setAddRevocationMode("CASCADE"); fetchPermissions(); })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  const handleDelete = (policyId: string) => {
-    if (!tenant) return;
-    setMutating(true);
-    apiCall(`/api/v1/tenants/${tenant.id}/permissions/${policyId}`, { method: "DELETE" })
-      .then(() => fetchPermissions())
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  const modeClass: Record<string, string> = {
-    LOCKED: "locked",
-    INHERITED: "info",
-    DELEGATED: "success",
-  };
-
-  return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Permissions</span>
-        <span className="stratum-section-desc">
-          Permissions cascade through the tree with three delegation modes:
-          LOCKED (immutable), INHERITED (overridable), and DELEGATED (overridable + re-delegatable).
-        </span>
-      </div>
-      {loading && <div className="stratum-loading">Loading...</div>}
-      {error && <div className="stratum-error">Error: {error}</div>}
-      {!loading && !error && data.length === 0 && (
-        <div className="stratum-empty">No permissions defined. Grant one below.</div>
-      )}
-      {!loading && data.length > 0 && (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>Permission</th>
-              <th>Value</th>
-              <th>Mode</th>
-              <th>Flags</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((perm) => (
-              <tr key={perm.key}>
-                <td className="stratum-mono">{perm.key}</td>
-                <td>
-                  <span className={`stratum-badge ${perm.value ? "success" : "error"}`}>
-                    {perm.value ? "YES" : "NO"}
-                  </span>
-                </td>
-                <td>
-                  <span className={`stratum-badge ${modeClass[perm.mode] || "own"}`}>
-                    {perm.mode || "\u2014"}
-                  </span>
-                </td>
-                <td style={{ fontSize: "0.75rem" }}>
-                  {perm.locked && <span style={{ color: "var(--color-error)", marginRight: 6 }}>locked</span>}
-                  {perm.delegated && <span style={{ color: "var(--color-success)" }}>delegated</span>}
-                  {!perm.locked && !perm.delegated && <span style={{ color: "var(--text-tertiary)" }}>&mdash;</span>}
-                </td>
-                <td>
-                  {tenant && perm.source_tenant_id === tenant.id && (
-                    <button className="stratum-btn destructive" disabled={mutating} onClick={() => handleDelete(perm.policy_id)}>Delete</button>
-                  )}
-                </td>
+            {rows.map(([label, value, mono]) => (
+              <tr key={label}>
+                <th scope="row">{label}</th>
+                <td className={mono ? "demo-mono" : undefined}>{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
-
-      {tenant && (
-        <div className="stratum-form-row">
-          <div className="stratum-form-hint">
-            Grant a new permission to this tenant. Mode controls how descendants can interact with it.
-          </div>
-          <div className="stratum-form-controls">
-            <input className="stratum-input" style={{ width: 160 }} placeholder="permission.key" value={addKey} onChange={(e) => setAddKey(e.target.value)} />
-            <select className="stratum-select" value={addMode} onChange={(e) => setAddMode(e.target.value)}>
-              <option value="LOCKED">LOCKED</option>
-              <option value="INHERITED">INHERITED</option>
-              <option value="DELEGATED">DELEGATED</option>
-            </select>
-            <select className="stratum-select" value={addRevocationMode} onChange={(e) => setAddRevocationMode(e.target.value)}>
-              <option value="CASCADE">CASCADE</option>
-              <option value="SOFT">SOFT</option>
-              <option value="PERMANENT">PERMANENT</option>
-            </select>
-            <button className="stratum-btn primary" disabled={mutating || !addKey.trim()} onClick={handleAdd}>Add Permission</button>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </Section>
   );
 }
 
-// ── Section: Security Events ─────────────────────────────────────────────────
+function OverviewTab({ tenant, onOpenTab }: { tenant: TenantRecord; onOpenTab: (tab: TabId) => void }) {
+  const counts = useSummaryCounts(tenant.id);
 
-function SecurityEventsSection({ onStats }: { onStats?: (count: number) => void }) {
-  const { tenant } = useTenant();
-  const [events, setEvents] = useState<SecurityEvent[]>([]);
-  const [loading, setLoading] = useState(false);
+  // A figure of undefined means that count did not load.
+  const rows: { tab: TabId; name: string; figure: number | undefined; detail: string }[] = counts
+    ? [
+        {
+          tab: "config",
+          name: "Config",
+          figure: counts.config?.total,
+          detail: `${counts.config?.inherited} inherited, ${counts.config?.locked} locked`,
+        },
+        {
+          tab: "permissions",
+          name: "Permissions",
+          figure: counts.permissions?.total,
+          detail: `${counts.permissions?.locked} locked, ${counts.permissions?.delegated} delegated`,
+        },
+        { tab: "events", name: "Security events", figure: counts.events ?? undefined, detail: "RLS-scoped events for this tenant" },
+        { tab: "audit", name: "Audit log", figure: counts.audit ?? undefined, detail: "Recent mutations recorded" },
+        {
+          tab: "api-keys",
+          name: "Active API keys",
+          figure: counts.keys?.active,
+          detail: `${counts.keys?.total} total, ${counts.keys?.revoked} revoked`,
+        },
+        { tab: "webhooks", name: "Webhooks", figure: counts.webhooks ?? undefined, detail: "Endpoints that receive lifecycle events" },
+      ]
+    : [];
+
+  return (
+    <>
+      <Section title="Summary">
+        {counts === null ? (
+          <p className="demo-status" role="status">Loading counts...</p>
+        ) : (
+          <ul className="demo-summary">
+            {rows.map((row) => (
+              <li key={row.tab}>
+                <button type="button" onClick={() => onOpenTab(row.tab)}>
+                  <span className="demo-summary-name">{row.name}</span>
+                  <span className="demo-summary-figure">{row.figure ?? "–"}</span>
+                  {row.figure === undefined ? (
+                    <span className="demo-summary-detail demo-error">Error: the count did not load.</span>
+                  ) : (
+                    <span className="demo-summary-detail">{row.detail}</span>
+                  )}
+                  <span className="demo-summary-open" aria-hidden="true">Open</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+      <TenantContextTable tenant={tenant} />
+    </>
+  );
+}
+
+// ── Events and audit ─────────────────────────────────────────────────────────
+
+function SecurityEventsTab({ tenantId }: { tenantId: string }) {
+  const [events, setEvents] = useState<SecurityEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tenant) { setEvents([]); return; }
-    setLoading(true);
+    let current = true;
+    setEvents(null);
     setError(null);
-    fetch(`/api/events/${tenant.id}`)
+    fetch(`/api/events/${encodeURIComponent(tenantId)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<SecurityEvent[]>;
       })
-      .then((data) => setEvents(data))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, [tenant?.id]);
-
-  useEffect(() => {
-    if (onStats) onStats(events.length);
-  }, [events, onStats]);
+      .then((data) => current && setEvents(data))
+      .catch((err: unknown) => current && setError(errorText(err)));
+    return () => {
+      current = false;
+    };
+  }, [tenantId]);
 
   return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Security Events -- RLS Demo</span>
-        <span className="stratum-section-desc">
-          Filtered by PostgreSQL Row-Level Security. The database scopes queries to the current tenant
-          via <span className="stratum-mono">SET LOCAL app.current_tenant_id</span>. Switch tenants to see different events.
-        </span>
-      </div>
-      {loading && <div className="stratum-loading">Loading...</div>}
-      {error && <div className="stratum-error">Error: {error}</div>}
-      {!loading && !error && (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>Severity</th>
-              <th>Type</th>
-              <th>Description</th>
-              <th>Source IP</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <span className={`stratum-badge severity-${e.severity}`}>
-                    {e.severity.toUpperCase()}
-                  </span>
-                </td>
-                <td>{e.event_type}</td>
-                <td style={{ color: "var(--text-secondary)" }}>{e.description}</td>
-                <td className="stratum-mono" style={{ color: "var(--text-tertiary)" }}>{e.source_ip || "\u2014"}</td>
-                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{new Date(e.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-            {events.length === 0 && (
+    <Section
+      title="Security events"
+      description={
+        <>
+          PostgreSQL row-level security filters these rows. The database scopes each query to the current tenant
+          with <span className="demo-mono">SET LOCAL app.current_tenant_id</span>. Switch tenants to see different events.
+        </>
+      }
+    >
+      {error ? (
+        <p className="demo-status demo-error" role="alert">Error: {error}</p>
+      ) : events === null ? (
+        <p className="demo-status" role="status">Loading events...</p>
+      ) : events.length === 0 ? (
+        <p className="demo-status">No events for this tenant. RLS scopes events, so switch tenants to see others.</p>
+      ) : (
+        <div className="demo-table-scroll">
+          <table className="demo-table">
+            <thead>
               <tr>
-                <td colSpan={5} className="stratum-empty">
-                  No events for this tenant. Events are scoped by RLS -- switch tenants to see others.
-                </td>
+                <th>Severity</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Source IP</th>
+                <th>Time</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {events.map((e) => (
+                <tr key={e.id}>
+                  <td><span className={`demo-tag demo-tag--${e.severity}`}>{e.severity}</span></td>
+                  <td>{e.event_type}</td>
+                  <td className="demo-muted demo-wrap">{e.description}</td>
+                  <td className="demo-mono demo-muted">{e.source_ip || "–"}</td>
+                  <td className="demo-muted">{new Date(e.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </Section>
   );
 }
 
-// ── Section: Audit Log ───────────────────────────────────────────────────────
-
-function AuditLogSection({ onStats }: { onStats?: (count: number) => void }) {
-  const { tenant } = useTenant();
+function AuditLogTab({ tenantId }: { tenantId: string }) {
   const { apiCall } = useStratum();
-  const [entries, setEntries] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tenant) { setEntries([]); return; }
-    setLoading(true);
+    let current = true;
+    setEntries(null);
     setError(null);
-    apiCall<AuditEntry[]>(`/api/v1/audit-logs?tenant_id=${tenant.id}&limit=20`)
-      .then((data) => setEntries(Array.isArray(data) ? data : []))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  }, [tenant?.id]);
-
-  useEffect(() => {
-    if (onStats) onStats(entries.length);
-  }, [entries, onStats]);
-
-  const actionColors: Record<string, string> = {
-    "tenant.created": "success",
-    "tenant.updated": "info",
-    "tenant.deleted": "error",
-    "config.updated": "inherited",
-    "permission.created": "locked",
-  };
+    apiCall<AuditEntry[]>(`/api/v1/audit-logs?tenant_id=${encodeURIComponent(tenantId)}&limit=20`)
+      .then((data) => current && setEntries(Array.isArray(data) ? data : []))
+      .catch((err: unknown) => current && setError(errorText(err)));
+    return () => {
+      current = false;
+    };
+  }, [apiCall, tenantId]);
 
   return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Audit Log</span>
-        <span className="stratum-section-desc">
-          Immutable audit trail. Every mutation is recorded with actor identity, resource type, and timestamp.
-        </span>
-      </div>
-      {loading && <div className="stratum-loading">Loading...</div>}
-      {error && <div className="stratum-error">Error: {error}</div>}
-      {!loading && !error && (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>Action</th>
-              <th>Resource</th>
-              <th>Actor</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <span className={`stratum-badge ${actionColors[e.action] || "own"}`}>
-                    {e.action}
-                  </span>
-                </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
-                  {e.resource_type}{e.resource_id ? ` (${e.resource_id.slice(0, 8)}...)` : ""}
-                </td>
-                <td className="stratum-mono" style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
-                  {e.actor_type}: {e.actor_id.slice(0, 8)}...
-                </td>
-                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
-                  {new Date(e.created_at).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-            {entries.length === 0 && (
+    <Section
+      title="Audit log"
+      description="Immutable audit trail. Every mutation is recorded with actor identity, resource type, and timestamp."
+    >
+      {error ? (
+        <p className="demo-status demo-error" role="alert">Error: {error}</p>
+      ) : entries === null ? (
+        <p className="demo-status" role="status">Loading the audit log...</p>
+      ) : entries.length === 0 ? (
+        <p className="demo-status">No audit entries for this tenant.</p>
+      ) : (
+        <div className="demo-table-scroll">
+          <table className="demo-table">
+            <thead>
               <tr>
-                <td colSpan={4} className="stratum-empty">
-                  No audit entries for this tenant
-                </td>
+                <th>Action</th>
+                <th>Resource</th>
+                <th>Actor</th>
+                <th>Time</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td className="demo-mono">{e.action}</td>
+                  <td className="demo-mono demo-muted">
+                    {e.resource_type}{e.resource_id ? ` (${shortId(e.resource_id)})` : ""}
+                  </td>
+                  <td className="demo-mono demo-muted">{e.actor_type}: {shortId(e.actor_id)}</td>
+                  <td className="demo-muted">{new Date(e.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </div>
+    </Section>
   );
 }
 
-// ── Section: API Keys ────────────────────────────────────────────────────────
+// ── API keys ─────────────────────────────────────────────────────────────────
 
-function ApiKeySection({ onStats }: { onStats?: (stats: { total: number; active: number; revoked: number }) => void }) {
-  const { tenant } = useTenant();
+/**
+ * Return a Revoke button that revokes only after a second, explicit choice.
+ *
+ * Revoking cannot be undone, and every client that holds the key stops working.
+ * The prompt names the key and the start of its ID, and focus moves to Keep key.
+ */
+function RevokeKeyButton({ apiKey, onRevoke }: { apiKey: ApiKeyEntry; onRevoke: () => Promise<void> }) {
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const promptId = useId();
+  const revokeRef = useRef<HTMLButtonElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const backedOut = useRef(false);
+
+  useEffect(() => {
+    if (armed) {
+      keepRef.current?.focus();
+    } else if (backedOut.current) {
+      backedOut.current = false;
+      revokeRef.current?.focus();
+    }
+  }, [armed]);
+
+  const keep = () => {
+    backedOut.current = true;
+    setArmed(false);
+  };
+
+  if (!armed) {
+    return (
+      <button ref={revokeRef} type="button" className="demo-button" onClick={() => setArmed(true)}>
+        Revoke
+      </button>
+    );
+  }
+
+  return (
+    <span
+      className="demo-confirm"
+      role="group"
+      aria-labelledby={promptId}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") keep();
+      }}
+    >
+      <span id={promptId} className="demo-confirm__prompt">
+        Revoke {apiKey.name ?? "this key"} (ID {shortId(apiKey.id)})? Clients that use it stop working.
+      </span>
+      <button
+        type="button"
+        className="demo-button demo-button--danger"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          await onRevoke();
+          setBusy(false);
+          keep();
+        }}
+      >
+        Revoke key
+      </button>
+      <button ref={keepRef} type="button" className="demo-button" onClick={keep} disabled={busy}>
+        Keep key
+      </button>
+    </span>
+  );
+}
+
+function ApiKeysTab({ tenantId }: { tenantId: string }) {
   const { apiCall } = useStratum();
-  const [keys, setKeys] = useState<ApiKeyEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [keys, setKeys] = useState<ApiKeyEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newKeyName, setNewKeyName] = useState("");
-  const [mutating, setMutating] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
 
-  const fetchKeys = () => {
-    if (!tenant) { setKeys([]); return; }
-    setLoading(true);
-    setError(null);
-    apiCall<ApiKeyEntry[]>(`/api/v1/api-keys?tenant_id=${tenant.id}`)
-      .then((data) => setKeys(Array.isArray(data) ? data : []))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { fetchKeys(); }, [tenant?.id]);
+  const fetchKeys = useCallback(async () => {
+    try {
+      const data = await apiCall<ApiKeyEntry[]>(`/api/v1/api-keys?tenant_id=${encodeURIComponent(tenantId)}`);
+      setKeys(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }, [apiCall, tenantId]);
 
   useEffect(() => {
-    if (onStats) {
-      onStats({
-        total: keys.length,
-        active: keys.filter((k) => !k.revoked_at).length,
-        revoked: keys.filter((k) => !!k.revoked_at).length,
-      });
-    }
-  }, [keys, onStats]);
-
-  const handleCreate = () => {
-    if (!tenant) return;
-    setMutating(true);
+    setKeys(null);
+    setError(null);
     setCreatedKey(null);
-    apiCall<{ plaintext_key: string }>(`/api/v1/api-keys`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenant.id, name: newKeyName || undefined }),
-    })
-      .then((res) => { setCreatedKey(res.plaintext_key); setNewKeyName(""); fetchKeys(); })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
+    void fetchKeys();
+  }, [fetchKeys]);
 
-  const handleRevoke = (keyId: string) => {
-    setMutating(true);
-    apiCall(`/api/v1/api-keys/${keyId}`, { method: "DELETE" })
-      .then(() => fetchKeys())
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
-      .finally(() => setMutating(false));
-  };
-
-  return (
-    <div className="stratum-section">
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">API Keys</span>
-        <span className="stratum-section-desc">
-          Manage API keys for this tenant. Keys are scoped to the tenant and its descendants.
-          The plaintext key is shown only once at creation.
-        </span>
-      </div>
-      {loading && <div className="stratum-loading">Loading...</div>}
-      {error && <div className="stratum-error">Error: {error}</div>}
-      {createdKey && (
-        <div className="stratum-key-banner">
-          <strong>New key created -- copy now, it won&apos;t be shown again:</strong>
-          <code>{createdKey}</code>
-        </div>
-      )}
-      {!loading && !error && (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Status</th>
-              <th>Last Used</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k.id}>
-                <td className="stratum-mono">{k.name || "\u2014"}</td>
-                <td>
-                  {k.revoked_at ? (
-                    <span className="stratum-badge error">REVOKED</span>
-                  ) : (
-                    <span className="stratum-badge success">ACTIVE</span>
-                  )}
-                </td>
-                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
-                  {k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "Never"}
-                </td>
-                <td style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>
-                  {new Date(k.created_at).toLocaleString()}
-                </td>
-                <td>
-                  {!k.revoked_at && (
-                    <button className="stratum-btn destructive" disabled={mutating} onClick={() => handleRevoke(k.id)}>Revoke</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {keys.length === 0 && (
-              <tr>
-                <td colSpan={5} className="stratum-empty">
-                  No API keys for this tenant. Create one below.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      )}
-
-      {tenant && (
-        <div className="stratum-form-row">
-          <div className="stratum-form-controls">
-            <input className="stratum-input" style={{ width: 200 }} placeholder="Key name (optional)" value={newKeyName} onChange={(e) => setNewKeyName(e.target.value)} />
-            <button className="stratum-btn primary" disabled={mutating} onClick={handleCreate}>Create Key</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Section: Webhooks ────────────────────────────────────────────────────────
-
-interface WebhookEntry {
-  id: string;
-  tenant_id: string | null;
-  url: string;
-  events: string[];
-  active: boolean;
-  secret: string;
-  created_at: string;
-}
-
-function WebhookSection({ onStats }: { onStats?: (count: number) => void }) {
-  const { tenant } = useTenant();
-  const { apiCall } = useStratum();
-  const [webhooks, setWebhooks] = useState<WebhookEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [mutating, setMutating] = useState(false);
-  const [newUrl, setNewUrl] = useState("");
-  const [newEvents, setNewEvents] = useState("tenant.created,tenant.updated,config.updated");
-  const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
-
-  const fetchWebhooks = async () => {
-    if (!tenant) return;
-    setLoading(true);
+  const create = async () => {
+    setCreating(true);
+    setCreatedKey(null);
     setError(null);
     try {
-      const data = await apiCall<WebhookEntry[]>(`/api/v1/webhooks?tenant_id=${tenant.id}`);
-      const list = Array.isArray(data) ? data : [];
-      setWebhooks(list);
-      onStats?.(list.length);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load webhooks");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchWebhooks(); }, [tenant?.id]);
-
-  const handleCreate = async () => {
-    if (!tenant || !newUrl.trim()) return;
-    setMutating(true);
-    try {
-      await apiCall("/api/v1/webhooks", {
+      const res = await apiCall<{ plaintext_key: string }>("/api/v1/api-keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenant_id: tenant.id,
-          url: newUrl.trim(),
-          events: newEvents.split(",").map(e => e.trim()).filter(Boolean),
-        }),
+        body: JSON.stringify({ tenant_id: tenantId, name: newKeyName.trim() || undefined }),
       });
-      setNewUrl("");
-      await fetchWebhooks();
+      setCreatedKey(res.plaintext_key);
+      setNewKeyName("");
+      await fetchKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create webhook");
+      setError(errorText(err));
     } finally {
-      setMutating(false);
+      setCreating(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setMutating(true);
+  const revoke = async (keyId: string) => {
+    setError(null);
     try {
-      await apiCall(`/api/v1/webhooks/${id}`, { method: "DELETE" });
-      await fetchWebhooks();
+      await apiCall(`/api/v1/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+      await fetchKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete webhook");
-    } finally {
-      setMutating(false);
+      setError(errorText(err));
     }
   };
-
-  const handleTest = async (id: string) => {
-    setTestResult(null);
-    try {
-      const result = await apiCall<{ success: boolean; response_code?: number; error?: string }>(`/api/v1/webhooks/${id}/test`, { method: "POST" });
-      setTestResult({
-        id,
-        success: result.success,
-        message: result.success ? `Delivered (${result.response_code})` : (result.error || "Delivery failed"),
-      });
-    } catch (err) {
-      setTestResult({ id, success: false, message: err instanceof Error ? err.message : "Test failed" });
-    }
-  };
-
-  if (loading) return <div style={{ padding: "var(--space-xl)", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>Loading webhooks...</div>;
-  if (error) return <div style={{ padding: "var(--space-xl)", color: "var(--color-error)", fontSize: "0.875rem" }}>{error}</div>;
 
   return (
-    <div>
-      <div className="stratum-section-header">
-        <span className="stratum-section-title">Webhook Endpoints</span>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
-          {webhooks.length} webhook{webhooks.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {webhooks.length === 0 ? (
-        <div style={{ padding: "var(--space-2xl)", textAlign: "center", color: "var(--text-tertiary)", fontSize: "0.875rem" }}>
-          <div style={{ marginBottom: "var(--space-sm)" }}>No webhooks configured.</div>
-          <div style={{ fontSize: "0.75rem" }}>Webhooks notify external services when tenant events occur.</div>
-        </div>
+    <Section
+      title="API keys"
+      description="Keys are scoped to this tenant and its descendants. The plaintext key is shown only once, at creation."
+    >
+      {createdKey && (
+        <p className="demo-key-banner" role="status">
+          <strong>Copy the new key now. It is not shown again.</strong>
+          <code>{createdKey}</code>
+        </p>
+      )}
+      {error && <p className="demo-status demo-error" role="alert">Error: {error}</p>}
+      {keys === null ? (
+        !error && <p className="demo-status" role="status">Loading API keys...</p>
+      ) : keys.length === 0 ? (
+        <p className="demo-status">No API keys for this tenant. Create one below.</p>
       ) : (
-        <table className="stratum-table">
-          <thead>
-            <tr>
-              <th>URL</th>
-              <th>Events</th>
-              <th>Status</th>
-              <th style={{ width: 140 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {webhooks.map((wh) => (
-              <tr key={wh.id}>
-                <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {wh.url}
-                </td>
-                <td style={{ fontSize: "0.75rem" }}>
-                  {wh.events.map(e => (
-                    <span key={e} style={{ display: "inline-block", background: "var(--color-info-bg)", color: "var(--color-info)", padding: "1px 6px", borderRadius: "var(--radius-full)", fontSize: "0.6875rem", marginRight: "4px", marginBottom: "2px" }}>
-                      {e}
-                    </span>
-                  ))}
-                </td>
-                <td>
-                  <span style={{
-                    display: "inline-block",
-                    padding: "1px 8px",
-                    borderRadius: "var(--radius-full)",
-                    fontSize: "0.6875rem",
-                    fontWeight: 600,
-                    background: wh.active ? "var(--color-success-bg)" : "var(--color-error-bg)",
-                    color: wh.active ? "var(--color-success)" : "var(--color-error)",
-                  }}>
-                    {wh.active ? "Active" : "Inactive"}
-                  </span>
-                  {testResult?.id === wh.id && (
-                    <span style={{
-                      display: "inline-block",
-                      marginLeft: "var(--space-xs)",
-                      padding: "1px 8px",
-                      borderRadius: "var(--radius-full)",
-                      fontSize: "0.6875rem",
-                      background: testResult.success ? "var(--color-success-bg)" : "var(--color-error-bg)",
-                      color: testResult.success ? "var(--color-success)" : "var(--color-error)",
-                    }}>
-                      {testResult.message}
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <div style={{ display: "flex", gap: "var(--space-xs)" }}>
-                    <button className="stratum-btn small" onClick={() => handleTest(wh.id)} disabled={mutating}>
-                      Test
-                    </button>
-                    <button className="stratum-btn small danger" onClick={() => handleDelete(wh.id)} disabled={mutating}>
-                      Delete
-                    </button>
-                  </div>
-                </td>
+        <div className="demo-table-scroll">
+          <table className="demo-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Last used</th>
+                <th>Created</th>
+                <th><span className="demo-visually-hidden">Actions</span></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {/* Create form */}
-      {tenant && (
-        <div className="stratum-form-row" style={{ marginTop: "var(--space-lg)" }}>
-          <div className="stratum-form-controls" style={{ flexWrap: "wrap" }}>
-            <input
-              className="stratum-input"
-              style={{ minWidth: 280, flex: 1 }}
-              placeholder="https://example.com/webhook"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-            />
-            <input
-              className="stratum-input"
-              style={{ minWidth: 200, flex: 1 }}
-              placeholder="Events (comma-separated)"
-              value={newEvents}
-              onChange={(e) => setNewEvents(e.target.value)}
-            />
-            <button className="stratum-btn primary" disabled={mutating || !newUrl.trim()} onClick={handleCreate}>
-              Create Webhook
-            </button>
-          </div>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k.id}>
+                  <td className="demo-mono">{k.name || "–"}</td>
+                  <td className="demo-mono demo-muted">{shortId(k.id)}</td>
+                  <td>
+                    <span className={k.revoked_at ? "demo-tag" : "demo-tag demo-tag--active"}>
+                      {k.revoked_at ? "Revoked" : "Active"}
+                    </span>
+                  </td>
+                  <td className="demo-muted">{k.last_used_at ? new Date(k.last_used_at).toLocaleString() : "Never"}</td>
+                  <td className="demo-muted">{new Date(k.created_at).toLocaleString()}</td>
+                  <td>{!k.revoked_at && <RevokeKeyButton apiKey={k} onRevoke={() => revoke(k.id)} />}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-    </div>
+      <form
+        className="demo-section-footer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void create();
+        }}
+      >
+        <input
+          className="demo-input"
+          aria-label="Key name (optional)"
+          placeholder="Key name (optional)"
+          value={newKeyName}
+          onChange={(e) => setNewKeyName(e.target.value)}
+        />
+        <button type="submit" className="demo-button demo-button--flow" disabled={creating}>
+          {creating ? "Creating..." : "Create key"}
+        </button>
+      </form>
+    </Section>
   );
 }
 
-// ── Overview Tab ─────────────────────────────────────────────────────────────
+// ── Resolved context dialog ──────────────────────────────────────────────────
 
-function OverviewTab({
-  configStats,
-  permStats,
-  eventCount,
-  auditCount,
-  keyStats,
-  onSwitchTab,
-}: {
-  configStats: { total: number; inherited: number; locked: number };
-  permStats: { total: number; locked: number; delegated: number };
-  eventCount: number;
-  auditCount: number;
-  keyStats: { total: number; active: number; revoked: number };
-  onSwitchTab: (tab: TabId) => void;
-}) {
+interface ResolvedContext {
+  config: Record<string, ContextConfigEntry>;
+  permissions: Record<string, ContextPermissionEntry>;
+  path: ContextTenant[];
+}
+
+/**
+ * Return a modal dialog with the tenant's resolved config, permissions and path.
+ *
+ * showModal() makes the rest of the page inert and keeps focus inside. Escape,
+ * the Close button and a click on the backdrop call onClose. The caller moves
+ * focus back to the control that opened it.
+ */
+function ResolvedContextDialog({ tenant, onClose }: { tenant: TenantRecord; onClose: () => void }) {
+  const { apiCall } = useStratum();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [context, setContext] = useState<ResolvedContext | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    const id = encodeURIComponent(tenant.id);
+    Promise.all([
+      apiCall<{ resolved_config?: Record<string, ContextConfigEntry>; resolved_permissions?: Record<string, ContextPermissionEntry> }>(
+        `/api/v1/tenants/${id}/context`,
+      ),
+      apiCall<ContextTenant[]>(`/api/v1/tenants/${id}/ancestors`),
+    ])
+      .then(([ctx, ancestors]) => {
+        if (!current) return;
+        setContext({
+          config: ctx.resolved_config ?? {},
+          permissions: ctx.resolved_permissions ?? {},
+          path: [...(Array.isArray(ancestors) ? ancestors : []), { id: tenant.id, name: tenant.name }],
+        });
+      })
+      .catch((err: unknown) => current && setError(errorText(err)));
+    return () => {
+      current = false;
+    };
+  }, [apiCall, tenant.id, tenant.name]);
+
   return (
-    <div className="stratum-tab-content">
-      <div className="stratum-stat-cards">
-        <StatCard label="Config Entries" value={configStats.total} />
-        <StatCard label="Inherited Values" value={configStats.inherited} variant="accent" />
-        <StatCard label="Locked Values" value={configStats.locked} variant="warning" />
-        <StatCard label="Permissions" value={permStats.total} variant="primary" />
-        <StatCard label="Security Events" value={eventCount} />
-        <StatCard label="API Keys (Active)" value={keyStats.active} variant="success" />
-      </div>
-
-      <TenantContextSection />
-
-      <div className="stratum-overview-grid">
-        <button
-          className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
-          onClick={() => onSwitchTab("config")}
-        >
-          <div className="stratum-overview-card-title">Config Inheritance</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-accent)" }}>{configStats.total}</div>
-          <div className="stratum-overview-card-desc">
-            {configStats.inherited} inherited, {configStats.locked} locked
-          </div>
-        </button>
-
-        <button
-          className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
-          onClick={() => onSwitchTab("permissions")}
-        >
-          <div className="stratum-overview-card-title">Permissions</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-primary)" }}>{permStats.total}</div>
-          <div className="stratum-overview-card-desc">
-            {permStats.locked} locked, {permStats.delegated} delegated
-          </div>
-        </button>
-
-        <button
-          className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
-          onClick={() => onSwitchTab("events")}
-        >
-          <div className="stratum-overview-card-title">Security Events</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{eventCount}</div>
-          <div className="stratum-overview-card-desc">RLS-scoped events for this tenant</div>
-        </button>
-
-        <button
-          className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
-          onClick={() => onSwitchTab("audit")}
-        >
-          <div className="stratum-overview-card-title">Audit Log</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--text-primary)" }}>{auditCount}</div>
-          <div className="stratum-overview-card-desc">Recent mutations recorded</div>
-        </button>
-
-        <button
-          className="stratum-overview-card"
-          style={{ cursor: "pointer", textAlign: "left", border: "1px solid var(--border)" }}
-          onClick={() => onSwitchTab("api-keys")}
-        >
-          <div className="stratum-overview-card-title">API Keys</div>
-          <div className="stratum-overview-card-value" style={{ color: "var(--color-success)" }}>{keyStats.active}</div>
-          <div className="stratum-overview-card-desc">
-            {keyStats.total} total, {keyStats.revoked} revoked
-          </div>
+    <dialog
+      ref={dialogRef}
+      className="demo-dialog"
+      aria-labelledby={titleId}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="demo-dialog-header">
+        <div>
+          <h2 id={titleId}>Resolved context</h2>
+          <span className="demo-meta">{tenant.name} &middot; {shortId(tenant.id)}</span>
+        </div>
+        <button type="button" className="demo-button" onClick={onClose}>
+          Close
         </button>
       </div>
-    </div>
+      <div className="demo-dialog-body">
+        {error ? (
+          <p className="demo-error" role="alert">Error: the context did not load. {error}</p>
+        ) : context === null ? (
+          <p className="demo-muted" role="status">Loading context...</p>
+        ) : (
+          <>
+            <h3>Resolved config</h3>
+            <table className="demo-table">
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(context.config).map(([key, entry]) => (
+                  <tr key={key}>
+                    <td className="demo-mono">{key}</td>
+                    <td className="demo-mono demo-muted">{JSON.stringify(entry.value)}</td>
+                    <td>
+                      {entry.locked ? (
+                        <span className="stratum-badge stratum-badge--locked">Locked</span>
+                      ) : entry.inherited ? (
+                        <span className="stratum-badge stratum-badge--inherited">Inherited</span>
+                      ) : (
+                        <span className="stratum-badge stratum-badge--own">Own</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h3>Resolved permissions</h3>
+            <table className="demo-table">
+              <thead>
+                <tr>
+                  <th>Permission</th>
+                  <th>Value</th>
+                  <th>Mode</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(context.permissions).map(([key, perm]) => (
+                  <tr key={key}>
+                    <td className="demo-mono">{key}</td>
+                    <td>{perm.value ? "Yes" : "No"}</td>
+                    <td className="demo-mono demo-muted">{perm.mode}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h3>Hierarchy path</h3>
+            <ol className="demo-path">
+              {context.path.map((node, i) => (
+                <li key={node.id ?? i}>
+                  <span
+                    className="demo-tag"
+                    aria-current={i === context.path.length - 1 ? "location" : undefined}
+                  >
+                    {node.name ?? "Unknown"}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {context.path.length === 1 && <p className="demo-muted">Root tenant: it has no ancestors.</p>}
+          </>
+        )}
+      </div>
+    </dialog>
   );
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
+function TabPanel({ tab, tenant, onOpenTab }: { tab: TabId; tenant: TenantRecord; onOpenTab: (tab: TabId) => void }) {
+  switch (tab) {
+    case "overview":
+      return <OverviewTab tenant={tenant} onOpenTab={onOpenTab} />;
+    case "config":
+      return (
+        <>
+          <Section
+            title="Config inheritance"
+            description="Config values flow from root to leaf. Children inherit parent values unless they override them. A parent can lock a key so descendants cannot override it."
+          >
+            <div className="demo-section-body">
+              <ConfigEditor />
+            </div>
+          </Section>
+          <Section title="Inheritance cascade" description="How config flows from this tenant to its children.">
+            <div className="demo-section-body">
+              <ConfigInheritanceVisualizer />
+            </div>
+          </Section>
+        </>
+      );
+    case "permissions":
+      return (
+        <Section
+          title="Permissions"
+          description="Permissions cascade through the tree in three delegation modes: LOCKED (immutable), INHERITED (overridable), and DELEGATED (overridable and re-delegatable)."
+        >
+          <div className="demo-section-body">
+            <PermissionEditor />
+          </div>
+        </Section>
+      );
+    case "events":
+      return <SecurityEventsTab tenantId={tenant.id} />;
+    case "audit":
+      return <AuditLogTab tenantId={tenant.id} />;
+    case "api-keys":
+      return <ApiKeysTab tenantId={tenant.id} />;
+    case "webhooks":
+      return (
+        <Section title="Webhooks" description="Endpoints that receive tenant lifecycle events, signed with HMAC.">
+          <div className="demo-section-body">
+            <WebhookEditor />
+          </div>
+        </Section>
+      );
+  }
+}
+
 export function Dashboard() {
   const { tenant, loading } = useTenant();
-  const { apiCall } = useStratum();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [contextModal, setContextModal] = useState<{ open: boolean; data: Record<string, unknown> | null; loading: boolean }>({ open: false, data: null, loading: false });
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("stratum-theme");
-      return stored ? stored === "dark" : true; // dark by default
-    }
-    return true;
-  });
+  const [contextOpen, setContextOpen] = useState(false);
+  const tabRefs = useRef(new Map<TabId, HTMLButtonElement>());
+  const contextButtonRef = useRef<HTMLButtonElement>(null);
+  const contextClosed = useRef(false);
 
+  // Focus returns to the opener only after the dialog has unmounted. While the
+  // dialog is modal, the rest of the page is inert and cannot take focus.
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
-    localStorage.setItem("stratum-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+    if (!contextOpen && contextClosed.current) {
+      contextClosed.current = false;
+      contextButtonRef.current?.focus();
+    }
+  }, [contextOpen]);
 
-  // Stats collected from child sections
-  const [configStats, setConfigStats] = useState({ total: 0, inherited: 0, locked: 0 });
-  const [permStats, setPermStats] = useState({ total: 0, locked: 0, delegated: 0 });
-  const [eventCount, setEventCount] = useState(0);
-  const [auditCount, setAuditCount] = useState(0);
-  const [keyStats, setKeyStats] = useState({ total: 0, active: 0, revoked: 0 });
-  const [webhookCount, setWebhookCount] = useState(0);
-
-  // Reset tab on tenant switch
+  // Each tenant opens on its Overview.
   useEffect(() => {
     setActiveTab("overview");
   }, [tenant?.id]);
 
-  if (loading) {
-    return (
-      <>
-        <style>{cssVars}</style>
-        <div style={{ textAlign: "center", padding: "var(--space-3xl)", color: "var(--text-tertiary)", fontSize: "0.875rem", fontFamily: "var(--font-body)" }}>
-          Loading tenant...
-        </div>
-      </>
-    );
+  if (loading && !tenant) {
+    return <p className="demo-status" role="status">Loading tenant...</p>;
   }
 
   if (!tenant) {
     return (
-      <>
-        <style>{cssVars}</style>
-        <div style={{ textAlign: "center", padding: "var(--space-3xl)", fontFamily: "var(--font-body)" }}>
-          <div style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", marginBottom: "var(--space-sm)", fontFamily: "var(--font-display)", fontWeight: 600 }}>
-          Select a tenant from the sidebar
-        </div>
-        <div style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
-          Click any tenant in the hierarchy to explore its context, config inheritance, permissions, and security events.
-        </div>
+      <div className="demo-empty">
+        <h2>Select a tenant</h2>
+        <p>Pick any tenant in the hierarchy to see its context, config inheritance, permissions and security events.</p>
       </div>
-      </>
     );
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "overview":
-        return (
-          <OverviewTab
-            configStats={configStats}
-            permStats={permStats}
-            eventCount={eventCount}
-            auditCount={auditCount}
-            keyStats={keyStats}
-            onSwitchTab={setActiveTab}
-          />
-        );
-      case "config":
-        return (
-          <div className="stratum-tab-content" key="config">
-            <div className="stratum-stat-cards">
-              <StatCard label="Total Entries" value={configStats.total} />
-              <StatCard label="Inherited" value={configStats.inherited} variant="accent" />
-              <StatCard label="Locked" value={configStats.locked} variant="warning" />
-              <StatCard label="Local Overrides" value={configStats.total - configStats.inherited} variant="primary" />
-            </div>
-            <ConfigInheritanceSection onStats={setConfigStats} />
-
-            {/* Config Inheritance Visualizer: split-screen cascade preview */}
-            <div style={{ marginTop: "var(--space-xl, 24px)" }}>
-              <div className="stratum-section-header">
-                <span className="stratum-section-title">Inheritance Cascade</span>
-                <span style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
-                  How config flows from this tenant to its children
-                </span>
-              </div>
-              <div style={{ padding: "var(--space-lg, 16px)" }}>
-                <ConfigInheritanceVisualizer />
-              </div>
-            </div>
-          </div>
-        );
-      case "permissions":
-        return (
-          <div className="stratum-tab-content" key="permissions">
-            <div className="stratum-stat-cards">
-              <StatCard label="Total Policies" value={permStats.total} />
-              <StatCard label="Locked" value={permStats.locked} variant="warning" />
-              <StatCard label="Delegated" value={permStats.delegated} variant="success" />
-            </div>
-            <PermissionsSection onStats={setPermStats} />
-          </div>
-        );
-      case "events":
-        return (
-          <div className="stratum-tab-content" key="events">
-            <div className="stratum-stat-cards">
-              <StatCard label="Total Events" value={eventCount} />
-            </div>
-            <SecurityEventsSection onStats={setEventCount} />
-          </div>
-        );
-      case "audit":
-        return (
-          <div className="stratum-tab-content" key="audit">
-            <div className="stratum-stat-cards">
-              <StatCard label="Recent Entries" value={auditCount} />
-            </div>
-            <AuditLogSection onStats={setAuditCount} />
-          </div>
-        );
-      case "api-keys":
-        return (
-          <div className="stratum-tab-content" key="api-keys">
-            <div className="stratum-stat-cards">
-              <StatCard label="Total Keys" value={keyStats.total} />
-              <StatCard label="Active" value={keyStats.active} variant="success" />
-              <StatCard label="Revoked" value={keyStats.revoked} variant="error" />
-            </div>
-            <ApiKeySection onStats={setKeyStats} />
-          </div>
-        );
-      case "webhooks":
-        return (
-          <div className="stratum-tab-content" key="webhooks">
-            <div className="stratum-stat-cards">
-              <StatCard label="Webhooks" value={webhookCount} />
-            </div>
-            <WebhookSection onStats={setWebhookCount} />
-          </div>
-        );
-    }
+  // Arrow keys move between tabs, as the WAI-ARIA tabs pattern expects.
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const index = TABS.findIndex((t) => t.id === activeTab);
+    const next =
+      e.key === "ArrowRight" ? (index + 1) % TABS.length
+      : e.key === "ArrowLeft" ? (index - 1 + TABS.length) % TABS.length
+      : e.key === "Home" ? 0
+      : e.key === "End" ? TABS.length - 1
+      : null;
+    if (next === null) return;
+    e.preventDefault();
+    setActiveTab(TABS[next].id);
+    tabRefs.current.get(TABS[next].id)?.focus();
   };
 
   return (
-    <>
-      <style>{cssVars}</style>
+    <div className="demo-dashboard">
+      <Breadcrumb tenantId={tenant.id} />
 
-      {/* Hidden data-fetching instances for overview stats */}
-      {activeTab === "overview" && (
-        <div style={{ display: "none" }}>
-          <ConfigInheritanceSection onStats={setConfigStats} />
-          <PermissionsSection onStats={setPermStats} />
-          <SecurityEventsSection onStats={setEventCount} />
-          <AuditLogSection onStats={setAuditCount} />
-          <ApiKeySection onStats={setKeyStats} />
-          <WebhookSection onStats={setWebhookCount} />
-        </div>
-      )}
-
-      <div className="stratum-dashboard">
-        {/* Breadcrumb */}
-        <Breadcrumb tenantId={tenant.id} />
-
-        {/* Header */}
-        <div className="stratum-dash-header">
-          <h2 className="stratum-dash-title">{tenant.name}</h2>
-          <span className="stratum-dash-slug">{tenant.slug}</span>
-          <span className="stratum-dash-depth">depth {tenant.depth}</span>
-          <button
-            className="stratum-view-as-btn"
-            onClick={async () => {
-              setContextModal({ open: true, data: null, loading: true });
-              try {
-                const [ctx, ancestors] = await Promise.all([
-                  apiCall<Record<string, unknown>>(`/api/v1/tenants/${tenant.id}/context`),
-                  apiCall<unknown[]>(`/api/v1/tenants/${tenant.id}/ancestors`),
-                ]);
-                setContextModal({
-                  open: true,
-                  data: { tenant, config: ctx.resolved_config, permissions: ctx.resolved_permissions, ancestors },
-                  loading: false,
-                });
-              } catch {
-                setContextModal({ open: false, data: null, loading: false });
-              }
-            }}
-            title="View full resolved context: inherited config, permissions, and ancestor chain"
-          >
-            Resolved Context
-          </button>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            style={{
-              marginLeft: "auto",
-              padding: "4px 10px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              background: "var(--bg-card)",
-              color: "var(--text-secondary)",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              fontFamily: "var(--font-body)",
-            }}
-            title={`Switch to ${darkMode ? "light" : "dark"} mode`}
-          >
-            {darkMode ? "☀ Light" : "● Dark"}
-          </button>
-        </div>
-
-        {/* Tab bar */}
-        <div className="stratum-tabs" role="tablist" aria-label="Dashboard sections">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`stratum-tab${activeTab === tab.id ? " active" : ""}`}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls={`panel-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span className="stratum-tab-icon" aria-hidden="true">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        <div id={`panel-${activeTab}`} role="tabpanel">
-          {renderTabContent()}
-        </div>
+      <div className="demo-dash-header">
+        <h2 className="demo-dash-title">{tenant.name}</h2>
+        <span className="demo-meta">{tenant.slug}</span>
+        <span className="demo-meta">depth {tenant.depth}</span>
+        <button
+          ref={contextButtonRef}
+          type="button"
+          className="demo-button demo-button--flow"
+          onClick={() => setContextOpen(true)}
+          title="Inherited config, permissions and the ancestor chain"
+        >
+          Resolved context
+        </button>
       </div>
 
-      {/* Tenant Context Modal, rendered via portal to body */}
-      {contextModal.open && ReactDOM.createPortal(
-        <div
-          style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "color-mix(in srgb, var(--peat) 60%, transparent)", backdropFilter: "blur(2px)",
-            overflow: "auto", padding: 24,
-          }}
-          onClick={() => setContextModal({ open: false, data: null, loading: false })}
-        >
-          <div
-            style={{
-              background: "var(--bg-card)",
-              boxShadow: "var(--shadow-xl)",
-              color: "var(--text-primary)",
-              width: 680,
-              maxWidth: "90vw",
-              fontFamily: "var(--font-body)",
+      <div className="demo-tabs" role="tablist" aria-label="Dashboard sections" onKeyDown={onTabKeyDown}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            ref={(el) => {
+              if (el) tabRefs.current.set(tab.id, el);
+              else tabRefs.current.delete(tab.id);
             }}
-            onClick={(e) => e.stopPropagation()}
+            id={`tab-${tab.id}`}
+            type="button"
+            className="demo-tab"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onClick={() => setActiveTab(tab.id)}
           >
-            <div style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              padding: "16px 24px",
-              borderBottom: "1px solid var(--border)",
-              position: "sticky", top: 0, background: "var(--bg-card)", zIndex: 1,
-            }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: "1rem" }}>
-                  Tenant Context
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
-                  {tenant.name} &middot; {tenant.id.slice(0, 8)}...
-                </div>
-              </div>
-              <button
-                onClick={() => setContextModal({ open: false, data: null, loading: false })}
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  fontSize: "1.5rem", color: "var(--text-tertiary)", lineHeight: 1,
-                  width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center",
-                  borderRadius: 6,
-                }}
-                aria-label="Close"
-              >
-                &times;
-              </button>
-            </div>
-            <div style={{ padding: "16px 24px" }}>
-              {contextModal.loading ? (
-                <div style={{ textAlign: "center", padding: "var(--space-xl, 24px)", color: "var(--text-tertiary)" }}>
-                  Loading context...
-                </div>
-              ) : contextModal.data ? (
-                <>
-                  {/* Config section */}
-                  <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
-                      Resolved Config
-                    </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Key</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries((contextModal.data.config as Record<string, ContextConfigEntry>) || {}).map(([key, entry]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)" }}>{JSON.stringify(entry.value)}</td>
-                            <td style={{ padding: "6px 12px" }}>
-                              {entry.locked ? (
-                                <span style={{ background: "var(--color-warning-bg)", color: "var(--color-warning)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2193"} Locked</span>
-                              ) : entry.inherited ? (
-                                <span style={{ background: "var(--color-accent-light)", color: "var(--color-accent)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2191"} Inherited</span>
-                              ) : (
-                                <span style={{ background: "var(--bg-card)", color: "var(--text-secondary)", padding: "2px 8px", borderRadius: 9999, fontSize: "0.6875rem", fontWeight: 500 }}>{"\u2022"} Own</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-                  {/* Permissions section */}
-                  <div style={{ marginBottom: "var(--space-xl, 24px)" }}>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
-                      Resolved Permissions
-                    </div>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Permission</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Value</th>
-                          <th style={{ textAlign: "start", padding: "6px 12px", fontWeight: 600, color: "var(--text-tertiary)" }}>Mode</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries((contextModal.data.permissions as Record<string, ContextPermissionEntry>) || {}).map(([key, perm]) => (
-                          <tr key={key} style={{ borderBottom: "1px solid var(--border)" }}>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontWeight: 500 }}>{key}</td>
-                            <td style={{ padding: "6px 12px" }}>
-                              {perm.value ? (
-                                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>YES</span>
-                              ) : (
-                                <span style={{ color: "var(--color-error)", fontWeight: 600 }}>NO</span>
-                              )}
-                            </td>
-                            <td style={{ padding: "6px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>{perm.mode}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+      <div id={`panel-${activeTab}`} role="tabpanel" aria-labelledby={`tab-${activeTab}`}>
+        <TabPanel tab={activeTab} tenant={tenant} onOpenTab={setActiveTab} />
+      </div>
 
-                  {/* Ancestors section */}
-                  <div>
-                    <div style={{ fontFamily: "var(--font-display, sans-serif)", fontWeight: 600, fontSize: "0.8125rem", marginBottom: "var(--space-sm, 8px)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-tertiary)" }}>
-                      Hierarchy Path
-                    </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      {(() => {
-                        const ancestors = (contextModal.data.ancestors as ContextTenant[]) || [];
-                        const current = contextModal.data.tenant as ContextTenant;
-                        const chain = [...ancestors, current];
-                        return chain.map((a, i) => (
-                          <React.Fragment key={a?.id || i}>
-                            {i > 0 && <span style={{ color: "var(--text-tertiary)", fontSize: "0.75rem" }}>{"\u2192"}</span>}
-                            <span style={{
-                              background: i === chain.length - 1 ? "var(--accent)" : "var(--surface-3)",
-                              padding: "4px 12px", clipPath: "var(--edge-chip)",
-                              fontSize: "0.75rem",
-                              fontWeight: i === chain.length - 1 ? 600 : 400,
-                              color: i === chain.length - 1 ? "var(--on-accent)" : "var(--text-primary)",
-                            }}>
-                              {a?.name || "Unknown"}
-                            </span>
-                          </React.Fragment>
-                        ));
-                      })()}
-                      {((contextModal.data.ancestors as ContextTenant[]) || []).length === 0 && !(contextModal.data.tenant as ContextTenant)?.parent_id && (
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontStyle: "italic" }}>Root tenant (no ancestors)</span>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>,
-        document.body
+      {contextOpen && (
+        <ResolvedContextDialog
+          tenant={tenant}
+          onClose={() => {
+            contextClosed.current = true;
+            setContextOpen(false);
+          }}
+        />
       )}
-    </>
+    </div>
   );
 }

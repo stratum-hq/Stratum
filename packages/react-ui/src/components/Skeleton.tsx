@@ -24,12 +24,12 @@ export function Skeleton({
     text: {
       width: width || "100%",
       height: height || "0.8125rem",
-      borderRadius: "var(--radius-sm, 4px)",
+      borderRadius: "var(--stratum-radius-sm)",
     },
     rect: {
       width: width || "100%",
       height: height || "48px",
-      borderRadius: "var(--radius-sm, 4px)",
+      borderRadius: "var(--stratum-radius-sm)",
     },
     circle: {
       width: width || "40px",
@@ -52,7 +52,7 @@ export function Skeleton({
   if (count === 1) return elements[0]!;
 
   return (
-    <div className="stratum-skeleton__group" style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm, 8px)" }}>
+    <div className="stratum-skeleton__group" style={{ display: "flex", flexDirection: "column", gap: "var(--stratum-space-2, 8px)" }}>
       {elements}
     </div>
   );

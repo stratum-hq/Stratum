@@ -17,7 +17,7 @@ Config endpoints are nested under tenants. All endpoints require authentication 
 
 ---
 
-## Get Resolved Config
+## Get resolved config
 
 ```
 GET /api/v1/tenants/:id/config
@@ -79,7 +79,7 @@ The value is returned only when the caller's key belongs to the tenant that set 
 
 ---
 
-## Set Config Value
+## Set config value
 
 ```
 PUT /api/v1/tenants/:id/config/:key
@@ -107,7 +107,7 @@ Returns `403 CONFIG_LOCKED` if the key is locked by an ancestor.
 
 ---
 
-## Delete Config Override
+## Delete config override
 
 ```
 DELETE /api/v1/tenants/:id/config/:key
@@ -119,7 +119,7 @@ Removes the tenant's override for this key. If an ancestor has set the key, the 
 
 ---
 
-## Batch Set Config
+## Batch set config
 
 ```
 PUT /api/v1/tenants/:id/config/batch
@@ -185,7 +185,7 @@ When the batch is rolled back, the response is an error, and `error.details` hol
 
 ---
 
-## Get Config Inheritance
+## Get config inheritance
 
 ```
 GET /api/v1/tenants/:id/config/inheritance
@@ -197,7 +197,7 @@ Returns the full config with inheritance metadata, showing which level set each 
 
 ---
 
-## Error Responses
+## Error responses
 
 | Code | Status | Description |
 |------|--------|-------------|

@@ -1,0 +1,44 @@
+---
+/**
+ * Render a comparison as a stack of rock rows: one slab per capability,
+ * clipped to --edge-row, each one on the ragged top of the row above.
+ *
+ * The rows are a CSS grid. Some browsers remove table semantics from a table
+ * that is not `display: table`, so every element states its ARIA role.
+ * Below 640px a row stacks, and each cell shows its column name.
+ * The styles are in the "ROCK ROWS" section of global.css.
+ */
+type Verdict = 'good' | 'neutral' | 'bad' | 'plain';
+
+interface Props {
+  /** The accessible name of the table. */
+  label: string;
+  /** The column headings. The first one names the capability column. */
+  columns: string[];
+  /** One row per capability. `cells` holds one [verdict, text] pair per column after the first. */
+  rows: { feat: string; cells: ReadonlyArray<readonly [Verdict, string]> }[];
+}
+
+const { label, columns, rows } = Astro.props;
+---
+
+<div class="rock-table" role="table" aria-label={label} style={`--rock-cols: ${columns.length - 1}`}>
+  <div role="rowgroup">
+    <div class="rock-head" role="row">
+      {columns.map((c) => <span role="columnheader">{c}</span>)}
+    </div>
+  </div>
+  <div class="rock-rows" role="rowgroup">
+    {rows.map((r) => (
+      <div class="rock-row" role="row">
+        <span class="rock-feat" role="rowheader">{r.feat}</span>
+        {r.cells.map(([verdict, text], i) => (
+          <span class={`rock-cell rock-${verdict}`} role="cell">
+            <span class="rock-cell-label" aria-hidden="true">{columns[i + 1]}</span>
+            {text}
+          </span>
+        ))}
+      </div>
+    ))}
+  </div>
+</div>

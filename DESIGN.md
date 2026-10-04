@@ -24,7 +24,10 @@ Rules that hold everywhere:
 
 - **No rounded corners.** Shape comes from clip-path "edge" polygons
   (`--edge-ledge`, `--edge-ledge-b`, `--edge-row`, `--edge-chip`, `--edge-slab`,
-  `--edge-fault`). `--radius-md`, `--radius-lg` and `--radius-full` are `0`.
+  `--edge-fault`). Every radius token is `0`: `--radius-sm`, `--radius-md`,
+  `--radius-lg` and `--radius-full` on the sites, and `--stratum-radius-sm` and
+  `--stratum-radius` in the react Bedrock theme. A component reads the token
+  with no fallback value, so the theme alone sets its corners.
 - **Layers stack.** A lower layer overlaps the ragged top of the one above
   (negative margin, rising z-index). No gaps of ground between layers of one
   stack.
@@ -33,6 +36,7 @@ Rules that hold everywhere:
   decoration.
 - **One hot color per view.** Magma is spent on the single most important
   action or state: the primary button, a locked key, the active isolation depth.
+  A selection or the current location is not an action, so it takes vein.
 - **State is word plus glyph plus color.** `■ LOCKED` is magma, `↓ INHERITED`
   is vein, `⇄ DELEGATED` is amber, `△ OVERRIDE` is ink.
 - **Motion eases, never steps.** `--ease-out` is `cubic-bezier(0.22, 1, 0.36, 1)`.
@@ -60,20 +64,49 @@ a component. Add or change a token in `assets/tokens.css` and both sites move
 together. `website/src/styles/custom.css` also maps Starlight's `--sl-*`
 variables onto these tokens with `var()`, never a literal.
 
-`@stratum-hq/react`'s `src/styles/default.css` carries its own copy of the same
-values (it ships independently of the sites), and the demo dashboard
-(`packages/demo/web`) consumes that stylesheet. Keep `default.css` in step with
-`assets/tokens.css` by hand when a token changes.
+`@stratum-hq/react` ships into other people's pages, so it carries its own
+copy of the values (it ships independently of the sites). Keep
+`theme-bedrock.css` in step with `assets/tokens.css` by hand when a token
+changes. The package has three stylesheets:
+
+| File | Import | Cascade layer | What it does |
+|---|---|---|---|
+| `src/styles/base.css` | `@stratum-hq/react/styles` | `stratum.base` | The neutral theme. It sits inside the host's design, with 4px and 8px corners. It is not Bedrock. |
+| `src/styles/theme-bedrock.css` | `@stratum-hq/react/styles/theme-bedrock.css` | `stratum.theme` | The optional Bedrock theme: clip-path edges, grain, rock bands, the display face, and Daylight as its light palette. |
+| `src/styles/fonts.css` | `@stratum-hq/react/styles/fonts.css` | none | The Bedrock fonts from Google Fonts. The only file of the package that makes a network request. |
+
+Rules that keep the package out of the host page:
+
+- Every rule is in a `stratum` cascade layer, so an unlayered host rule always
+  wins. `stratum.theme` sorts after `stratum.base` whatever the import order.
+- Every custom property starts with `--stratum-`, and every selector matches an
+  element with a `stratum-` class. `src/__tests__/stylesheets.test.ts` fails on
+  a token or a selector that breaks this.
+- The page root has no tokens. They are declared on the outermost element that
+  has a `stratum-` class, and nested components inherit them. A host element
+  that needs the tokens, such as a page shell, takes the class `stratum-scope`.
+- Bedrock decoration (edges, grain, uppercase, the display face) goes in
+  `theme-bedrock.css`. Structure and neutral looks go in `base.css`.
+
+The demo dashboard (`packages/demo/web`) loads `base.css`, `theme-bedrock.css`
+and `fonts.css`, puts `stratum-scope` on `<html>`, and styles its own chrome in
+`web/src/demo.css` with `demo-` classes and `--stratum-` tokens only. The demo
+chrome spends no magma: the magma in a demo view comes from the package theme.
 
 ## Themes
 
-Bedrock (dark) is the default on both sites and in `@stratum-hq/react` for every
-visitor, whatever the OS color scheme. Daylight applies only when the visitor
-picks it with the theme toggle, and the choice is remembered in localStorage
-(`stratum-theme` on the landing site, `starlight-theme` on the docs, where
+Bedrock (dark) is the default on both sites for every visitor, whatever the
+OS color scheme. Daylight applies only when the visitor picks it with the theme
+toggle, and the choice is remembered in localStorage (`stratum-theme` on the
+landing site, `starlight-theme` on the docs, where
 `website/src/components/ThemeProvider.astro` and `ThemeSelect.astro` replace
-Starlight's defaults). In `@stratum-hq/react`, Daylight applies under
-`[data-theme="light"]`.
+Starlight's defaults).
+
+`@stratum-hq/react` serves the host page, so it follows the host instead. With
+no `data-theme` on an ancestor, both `base.css` and `theme-bedrock.css` follow
+`prefers-color-scheme`: Bedrock for a dark scheme, Daylight for a light one.
+`data-theme="dark"` or `data-theme="light"` on an ancestor, or on the component
+root, sets the palette whatever the OS scheme.
 
 ## Palette
 
@@ -109,6 +142,19 @@ names and other mono runs. The code well stays dark in both themes: `--code-bg`
 `#0C0907` with `--code-text` `#D6C3A0`, and restrained syntax colors so one
 thing glows: the resolved value, in magma (`--syntax-accent`).
 
+The docs code blocks use the same palette. `website/src/styles/bedrock-code-theme.mjs`
+is an Expressive Code theme (VS Code theme format) built from the code tokens.
+A VS Code theme cannot read CSS variables, so the file copies the values: change
+it when a code token changes. The well is dark in both site themes, so one
+theme serves Bedrock and Daylight. It uses five colors (keyword, function,
+string, number, comment) on the code text, and keeps magma for marked lines.
+Shell blocks use the plain code frame, not a terminal window, because an empty
+title bar with window dots carries no information.
+
+Inline code on the docs is a code chip in Bedrock (`--code-bg`, `--code-text`).
+On Daylight paper it is a `--surface-3` chip in `--text-primary`, so a line of
+prose is not broken up by dark slabs.
+
 ### Texture
 
 Rock fills carry `--grain` (an SVG noise tile) and `--lam` (faint
@@ -122,9 +168,21 @@ gradients or photographs otherwise.
 
 | Role | Token | Family | Used for |
 |---|---|---|---|
-| Display | `--font-display` | Big Shoulders Display, 800 to 900 | The hero, section headings (h1, h2), button labels and tenant names. Uppercase, leading 0.9 to 1.0, about 20 percent larger than a regular face at the same weight. |
+| Display | `--font-display` | Big Shoulders Display, 800 to 900 | The hero, section headings (h1, h2) and button labels. Leading 0.9 to 1.0, about 20 percent larger than a regular face at the same weight. |
 | Body | `--font-body` | Instrument Sans | All prose, and card and sub-headings (h3 and below). |
 | Structural | `--font-mono` | Martian Mono | Labels, slugs, depth markers, data readouts and code. Labels are uppercase with 0.14em tracking. Martian Mono is wide, so code runs at about 12 to 12.5px. |
+
+Uppercase is a display treatment, and each surface uses it differently:
+
+- **Landing site.** h1, h2, button labels and the hero tree's tenant names are
+  uppercase.
+- **Docs.** Only the splash hero title is uppercase. Docs h1 and h2 keep their
+  own case in the display face, because package names such as
+  `@stratum-hq/lib` are case-sensitive.
+- **`@stratum-hq/react`.** A tenant name is user data, so it keeps its own case
+  in the body face. Button labels are uppercase in Bedrock only.
+
+Structural labels never go below 11px (0.6875rem).
 
 Fonts load once per surface, non-blocking (preload plus swap), from each
 document head. `assets/tokens.css` does not `@import` fonts. Write "Stratum"
@@ -144,7 +202,11 @@ styles.
 - **Tag.** `--edge-chip`, mono, uppercase, glyph plus word.
 - **Tenant tree.** One rock band per tenant, colored by depth (basalt repeats
   past depth 4), indented 28px per level, each row overlapping the one above by
-  9px, clipped to `--edge-row`.
+  9px, clipped to `--edge-row`. The selected tenant gets a vein bar on the
+  straight start edge, a vein lip and an underlined name. A tenant switcher
+  marks its active item with a raised face, not a color.
+- **Rows with state.** A LOCKED row in a react table is a magma tint plus the
+  LOCKED tag. Rows carry no colored side stripe.
 - **Field.** A sunk face (`--shadow-sunk`) clipped to `--edge-slab`, with a
   fault line under it that turns `--focus` on focus. The error state adds the
   word "Error:".
@@ -167,7 +229,11 @@ a `--rule` hairline, and no focusable element is itself clipped.
   unless a parent locks them.
 - **Code well.** Dark in both themes, a ragged `--edge-ledge` top (it only cuts
   the top few px, so the horizontal scrollbar is never clipped), a mono filename
-  tab, and one glowing token.
+  tab, and one glowing token. On the docs, a 3px `--rule` left edge continues
+  the depth rail and turns vein on hover.
+- **Config rows.** The homepage, `/what-is-stratum` and docs splash config rows carry their
+  state in a tint, a tag and the value color: vein for the resolved value,
+  magma for a locked key. They have no side stripe.
 
 ## Accessibility floor
 
@@ -203,6 +269,19 @@ Daylight, on `#F2E9D8`:
 
 Rock bands: `--on-strata-dark` only on topsoil and basalt (4.6:1 and 7.4:1),
 `--on-strata-light` only on clay, sandstone and limestone (5.3:1 or better).
+
+The code well, on `#0C0907` in both themes (Expressive Code also enforces a
+5.5:1 floor on syntax colors):
+
+| Pair | Ratio | Verdict |
+|---|---|---|
+| `--code-text` `#D6C3A0` | 11.5:1 | AAA |
+| `--syntax-keyword` `#C09AB3` | 8.1:1 | AAA |
+| `--syntax-function` `#35C2A8` | 8.9:1 | AAA |
+| `--syntax-string` `#E0B266` | 10.1:1 | AAA |
+| `--syntax-number` `#FFB21E` | 11.0:1 | AAA |
+| `--syntax-comment` `#9A8670` | 5.7:1 | AA |
+| `--syntax-accent` `#FF5B1F` | 6.4:1 | AA |
 
 ### Focus
 
@@ -244,9 +323,36 @@ All defined in `assets/tokens.css`:
   `--edge-chip`, `--edge-slab`, `--edge-fault`, `--grain`, `--lam`, `--lit`,
   `--shade`.
 - Scale, motion and shadow: `--space-1` to `--space-32`, `--radius-sm` to
-  `--radius-full` (all `0` except `--radius-sm`), `--ease-out` / `--ease-in` /
+  `--radius-full` (all `0`), `--ease-out` / `--ease-in` /
   `--ease-in-out`, `--duration-fast` / `--duration-normal` / `--duration-slow`,
   `--shadow-sm` to `--shadow-lg`, `--shadow-glow`, `--shadow-sunk`.
+
+`@stratum-hq/react` uses its own names, all with the `--stratum-` prefix,
+declared in `base.css` and overridden in `theme-bedrock.css`. The main groups:
+
+- Surfaces and text: `--stratum-surface-0` to `--stratum-surface-3`,
+  `--stratum-text-primary`, `--stratum-text-secondary`, `--stratum-text-tertiary`.
+- Accent, flow and lock: `--stratum-accent` (with `-hover`, `-text`, `-deep`,
+  `-glow`, `-muted`), `--stratum-on-accent`, `--stratum-flow`,
+  `--stratum-flow-muted`, `--stratum-on-flow`, `--stratum-focus`,
+  `--stratum-lock`, `--stratum-lock-muted`.
+- Rock bands: `--stratum-tree-band-0` to `--stratum-tree-band-4` (topsoil to
+  basalt), with `--stratum-tree-on-band-0` to `--stratum-tree-on-band-4` for
+  the ink on each band.
+- Bedrock shape and texture: `--stratum-edge-ledge`, `--stratum-edge-ledge-b`,
+  `--stratum-edge-row`, `--stratum-edge-chip`, `--stratum-edge-slab`,
+  `--stratum-grain`, `--stratum-laminations`, `--stratum-light`,
+  `--stratum-shade`. A component reads `var(--stratum-edge, <its own edge>)`,
+  so a host can set one edge for all of them.
+- Buttons: `--stratum-btn-face`, `--stratum-btn-ink`, `--stratum-btn-lip`,
+  `--stratum-btn-texture`.
+- Scale: `--stratum-space-*`, `--stratum-font-size-*`, `--stratum-radius-sm`,
+  `--stratum-radius`, `--stratum-duration-*`, `--stratum-ease-*`.
+
+The map from the old unprefixed names (for example `--space-sm` to
+`--stratum-space-2`, `--topsoil` to `--stratum-tree-band-0`) is in
+`.changeset/react-scoped-stylesheet.md`, which becomes the `@stratum-hq/react`
+changelog entry at the next release.
 
 ## Logo
 

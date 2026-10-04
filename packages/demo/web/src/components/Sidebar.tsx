@@ -1,600 +1,241 @@
-import React, { useState } from "react";
-import { useTenantTree, useTenant, useStratum } from "@stratum-hq/react";
-import type { TenantTreeNode } from "@stratum-hq/react";
-import {
-  DndContext,
-  DragOverlay,
-  useDraggable,
-  useDroppable,
-  closestCenter,
-  type DragStartEvent,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import React, { useEffect, useRef, useState } from "react";
+import { DraggableTenantTree, useStratum, useTenant } from "@stratum-hq/react";
 
-// Depth swatches use the rock bands, shallow to deep (DESIGN.md).
-const depthDotColors: Record<number, string> = {
-  0: "var(--topsoil)", // root / MSSP
-  1: "var(--clay)", // MSP
-  2: "var(--sandstone-band)", // client
-  3: "var(--limestone)",
-  4: "var(--basalt)",
-};
+// The legend names the first three rock bands, which the tree uses for depth 0 to 2.
+const LEGEND = [
+  { label: "MSSP", band: "var(--stratum-tree-band-0)" },
+  { label: "MSP", band: "var(--stratum-tree-band-1)" },
+  { label: "Client", band: "var(--stratum-tree-band-2)" },
+];
 
-const depthLabels: Record<number, string> = {
-  0: "MSSP",
-  1: "MSP",
-  2: "Client",
-};
+type Task =
+  | { kind: "create"; parentId: string | null }
+  | { kind: "rename"; id: string; name: string }
+  | { kind: "archive"; id: string; name: string };
 
-function TreeNode({
-  node,
-  selectedId,
-  onSelect,
-  onToggle,
-  onAddChild,
-  onEdit,
-  onArchive,
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" fill="none" />
+    </svg>
+  );
+}
+
+/**
+ * Return the form for one tenant task: create, rename or archive.
+ *
+ * The form replaces the browser's prompt and confirm dialogs. Escape or Cancel
+ * ends the task without a request.
+ */
+function TenantTaskForm({
+  task,
+  onDone,
+  onCancel,
 }: {
-  node: TenantTreeNode;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  onToggle: (id: string) => void;
-  onAddChild: (parentId: string) => void;
-  onEdit: (id: string, currentName: string) => void;
-  onArchive: (id: string, name: string) => void;
+  task: Task;
+  onDone: (createdId?: string) => void;
+  onCancel: () => void;
 }) {
-  const hasChildren = node.children.length > 0;
-  const isSelected = node.id === selectedId;
-  const dotColor = depthDotColors[node.depth] || "var(--basalt)";
+  const { apiCall } = useStratum();
+  const [name, setName] = useState(task.kind === "rename" ? task.name : "");
+  const [slug, setSlug] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
 
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
-    id: node.id,
-    data: { node },
-  });
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
-    id: `drop-${node.id}`,
-    data: { node },
-  });
+  // The safe choice gets focus first, so a second Enter cannot archive by accident.
+  useEffect(() => {
+    if (task.kind === "archive") keepRef.current?.focus();
+  }, [task.kind]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (task.kind === "create") {
+        const created = await apiCall<{ id: string }>("/api/v1/tenants", {
+          method: "POST",
+          body: JSON.stringify({
+            name: name.trim(),
+            slug: slug.trim(),
+            isolation_strategy: "SHARED_RLS",
+            ...(task.parentId ? { parent_id: task.parentId } : {}),
+          }),
+        });
+        onDone(created.id);
+      } else if (task.kind === "rename") {
+        await apiCall(`/api/v1/tenants/${encodeURIComponent(task.id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: name.trim() }),
+        });
+        onDone();
+      } else {
+        await apiCall(`/api/v1/tenants/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+        onDone();
+      }
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(false);
+    }
+  };
+
+  const title =
+    task.kind === "create"
+      ? task.parentId ? "New child tenant" : "New root tenant"
+      : task.kind === "rename"
+        ? `Rename ${task.name}`
+        : `Archive ${task.name}?`;
+
+  const canSubmit =
+    task.kind === "archive" ||
+    (task.kind === "create" ? name.trim() !== "" && slug.trim() !== "" : name.trim() !== "" && name.trim() !== task.name);
 
   return (
-    <div>
-      <div
-        ref={setDropRef}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-xs, 4px)",
-          padding: "6px 8px",
-          paddingLeft: `${8 + node.depth * 16}px`,
-          opacity: isDragging ? 0.4 : 1,
-          outline: isOver ? "3px dashed var(--flow)" : "none",
-          outlineOffset: "-2px",
-          cursor: "pointer",
-          background: isSelected ? "var(--accent)" : "transparent",
-          color: isSelected ? "var(--on-accent)" : "var(--text-primary)",
-          fontSize: "0.8125rem",
-          fontFamily: "var(--font-body)",
-          userSelect: "none",
-          transition: "background 75ms cubic-bezier(0, 0, 0.2, 1)",
-        }}
-        onClick={() => onSelect(node.id)}
-        onMouseEnter={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "var(--surface-2)";
-        }}
-        onMouseLeave={(e) => {
-          if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = "transparent";
-        }}
-      >
-        {/* Drag handle: only this initiates drag */}
-        <span
-          ref={setDragRef}
-          {...attributes}
-          {...listeners}
-          style={{
-            width: 12,
-            fontSize: 9,
-            color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
-            flexShrink: 0,
-            cursor: "grab",
-            lineHeight: 1,
-            touchAction: "none",
-          }}
-          title="Drag to reparent"
-          onClick={(e) => e.stopPropagation()}
-        >
-          ⠿
-        </span>
-        {hasChildren ? (
-          <span
-            style={{
-              width: 14,
-              fontSize: 10,
-              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
-              flexShrink: 0,
-              cursor: "pointer",
-            }}
-            onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
-          >
-            {node.expanded ? "\u25BC" : "\u25B6"}
-          </span>
-        ) : (
-          <span style={{ width: 14, flexShrink: 0 }} />
-        )}
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            background: dotColor,
-            flexShrink: 0,
-            display: "inline-block",
-          }}
-        />
-        <span
-          style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: 1,
-            fontWeight: isSelected ? 600 : 400,
-          }}
-          title={`${node.name} (${node.slug})`}
-        >
-          {node.name}
-        </span>
-        {/* Inheritance indicator: teal accent for nodes with children (they can pass config down) */}
-        {hasChildren && (
-          <span
-            style={{
-              fontSize: 9,
-              color: isSelected ? "var(--on-accent)" : "var(--flow)",
-              flexShrink: 0,
-            }}
-            title="Has descendants (config inherits downward)"
-          >
-            {"\u2193"}
-          </span>
-        )}
-        <span style={{ display: "flex", gap: "2px", flexShrink: 0, alignItems: "center" }}>
-          <span
-            style={{
-              fontSize: 11,
-              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
-              cursor: "pointer",
-              padding: "0 2px",
-              lineHeight: 1,
-            }}
-            title="Edit tenant name"
-            onClick={(e) => { e.stopPropagation(); onEdit(node.id, node.name); }}
-          >
-            ✎
-          </span>
-          <span
-            style={{
-              fontSize: 14,
-              color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
-              cursor: "pointer",
-              padding: "0 2px",
-              lineHeight: 1,
-            }}
-            title="Add child tenant"
-            onClick={(e) => { e.stopPropagation(); onAddChild(node.id); }}
-          >
-            +
-          </span>
-          {!hasChildren && (
-            <span
-              style={{
-                fontSize: 11,
-                color: isSelected ? "var(--on-accent)" : "var(--text-tertiary)",
-                cursor: "pointer",
-                padding: "0 2px",
-                lineHeight: 1,
-              }}
-              title="Archive tenant"
-              onClick={(e) => { e.stopPropagation(); onArchive(node.id, node.name); }}
-            >
-              ✕
-            </span>
-          )}
-        </span>
-      </div>
-      {node.expanded && hasChildren && (
-        <div>
-          {/* Teal inheritance line */}
-          <div style={{ position: "relative" }}>
-            <div
-              style={{
-                position: "absolute",
-                left: `${14 + node.depth * 16}px`,
-                top: 0,
-                bottom: 0,
-                width: 1,
-                background: "var(--flow)",
-                opacity: 0.5,
-              }}
+    <form
+      className="demo-tenant-form"
+      aria-label={title}
+      onSubmit={submit}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <p className="demo-form-title">{title}</p>
+      {task.kind === "archive" ? (
+        <p className="demo-form-note">Archiving soft-deletes the tenant.</p>
+      ) : (
+        <>
+          <div>
+            <label className="demo-label" htmlFor="tenant-name">Name</label>
+            <input
+              id="tenant-name"
+              className="demo-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
             />
-            {node.children.map((child) => (
-              <TreeNode
-                key={child.id}
-                node={child}
-                selectedId={selectedId}
-                onSelect={onSelect}
-                onToggle={onToggle}
-                onAddChild={onAddChild}
-                onEdit={onEdit}
-                onArchive={onArchive}
-              />
-            ))}
           </div>
-        </div>
+          {task.kind === "create" && (
+            <div>
+              <label className="demo-label" htmlFor="tenant-slug">Slug</label>
+              <input
+                id="tenant-slug"
+                className="demo-input"
+                placeholder="lowercase_with_underscores"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+              />
+            </div>
+          )}
+        </>
       )}
-    </div>
+      {error && <p className="demo-error" role="alert">Error: {error}</p>}
+      <div className="demo-form-actions">
+        <button
+          type="submit"
+          className={task.kind === "archive" ? "demo-button demo-button--danger" : "demo-button demo-button--flow"}
+          disabled={busy || !canSubmit}
+        >
+          {task.kind === "create" ? "Create" : task.kind === "rename" ? "Rename" : "Archive"}
+        </button>
+        <button ref={keepRef} type="button" className="demo-button" onClick={onCancel} disabled={busy}>
+          {task.kind === "archive" ? "Keep" : "Cancel"}
+        </button>
+      </div>
+    </form>
   );
 }
 
 export function Sidebar({
-  collapsed,
-  onToggleCollapse,
+  onClose,
+  onTenantSelect,
 }: {
-  collapsed?: boolean;
-  onToggleCollapse?: () => void;
+  /** Closes the drawer. Absent when the panel is not a drawer. */
+  onClose?: () => void;
+  /** Runs after the user picks a tenant in the tree. */
+  onTenantSelect?: () => void;
 }) {
-  const { tree, loading, toggleExpand, refresh } = useTenantTree();
-  const { tenant, switchTenant } = useTenant();
-  const { apiCall } = useStratum();
+  const { switchTenant } = useTenant();
+  const [task, setTask] = useState<Task | null>(null);
+  // The tree loads its own data. A new key remounts it, so it reloads after a change.
+  const [treeVersion, setTreeVersion] = useState(0);
+  const returnFocus = useRef<HTMLElement | null>(null);
 
-  const [addingParentId, setAddingParentId] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [newSlug, setNewSlug] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleAddChild = (parentId: string) => {
-    setAddingParentId(parentId);
-    setNewName("");
-    setNewSlug("");
-    setError(null);
+  const startTask = (next: Task) => {
+    returnFocus.current = document.activeElement as HTMLElement | null;
+    setTask(next);
   };
 
-  const handleEdit = async (id: string, currentName: string) => {
-    const newName = prompt("Rename tenant:", currentName);
-    if (!newName || newName === currentName) return;
-    try {
-      await apiCall(`/api/v1/tenants/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName }),
-      });
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to rename tenant");
-    }
+  const cancelTask = () => {
+    setTask(null);
+    returnFocus.current?.focus();
   };
 
-  const handleArchive = async (id: string, name: string) => {
-    if (!confirm(`Archive "${name}"? This will soft-delete the tenant.`)) return;
-    try {
-      await apiCall(`/api/v1/tenants/${id}`, { method: "DELETE" });
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to archive tenant. It may have children.");
-    }
+  const finishTask = (createdId?: string) => {
+    setTask(null);
+    setTreeVersion((v) => v + 1);
+    if (createdId) void switchTenant(createdId);
   };
-
-  const [draggedNode, setDraggedNode] = useState<TenantTreeNode | null>(null);
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setDraggedNode(event.active.data.current?.node ?? null);
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    setDraggedNode(null);
-    const { active, over } = event;
-    if (!over) return;
-
-    const draggedId = active.id as string;
-    const targetId = (over.id as string).replace(/^drop-/, "");
-    if (draggedId === targetId) return;
-
-    try {
-      await apiCall(`/api/v1/tenants/${draggedId}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ new_parent_id: targetId }),
-      });
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to move tenant");
-    }
-  };
-
-  const handleAddRoot = () => {
-    setAddingParentId("__root__");
-    setNewName("");
-    setNewSlug("");
-    setError(null);
-  };
-
-  const handleCreate = async () => {
-    if (!newName.trim() || !newSlug.trim()) return;
-    setCreating(true);
-    setError(null);
-    try {
-      const body: Record<string, unknown> = {
-        name: newName.trim(),
-        slug: newSlug.trim(),
-        isolation_strategy: "SHARED_RLS",
-      };
-      if (addingParentId && addingParentId !== "__root__") {
-        body.parent_id = addingParentId;
-      }
-      const created = await apiCall<{ id: string }>("/api/v1/tenants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      setAddingParentId(null);
-      setNewName("");
-      setNewSlug("");
-      await refresh();
-      switchTenant(created.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setAddingParentId(null);
-    setNewName("");
-    setNewSlug("");
-    setError(null);
-  };
-
-  const inputStyle: React.CSSProperties = {
-    fontSize: "0.6875rem",
-    padding: "3px 6px",
-    border: "1px solid var(--rule)",
-    background: "var(--surface-1)",
-    boxShadow: "var(--shadow-sunk)",
-    color: "var(--text-primary)",
-    width: "100%",
-    fontFamily: "var(--font-mono)",
-  };
-
-  const btnSmall: React.CSSProperties = {
-    fontSize: "0.625rem",
-    padding: "2px 8px",
-    border: "none",
-    cursor: "pointer",
-    fontFamily: "var(--font-body)",
-  };
-
-  // If collapsed (tablet mode), render a narrow strip
-  if (collapsed) {
-    return (
-      <aside
-        className="stratum-sidebar stratum-sidebar-collapsed"
-        style={{
-          width: 48,
-          flexShrink: 0,
-          background: "var(--surface-0)",
-          borderRight: "1px solid var(--border)",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: "var(--space-md, 12px)",
-        }}
-      >
-        <button
-          onClick={onToggleCollapse}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: "var(--text-secondary)",
-            fontSize: 18,
-            cursor: "pointer",
-            padding: "var(--space-sm, 8px)",
-          }}
-          aria-label="Expand sidebar"
-        >
-          {"\u2630"}
-        </button>
-      </aside>
-    );
-  }
 
   return (
-    <aside
-      className="stratum-sidebar"
-      style={{
-        width: 240,
-        flexShrink: 0,
-        background: "var(--surface-0)",
-        borderRight: "1px solid var(--border)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        fontFamily: "var(--font-body)",
-        position: "relative",
-        zIndex: 10,
-      }}
-    >
-      {/* Sidebar header */}
-      <div style={{
-        padding: "var(--space-md, 12px) var(--space-md, 12px) var(--space-sm, 8px)",
-        borderBottom: "1px solid var(--border)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
+    <aside className="demo-sidebar" aria-label="Tenants">
+      <div className="demo-sidebar-header">
         <div>
-          <div style={{
-            fontSize: "0.625rem",
-            fontWeight: 600,
-            color: "var(--text-secondary)",
-            textTransform: "uppercase",
-            letterSpacing: "0.14em",
-            fontFamily: "var(--font-mono)",
-          }}>
-            Tenant Hierarchy
-          </div>
-          <div style={{
-            marginTop: "var(--space-xs, 4px)",
-            display: "flex",
-            gap: "var(--space-md, 12px)",
-            fontSize: "0.6875rem",
-            color: "var(--text-secondary)",
-          }}>
-            <span>
-              <span style={{
-                display: "inline-block",
-                width: 7,
-                height: 7,
-                background: depthDotColors[0],
-                marginRight: "var(--space-xs, 4px)",
-              }} />
-              {depthLabels[0]}
-            </span>
-            <span>
-              <span style={{
-                display: "inline-block",
-                width: 7,
-                height: 7,
-                background: depthDotColors[1],
-                marginRight: "var(--space-xs, 4px)",
-              }} />
-              {depthLabels[1]}
-            </span>
-            <span>
-              <span style={{
-                display: "inline-block",
-                width: 7,
-                height: 7,
-                background: depthDotColors[2],
-                marginRight: "var(--space-xs, 4px)",
-              }} />
-              {depthLabels[2]}
-            </span>
-          </div>
+          <h2 className="demo-sidebar-title">Tenant hierarchy</h2>
+          <ul className="demo-legend" aria-label="Depth colors">
+            {LEGEND.map((item) => (
+              <li key={item.label}>
+                <span className="demo-swatch" style={{ background: item.band }} />
+                {item.label}
+              </li>
+            ))}
+          </ul>
         </div>
-        {/* Collapse toggle for tablet */}
-        {onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--text-secondary)",
-              fontSize: 16,
-              cursor: "pointer",
-              padding: "var(--space-xs, 4px)",
-            }}
-            aria-label="Collapse sidebar"
-          >
-            {"\u2630"}
+        {onClose && (
+          <button type="button" className="demo-icon-button" onClick={onClose} aria-label="Close tenant list">
+            <CloseIcon />
           </button>
         )}
       </div>
 
-      {/* Tree */}
-      <div style={{ flex: 1, overflow: "auto", padding: "var(--space-sm, 8px) var(--space-xs, 4px)" }}>
-        {loading && (
-          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Loading...</div>
-        )}
-        {!loading && tree.length === 0 && (
-          <div style={{ padding: "var(--space-lg, 16px) var(--space-md, 12px)", fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
-            No tenants found. Create a root tenant below.
-          </div>
-        )}
-        <DndContext
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          {tree.map((node) => (
-            <TreeNode
-              key={node.id}
-              node={node}
-              selectedId={tenant?.id ?? null}
-              onSelect={switchTenant}
-              onToggle={toggleExpand}
-              onAddChild={handleAddChild}
-              onEdit={handleEdit}
-              onArchive={handleArchive}
-            />
-          ))}
-          <DragOverlay>
-            {draggedNode ? (
-              <div style={{
-                padding: "6px 16px",
-                minWidth: 140,
-                background: "var(--accent)",
-                border: "none",
-                clipPath: "var(--edge-row)",
-                color: "var(--on-accent)",
-                fontSize: "0.8125rem",
-                fontFamily: "var(--font-body)",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-              }}>
-                {draggedNode.name}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+      <div className="demo-sidebar-tree">
+        <DraggableTenantTree
+          key={treeVersion}
+          onSelect={(id) => {
+            void switchTenant(id);
+            onTenantSelect?.();
+          }}
+          onAddChild={(parentId) => startTask({ kind: "create", parentId })}
+          onEdit={(id, name) => startTask({ kind: "rename", id, name })}
+          onArchive={(id, name) => startTask({ kind: "archive", id, name })}
+        />
       </div>
 
-      {/* Inline create form */}
-      {addingParentId && (
-        <div style={{
-          padding: "var(--space-sm, 8px) var(--space-md, 12px)",
-          borderTop: "1px solid var(--border)",
-          background: "var(--surface-2)",
-        }}>
-          <div style={{ fontSize: "0.6875rem", color: "var(--text-secondary)", marginBottom: "var(--space-xs, 4px)" }}>
-            {addingParentId === "__root__" ? "New root tenant" : "New child tenant"}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-xs, 4px)" }}>
-            <input style={inputStyle} placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus />
-            <input style={inputStyle} placeholder="slug_name" value={newSlug} onChange={(e) => setNewSlug(e.target.value)} />
-            {error && <div role="alert" style={{ fontSize: "0.625rem", color: "var(--accent-text)" }}>Error: {error}</div>}
-            <div style={{ display: "flex", gap: "var(--space-xs, 4px)", marginTop: "var(--space-2xs, 2px)" }}>
-              <button
-                style={{ ...btnSmall, background: "var(--accent)", color: "var(--on-accent)" }}
-                disabled={creating || !newName.trim() || !newSlug.trim()}
-                onClick={handleCreate}
-              >
-                {creating ? "..." : "Create"}
-              </button>
-              <button style={{ ...btnSmall, background: "var(--surface-3)", color: "var(--text-primary)" }} onClick={handleCancel}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add root tenant button */}
-      {!addingParentId && (
-        <div style={{ padding: "var(--space-sm, 8px) var(--space-md, 12px)", borderTop: "1px solid var(--border)" }}>
+      <div className="demo-sidebar-footer">
+        {task ? (
+          <TenantTaskForm
+            key={task.kind === "create" ? `create-${task.parentId}` : `${task.kind}-${task.id}`}
+            task={task}
+            onDone={finishTask}
+            onCancel={cancelTask}
+          />
+        ) : (
           <button
-            style={{
-              ...btnSmall,
-              width: "100%",
-              padding: "5px 8px",
-              background: "var(--surface-2)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--rule)",
-              fontSize: "0.6875rem",
-            }}
-            onClick={handleAddRoot}
+            type="button"
+            className="demo-button"
+            onClick={() => startTask({ kind: "create", parentId: null })}
           >
-            + Add Root Tenant
+            Add root tenant
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }

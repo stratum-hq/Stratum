@@ -1,0 +1,823 @@
+/* The demo's own chrome: the app frame, the tenant panel and the dashboard
+ * around the @stratum-hq/react components. It reads the --stratum- tokens,
+ * which the stratum-scope class on <html> puts on the page root. The demo- class
+ * prefix keeps these rules off the package's stratum- elements.
+ *
+ * These rules do not use magma (--stratum-accent). The package uses it for the
+ * selected tenant and for each editor's primary action, so the chrome stays in
+ * ink, rule and vein. The logo in App.tsx keeps its magma slab.
+ */
+
+body {
+  margin: 0;
+  background: var(--stratum-surface-0);
+  color: var(--stratum-text-primary);
+}
+
+::selection {
+  background: var(--stratum-flow);
+  color: var(--stratum-on-flow);
+}
+
+.demo-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  font-family: var(--stratum-font-body);
+  background: var(--stratum-surface-0);
+  color: var(--stratum-text-primary);
+}
+
+.demo-app :where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 3px solid var(--stratum-focus);
+  outline-offset: 3px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.demo-header {
+  display: flex;
+  align-items: center;
+  gap: var(--stratum-space-3);
+  flex-shrink: 0;
+  min-height: 56px;
+  padding: 0 var(--stratum-space-6);
+  background: var(--stratum-surface-1);
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--stratum-space-2);
+  font-family: var(--stratum-font-display);
+  font-size: 1.625rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.demo-brand svg {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.demo-subtitle {
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-header-end {
+  display: flex;
+  align-items: center;
+  gap: var(--stratum-space-4);
+  margin-left: auto;
+}
+
+.demo-hierarchy-label {
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  color: var(--stratum-text-secondary);
+}
+
+.demo-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: calc(-1 * var(--stratum-space-2));
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--stratum-text-primary);
+  cursor: pointer;
+}
+
+.demo-icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+.demo-icon-button:hover {
+  background: var(--stratum-surface-2);
+}
+
+/* ── Buttons and fields ─────────────────────────────────────────────────── */
+
+.demo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: var(--stratum-space-1) var(--stratum-space-3);
+  font-family: var(--stratum-font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--stratum-text-primary);
+  background: var(--stratum-surface-2);
+  border: 1px solid var(--stratum-rule);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--stratum-duration-fast) var(--stratum-ease-out);
+}
+
+.demo-button:hover:not(:disabled) {
+  background: var(--stratum-surface-3);
+}
+
+.demo-button:disabled {
+  color: var(--stratum-text-secondary);
+  border-color: var(--stratum-border);
+  cursor: not-allowed;
+}
+
+/* The second action of a view is vein (DESIGN.md, Button). */
+.demo-button--flow {
+  background: var(--stratum-flow-muted);
+  border-color: var(--stratum-flow);
+}
+
+.demo-button--flow:hover:not(:disabled) {
+  background: var(--stratum-flow);
+  color: var(--stratum-on-flow);
+}
+
+.demo-button--danger {
+  color: var(--stratum-error);
+  border-color: var(--stratum-error);
+}
+
+.demo-input {
+  min-height: 32px;
+  padding: var(--stratum-space-1) var(--stratum-space-2);
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-sm);
+  color: var(--stratum-text-primary);
+  background: var(--stratum-surface-1);
+  border: 1px solid var(--stratum-rule);
+  box-shadow: var(--stratum-shadow-sunk);
+}
+
+.demo-input::placeholder {
+  color: var(--stratum-text-secondary);
+}
+
+.demo-label {
+  display: block;
+  margin-bottom: var(--stratum-space-1);
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--stratum-error);
+}
+
+.demo-status {
+  margin: 0;
+  padding: var(--stratum-space-4);
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--stratum-space-2);
+}
+
+.demo-confirm__prompt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* ── Layout and the tenant panel ────────────────────────────────────────── */
+
+.demo-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.demo-main {
+  flex: 1;
+  overflow: auto;
+  padding: var(--stratum-space-6);
+}
+
+.demo-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 300px;
+  overflow: hidden;
+  background: var(--stratum-surface-0);
+  border-right: 1px solid var(--stratum-border);
+}
+
+.demo-sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--stratum-space-4) var(--stratum-space-4) var(--stratum-space-3);
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-sidebar-title {
+  margin: 0;
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-legend {
+  display: flex;
+  gap: var(--stratum-space-3);
+  margin: var(--stratum-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--stratum-font-size-xs);
+  color: var(--stratum-text-secondary);
+}
+
+.demo-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--stratum-space-1);
+}
+
+.demo-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.demo-sidebar-tree {
+  flex: 1;
+  overflow: auto;
+  padding: var(--stratum-space-3) var(--stratum-space-2);
+}
+
+.demo-sidebar-footer {
+  padding: var(--stratum-space-3) var(--stratum-space-4);
+  border-top: 1px solid var(--stratum-border);
+  background: var(--stratum-surface-1);
+}
+
+.demo-sidebar-footer > .demo-button {
+  width: 100%;
+}
+
+.demo-tenant-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stratum-space-2);
+}
+
+.demo-tenant-form .demo-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.demo-form-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.demo-form-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-form-actions {
+  display: flex;
+  gap: var(--stratum-space-2);
+}
+
+/* Below 1025px the tenant panel is a drawer. It slides with transform so the
+   page does not reflow while it moves. */
+.demo-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  width: min(320px, 88vw);
+  transform: translateX(-100%);
+  transition: transform var(--stratum-duration-normal) var(--stratum-ease-out);
+}
+
+.demo-drawer[data-open] {
+  transform: translateX(0);
+}
+
+.demo-drawer > .demo-sidebar {
+  width: 100%;
+  height: 100%;
+}
+
+.demo-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, var(--stratum-surface-0) 65%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--stratum-duration-normal) var(--stratum-ease-out);
+}
+
+.demo-scrim[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Dashboard ──────────────────────────────────────────────────────────── */
+
+.demo-dashboard {
+  max-width: 1120px;
+}
+
+.demo-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--stratum-space-2);
+  margin: 0 0 var(--stratum-space-2);
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-breadcrumb li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--stratum-space-1);
+}
+
+.demo-breadcrumb li + li::before {
+  content: "/";
+  margin-right: var(--stratum-space-1);
+  color: var(--stratum-text-tertiary);
+}
+
+.demo-breadcrumb [aria-current] {
+  color: var(--stratum-text-primary);
+  font-weight: 600;
+}
+
+.demo-dash-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--stratum-space-3);
+  margin-bottom: var(--stratum-space-6);
+}
+
+/* A tenant name is user data, so it keeps its own case in the display face. */
+.demo-dash-title {
+  margin: 0;
+  font-family: var(--stratum-font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.demo-meta {
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-sm);
+  color: var(--stratum-text-secondary);
+}
+
+.demo-dash-header .demo-button--flow {
+  margin-left: auto;
+}
+
+.demo-tabs {
+  display: flex;
+  margin-bottom: var(--stratum-space-6);
+  padding: var(--stratum-space-1) var(--stratum-space-1) 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--stratum-border);
+  scrollbar-width: thin;
+}
+
+.demo-tab {
+  flex-shrink: 0;
+  margin-bottom: -1px;
+  padding: var(--stratum-space-2) var(--stratum-space-4);
+  font-family: var(--stratum-font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--stratum-text-secondary);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--stratum-duration-fast) var(--stratum-ease-out),
+    border-color var(--stratum-duration-fast) var(--stratum-ease-out);
+}
+
+.demo-tab:hover {
+  color: var(--stratum-text-primary);
+}
+
+.demo-tab[aria-selected="true"] {
+  color: var(--stratum-text-primary);
+  font-weight: 600;
+  border-bottom-color: var(--stratum-text-primary);
+}
+
+/* Inside the scrolling tab row an outer outline is clipped, so the ring sits inside. */
+.demo-app .demo-tab:focus-visible {
+  outline-offset: -3px;
+}
+
+.demo-section {
+  margin-bottom: var(--stratum-space-6);
+  background: var(--stratum-surface-1);
+  border: 1px solid var(--stratum-border);
+}
+
+.demo-section-header {
+  padding: var(--stratum-space-3) var(--stratum-space-4);
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-section-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.demo-section-desc {
+  max-width: 72ch;
+  margin: var(--stratum-space-1) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-section-body {
+  padding: var(--stratum-space-4);
+}
+
+.demo-section-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--stratum-space-2);
+  padding: var(--stratum-space-3) var(--stratum-space-4);
+  border-top: 1px solid var(--stratum-border);
+}
+
+.demo-table-scroll {
+  overflow-x: auto;
+}
+
+.demo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-table th {
+  padding: var(--stratum-space-2) var(--stratum-space-4);
+  text-align: start;
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--stratum-text-secondary);
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-table td {
+  padding: var(--stratum-space-2) var(--stratum-space-4);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.demo-table th[scope="row"] {
+  width: 11rem;
+  font-family: var(--stratum-font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.demo-mono {
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-sm);
+}
+
+/* A table with column headings keeps its columns readable and scrolls sideways on a phone. */
+.demo-table-scroll > .demo-table:has(thead) {
+  min-width: 40rem;
+}
+
+.demo-table:has(thead) td {
+  white-space: nowrap;
+}
+
+.demo-table:has(thead) td.demo-wrap {
+  min-width: 16rem;
+  white-space: normal;
+}
+
+/* The context table has no heading row. Its long IDs and paths wrap instead. */
+.demo-table th[scope="row"] + td {
+  overflow-wrap: anywhere;
+}
+
+.demo-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.demo-muted {
+  color: var(--stratum-text-secondary);
+}
+
+.demo-tag {
+  display: inline-block;
+  padding: 2px var(--stratum-space-2);
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--stratum-text-primary);
+  background: var(--stratum-surface-3);
+  clip-path: var(--stratum-edge-chip);
+}
+
+.demo-tag--active,
+.demo-tag--low {
+  color: var(--stratum-on-flow);
+  background: var(--stratum-flow);
+}
+
+.demo-tag--critical {
+  color: var(--stratum-tree-on-band-1);
+  background: var(--stratum-tree-band-1);
+}
+
+.demo-tag--high {
+  color: var(--stratum-tree-on-band-2);
+  background: var(--stratum-tree-band-2);
+}
+
+.demo-tag--medium {
+  color: var(--stratum-on-warning);
+  background: var(--stratum-warning-fill);
+}
+
+.demo-key-banner {
+  margin: 0;
+  padding: var(--stratum-space-3) var(--stratum-space-4);
+  font-size: 0.8125rem;
+  background: var(--stratum-flow-muted);
+  border-bottom: 1px solid var(--stratum-flow);
+}
+
+.demo-key-banner code {
+  display: block;
+  margin-top: var(--stratum-space-1);
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Overview: one row per section, each row opens its tab. */
+.demo-summary {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-summary li + li {
+  border-top: 1px solid var(--stratum-border);
+}
+
+.demo-summary button {
+  display: grid;
+  grid-template-columns: 9rem 4rem 1fr auto;
+  align-items: baseline;
+  gap: var(--stratum-space-4);
+  width: 100%;
+  padding: var(--stratum-space-3) var(--stratum-space-4);
+  font: inherit;
+  text-align: start;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--stratum-duration-fast) var(--stratum-ease-out);
+}
+
+.demo-summary button:hover {
+  background: var(--stratum-surface-2);
+}
+
+.demo-summary-name {
+  font-weight: 600;
+}
+
+.demo-summary-figure {
+  font-family: var(--stratum-font-display);
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-summary-detail {
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-summary-open {
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+  text-decoration: underline;
+  text-decoration-color: var(--stratum-rule);
+  text-underline-offset: 4px;
+}
+
+.demo-empty {
+  padding: var(--stratum-space-12) var(--stratum-space-4);
+  text-align: center;
+}
+
+.demo-empty h2 {
+  margin: 0 0 var(--stratum-space-2);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.demo-empty p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--stratum-text-secondary);
+}
+
+/* ── Resolved context dialog ────────────────────────────────────────────── */
+
+.demo-dialog {
+  width: min(680px, 92vw);
+  max-height: 85vh;
+  padding: 0;
+  color: var(--stratum-text-primary);
+  background: var(--stratum-surface-1);
+  border: 1px solid var(--stratum-rule);
+  box-shadow: 0 24px 48px -12px var(--stratum-shadow-pool-deep);
+}
+
+.demo-dialog::backdrop {
+  background: rgba(12, 9, 7, 0.65);
+}
+
+.demo-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--stratum-space-3);
+  padding: var(--stratum-space-4) var(--stratum-space-6);
+  background: var(--stratum-surface-1);
+  border-bottom: 1px solid var(--stratum-border);
+}
+
+.demo-dialog-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.demo-dialog-body {
+  padding: var(--stratum-space-4) var(--stratum-space-6) var(--stratum-space-6);
+}
+
+.demo-dialog-body h3 {
+  margin: var(--stratum-space-6) 0 var(--stratum-space-2);
+  font-family: var(--stratum-font-mono);
+  font-size: var(--stratum-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--stratum-text-secondary);
+}
+
+.demo-dialog-body h3:first-child {
+  margin-top: 0;
+}
+
+.demo-dialog-body .demo-table th,
+.demo-dialog-body .demo-table td {
+  padding-inline: var(--stratum-space-2);
+}
+
+.demo-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--stratum-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--stratum-font-size-sm);
+}
+
+.demo-path li + li::before {
+  content: "\2192";
+  margin-right: var(--stratum-space-2);
+  color: var(--stratum-text-secondary);
+}
+
+.demo-path .demo-tag {
+  text-transform: none;
+}
+
+.demo-path [aria-current] {
+  color: var(--stratum-on-flow);
+  background: var(--stratum-flow);
+}
+
+/* ── Narrow screens ─────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .demo-header {
+    padding: 0 var(--stratum-space-4);
+  }
+
+  .demo-subtitle,
+  .demo-hierarchy-label {
+    display: none;
+  }
+
+  .demo-main {
+    padding: var(--stratum-space-4);
+  }
+
+  .demo-dash-header .demo-button--flow {
+    margin-left: 0;
+  }
+
+  .demo-summary button {
+    grid-template-columns: 1fr auto;
+    row-gap: var(--stratum-space-1);
+  }
+
+  .demo-summary-detail {
+    grid-column: 1 / -1;
+  }
+
+  .demo-summary-open {
+    display: none;
+  }
+
+  .demo-table th[scope="row"] {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-drawer,
+  .demo-scrim,
+  .demo-tab,
+  .demo-button,
+  .demo-summary button {
+    transition: none;
+  }
+}

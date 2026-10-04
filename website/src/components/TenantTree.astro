@@ -1,0 +1,29 @@
+---
+// The splash figure: the tenant tree that the quick example on the same page
+// creates. Keep the names, slugs and config key in step with that example, so
+// the picture and the code teach one model.
+---
+
+<figure class="tenant-tree">
+	<figcaption class="tenant-tree-label">Tenant hierarchy</figcaption>
+	<ol class="tenant-tree-rows">
+		<li class="tenant-row d0">
+			<span class="tenant-depth">d0</span>
+			<span class="tenant-name">AcmeSec</span>
+			<span class="tenant-meta">root tenant</span>
+		</li>
+		<li class="tenant-row d1">
+			<span class="tenant-depth">d1</span>
+			<span class="tenant-name">NorthStar MSP</span>
+			<span class="tenant-meta">child tenant</span>
+		</li>
+	</ol>
+	<p class="tenant-config">
+		<span class="tenant-config-key">max_users: <span class="tenant-config-value">1000</span></span>
+		<span class="badge-inherited">inherited from d0</span>
+	</p>
+	<p class="tenant-tree-note">
+		NorthStar MSP sets no value for <code>max_users</code>, so it resolves the value from its
+		parent. The <a href="#quick-example">quick example</a> builds this tree.
+	</p>
+</figure>

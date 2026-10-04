@@ -4,8 +4,8 @@
    Consumed by both sites:
      landing/src/styles/global.css   (Astro marketing site)
      website/src/styles/custom.css   (Starlight docs)
-   @stratum-hq/react carries a copy of the values in
-   packages/react-ui/src/styles/default.css; keep the two in step.
+   @stratum-hq/react carries a copy of the values, under --stratum- names, in
+   packages/react-ui/src/styles/theme-bedrock.css; keep the two in step.
 
    Documented in DESIGN.md at the repo root. Do not hardcode a hex value in
    either stylesheet. Add or change a value here so the surfaces resolve the
@@ -121,7 +121,7 @@
   --space-32: 128px;
 
   /* ---- Radius: Stratum has no rounded corners. Shape comes from --edge-*. ---- */
-  --radius-sm: 2px;
+  --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
   --radius-full: 0;   /* was 9999px. Any pill or avatar needs a deliberate decision */

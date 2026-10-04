@@ -1,10 +1,10 @@
 ---
-title: Multi-Tenancy for Node.js and PostgreSQL
+title: Multi-tenancy for Node.js and PostgreSQL
 description: Drop-in multi-tenancy for Node.js and TypeScript. Tenant hierarchy, config inheritance, row-level security, ABAC, and GDPR tooling, with Prisma and Drizzle support.
 template: splash
 hero:
   title: |
-    Drop-in Multi-Tenancy for <span style="color:var(--sl-color-accent)">Node.js</span>
+    Drop-in <span class="hero-nowrap">Multi-Tenancy</span> for <span class="hero-accent">Node.js</span>
   tagline: Tenant hierarchy with config inheritance, permission delegation, and three isolation strategies. Start with flat tenancy, grow into hierarchy as your product matures.
   actions:
     - text: Start Building
@@ -14,47 +14,12 @@ hero:
     - text: Try it in your browser
       link: /playground/
       icon: rocket
-      variant: primary
-    - text: Get Started
-      link: /getting-started/installation/
-      icon: right-arrow
-    - text: View on GitHub
-      link: https://github.com/stratum-hq/Stratum
-      icon: external
-      variant: minimal
-    - text: stratum-hq.org
-      link: https://stratum-hq.org/
-      icon: external
-      variant: minimal
+      variant: secondary
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import TenantTree from "../../components/TenantTree.astro";
 
-<CardGrid stagger>
-  <Card title="Tenant Hierarchies" icon="list-format">
-    Model tenants as a tree using PostgreSQL `ltree`. Parent-child relationships with efficient subtree queries, ancestor resolution, and cycle-safe moves.
-  </Card>
-
-  <Card title="Config Inheritance" icon="setting">
-    Config values flow root-to-leaf. Children inherit parent values unless they override. Parents can lock keys to prevent any descendant from changing them. Sensitive values are encrypted with AES-256-GCM.
-  </Card>
-
-  <Card title="Permission Delegation" icon="approve-check">
-    Three delegation modes: **LOCKED** (immutable), **INHERITED** (overridable), and **DELEGATED** (re-delegatable). Revocation controls blast radius with CASCADE, SOFT, or PERMANENT semantics.
-  </Card>
-
-  <Card title="Three Isolation Strategies" icon="random">
-    Choose per-tenant: **Shared RLS** (row-level security), **Schema-per-Tenant** (logical separation), or **Database-per-Tenant** (maximum isolation). Mix strategies within the same hierarchy.
-  </Card>
-
-  <Card title="Two Integration Paths" icon="puzzle">
-    Embed `@stratum-hq/lib` directly for zero-HTTP-overhead performance, or run the control plane as a service and use `@stratum-hq/sdk` with Express/Fastify middleware.
-  </Card>
-
-  <Card title="Built-in Compliance" icon="document">
-    GDPR data export (Article 20), hard-purge (Article 17), consent tracking with purpose and expiration, audit logging with before/after state, and multi-region data residency.
-  </Card>
-</CardGrid>
+<TenantTree />
 
 ## Install
 
@@ -66,7 +31,7 @@ npm install @stratum-hq/lib pg
 npm install @stratum-hq/sdk
 ```
 
-## Quick Example
+## Quick example
 
 ```typescript
 import { Pool } from "pg";
@@ -95,12 +60,30 @@ const config = await stratum.resolveConfig(msp.id);
 // { max_users: { value: 1000, inherited: true, source_tenant_id: root.id } }
 ```
 
+## What Stratum includes
+
+- **Tenant hierarchies.** Model tenants as a tree using PostgreSQL `ltree`. Parent-child relationships with efficient subtree queries, ancestor resolution, and cycle-safe moves.
+- **Config inheritance.** Config values flow root-to-leaf. Children inherit parent values unless they override. Parents can lock keys to prevent any descendant from changing them. Sensitive values are encrypted with AES-256-GCM.
+- **Permission delegation.** Three delegation modes: **LOCKED** (immutable), **INHERITED** (overridable), and **DELEGATED** (re-delegatable). Revocation controls blast radius with CASCADE, SOFT, or PERMANENT semantics.
+- **Three isolation strategies.** Choose per-tenant: **Shared RLS** (row-level security), **Schema-per-Tenant** (logical separation), or **Database-per-Tenant** (maximum isolation). Mix strategies within the same hierarchy.
+- **Two integration paths.** Embed `@stratum-hq/lib` directly for zero-HTTP-overhead performance, or run the control plane as a service and use `@stratum-hq/sdk` with Express/Fastify middleware.
+- **Built-in compliance.** GDPR data export (Article 20), hard-purge (Article 17), consent tracking with purpose and expiration, audit logging with before/after state, and multi-region data residency.
+
 ## Packages
+
+### Start here
+
+For the direct library, install `@stratum-hq/lib` and `pg`. `@stratum-hq/core` comes with `@stratum-hq/lib` as a dependency.
 
 | Package | Description |
 |---------|-------------|
-| [`@stratum-hq/core`](/packages/core/) | Shared types, Zod schemas, error classes, constants |
 | [`@stratum-hq/lib`](/packages/lib/) | Direct library: embed in Node.js with no HTTP |
+| [`@stratum-hq/core`](/packages/core/) | Shared types, Zod schemas, error classes, constants. Installed with `@stratum-hq/lib` |
+
+### Add as needed
+
+| Package | Description |
+|---------|-------------|
 | [`@stratum-hq/sdk`](/packages/sdk/) | HTTP client, LRU cache, Express/Fastify middleware |
 | [`@stratum-hq/db-adapters`](/packages/db-adapters/) | PostgreSQL adapters: raw pg, Prisma, Sequelize, Drizzle |
 | [`@stratum-hq/mongodb`](/packages/mongodb/) | MongoDB tenant isolation: shared collection, collection-per-tenant, database-per-tenant |

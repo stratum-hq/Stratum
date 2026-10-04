@@ -21,12 +21,15 @@ export function ToastContainer({
   if (visibleToasts.length === 0) return null;
 
   return (
-    <div className="stratum-toast-container" aria-live="polite" aria-label="Notifications">
+    // Each Toast carries its own live-region role. A live region on the
+    // container too would make some screen readers read a toast twice.
+    <div className="stratum-toast-container" role="region" aria-label="Notifications">
       {visibleToasts.map((toast) => (
         <Toast
           key={toast.id}
           message={toast.message}
           type={toast.type}
+          detail={toast.detail}
           onDismiss={() => onDismiss(toast.id)}
         />
       ))}

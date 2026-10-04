@@ -1,0 +1,1545 @@
+/* @stratum-hq/react: base stylesheet.
+ *
+ * This file gives the components a neutral look that sits inside the host's
+ * design. It keeps three rules so that it cannot change the host page:
+ *   1. Every rule is in the "stratum" cascade layer. An unlayered host rule
+ *      always wins over it, whatever the specificity.
+ *   2. Every custom property starts with --stratum-.
+ *   3. Every selector matches an element that has a stratum- class.
+ * It loads no font and makes no network request.
+ *
+ * The tokens are declared on the outermost element that has a stratum- class.
+ * A nested component inherits them, so a value that you set on a component
+ * root, on TenantThemeProvider, or on an element with the class stratum-scope
+ * reaches every component inside it.
+ *
+ * Theme: data-theme="light" or data-theme="dark" on an ancestor (or on the
+ * component root) selects the palette. Without data-theme="light", the
+ * palette follows prefers-color-scheme.
+ *
+ * theme-bedrock.css is the optional Bedrock theme. It loads into the
+ * stratum.theme layer, which sorts after stratum.base.
+ */
+@layer stratum.base, stratum.theme;
+
+@layer stratum.base {
+  /* ============================================================
+     Tokens: light palette, and the tokens that do not change
+     with the color scheme.
+     ============================================================ */
+  :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F4F4F6;
+    --stratum-surface-1: #FFFFFF;
+    --stratum-surface-2: #EFEFF2;
+    --stratum-surface-3: #E3E4E8;
+
+    --stratum-text-primary: #18181B;
+    --stratum-text-secondary: #4F4F58;
+    --stratum-text-tertiary: #66666F;
+
+    --stratum-accent: #3451B2;
+    --stratum-accent-hover: #2A4394;
+    --stratum-accent-text: #3451B2;
+    --stratum-on-accent: #FFFFFF;
+
+    --stratum-flow: #0F766E;
+    --stratum-on-flow: #FFFFFF;
+
+    --stratum-focus: #1D4ED8;
+    --stratum-rule: #8A8A94;
+    --stratum-border: #E2E2E7;
+    --stratum-border-hover: #C6C6CE;
+
+    --stratum-success: #15803D;
+    --stratum-warning: #8A5300;
+    --stratum-warning-fill: #F2B200;
+    --stratum-on-warning: #1C1400;
+    --stratum-error: #B91C1C;
+    --stratum-info: #4F4F58;
+
+    --stratum-code-bg: #F0F0F3;
+    --stratum-code-text: #27272A;
+
+    --stratum-shadow: 0 1px 2px rgba(24, 24, 27, 0.06), 0 6px 16px -6px rgba(24, 24, 27, 0.12);
+    --stratum-shadow-raised: 0 2px 4px rgba(24, 24, 27, 0.08), 0 12px 28px -8px rgba(24, 24, 27, 0.2);
+
+    /* Tenant tree: one band per depth, shallow to deep. Depth 4 repeats below. */
+    --stratum-tree-band-0: #EEF0F5;
+    --stratum-tree-band-1: #E6E9F1;
+    --stratum-tree-band-2: #DEE2EC;
+    --stratum-tree-band-3: #D6DCE7;
+    --stratum-tree-band-4: #CED5E2;
+    --stratum-tree-on-band-0: #18181B;
+    --stratum-tree-on-band-1: #18181B;
+    --stratum-tree-on-band-2: #18181B;
+    --stratum-tree-on-band-3: #18181B;
+    --stratum-tree-on-band-4: #18181B;
+    --stratum-tree-indent: 28px;
+
+    /* Type */
+    --stratum-font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --stratum-font-display: var(--stratum-font-body);
+    --stratum-font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --stratum-font-size-xs: 0.6875rem;
+    --stratum-font-size-sm: 0.75rem;
+    --stratum-font-size-md: 0.875rem;
+    --stratum-font-size-lg: 1rem;
+    --stratum-font-size-xl: 1.25rem;
+    --stratum-font-size-2xl: 1.5rem;
+
+    /* Space: 4px steps */
+    --stratum-space-1: 4px;
+    --stratum-space-2: 8px;
+    --stratum-space-3: 12px;
+    --stratum-space-4: 16px;
+    --stratum-space-6: 24px;
+    --stratum-space-12: 48px;
+
+    /* Shape */
+    --stratum-radius-sm: 4px;
+    --stratum-radius: 8px;
+
+    /* Motion */
+    --stratum-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --stratum-ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+    --stratum-duration-fast: 150ms;
+    --stratum-duration-normal: 240ms;
+    --stratum-duration-slow: 400ms;
+
+    /* Derived: these follow the tokens above, also when you override them. */
+    --stratum-accent-muted: color-mix(in srgb, var(--stratum-accent) 14%, transparent);
+    --stratum-flow-muted: color-mix(in srgb, var(--stratum-flow) 14%, transparent);
+    --stratum-lock: var(--stratum-accent);
+    --stratum-lock-muted: color-mix(in srgb, var(--stratum-lock) 14%, transparent);
+    --stratum-success-bg: color-mix(in srgb, var(--stratum-success) 14%, var(--stratum-surface-1));
+    --stratum-warning-bg: color-mix(in srgb, var(--stratum-warning-fill) 22%, var(--stratum-surface-1));
+    --stratum-error-bg: color-mix(in srgb, var(--stratum-error) 14%, var(--stratum-surface-1));
+    --stratum-info-bg: color-mix(in srgb, var(--stratum-info) 12%, var(--stratum-surface-1));
+  }
+
+  /* ============================================================
+     Tokens: dark palette. The dark color scheme applies it, unless
+     an ancestor sets data-theme="light".
+     ============================================================ */
+  @media (prefers-color-scheme: dark) {
+    :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *):not(:where([data-theme="light"], [data-theme="light"] *)) {
+      color-scheme: dark;
+
+      --stratum-surface-0: #111114;
+      --stratum-surface-1: #1A1A1F;
+      --stratum-surface-2: #24242A;
+      --stratum-surface-3: #2E2E35;
+
+      --stratum-text-primary: #F4F4F5;
+      --stratum-text-secondary: #B8B8C0;
+      --stratum-text-tertiary: #9A9AA3;
+
+      --stratum-accent: #8DA2FB;
+      --stratum-accent-hover: #A9BAFC;
+      --stratum-accent-text: #A9BAFC;
+      --stratum-on-accent: #10131F;
+
+      --stratum-flow: #2DD4BF;
+      --stratum-on-flow: #042F2C;
+
+      --stratum-focus: #93B4FF;
+      --stratum-rule: #74747E;
+      --stratum-border: #2F2F36;
+      --stratum-border-hover: #46464F;
+
+      --stratum-success: #4ADE80;
+      --stratum-warning: #FACC15;
+      --stratum-warning-fill: #FACC15;
+      --stratum-on-warning: #1C1400;
+      --stratum-error: #F87171;
+      --stratum-info: #B8B8C0;
+
+      --stratum-code-bg: #0C0C0F;
+      --stratum-code-text: #E4E4E7;
+
+      --stratum-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 20px -8px rgba(0, 0, 0, 0.55);
+      --stratum-shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 32px -8px rgba(0, 0, 0, 0.65);
+
+      --stratum-tree-band-0: #23242A;
+      --stratum-tree-band-1: #292A31;
+      --stratum-tree-band-2: #2F3139;
+      --stratum-tree-band-3: #363841;
+      --stratum-tree-band-4: #3D4049;
+      --stratum-tree-on-band-0: #F4F4F5;
+      --stratum-tree-on-band-1: #F4F4F5;
+      --stratum-tree-on-band-2: #F4F4F5;
+      --stratum-tree-on-band-3: #F4F4F5;
+      --stratum-tree-on-band-4: #F4F4F5;
+    }
+  }
+
+  /* An explicit data-theme="dark" applies the dark palette in any color scheme. */
+  :where([data-theme="dark"], [data-theme="dark"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: dark;
+
+    --stratum-surface-0: #111114;
+    --stratum-surface-1: #1A1A1F;
+    --stratum-surface-2: #24242A;
+    --stratum-surface-3: #2E2E35;
+
+    --stratum-text-primary: #F4F4F5;
+    --stratum-text-secondary: #B8B8C0;
+    --stratum-text-tertiary: #9A9AA3;
+
+    --stratum-accent: #8DA2FB;
+    --stratum-accent-hover: #A9BAFC;
+    --stratum-accent-text: #A9BAFC;
+    --stratum-on-accent: #10131F;
+
+    --stratum-flow: #2DD4BF;
+    --stratum-on-flow: #042F2C;
+
+    --stratum-focus: #93B4FF;
+    --stratum-rule: #74747E;
+    --stratum-border: #2F2F36;
+    --stratum-border-hover: #46464F;
+
+    --stratum-success: #4ADE80;
+    --stratum-warning: #FACC15;
+    --stratum-warning-fill: #FACC15;
+    --stratum-on-warning: #1C1400;
+    --stratum-error: #F87171;
+    --stratum-info: #B8B8C0;
+
+    --stratum-code-bg: #0C0C0F;
+    --stratum-code-text: #E4E4E7;
+
+    --stratum-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 20px -8px rgba(0, 0, 0, 0.55);
+    --stratum-shadow-raised: 0 2px 4px rgba(0, 0, 0, 0.45), 0 14px 32px -8px rgba(0, 0, 0, 0.65);
+
+    --stratum-tree-band-0: #23242A;
+    --stratum-tree-band-1: #292A31;
+    --stratum-tree-band-2: #2F3139;
+    --stratum-tree-band-3: #363841;
+    --stratum-tree-band-4: #3D4049;
+    --stratum-tree-on-band-0: #F4F4F5;
+    --stratum-tree-on-band-1: #F4F4F5;
+    --stratum-tree-on-band-2: #F4F4F5;
+    --stratum-tree-on-band-3: #F4F4F5;
+    --stratum-tree-on-band-4: #F4F4F5;
+  }
+
+  /* An explicit data-theme="light" inside a dark ancestor restores the light
+     palette. It comes last so that the nearer light theme wins. */
+  :where([data-theme="light"], [data-theme="light"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F4F4F6;
+    --stratum-surface-1: #FFFFFF;
+    --stratum-surface-2: #EFEFF2;
+    --stratum-surface-3: #E3E4E8;
+
+    --stratum-text-primary: #18181B;
+    --stratum-text-secondary: #4F4F58;
+    --stratum-text-tertiary: #66666F;
+
+    --stratum-accent: #3451B2;
+    --stratum-accent-hover: #2A4394;
+    --stratum-accent-text: #3451B2;
+    --stratum-on-accent: #FFFFFF;
+
+    --stratum-flow: #0F766E;
+    --stratum-on-flow: #FFFFFF;
+
+    --stratum-focus: #1D4ED8;
+    --stratum-rule: #8A8A94;
+    --stratum-border: #E2E2E7;
+    --stratum-border-hover: #C6C6CE;
+
+    --stratum-success: #15803D;
+    --stratum-warning: #8A5300;
+    --stratum-warning-fill: #F2B200;
+    --stratum-on-warning: #1C1400;
+    --stratum-error: #B91C1C;
+    --stratum-info: #4F4F58;
+
+    --stratum-code-bg: #F0F0F3;
+    --stratum-code-text: #27272A;
+
+    --stratum-shadow: 0 1px 2px rgba(24, 24, 27, 0.06), 0 6px 16px -6px rgba(24, 24, 27, 0.12);
+    --stratum-shadow-raised: 0 2px 4px rgba(24, 24, 27, 0.08), 0 12px 28px -8px rgba(24, 24, 27, 0.2);
+
+    --stratum-tree-band-0: #EEF0F5;
+    --stratum-tree-band-1: #E6E9F1;
+    --stratum-tree-band-2: #DEE2EC;
+    --stratum-tree-band-3: #D6DCE7;
+    --stratum-tree-band-4: #CED5E2;
+    --stratum-tree-on-band-0: #18181B;
+    --stratum-tree-on-band-1: #18181B;
+    --stratum-tree-on-band-2: #18181B;
+    --stratum-tree-on-band-3: #18181B;
+    --stratum-tree-on-band-4: #18181B;
+  }
+
+  /* ============================================================
+     Focus: a solid ring outside the element, on every control.
+     ============================================================ */
+  .stratum-tenant-switcher button:focus-visible,
+  .stratum-tenant-switcher [tabindex]:focus-visible,
+  .stratum-tree button:focus-visible,
+  .stratum-tree [tabindex]:focus-visible,
+  .stratum-config-editor button:focus-visible,
+  .stratum-permission-editor button:focus-visible,
+  .stratum-webhook-editor button:focus-visible,
+  .stratum-cascade button:focus-visible,
+  .stratum-toast__dismiss:focus-visible,
+  .stratum-empty-state__action:focus-visible,
+  .stratum-empty-state__docs:focus-visible,
+  .stratum-tenant-health-card--clickable:focus-visible {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
+  /* ============================================================
+     Button. The add action of an editor is the primary button.
+     ============================================================ */
+  .stratum-config-editor button,
+  .stratum-permission-editor button,
+  .stratum-webhook-editor button,
+  .stratum-cascade-retry,
+  .stratum-empty-state__action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--stratum-space-1);
+    margin: 0 var(--stratum-space-1) 0 0;
+    padding: 6px 12px;
+    border: 1px solid var(--stratum-border-hover);
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-surface-1);
+    color: var(--stratum-text-primary);
+    cursor: pointer;
+    font-family: var(--stratum-font-body);
+    font-weight: 500;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1.25;
+    transition: background-color var(--stratum-duration-fast) var(--stratum-ease-out),
+                border-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-config-editor button:hover:not(:disabled),
+  .stratum-permission-editor button:hover:not(:disabled),
+  .stratum-webhook-editor button:hover:not(:disabled),
+  .stratum-cascade-retry:hover:not(:disabled) {
+    background: var(--stratum-surface-2);
+    border-color: var(--stratum-rule);
+  }
+
+  .stratum-config-editor__add button,
+  .stratum-permission-editor__add button,
+  .stratum-webhook-editor__add button,
+  .stratum-empty-state__action {
+    border-color: transparent;
+    background: var(--stratum-accent);
+    color: var(--stratum-on-accent);
+  }
+
+  .stratum-config-editor__add button:hover:not(:disabled),
+  .stratum-permission-editor__add button:hover:not(:disabled),
+  .stratum-webhook-editor__add button:hover:not(:disabled),
+  .stratum-empty-state__action:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--stratum-accent-hover);
+  }
+
+  .stratum-config-editor button:disabled,
+  .stratum-permission-editor button:disabled,
+  .stratum-webhook-editor button:disabled {
+    border-color: var(--stratum-border);
+    background: var(--stratum-surface-2);
+    color: var(--stratum-text-secondary);
+    cursor: not-allowed;
+  }
+
+  /* ============================================================
+     Field
+     ============================================================ */
+  .stratum-config-editor input,
+  .stratum-permission-editor input,
+  .stratum-permission-editor select,
+  .stratum-webhook-editor input,
+  .stratum-webhook-editor select,
+  .stratum-tenant-switcher__search {
+    padding: 7px 10px;
+    border: 1px solid var(--stratum-rule);
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-surface-1);
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+    line-height: 1.25;
+    transition: border-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-config-editor input::placeholder,
+  .stratum-permission-editor input::placeholder,
+  .stratum-webhook-editor input::placeholder,
+  .stratum-tenant-switcher__search::placeholder {
+    color: var(--stratum-text-tertiary);
+  }
+
+  .stratum-config-editor input:focus-visible,
+  .stratum-permission-editor input:focus-visible,
+  .stratum-permission-editor select:focus-visible,
+  .stratum-webhook-editor input:focus-visible,
+  .stratum-webhook-editor select:focus-visible,
+  .stratum-tenant-switcher__search:focus-visible {
+    border-color: var(--stratum-focus);
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 0;
+  }
+
+  .stratum-config-editor input[aria-invalid="true"],
+  .stratum-permission-editor input[aria-invalid="true"],
+  .stratum-webhook-editor input[aria-invalid="true"] {
+    border-color: var(--stratum-error);
+  }
+
+  /* ============================================================
+     Tag: an inheritance mode or a status. The glyph is decorative
+     (empty alt text); the word carries the meaning.
+     ============================================================ */
+  .stratum-badge,
+  .stratum-tree__badge,
+  .stratum-cascade-badge,
+  .stratum-cascade-diff__stat,
+  .stratum-tenant-health-card__industry {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border: 0;
+    border-radius: var(--stratum-radius-sm);
+    font-family: var(--stratum-font-body);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xs);
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .stratum-badge--locked::before,
+  .stratum-badge--inherited::before,
+  .stratum-badge--delegated::before,
+  .stratum-badge--own::before {
+    font-size: var(--stratum-font-size-sm);
+    letter-spacing: 0;
+  }
+  .stratum-badge--locked::before { content: "\25A0"; content: "\25A0" / ""; }
+  .stratum-badge--inherited::before { content: "\2193"; content: "\2193" / ""; }
+  .stratum-badge--delegated::before { content: "\21C4"; content: "\21C4" / ""; }
+  .stratum-badge--own::before { content: "\25B3"; content: "\25B3" / ""; }
+
+  .stratum-badge--locked,
+  .stratum-cascade-badge--locked,
+  .stratum-cascade-diff__stat--locked {
+    background: var(--stratum-lock);
+    color: var(--stratum-on-accent);
+  }
+
+  .stratum-badge--inherited,
+  .stratum-cascade-badge--inherited,
+  .stratum-cascade-diff__stat--inherited {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-badge--delegated {
+    background: var(--stratum-warning-fill);
+    color: var(--stratum-on-warning);
+  }
+
+  .stratum-badge--own,
+  .stratum-cascade-badge--own,
+  .stratum-cascade-diff__stat--own,
+  .stratum-tenant-health-card__industry {
+    background: var(--stratum-text-primary);
+    color: var(--stratum-surface-1);
+  }
+
+  /* ============================================================
+     Panel: the container of an editor, a card or a toast.
+     ============================================================ */
+  .stratum-config-editor,
+  .stratum-permission-editor,
+  .stratum-webhook-editor,
+  .stratum-audit-viewer,
+  .stratum-tenant-health-card,
+  .stratum-cascade-panel,
+  .stratum-toast {
+    border: 1px solid var(--stratum-border);
+    border-radius: var(--stratum-radius);
+    background: var(--stratum-surface-1);
+    box-shadow: var(--stratum-shadow);
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-config-editor,
+  .stratum-permission-editor,
+  .stratum-webhook-editor,
+  .stratum-audit-viewer {
+    padding: var(--stratum-space-4);
+  }
+
+  /* An editor table scrolls sideways inside its panel instead of widening the page. */
+  .stratum-table-scroll {
+    overflow-x: auto;
+  }
+
+  /* ============================================================
+     Tables of the editors
+     ============================================================ */
+  .stratum-config-editor__table,
+  .stratum-permission-editor__table,
+  .stratum-webhook-editor__table,
+  .stratum-audit-viewer__table,
+  .stratum-table-skeleton__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+  }
+
+  .stratum-config-editor__table th,
+  .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
+  .stratum-table-skeleton__table th {
+    text-align: start;
+    padding: var(--stratum-space-2) var(--stratum-space-3);
+    border-bottom: 1px solid var(--stratum-rule);
+    color: var(--stratum-text-secondary);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .stratum-config-editor__table td,
+  .stratum-permission-editor__table td,
+  .stratum-webhook-editor__table td,
+  .stratum-audit-viewer__table td,
+  .stratum-table-skeleton__table td {
+    padding: var(--stratum-space-2) var(--stratum-space-3);
+    border-bottom: 1px solid var(--stratum-border);
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-config-editor__table code,
+  .stratum-permission-editor__table code,
+  .stratum-webhook-editor__table code,
+  .stratum-audit-viewer__table code {
+    padding: 2px 6px;
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-code-bg);
+    color: var(--stratum-code-text);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  /* A LOCKED row: the Tag in the row carries the word LOCKED. */
+  .stratum-config-editor__row--locked {
+    background: var(--stratum-lock-muted);
+  }
+
+  .stratum-config-editor__source,
+  .stratum-permission-editor__source {
+    color: var(--stratum-text-secondary);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-config-editor__add,
+  .stratum-permission-editor__add,
+  .stratum-webhook-editor__add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-2);
+    margin-top: var(--stratum-space-3);
+    padding: var(--stratum-space-2) 0;
+  }
+
+  /* The inputs of an add row share the width and wrap before they get too narrow to read. */
+  .stratum-config-editor__add input,
+  .stratum-permission-editor__add input,
+  .stratum-webhook-editor__add input {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  /* The reason a LOCKED row has no actions. */
+  .stratum-config-editor__locked-by {
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  /* Invalid JSON: the message, then the explicit choice to save the text as a string. */
+  .stratum-config-editor__field-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-2);
+    margin-top: var(--stratum-space-2);
+  }
+
+  .stratum-config-editor__add .stratum-config-editor__field-error {
+    flex-basis: 100%;
+    margin-top: 0;
+  }
+
+  .stratum-config-editor__field-error p {
+    margin: 0;
+    color: var(--stratum-error);
+    font-size: var(--stratum-font-size-sm);
+    line-height: 1.4;
+  }
+
+  /* The primary style of the add row is for Add only; Save as string is a second choice. */
+  .stratum-config-editor__add .stratum-config-editor__field-error button {
+    border-color: var(--stratum-border-hover);
+    background: var(--stratum-surface-1);
+    color: var(--stratum-text-primary);
+  }
+
+  /* ============================================================
+     Confirm: the second step of a destructive action.
+     ============================================================ */
+  .stratum-confirm {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-1);
+  }
+
+  .stratum-confirm__prompt {
+    margin-inline-end: var(--stratum-space-1);
+    font-weight: 600;
+  }
+
+  .stratum-config-editor .stratum-confirm__yes,
+  .stratum-webhook-editor .stratum-confirm__yes {
+    border-color: var(--stratum-error);
+    color: var(--stratum-error);
+  }
+
+  /* ============================================================
+     Config editor below 640px: each row is a card. The key and
+     its status Tag share the first line. The other cells show
+     their column name, because the header row is hidden.
+     ============================================================ */
+  @media (max-width: 640px) {
+    .stratum-config-editor__table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .stratum-config-editor__table,
+    .stratum-config-editor__table tbody {
+      display: block;
+    }
+
+    .stratum-config-editor__table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "key status"
+        "value value"
+        "source source"
+        "actions actions";
+      gap: var(--stratum-space-2) var(--stratum-space-3);
+      padding: var(--stratum-space-3) var(--stratum-space-2) var(--stratum-space-3) var(--stratum-space-3);
+      border-bottom: 1px solid var(--stratum-border);
+    }
+
+    .stratum-config-editor__table td {
+      display: block;
+      min-width: 0;
+      padding: 0;
+      border-bottom: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__key {
+      grid-area: key;
+      align-self: center;
+      font-weight: 600;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__status {
+      grid-area: status;
+      align-self: center;
+    }
+
+    .stratum-config-editor__table .stratum-config-editor__value { grid-area: value; }
+    .stratum-config-editor__table .stratum-config-editor__source { grid-area: source; }
+    .stratum-config-editor__table .stratum-config-editor__actions { grid-area: actions; }
+
+    .stratum-config-editor__table .stratum-config-editor__value::before,
+    .stratum-config-editor__table .stratum-config-editor__source::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      color: var(--stratum-text-secondary);
+      font-family: var(--stratum-font-body);
+      font-weight: 600;
+      font-size: var(--stratum-font-size-xs);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .stratum-config-editor__value input {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    /* A touch target is at least 44px high on a narrow screen. */
+    .stratum-config-editor button {
+      min-height: 44px;
+    }
+  }
+
+  /* ============================================================
+     Tenant Switcher
+     ============================================================ */
+  .stratum-tenant-switcher {
+    position: relative;
+    display: inline-block;
+    font-family: var(--stratum-font-body);
+  }
+
+  .stratum-tenant-switcher__trigger {
+    min-width: 200px;
+    padding: 8px 14px;
+    border: 1px solid var(--stratum-border-hover);
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-surface-1);
+    color: var(--stratum-text-primary);
+    cursor: pointer;
+    font-family: var(--stratum-font-display);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1.25;
+    text-align: start;
+    transition: border-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-tenant-switcher__trigger:hover {
+    border-color: var(--stratum-rule);
+  }
+
+  .stratum-tenant-switcher__dropdown {
+    position: absolute;
+    top: 100%;
+    inset-inline-start: 0;
+    z-index: 50;
+    min-width: max(100%, 280px);
+    max-height: 300px;
+    margin-top: var(--stratum-space-1);
+    overflow-y: auto;
+    border: 1px solid var(--stratum-border);
+    border-radius: var(--stratum-radius);
+    background: var(--stratum-surface-1);
+    box-shadow: var(--stratum-shadow-raised);
+  }
+
+  .stratum-tenant-switcher__search {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .stratum-tenant-switcher__list {
+    list-style: none;
+    margin: 0;
+    padding: var(--stratum-space-1) 0;
+  }
+
+  .stratum-tenant-switcher__item {
+    padding: var(--stratum-space-2) var(--stratum-space-3);
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+    transition: background-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-tenant-switcher__item:hover {
+    background: var(--stratum-surface-2);
+  }
+
+  .stratum-tenant-switcher__item--active {
+    background: var(--stratum-accent-muted);
+    font-weight: 600;
+  }
+
+  .stratum-tenant-switcher__slug {
+    color: var(--stratum-text-secondary);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  /* ============================================================
+     Tenant Tree: one band per tenant, colored by depth.
+     ============================================================ */
+  .stratum-tree {
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+  }
+
+  .stratum-tree__root,
+  .stratum-tree__root ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .stratum-tree__node {
+    --stratum-tree-band: var(--stratum-tree-band-4);
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-2);
+    margin-top: 2px;
+    padding: 8px 12px;
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-tree-band);
+    color: var(--stratum-tree-on-band-4);
+    cursor: default;
+  }
+
+  /* The tree item also holds its child group, so the focus ring goes on its own row. */
+  .stratum-tree [role="treeitem"]:focus-visible {
+    outline: none;
+  }
+
+  .stratum-tree [role="treeitem"]:focus-visible > .stratum-tree__node {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
+  .stratum-tree__node--d0 { --stratum-tree-band: var(--stratum-tree-band-0); color: var(--stratum-tree-on-band-0); }
+  .stratum-tree__node--d1 { --stratum-tree-band: var(--stratum-tree-band-1); color: var(--stratum-tree-on-band-1); }
+  .stratum-tree__node--d2 { --stratum-tree-band: var(--stratum-tree-band-2); color: var(--stratum-tree-on-band-2); }
+  .stratum-tree__node--d3 { --stratum-tree-band: var(--stratum-tree-band-3); color: var(--stratum-tree-on-band-3); }
+  .stratum-tree__node--d4 { --stratum-tree-band: var(--stratum-tree-band-4); color: var(--stratum-tree-on-band-4); }
+
+  /* The indent halves on phones, so a deep tree keeps room for the names. */
+  @media (max-width: 480px) {
+    .stratum-tree {
+      --stratum-tree-indent: 14px;
+    }
+  }
+
+  /* Selected: an accent ring and an underlined name, so that the state does
+     not depend on color alone. */
+  .stratum-tree__node--selected {
+    box-shadow: inset 0 0 0 2px var(--stratum-accent);
+  }
+
+  .stratum-tree__node--selected .stratum-tree__label {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  /* 24px is the minimum pointer target (WCAG 2.2, 2.5.8). */
+  .stratum-tree__toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-block: -4px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-tree__spacer {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 24px;
+  }
+
+  /* The name keeps at least 12ch on its line. When the badge and the buttons do not
+     fit next to that, they wrap to the next line. */
+  .stratum-tree__label {
+    flex: 1 1 12ch;
+    min-width: 0;
+    overflow: hidden;
+    color: inherit;
+    cursor: pointer;
+    font-family: var(--stratum-font-body);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* An outlined Tag: the text sits on the band, so it keeps the band's contrast. */
+  .stratum-tree__badge {
+    flex-shrink: 0;
+    margin-inline-start: var(--stratum-space-1);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px currentColor;
+    color: inherit;
+  }
+
+  .stratum-tree__meta {
+    color: inherit;
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  /* DraggableTenantTree */
+  .stratum-tree__node--dragging {
+    opacity: 0.4;
+  }
+
+  .stratum-tree__node--drop-target {
+    outline: 2px dashed var(--stratum-flow);
+    outline-offset: 2px;
+  }
+
+  .stratum-tree__drag-handle {
+    flex-shrink: 0;
+    width: 14px;
+    color: inherit;
+    cursor: grab;
+    font-size: var(--stratum-font-size-sm);
+    line-height: 1;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .stratum-tree__drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .stratum-tree__drag-overlay {
+    min-width: 140px;
+    padding: 8px 14px;
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-accent);
+    box-shadow: var(--stratum-shadow-raised);
+    color: var(--stratum-on-accent);
+    cursor: grabbing;
+    font-family: var(--stratum-font-body);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-md);
+    white-space: nowrap;
+  }
+
+  .stratum-tree__actions {
+    display: inline-flex;
+    gap: 2px;
+    margin-inline-start: auto;
+  }
+
+  .stratum-tree__action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    margin-block: -4px;
+    padding: 0 4px;
+    border: none;
+    border-radius: var(--stratum-radius-sm);
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1;
+  }
+
+  /* An outline in the text color keeps the band's contrast on every depth. */
+  .stratum-tree__action-btn:hover {
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  /* ============================================================
+     Config Inheritance Visualizer
+     ============================================================ */
+  .stratum-cascade {
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-body);
+  }
+
+  .stratum-cascade--error {
+    padding: var(--stratum-space-6);
+    color: var(--stratum-error);
+    font-size: var(--stratum-font-size-md);
+  }
+
+  .stratum-cascade-retry {
+    margin-top: var(--stratum-space-2);
+  }
+
+  .stratum-cascade-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: var(--stratum-space-4);
+    overflow-x: auto;
+    border-bottom: 1px solid var(--stratum-rule);
+  }
+
+  .stratum-cascade-tab {
+    padding: var(--stratum-space-2) var(--stratum-space-4);
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--stratum-text-secondary);
+    cursor: pointer;
+    font-family: var(--stratum-font-display);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-md);
+    white-space: nowrap;
+  }
+
+  .stratum-cascade-tab:hover {
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-cascade-tab.active {
+    border-bottom-color: var(--stratum-flow);
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-cascade-split {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--stratum-space-3);
+  }
+
+  /* The arrow shows the direction in which values flow. */
+  .stratum-cascade-arrow {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    padding: var(--stratum-space-12) 0;
+    color: var(--stratum-flow);
+  }
+
+  .stratum-cascade-arrow__line {
+    width: 3px;
+    height: 24px;
+    background: var(--stratum-flow);
+  }
+
+  .stratum-cascade-arrow__head {
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-cascade-panel {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stratum-cascade-panel--empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+  }
+
+  .stratum-cascade-panel__header {
+    display: flex;
+    align-items: baseline;
+    gap: var(--stratum-space-2);
+    padding: var(--stratum-space-2) var(--stratum-space-3);
+    border-bottom: 1px solid var(--stratum-rule);
+  }
+
+  .stratum-cascade-panel__title {
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-display);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-lg);
+    line-height: 1.2;
+  }
+
+  .stratum-cascade-panel__subtitle {
+    color: var(--stratum-text-secondary);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-empty-message {
+    padding: var(--stratum-space-6);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-md);
+    text-align: center;
+  }
+
+  .stratum-cascade-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-cascade-table th {
+    padding: var(--stratum-space-1) var(--stratum-space-3);
+    border-bottom: 1px solid var(--stratum-border);
+    color: var(--stratum-text-secondary);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xs);
+    letter-spacing: 0.06em;
+    text-align: start;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-table td {
+    padding: var(--stratum-space-1) var(--stratum-space-3);
+    border-bottom: 1px solid var(--stratum-border);
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-cascade-key {
+    font-family: var(--stratum-font-mono);
+    font-weight: 500;
+  }
+
+  .stratum-cascade-value code {
+    color: var(--stratum-text-secondary);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-cascade-table .stratum-cascade-empty {
+    padding: var(--stratum-space-4);
+    color: var(--stratum-text-secondary);
+    font-style: italic;
+    text-align: center;
+  }
+
+  .stratum-cascade-row--locked {
+    background: var(--stratum-lock-muted);
+  }
+
+  /* The row that the diff summary points at, while the pointer is on it. */
+  .stratum-cascade-row--highlight {
+    background: var(--stratum-flow-muted);
+  }
+
+  .stratum-cascade-diff {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-3);
+    margin-top: var(--stratum-space-4);
+    padding: var(--stratum-space-2) var(--stratum-space-3);
+    border-top: 1px solid var(--stratum-rule);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-cascade-diff__label {
+    color: var(--stratum-text-secondary);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-diff__stat {
+    cursor: default;
+  }
+
+  /* The split stacks on a narrow screen, and the arrow turns to point down. */
+  @media (max-width: 768px) {
+    .stratum-cascade-split {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .stratum-cascade-arrow {
+      flex-direction: row;
+      padding: 0 var(--stratum-space-6);
+    }
+
+    .stratum-cascade-arrow__line {
+      width: 24px;
+      height: 3px;
+    }
+
+    .stratum-cascade-arrow__head {
+      transform: rotate(90deg);
+    }
+  }
+
+  /* ============================================================
+     Skeleton loaders
+     ============================================================ */
+  .stratum-skeleton {
+    border-radius: var(--stratum-radius-sm);
+    background: var(--stratum-surface-2);
+    animation: stratum-shimmer 1.5s var(--stratum-ease-in-out) infinite;
+  }
+
+  /* The circle variant stands in for a round avatar. */
+  .stratum-skeleton--circle {
+    border-radius: 50%;
+  }
+
+  @keyframes stratum-shimmer {
+    0% { opacity: 0.4; }
+    50% { opacity: 0.7; }
+    100% { opacity: 0.4; }
+  }
+
+  /* ============================================================
+     Toast. The status glyph is decorative; the message carries
+     the words.
+     ============================================================ */
+  .stratum-toast-container {
+    position: fixed;
+    top: var(--stratum-space-4);
+    inset-inline-end: var(--stratum-space-4);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: var(--stratum-space-3);
+    max-width: 400px;
+    pointer-events: none;
+  }
+
+  .stratum-toast {
+    --stratum-toast-status: var(--stratum-info);
+    display: flex;
+    align-items: center;
+    gap: var(--stratum-space-2);
+    padding: var(--stratum-space-3) var(--stratum-space-4);
+    border-color: color-mix(in srgb, var(--stratum-toast-status) 45%, var(--stratum-border));
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+    pointer-events: auto;
+    animation: stratum-toast-enter var(--stratum-duration-normal) var(--stratum-ease-out);
+  }
+
+  .stratum-toast--success { --stratum-toast-status: var(--stratum-success); }
+  .stratum-toast--error { --stratum-toast-status: var(--stratum-error); }
+  .stratum-toast--warning { --stratum-toast-status: var(--stratum-warning); }
+  .stratum-toast--info { --stratum-toast-status: var(--stratum-info); }
+
+  .stratum-toast__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stratum-toast__message {
+    flex: 1;
+    line-height: 1.4;
+  }
+
+  /* The raw error text. It is closed by default, so the toast reads in plain language. */
+  .stratum-toast__details {
+    margin-top: var(--stratum-space-1);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  .stratum-toast__details summary {
+    cursor: pointer;
+  }
+
+  .stratum-toast__details summary:focus-visible {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
+  .stratum-toast__details code {
+    display: block;
+    margin-top: var(--stratum-space-1);
+    font-family: var(--stratum-font-mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .stratum-toast__message::before {
+    margin-inline-end: var(--stratum-space-2);
+    color: var(--stratum-toast-status);
+    font-weight: 600;
+  }
+  .stratum-toast--success .stratum-toast__message::before { content: "\2713"; content: "\2713" / ""; }
+  .stratum-toast--error .stratum-toast__message::before { content: "\25A0"; content: "\25A0" / ""; }
+  .stratum-toast--warning .stratum-toast__message::before { content: "\25B3"; content: "\25B3" / ""; }
+  .stratum-toast--info .stratum-toast__message::before { content: "\2193"; content: "\2193" / ""; }
+
+  .stratum-toast__dismiss {
+    flex-shrink: 0;
+    padding: var(--stratum-space-1);
+    border: none;
+    border-radius: var(--stratum-radius-sm);
+    background: none;
+    color: var(--stratum-text-secondary);
+    cursor: pointer;
+    font-size: var(--stratum-font-size-lg);
+    line-height: 1;
+    transition: color var(--stratum-duration-fast) var(--stratum-ease-out),
+                background-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-toast__dismiss:hover {
+    background: var(--stratum-surface-2);
+    color: var(--stratum-text-primary);
+  }
+
+  @keyframes stratum-toast-enter {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: none; }
+  }
+
+  /* ============================================================
+     Empty State
+     ============================================================ */
+  .stratum-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--stratum-space-12) var(--stratum-space-6);
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-body);
+    text-align: center;
+  }
+
+  .stratum-empty-state__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--stratum-space-4);
+    color: var(--stratum-text-tertiary);
+  }
+
+  .stratum-empty-state__title {
+    margin: 0 0 var(--stratum-space-2);
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-display);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-2xl);
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  .stratum-empty-state__description {
+    max-width: 420px;
+    margin: 0 0 var(--stratum-space-6);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-md);
+    line-height: 1.6;
+  }
+
+  .stratum-empty-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--stratum-space-3);
+  }
+
+  .stratum-empty-state__action {
+    padding: 8px 16px;
+    font-size: var(--stratum-font-size-lg);
+  }
+
+  .stratum-empty-state__docs {
+    color: var(--stratum-accent-text);
+    font-family: var(--stratum-font-body);
+    font-size: var(--stratum-font-size-md);
+    text-decoration: underline;
+    text-decoration-color: var(--stratum-rule);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-empty-state__docs:hover {
+    text-decoration-color: var(--stratum-accent-text);
+  }
+
+  /* ============================================================
+     Tenant Health Card
+     ============================================================ */
+  .stratum-tenant-health-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--stratum-space-3);
+    padding: var(--stratum-space-4);
+    font-family: var(--stratum-font-body);
+  }
+
+  .stratum-tenant-health-card--clickable {
+    cursor: pointer;
+    transition: box-shadow var(--stratum-duration-fast) var(--stratum-ease-out),
+                border-color var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-tenant-health-card--clickable:hover {
+    border-color: var(--stratum-border-hover);
+    box-shadow: var(--stratum-shadow-raised);
+  }
+
+  /* The status dot is a status lamp; the stats line beside it spells the status out. */
+  .stratum-tenant-health-card__dot {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    margin-top: 4px;
+    border-radius: 50%;
+  }
+
+  .stratum-tenant-health-card__dot--ok,
+  .stratum-config-drift-indicator__dot--ok {
+    background: var(--stratum-success);
+  }
+
+  .stratum-tenant-health-card__dot--override,
+  .stratum-config-drift-indicator__dot--override {
+    background: var(--stratum-warning-fill);
+  }
+
+  .stratum-tenant-health-card__dot--missing,
+  .stratum-tenant-health-card__dot--conflict,
+  .stratum-config-drift-indicator__dot--missing,
+  .stratum-config-drift-indicator__dot--conflict {
+    background: var(--stratum-error);
+  }
+
+  .stratum-tenant-health-card__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--stratum-space-1);
+    min-width: 0;
+  }
+
+  .stratum-tenant-health-card__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--stratum-space-2);
+  }
+
+  .stratum-tenant-health-card__name {
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-display);
+    font-weight: 600;
+    font-size: var(--stratum-font-size-xl);
+    line-height: 1.2;
+  }
+
+  .stratum-tenant-health-card__slug {
+    color: var(--stratum-text-secondary);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-tenant-health-card__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--stratum-space-1);
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-tenant-health-card__stats span + span::before {
+    content: " · ";
+    margin-inline-end: var(--stratum-space-1);
+  }
+
+  .stratum-tenant-health-card__activity {
+    color: var(--stratum-text-secondary);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  /* ============================================================
+     Config Drift Indicator
+     ============================================================ */
+  .stratum-config-drift-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--stratum-space-1);
+    border-radius: var(--stratum-radius-sm);
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-body);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .stratum-config-drift-indicator--sm {
+    padding: 2px 8px;
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-config-drift-indicator--md {
+    padding: var(--stratum-space-1) var(--stratum-space-3);
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  /* A status lamp, next to the status word. */
+  .stratum-config-drift-indicator__dot {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .stratum-config-drift-indicator--ok {
+    background: var(--stratum-success-bg);
+  }
+
+  .stratum-config-drift-indicator--override {
+    background: var(--stratum-warning-bg);
+  }
+
+  .stratum-config-drift-indicator--missing,
+  .stratum-config-drift-indicator--conflict {
+    background: var(--stratum-error-bg);
+  }
+
+  /* ============================================================
+     Tenant Theme Provider: adds no box of its own.
+     ============================================================ */
+  .stratum-tenant-theme-provider {
+    display: contents;
+  }
+
+  /* ============================================================
+     Reduced motion: stops the animations and transitions of the
+     stratum elements only. The host page keeps its own motion.
+     ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    :where([class^="stratum-"], [class*=" stratum-"]),
+    :where([class^="stratum-"], [class*=" stratum-"])::before,
+    :where([class^="stratum-"], [class*=" stratum-"])::after {
+      animation: none !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

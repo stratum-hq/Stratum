@@ -10,12 +10,12 @@ import { Tabs, TabItem, Aside } from "@astrojs/starlight/components";
 ## Installation
 
 ```bash
-npm install @stratum-hq/sdk @stratum-hq/core jsonwebtoken
+npm install @stratum-hq/sdk jsonwebtoken
 ```
 
 `jsonwebtoken` is an optional peer dependency. The middleware needs it to verify tokens with `jwtSecret`. If you give `jwtVerify` instead, you do not need it.
 
-## Quick Start
+## Quick start
 
 ```typescript
 import { stratum } from "@stratum-hq/sdk";
@@ -66,7 +66,7 @@ const client = new StratumClient({
 });
 ```
 
-### Client Methods
+### Client methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
@@ -116,7 +116,7 @@ await client.archiveTenant(tenantId);
 await client.purgeTenant(tenantId);
 ```
 
-## Framework Integration
+## Framework integration
 
 <Tabs>
   <TabItem label="Express">
@@ -204,7 +204,7 @@ await client.purgeTenant(tenantId);
   </TabItem>
 </Tabs>
 
-## Middleware Options
+## Middleware options
 
 ```typescript
 interface MiddlewareOptions {
@@ -222,7 +222,7 @@ interface MiddlewareOptions {
 
 A verified token whose `aud` or `iss` claim does not match `jwtAudience` or `jwtIssuer` is rejected with `401 INVALID_TOKEN`.
 
-## Tenant Resolution Order
+## Tenant resolution order
 
 The middleware resolves the tenant ID in this order:
 
@@ -239,7 +239,7 @@ If no tenant ID is found, returns `400 MISSING_TENANT`.
   `401 INVALID_TOKEN`, and the middleware does not try the header or the resolvers.
 </Aside>
 
-### Custom Resolvers
+### Custom resolvers
 
 ```typescript
 app.use(s.middleware({
@@ -259,7 +259,7 @@ app.use(s.middleware({
 }));
 ```
 
-## AsyncLocalStorage Context
+## AsyncLocalStorage context
 
 For code that does not have access to the request object (services, repositories):
 
@@ -277,7 +277,7 @@ await runWithTenantContext(tenantContext, async () => {
 });
 ```
 
-## LRU Cache
+## LRU cache
 
 The built-in cache reduces control plane round-trips:
 
@@ -295,7 +295,7 @@ const client = new StratumClient({
 });
 ```
 
-## Error Handling
+## Error handling
 
 The SDK throws typed errors from `@stratum-hq/core`:
 

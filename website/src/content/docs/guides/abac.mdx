@@ -1,5 +1,5 @@
 ---
-title: ABAC (Attribute-Based Access Control)
+title: ABAC (attribute-based access control)
 description: Fine-grained access control with condition-based policies that inherit through the tenant hierarchy.
 ---
 
@@ -7,7 +7,7 @@ import { Aside } from "@astrojs/starlight/components";
 
 ABAC extends Stratum's permission system with attribute-based conditions. While [permission delegation](/guides/permission-delegation/) controls what tenants *can do* (feature flags, capability toggles), ABAC controls *who can do what to which resources* based on attributes of the user, the action, and the resource.
 
-## When to Use ABAC
+## When to use ABAC
 
 | Use case | Permission delegation | ABAC |
 |----------|----------------------|------|
@@ -18,7 +18,7 @@ ABAC extends Stratum's permission system with attribute-based conditions. While 
 
 Use permissions for on/off feature flags. Use ABAC for conditional, attribute-based rules.
 
-## Creating Policies
+## Creating policies
 
 ```typescript
 await stratum.createAbacPolicy(tenantId, {
@@ -35,7 +35,7 @@ await stratum.createAbacPolicy(tenantId, {
 });
 ```
 
-### Condition Operators
+### Condition operators
 
 | Operator | Description | Example |
 |----------|-------------|---------|
@@ -51,7 +51,7 @@ await stratum.createAbacPolicy(tenantId, {
 
 All conditions in a policy are AND'd: every condition must match for the policy to apply.
 
-## Evaluating Access
+## Evaluating access
 
 ```typescript
 const result = await stratum.evaluateAbac(tenantId, {
@@ -65,7 +65,7 @@ console.log(result.reason);         // "explicit_allow"
 console.log(result.matched_policy); // the policy that matched
 ```
 
-### Attribute Namespaces
+### Attribute namespaces
 
 Subject and resource attributes live in separate namespaces. A condition can
 name either side explicitly with `subject.<name>` or `resource.<name>`:
@@ -83,14 +83,14 @@ denied with reason `ambiguous_attribute`. Use the qualified form whenever the
 resource can carry an attribute with the same name as the subject (for example,
 a `user` resource with a `role` field).
 
-### Evaluation Rules
+### Evaluation rules
 
 1. **Deny overrides allow**: if any deny policy matches, the request is denied regardless of allow policies
 2. **Priority**: higher priority policies are evaluated first. `priority` is an integer from -2147483648 to 2147483647. The control plane API validates the request body with `CreateAbacPolicyInputSchema` and returns `400 VALIDATION_ERROR` for a value outside that range. The library method `createAbacPolicy` applies the same schema. It throws a `ValidationError` for a value outside that range and writes no row.
 3. **Default deny**: if no policy matches, the request is denied
 4. **Wildcard**: use `*` for `resource_type` or `action` to match any value
 
-## Hierarchical Inheritance
+## Hierarchical inheritance
 
 ABAC policies inherit through the tenant tree using the same modes as permissions:
 

@@ -16,7 +16,8 @@ const meta: Meta<typeof TenantTree> = {
         component:
           "Interactive tree view of the tenant hierarchy. " +
           "Nodes can be expanded/collapsed to reveal children. " +
-          "Displays RLS badges and archived status indicators.",
+          "Each row shows a badge for the isolation strategy of the tenant, and an archived marker. " +
+          "The tree follows the WAI-ARIA tree pattern: the arrow keys, Home and End move the focus, and Enter selects.",
       },
     },
   },
@@ -93,6 +94,19 @@ export const DeepHierarchy: Story = {
       </MockStratumProvider>
     ),
   ],
+};
+
+/**
+ * The default hierarchy with the edit, add-child and archive buttons on each row.
+ * The tenants use all three isolation strategies, so the badges differ.
+ */
+export const WithActions: Story = {
+  args: {
+    onSelect: (id: string) => console.log("Selected tenant:", id),
+    onEdit: (id: string) => console.log("Edit tenant:", id),
+    onAddChild: (id: string) => console.log("Add child to:", id),
+    onArchive: (id: string) => console.log("Archive tenant:", id),
+  },
 };
 
 /**

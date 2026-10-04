@@ -1,0 +1,800 @@
+/* @stratum-hq/react: the Bedrock theme (optional).
+ *
+ * Bedrock draws the components as rock layers seen in cross-section: a rock
+ * band per tenant depth, ragged clip-path edges, grain, a rock lip and a
+ * shadow pool under each layer, and one hot color (magma). Daylight is its
+ * light palette. DESIGN.md at the repository root records the identity.
+ *
+ * Load it after base.css. It goes into the stratum.theme layer, so it wins
+ * over stratum.base whatever the import order, and an unlayered host rule
+ * still wins over both. It uses the same rules as base.css: --stratum-
+ * tokens only, and selectors that match stratum- elements only.
+ *
+ * The fonts are in fonts.css, which is a separate import. Without it, the
+ * font tokens fall back to installed fonts.
+ *
+ * Set --stratum-edge to none to remove the ragged edges and keep the rest.
+ */
+@layer stratum.base, stratum.theme;
+
+@layer stratum.theme {
+  /* ============================================================
+     Tokens: Daylight (warm paper, same rock bands), and the
+     tokens that do not change with the color scheme.
+     ============================================================ */
+  :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F2E9D8;
+    --stratum-surface-1: #FAF4E6;
+    --stratum-surface-2: #FFFAF0;
+    --stratum-surface-3: #E8DCC4;
+
+    --stratum-text-primary: #1C140F;
+    --stratum-text-secondary: #5A4A3B;
+    --stratum-text-tertiary: #7A6552;
+
+    --stratum-accent: #C93A08;
+    --stratum-accent-hover: #A63200;
+    --stratum-accent-text: #B32F00;
+    --stratum-on-accent: #FFFAF0;
+    --stratum-accent-deep: #8A2A04;
+    --stratum-accent-glow: rgba(201, 58, 8, 0.35);
+
+    --stratum-flow: #0B7A68;
+    --stratum-on-flow: #FFFAF0;
+    --stratum-focus: #0B6B5B;
+    --stratum-rule: #7A6552;
+    --stratum-border: #D9CCB2;
+    --stratum-border-hover: #BFAE8E;
+
+    --stratum-success: #0B7A68;
+    --stratum-warning: #8A5A00;
+    --stratum-warning-fill: #F2A900;
+    --stratum-on-warning: #1C140F;
+    --stratum-error: #B32F00;
+    --stratum-info: #7A5F35;
+
+    --stratum-texture-accent: var(--stratum-shade);
+    --stratum-texture-raised: var(--stratum-light);
+    --stratum-shadow-pool: rgba(60, 30, 10, 0.22);
+    --stratum-shadow-pool-deep: rgba(60, 30, 10, 0.3);
+    --stratum-shadow-sunk: inset 0 4px 6px 0 rgba(90, 60, 30, 0.25);
+
+    /* The code well stays dark in both palettes. */
+    --stratum-code-bg: #0C0907;
+    --stratum-code-text: #D6C3A0;
+
+    /* Rock bands, shallow to deep, the same in both palettes. */
+    --stratum-tree-band-0: #8F5F36;   /* topsoil */
+    --stratum-tree-band-1: #D2683C;   /* clay */
+    --stratum-tree-band-2: #E0B266;   /* sandstone */
+    --stratum-tree-band-3: #D6CDB8;   /* limestone */
+    --stratum-tree-band-4: #4A4A52;   /* basalt */
+    --stratum-tree-on-band-0: #F4EAD8;
+    --stratum-tree-on-band-1: #120D0B;
+    --stratum-tree-on-band-2: #120D0B;
+    --stratum-tree-on-band-3: #120D0B;
+    --stratum-tree-on-band-4: #F4EAD8;
+
+    --stratum-font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --stratum-font-body: "Instrument Sans", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --stratum-font-mono: "Martian Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+    /* No rounded corners: the shape comes from the edges below. */
+    --stratum-radius-sm: 0;
+    --stratum-radius: 0;
+
+    --stratum-duration-fast: 220ms;
+    --stratum-duration-normal: 320ms;
+    --stratum-duration-slow: 700ms;
+
+    /* Ragged edges (clip-path polygons). */
+    --stratum-edge-ledge: polygon(0.0% 6.0px, 3.5% 4.1px, 8.0% 3.8px, 10.4% 5.9px, 14.8% 0.4px, 20.4% 1.4px, 23.9% 3.0px, 27.3% 0.1px, 31.1% 2.7px, 34.7% 5.8px, 38.9% 3.5px, 42.9% 4.1px, 45.7% 4.7px, 50.9% 5.9px, 54.4% 3.9px, 58.2% 4.3px, 61.3% 4.5px, 65.3% 2.1px, 70.1% 0px, 72.2% 2.8px, 78.0% 3.0px, 81.1% 2.2px, 84.6% 5.7px, 88.1% 6.6px, 92.5% 5.0px, 96.6% 6.0px, 100.0% 6.0px, 100% 100%, 0 100%);
+    --stratum-edge-ledge-b: polygon(0.0% 2.9px, 4.4% 3.8px, 6.7% 2.5px, 9.2% 0.2px, 13.6% 2.9px, 15.7% 2.1px, 19.0% 2.4px, 23.8% 1.8px, 27.8% 7.0px, 30.4% 4.3px, 32.5% 2.2px, 36.7% 3.8px, 39.3% 2.4px, 42.2% 0.9px, 46.5% 3.5px, 50.0% 2.5px, 53.3% 0.8px, 56.6% 1.5px, 61.2% 5.9px, 64.1% 3.8px, 66.2% 3.0px, 69.5% 4.6px, 74.0% 3.9px, 77.5% 2.0px, 81.1% 4.7px, 82.1% 1.5px, 87.7% 0px, 91.2% 1.3px, 92.3% 3.4px, 97.3% 1.0px, 100.0% 1.8px, 100% 100%, 0 100%);
+    --stratum-edge-row: polygon(0.0% 3.5px, 5.3% 2.7px, 9.7% 1.4px, 12.5% 1.9px, 19.2% 3.2px, 23.7% 0.5px, 27.2% 2.7px, 31.9% 5.1px, 35.2% 2.2px, 40.4% 4.2px, 46.1% 2.7px, 50.7% 0.7px, 54.8% 0px, 57.9% 3.1px, 62.9% 0.8px, 69.3% 1.8px, 72.2% 4.1px, 77.4% 4.7px, 81.1% 4.3px, 86.8% 5.0px, 91.9% 4.1px, 95.1% 1.7px, calc(100% - 4px) 0, calc(100% - 1px) 24%, calc(100% - 6px) 47%, calc(100% - 2px) 72%, calc(100% - 7px) 100%, 0 100%);
+    --stratum-edge-chip: polygon(0 5px, 2px 2px, 6px 0, 38% 1px, 72% 0, calc(100% - 7px) 0, calc(100% - 2px) 3px, 100% 8px, 100% calc(100% - 9px), calc(100% - 3px) calc(100% - 3px), calc(100% - 9px) 100%, 62% calc(100% - 1px), 30% 100%, 8px 100%, 2px calc(100% - 3px), 0 calc(100% - 8px));
+    --stratum-edge-slab: polygon(0 0, calc(100% - 6px) 0, calc(100% - 2px) 22%, calc(100% - 7px) 47%, calc(100% - 1px) 71%, calc(100% - 5px) 100%, 0 100%);
+
+    /* Rock texture: grain, laminations, light from above, shade below. */
+    --stratum-grain: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    --stratum-laminations: repeating-linear-gradient(180deg, rgba(0,0,0,.05) 0 1px, transparent 1px 11px, rgba(0,0,0,.035) 11px 12px, transparent 12px 23px);
+    --stratum-light: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%);
+    --stratum-shade: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.22));
+
+    /* Derived, at the Bedrock strengths. */
+    --stratum-accent-muted: color-mix(in srgb, var(--stratum-accent) 16%, transparent);
+    --stratum-flow-muted: color-mix(in srgb, var(--stratum-flow) 16%, transparent);
+    --stratum-lock-muted: color-mix(in srgb, var(--stratum-lock) 18%, transparent);
+    --stratum-warning-bg: color-mix(in srgb, var(--stratum-warning) 14%, var(--stratum-surface-1));
+  }
+
+  /* ============================================================
+     Tokens: Bedrock (dark). The dark color scheme applies it,
+     unless an ancestor sets data-theme="light".
+     ============================================================ */
+  @media (prefers-color-scheme: dark) {
+    :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *):not(:where([data-theme="light"], [data-theme="light"] *)) {
+      color-scheme: dark;
+
+      --stratum-surface-0: #120D0B;
+      --stratum-surface-1: #1C1511;
+      --stratum-surface-2: #281E18;
+      --stratum-surface-3: #332820;
+
+      --stratum-text-primary: #F4EAD8;
+      --stratum-text-secondary: #C2B19A;
+      --stratum-text-tertiary: #9A8670;
+
+      --stratum-accent: #FF5B1F;
+      --stratum-accent-hover: #FF6A33;
+      --stratum-accent-text: #FF6A33;
+      --stratum-on-accent: #120D0B;
+      --stratum-accent-deep: #A63A10;
+      --stratum-accent-glow: rgba(255, 91, 31, 0.45);
+
+      --stratum-flow: #35C2A8;
+      --stratum-on-flow: #0D1A17;
+      --stratum-focus: #35C2A8;
+      --stratum-rule: #8C7660;
+      --stratum-border: #3A2F26;
+      --stratum-border-hover: #5A4838;
+
+      --stratum-success: #35C2A8;
+      --stratum-warning: #FFB21E;
+      --stratum-warning-fill: #FFB21E;
+      --stratum-on-warning: #120D0B;
+      --stratum-error: #FF6A33;
+      --stratum-info: #D6C3A0;
+
+      --stratum-texture-accent: var(--stratum-light);
+      --stratum-texture-raised: var(--stratum-shade);
+      --stratum-shadow-pool: rgba(0, 0, 0, 0.32);
+      --stratum-shadow-pool-deep: rgba(0, 0, 0, 0.45);
+      --stratum-shadow-sunk: inset 0 5px 6px 0 rgba(0, 0, 0, 0.55);
+    }
+  }
+
+  :where([data-theme="dark"], [data-theme="dark"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: dark;
+
+    --stratum-surface-0: #120D0B;
+    --stratum-surface-1: #1C1511;
+    --stratum-surface-2: #281E18;
+    --stratum-surface-3: #332820;
+
+    --stratum-text-primary: #F4EAD8;
+    --stratum-text-secondary: #C2B19A;
+    --stratum-text-tertiary: #9A8670;
+
+    --stratum-accent: #FF5B1F;
+    --stratum-accent-hover: #FF6A33;
+    --stratum-accent-text: #FF6A33;
+    --stratum-on-accent: #120D0B;
+    --stratum-accent-deep: #A63A10;
+    --stratum-accent-glow: rgba(255, 91, 31, 0.45);
+
+    --stratum-flow: #35C2A8;
+    --stratum-on-flow: #0D1A17;
+    --stratum-focus: #35C2A8;
+    --stratum-rule: #8C7660;
+    --stratum-border: #3A2F26;
+    --stratum-border-hover: #5A4838;
+
+    --stratum-success: #35C2A8;
+    --stratum-warning: #FFB21E;
+    --stratum-warning-fill: #FFB21E;
+    --stratum-on-warning: #120D0B;
+    --stratum-error: #FF6A33;
+    --stratum-info: #D6C3A0;
+
+    --stratum-texture-accent: var(--stratum-light);
+    --stratum-texture-raised: var(--stratum-shade);
+    --stratum-shadow-pool: rgba(0, 0, 0, 0.32);
+    --stratum-shadow-pool-deep: rgba(0, 0, 0, 0.45);
+    --stratum-shadow-sunk: inset 0 5px 6px 0 rgba(0, 0, 0, 0.55);
+  }
+
+  /* Daylight inside a dark ancestor. It comes last so that the nearer light theme wins. */
+  :where([data-theme="light"], [data-theme="light"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F2E9D8;
+    --stratum-surface-1: #FAF4E6;
+    --stratum-surface-2: #FFFAF0;
+    --stratum-surface-3: #E8DCC4;
+
+    --stratum-text-primary: #1C140F;
+    --stratum-text-secondary: #5A4A3B;
+    --stratum-text-tertiary: #7A6552;
+
+    --stratum-accent: #C93A08;
+    --stratum-accent-hover: #A63200;
+    --stratum-accent-text: #B32F00;
+    --stratum-on-accent: #FFFAF0;
+    --stratum-accent-deep: #8A2A04;
+    --stratum-accent-glow: rgba(201, 58, 8, 0.35);
+
+    --stratum-flow: #0B7A68;
+    --stratum-on-flow: #FFFAF0;
+    --stratum-focus: #0B6B5B;
+    --stratum-rule: #7A6552;
+    --stratum-border: #D9CCB2;
+    --stratum-border-hover: #BFAE8E;
+
+    --stratum-success: #0B7A68;
+    --stratum-warning: #8A5A00;
+    --stratum-warning-fill: #F2A900;
+    --stratum-on-warning: #1C140F;
+    --stratum-error: #B32F00;
+    --stratum-info: #7A5F35;
+
+    --stratum-texture-accent: var(--stratum-shade);
+    --stratum-texture-raised: var(--stratum-light);
+    --stratum-shadow-pool: rgba(60, 30, 10, 0.22);
+    --stratum-shadow-pool-deep: rgba(60, 30, 10, 0.3);
+    --stratum-shadow-sunk: inset 0 4px 6px 0 rgba(90, 60, 30, 0.25);
+  }
+
+  /* ============================================================
+     Focus: a solid 3px ring with a surface-0 halo outside it, so
+     the ring holds 3:1 on every ground, rock bands included.
+     ============================================================ */
+  .stratum-tenant-switcher button:focus-visible,
+  .stratum-tenant-switcher [tabindex]:focus-visible,
+  .stratum-tree button:focus-visible,
+  .stratum-tree [tabindex]:focus-visible,
+  .stratum-config-editor button:focus-visible,
+  .stratum-permission-editor button:focus-visible,
+  .stratum-webhook-editor button:focus-visible,
+  .stratum-cascade button:focus-visible,
+  .stratum-toast__dismiss:focus-visible,
+  .stratum-empty-state__action:focus-visible,
+  .stratum-empty-state__docs:focus-visible,
+  .stratum-tenant-health-card--clickable:focus-visible {
+    outline: 3px solid var(--stratum-focus);
+    outline-offset: 0;
+    box-shadow: 0 0 0 7px var(--stratum-surface-0);
+  }
+
+  /* ============================================================
+     Button: a rock chip. The face is a clipped ::before with
+     grain; the lip and the pool are a drop-shadow filter on the
+     unclipped button. Hover rises 3px, press drops 2px.
+     ============================================================ */
+  .stratum-config-editor button,
+  .stratum-permission-editor button,
+  .stratum-webhook-editor button,
+  .stratum-cascade-retry,
+  .stratum-empty-state__action {
+    --stratum-btn-face: var(--stratum-surface-3);
+    --stratum-btn-ink: var(--stratum-text-primary);
+    --stratum-btn-lip: var(--stratum-tree-band-0);
+    --stratum-btn-texture: var(--stratum-texture-raised);
+    position: relative;
+    isolation: isolate;
+    margin: 0 var(--stratum-space-1) 6px 0;
+    padding: 8px 14px 7px;
+    border: 0;
+    background: transparent;
+    color: var(--stratum-btn-ink);
+    font-family: var(--stratum-font-display);
+    font-weight: 800;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    filter: drop-shadow(0 3px 0 var(--stratum-btn-lip)) drop-shadow(0 8px 10px var(--stratum-shadow-pool));
+    transition: transform var(--stratum-duration-fast) var(--stratum-ease-out),
+                filter var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-config-editor button::before,
+  .stratum-permission-editor button::before,
+  .stratum-webhook-editor button::before,
+  .stratum-cascade-retry::before,
+  .stratum-empty-state__action::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: var(--stratum-edge, var(--stratum-edge-chip));
+    background-color: var(--stratum-btn-face);
+    background-image: var(--stratum-btn-texture), var(--stratum-grain);
+    background-size: auto, 160px 160px;
+    background-blend-mode: normal, multiply;
+  }
+
+  /* The primary action: a magma face on a deep magma lip. */
+  .stratum-config-editor__add button,
+  .stratum-permission-editor__add button,
+  .stratum-webhook-editor__add button,
+  .stratum-empty-state__action {
+    --stratum-btn-face: var(--stratum-accent);
+    --stratum-btn-ink: var(--stratum-on-accent);
+    --stratum-btn-lip: var(--stratum-accent-deep);
+    --stratum-btn-texture: var(--stratum-texture-accent);
+  }
+
+  .stratum-config-editor button:hover:not(:disabled),
+  .stratum-permission-editor button:hover:not(:disabled),
+  .stratum-webhook-editor button:hover:not(:disabled),
+  .stratum-cascade-retry:hover:not(:disabled),
+  .stratum-empty-state__action:hover:not(:disabled) {
+    transform: translateY(-3px);
+    filter: drop-shadow(0 6px 0 var(--stratum-btn-lip)) drop-shadow(0 14px 14px var(--stratum-shadow-pool-deep));
+  }
+
+  .stratum-config-editor button:active:not(:disabled),
+  .stratum-permission-editor button:active:not(:disabled),
+  .stratum-webhook-editor button:active:not(:disabled),
+  .stratum-cascade-retry:active:not(:disabled),
+  .stratum-empty-state__action:active:not(:disabled) {
+    transform: translateY(2px);
+    filter: drop-shadow(0 1px 0 var(--stratum-btn-lip)) drop-shadow(0 3px 4px var(--stratum-shadow-pool));
+    transition-duration: 120ms;
+  }
+
+  .stratum-config-editor button:disabled,
+  .stratum-permission-editor button:disabled,
+  .stratum-webhook-editor button:disabled {
+    --stratum-btn-ink: var(--stratum-text-secondary);
+    filter: none;
+  }
+
+  .stratum-config-editor button:disabled::before,
+  .stratum-permission-editor button:disabled::before,
+  .stratum-webhook-editor button:disabled::before {
+    background-color: var(--stratum-surface-2);
+    background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--stratum-border) 6px 7px);
+    background-size: auto;
+  }
+
+  /* ============================================================
+     Field: a sunk face cut with the slab edge. clip-path removes
+     borders and outlines, so the fault line under the field and
+     the focus ring are inset shadows inside the clip.
+     ============================================================ */
+  .stratum-config-editor input,
+  .stratum-permission-editor input,
+  .stratum-permission-editor select,
+  .stratum-webhook-editor input,
+  .stratum-webhook-editor select,
+  .stratum-tenant-switcher__search {
+    padding: 10px 14px 9px;
+    border: 0;
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-sm);
+    line-height: 18px;
+    outline: none;
+    clip-path: var(--stratum-edge, var(--stratum-edge-slab));
+    box-shadow: var(--stratum-shadow-sunk), inset 0 -2px 0 0 var(--stratum-rule);
+    transition: box-shadow var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-config-editor input:focus-visible,
+  .stratum-permission-editor input:focus-visible,
+  .stratum-permission-editor select:focus-visible,
+  .stratum-webhook-editor input:focus-visible,
+  .stratum-webhook-editor select:focus-visible,
+  .stratum-tenant-switcher__search:focus-visible {
+    box-shadow: var(--stratum-shadow-sunk), inset 0 0 0 3px var(--stratum-focus);
+  }
+
+  .stratum-config-editor input[aria-invalid="true"],
+  .stratum-permission-editor input[aria-invalid="true"],
+  .stratum-webhook-editor input[aria-invalid="true"] {
+    box-shadow: var(--stratum-shadow-sunk), inset 0 -3px 0 0 var(--stratum-accent-text);
+  }
+
+  /* ============================================================
+     Tag: the chip edge, mono, uppercase, glyph plus word.
+     ============================================================ */
+  .stratum-badge,
+  .stratum-tree__badge,
+  .stratum-cascade-badge,
+  .stratum-cascade-diff__stat,
+  .stratum-tenant-health-card__industry {
+    gap: 6px;
+    padding: 4px 11px 4px 9px;
+    clip-path: var(--stratum-edge, var(--stratum-edge-chip));
+    font-family: var(--stratum-font-mono);
+    font-size: 10px;
+    line-height: 14px;
+    letter-spacing: 0.14em;
+  }
+
+  .stratum-badge--delegated {
+    background-image: repeating-linear-gradient(115deg, transparent 0 7px, var(--stratum-shadow-pool) 7px 9px);
+  }
+
+  .stratum-badge--own,
+  .stratum-cascade-badge--own,
+  .stratum-cascade-diff__stat--own,
+  .stratum-tenant-health-card__industry {
+    color: var(--stratum-surface-0);
+  }
+
+  /* ============================================================
+     Layer: a rock lip (::before, ledge edge) under an inner face
+     (::after, second ledge edge), with the lip and the pool as a
+     filter on the unclipped element.
+     ============================================================ */
+  .stratum-config-editor,
+  .stratum-permission-editor,
+  .stratum-webhook-editor,
+  .stratum-audit-viewer,
+  .stratum-tenant-health-card,
+  .stratum-cascade-panel,
+  .stratum-toast {
+    --stratum-layer-lip: var(--stratum-tree-band-0);
+    position: relative;
+    isolation: isolate;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: drop-shadow(0 3px 0 var(--stratum-tree-band-0)) drop-shadow(0 6px 0 var(--stratum-tree-band-4)) drop-shadow(0 14px 16px var(--stratum-shadow-pool));
+  }
+
+  .stratum-config-editor::before,
+  .stratum-permission-editor::before,
+  .stratum-webhook-editor::before,
+  .stratum-audit-viewer::before,
+  .stratum-tenant-health-card::before,
+  .stratum-cascade-panel::before,
+  .stratum-toast::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    clip-path: var(--stratum-edge, var(--stratum-edge-ledge));
+    background-color: var(--stratum-layer-lip);
+    background-image: var(--stratum-shade);
+  }
+
+  .stratum-config-editor::after,
+  .stratum-permission-editor::after,
+  .stratum-webhook-editor::after,
+  .stratum-audit-viewer::after,
+  .stratum-tenant-health-card::after,
+  .stratum-cascade-panel::after,
+  .stratum-toast::after {
+    content: "";
+    position: absolute;
+    inset: 7px 0 0;
+    z-index: -1;
+    clip-path: var(--stratum-edge, var(--stratum-edge-ledge-b));
+    background: var(--stratum-surface-1);
+  }
+
+  .stratum-config-editor,
+  .stratum-permission-editor,
+  .stratum-webhook-editor,
+  .stratum-audit-viewer {
+    padding: var(--stratum-space-6) var(--stratum-space-4) var(--stratum-space-4);
+  }
+
+  /* ============================================================
+     Tables of the editors
+     ============================================================ */
+  .stratum-config-editor__table th,
+  .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
+  .stratum-table-skeleton__table th {
+    border-bottom-width: 2px;
+    font-family: var(--stratum-font-mono);
+    letter-spacing: 0.14em;
+  }
+
+  /* Save as string is a second choice: a plain chip, not the magma face of Add. */
+  .stratum-config-editor__add .stratum-config-editor__field-error button {
+    --stratum-btn-face: var(--stratum-surface-3);
+    --stratum-btn-ink: var(--stratum-text-primary);
+    --stratum-btn-lip: var(--stratum-tree-band-0);
+    --stratum-btn-texture: var(--stratum-texture-raised);
+  }
+
+  /* The destructive choice keeps the plain face; the error ink and lip mark it. */
+  .stratum-config-editor .stratum-confirm__yes,
+  .stratum-webhook-editor .stratum-confirm__yes {
+    --stratum-btn-ink: var(--stratum-error);
+    --stratum-btn-lip: var(--stratum-error);
+  }
+
+  .stratum-confirm__prompt,
+  .stratum-config-editor__locked-by {
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-sm);
+  }
+
+  /* ============================================================
+     Tenant Switcher
+     ============================================================ */
+  .stratum-tenant-switcher__trigger {
+    position: relative;
+    isolation: isolate;
+    padding: 10px 16px 9px;
+    border: 0;
+    background: transparent;
+    font-weight: 800;
+    font-size: var(--stratum-font-size-lg);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    filter: drop-shadow(0 3px 0 var(--stratum-tree-band-0)) drop-shadow(0 8px 10px var(--stratum-shadow-pool));
+    transition: transform var(--stratum-duration-fast) var(--stratum-ease-out),
+                filter var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-tenant-switcher__trigger::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: var(--stratum-edge, var(--stratum-edge-slab));
+    background-color: var(--stratum-surface-3);
+    background-image: var(--stratum-texture-raised), var(--stratum-grain);
+    background-size: auto, 160px 160px;
+    background-blend-mode: normal, multiply;
+  }
+
+  .stratum-tenant-switcher__trigger:hover {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 5px 0 var(--stratum-tree-band-0)) drop-shadow(0 12px 14px var(--stratum-shadow-pool-deep));
+  }
+
+  /* The dropdown scrolls, so it is not a clipped Layer: a solid
+     topsoil lip on a surface-1 face, with the same lip and pool. */
+  .stratum-tenant-switcher__dropdown {
+    margin-top: var(--stratum-space-2);
+    border: 0;
+    border-top: 5px solid var(--stratum-tree-band-0);
+    box-shadow: none;
+    filter: drop-shadow(0 3px 0 var(--stratum-tree-band-4)) drop-shadow(0 14px 16px var(--stratum-shadow-pool));
+  }
+
+  /* The raised face and the base theme's weight mark the active item. */
+  .stratum-tenant-switcher__item--active {
+    background: var(--stratum-surface-3);
+  }
+
+  /* ============================================================
+     Tenant Tree: one rock band per tenant, colored by depth.
+     Rows overlap 9px, so each lower layer rests on the ragged top
+     of the one above. The band is a clipped ::before, so the
+     focus rings on the toggle and the label stay unclipped.
+     ============================================================ */
+  .stratum-tree__node {
+    --stratum-tree-texture: var(--stratum-shade);
+    isolation: isolate;
+    margin-top: -9px;
+    padding: 18px 18px 14px 12px;
+    background: transparent;
+    filter: drop-shadow(0 3px 3px var(--stratum-shadow-pool-deep));
+    animation: stratum-bedrock-settle var(--stratum-duration-slow) var(--stratum-ease-out) both;
+  }
+
+  .stratum-tree__root > li:first-child > .stratum-tree__node {
+    margin-top: 0;
+  }
+
+  /* The rows settle once, on first mount. A row that an expand adds appears in place. */
+  .stratum-tree__root--settled .stratum-tree__node {
+    animation: none;
+  }
+
+  /* The tree item also holds its child group, so the focus ring goes on its own row. */
+  .stratum-tree [role="treeitem"]:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
+  .stratum-tree [role="treeitem"]:focus-visible > .stratum-tree__node {
+    z-index: 1;
+    outline: 3px solid var(--stratum-focus);
+    outline-offset: 0;
+  }
+
+  .stratum-tree__node::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: var(--stratum-edge, var(--stratum-edge-row));
+    background-color: var(--stratum-tree-band);
+    background-image: var(--stratum-tree-texture), var(--stratum-grain), var(--stratum-laminations);
+    background-size: auto, 160px 160px, auto;
+    background-blend-mode: normal, multiply, normal;
+  }
+
+  /* Light from above: dark-ink bands get light, light-ink bands get shade. */
+  .stratum-tree__node--d1,
+  .stratum-tree__node--d2,
+  .stratum-tree__node--d3 {
+    --stratum-tree-texture: var(--stratum-light);
+  }
+
+  /* Selected: a vein bar along the straight start edge of the band, a vein lip
+     and a glow. Selection is the current location, not an action, so it takes
+     vein and leaves magma to the primary action and to LOCKED. The bar is part
+     of the clipped band, so it follows the edge. */
+  .stratum-tree__node--selected {
+    box-shadow: none;
+    filter: drop-shadow(0 3px 0 var(--stratum-flow)) drop-shadow(0 0 12px color-mix(in srgb, var(--stratum-flow) 45%, transparent));
+  }
+
+  .stratum-tree__node--selected .stratum-tree__label {
+    text-underline-offset: 2px;
+  }
+
+  .stratum-tree__node--selected::before {
+    background-image: linear-gradient(90deg, var(--stratum-flow) 0 5px, transparent 5px), var(--stratum-tree-texture), var(--stratum-grain), var(--stratum-laminations);
+    background-size: auto, auto, 160px 160px, auto;
+    background-blend-mode: normal, normal, multiply, normal;
+  }
+
+  /* A tenant name is user data, so it keeps its own case in the body face. */
+  .stratum-tree__label {
+    font-weight: 700;
+    font-size: var(--stratum-font-size-lg);
+    line-height: 1.2;
+  }
+
+  .stratum-tree__badge {
+    box-shadow: inset 0 0 0 1.5px currentColor;
+    font-size: var(--stratum-font-size-xs);
+  }
+
+  .stratum-tree__node--drop-target {
+    outline-width: 3px;
+  }
+
+  .stratum-tree__drag-overlay {
+    position: relative;
+    isolation: isolate;
+    padding: 14px 18px 10px;
+    background: transparent;
+    box-shadow: none;
+    font-weight: 700;
+    font-size: var(--stratum-font-size-lg);
+    filter: drop-shadow(0 4px 0 var(--stratum-accent-deep)) drop-shadow(0 14px 16px var(--stratum-shadow-pool-deep));
+  }
+
+  .stratum-tree__drag-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    clip-path: var(--stratum-edge, var(--stratum-edge-row));
+    background-color: var(--stratum-accent);
+    background-image: var(--stratum-texture-accent), var(--stratum-grain);
+    background-size: auto, 160px 160px;
+    background-blend-mode: normal, multiply;
+  }
+
+  @keyframes stratum-bedrock-settle {
+    0% { transform: translateY(-10px); opacity: 0; }
+    55% { transform: translateY(2px); opacity: 1; }
+    100% { transform: none; opacity: 1; }
+  }
+
+  /* ============================================================
+     Config Inheritance Visualizer
+     ============================================================ */
+  .stratum-cascade-tab,
+  .stratum-cascade-panel__title {
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-tab {
+    font-weight: 800;
+    font-size: 0.9375rem;
+    letter-spacing: 0.04em;
+  }
+
+  .stratum-cascade-panel {
+    padding-top: 7px;
+  }
+
+  .stratum-cascade-panel__header,
+  .stratum-cascade-diff {
+    border-width: 2px;
+  }
+
+  .stratum-cascade-panel__title {
+    font-weight: 900;
+    font-size: var(--stratum-font-size-xl);
+    line-height: 1;
+    letter-spacing: 0.03em;
+  }
+
+  .stratum-cascade-panel__subtitle,
+  .stratum-cascade-table th,
+  .stratum-cascade-diff__label {
+    font-family: var(--stratum-font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.14em;
+  }
+
+  /* ============================================================
+     Toast: a Layer whose lip is the status band.
+     ============================================================ */
+  .stratum-toast {
+    padding: calc(var(--stratum-space-3) + 7px) var(--stratum-space-4) var(--stratum-space-3);
+    animation-name: stratum-bedrock-toast-enter;
+  }
+
+  .stratum-toast--success { --stratum-layer-lip: var(--stratum-success); }
+  .stratum-toast--error { --stratum-layer-lip: var(--stratum-error); }
+  .stratum-toast--warning { --stratum-layer-lip: var(--stratum-warning-fill); }
+  .stratum-toast--info { --stratum-layer-lip: var(--stratum-info); }
+
+  .stratum-toast__message::before {
+    font-family: var(--stratum-font-mono);
+  }
+
+  @keyframes stratum-bedrock-toast-enter {
+    0% { opacity: 0; transform: translateY(-10px); }
+    55% { opacity: 1; transform: translateY(2px); }
+    100% { opacity: 1; transform: none; }
+  }
+
+  /* ============================================================
+     Empty State
+     ============================================================ */
+  .stratum-empty-state__title {
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .stratum-empty-state__action {
+    padding: 11px 20px 10px;
+  }
+
+  .stratum-empty-state__docs {
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+
+  /* ============================================================
+     Tenant Health Card
+     ============================================================ */
+  .stratum-tenant-health-card {
+    padding: calc(var(--stratum-space-4) + 7px) var(--stratum-space-4) var(--stratum-space-4);
+  }
+
+  .stratum-tenant-health-card--clickable {
+    transition: transform var(--stratum-duration-fast) var(--stratum-ease-out),
+                filter var(--stratum-duration-fast) var(--stratum-ease-out);
+  }
+
+  .stratum-tenant-health-card--clickable:hover {
+    transform: translateY(-3px);
+    box-shadow: none;
+    filter: drop-shadow(0 3px 0 var(--stratum-tree-band-0)) drop-shadow(0 6px 0 var(--stratum-tree-band-4)) drop-shadow(0 20px 20px var(--stratum-shadow-pool-deep));
+  }
+
+  .stratum-tenant-health-card__name {
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  /* ============================================================
+     Config Drift Indicator
+     ============================================================ */
+  .stratum-config-drift-indicator {
+    clip-path: var(--stratum-edge, var(--stratum-edge-chip));
+    font-family: var(--stratum-font-mono);
+    letter-spacing: 0.08em;
+  }
+
+  .stratum-config-drift-indicator--sm {
+    padding: 3px 10px 3px 8px;
+    font-size: 10px;
+  }
+}
