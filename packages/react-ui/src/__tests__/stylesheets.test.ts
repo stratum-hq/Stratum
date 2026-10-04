@@ -179,6 +179,20 @@ describe("base.css", () => {
 });
 
 describe("theme-bedrock.css", () => {
+  // Bedrock spends magma on the primary action and on LOCKED only. A selected
+  // row is the current location, so it takes vein.
+  it.each([".stratum-tree__node--selected", ".stratum-tenant-switcher__item--active"])(
+    "marks %s without magma",
+    (selector) => {
+      const text = stripComments(read("theme-bedrock.css"));
+      const bodies = [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((m) => m[1].split(",").some((s) => s.trim().startsWith(selector)))
+        .map((m) => m[2]);
+      expect(bodies.length).toBeGreaterThan(0);
+      for (const body of bodies) expect(body).not.toMatch(/--stratum-accent/);
+    },
+  );
+
   it("sorts after the base layer whatever the import order", () => {
     const first = topLevelStatements(read("theme-bedrock.css"))[0];
     expect(first).toBe("@layer stratum.base, stratum.theme");
