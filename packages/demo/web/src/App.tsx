@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { StratumProvider } from "@stratum-hq/react";
 import { Dashboard } from "./pages/Dashboard.js";
 import { Sidebar } from "./components/Sidebar.js";
@@ -13,259 +13,138 @@ declare global {
   }
 }
 
-// ── Responsive layout styles ─────────────────────────────────────────────────
+// Above this width the tenant panel is always visible. Below it, the panel is a drawer.
+const WIDE_MIN_WIDTH = 1025;
 
-const appStyles = `
-.stratum-app {
-  font-family: var(--font-body);
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--surface-0);
-  color: var(--text-primary);
-}
-
-.stratum-app-header {
-  background: var(--surface-1);
-  color: var(--text-primary);
-  padding: var(--space-sm, 8px) var(--space-xl, 24px);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-  gap: var(--space-md, 12px);
-  min-height: 44px;
-}
-
-.stratum-app-brand {
-  font-size: 1.375rem;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  font-family: var(--font-display);
-}
-
-.stratum-app-subtitle {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  margin-left: var(--space-sm, 8px);
-}
-
-.stratum-app-header-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-md, 12px);
-}
-
-.stratum-app-hierarchy-label {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.stratum-hamburger {
-  display: none;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: var(--space-xs, 4px) var(--space-sm, 8px);
-  min-width: 44px;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-}
-
-.stratum-app-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-.stratum-app-main {
-  flex: 1;
-  overflow: auto;
-  padding: var(--space-xl, 24px);
-}
-
-/* Sidebar overlay for mobile */
-.stratum-sidebar-overlay {
-  display: none;
-}
-
-/* Tablet: collapsible sidebar */
-@media (max-width: 1024px) and (min-width: 769px) {
-  .stratum-hamburger {
-    display: flex;
-  }
-
-  .stratum-sidebar {
-    transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  }
-}
-
-/* Mobile: hidden sidebar, full-width content */
-@media (max-width: 768px) {
-  .stratum-hamburger {
-    display: flex;
-  }
-
-  .stratum-app-subtitle {
-    display: none;
-  }
-
-  .stratum-app-hierarchy-label {
-    display: none;
-  }
-
-  .stratum-app-header {
-    padding: var(--space-sm, 8px) var(--space-md, 12px);
-  }
-
-  .stratum-app-main {
-    padding: var(--space-lg, 16px);
-  }
-
-  /* Sidebar as overlay on mobile */
-  .stratum-sidebar-overlay {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 90;
-    background: color-mix(in srgb, var(--peat) 50%, transparent);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .stratum-sidebar-overlay.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .stratum-mobile-sidebar-wrapper {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 100;
-    transform: translateX(-100%);
-    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
-    width: 280px;
-  }
-
-  .stratum-mobile-sidebar-wrapper.mobile-open {
-    transform: translateX(0);
-  }
-
-  .stratum-mobile-sidebar-wrapper > .stratum-sidebar {
-    width: 100% !important;
-    height: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stratum-sidebar,
-  .stratum-sidebar-overlay,
-  .stratum-app-body > .stratum-sidebar {
-    transition: none !important;
-  }
-}
-`;
-
-function useBreakpoint() {
-  const [width, setWidth] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1200
-  );
+function useIsWide(): boolean {
+  const [wide, setWide] = useState(() => window.innerWidth >= WIDE_MIN_WIDTH);
 
   useEffect(() => {
-    const handler = () => setWidth(window.innerWidth);
+    const handler = () => setWide(window.innerWidth >= WIDE_MIN_WIDTH);
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  if (width > 1024) return "desktop" as const;
-  if (width > 768) return "tablet" as const;
-  return "mobile" as const;
+  return wide;
+}
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(() => localStorage.getItem("stratum-theme") !== "light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    localStorage.setItem("stratum-theme", dark ? "dark" : "light");
+  }, [dark]);
+
+  return (
+    <button type="button" className="demo-button" onClick={() => setDark(!dark)}>
+      {dark ? "Light theme" : "Dark theme"}
+    </button>
+  );
+}
+
+/** The Stratum mark: three rock slabs, topsoil, clay and magma (DESIGN.md, Logo). */
+function StratumMark() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path fill="var(--stratum-tree-band-0)" d="M4 9.6 9 10.6 14 8.8 19 7.2 24 8.9 29 10.2 34 10.1 39 8.6 44 7.1 43 29 4 28Z" />
+      <path fill="var(--stratum-tree-band-1)" d="M12 26 17 24.5 22 21.9 27 22.8 32 25.6 37 25.5 42 23.8 47 22.3 52 23.9 51 44 12 43Z" />
+      <path fill="var(--stratum-accent)" d="M20 38.8 25 37.8 30 37.9 35 40 40 40.5 45 38.2 50 36.8 55 38.9 60 39.7 59 59 20 58Z" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" fill="none" />
+    </svg>
+  );
 }
 
 export function App() {
-  const breakpoint = useBreakpoint();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const wide = useIsWide();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
 
-  // On desktop, sidebar is always open. On tablet, default collapsed. On mobile, default closed.
   useEffect(() => {
-    if (breakpoint === "desktop") {
-      setSidebarOpen(true);
-    } else {
-      setSidebarOpen(false);
+    if (wide) setDrawerOpen(false);
+  }, [wide]);
+
+  // A closed drawer is inert, so its controls leave the tab order and the
+  // accessibility tree. An open drawer makes the page behind it inert instead.
+  // React 18 has no inert prop, so the attribute is set here.
+  useLayoutEffect(() => {
+    drawerRef.current?.toggleAttribute("inert", !drawerOpen);
+    mainRef.current?.toggleAttribute("inert", drawerOpen);
+    if (drawerOpen) {
+      drawerRef.current?.querySelector<HTMLElement>("button")?.focus();
     }
-  }, [breakpoint]);
+  }, [drawerOpen, wide]);
 
-  const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    menuRef.current?.focus();
+  };
 
-  const showSidebar = breakpoint === "desktop" || sidebarOpen;
-  const sidebarCollapsed = breakpoint === "tablet" && !sidebarOpen;
+  const sidebar = (
+    <Sidebar
+      onClose={wide ? undefined : closeDrawer}
+      onTenantSelect={wide ? undefined : closeDrawer}
+    />
+  );
 
   return (
     <StratumProvider controlPlaneUrl="" apiKey={window.__DEMO_API_KEY__ ?? ""}>
-      <style>{appStyles}</style>
-      <div className="stratum-app">
-        <header className="stratum-app-header">
-          {breakpoint !== "desktop" && (
+      <div className="demo-app">
+        <header className="demo-header">
+          {!wide && (
             <button
-              className="stratum-hamburger"
-              onClick={handleToggleSidebar}
-              aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+              ref={menuRef}
+              type="button"
+              className="demo-icon-button"
+              onClick={() => (drawerOpen ? closeDrawer() : setDrawerOpen(true))}
+              aria-label={drawerOpen ? "Close tenant list" : "Open tenant list"}
+              aria-expanded={drawerOpen}
+              aria-controls="tenant-drawer"
             >
-              {"\u2630"}
+              <MenuIcon />
             </button>
           )}
-          <div>
-            <span className="stratum-app-brand">Stratum</span>
-            <span className="stratum-app-subtitle">Multi-Tenancy Engine Demo</span>
-          </div>
-          <div className="stratum-app-header-right">
-            <span className="stratum-app-hierarchy-label">
-              MSSP &rarr; MSP &rarr; Client hierarchy
-            </span>
+          <span className="demo-brand">
+            <StratumMark />
+            Stratum
+          </span>
+          <span className="demo-subtitle">Multi-tenancy engine demo</span>
+          <div className="demo-header-end">
+            <span className="demo-hierarchy-label">MSSP &rarr; MSP &rarr; Client hierarchy</span>
+            <ThemeToggle />
           </div>
         </header>
 
-        <div className="stratum-app-body">
-          {/* Mobile overlay backdrop */}
-          {breakpoint === "mobile" && (
-            <div
-              className={`stratum-sidebar-overlay${sidebarOpen ? " visible" : ""}`}
-              onClick={() => setSidebarOpen(false)}
-            />
+        <div className="demo-body">
+          {wide ? (
+            sidebar
+          ) : (
+            <>
+              <div className="demo-scrim" data-open={drawerOpen || undefined} onClick={closeDrawer} />
+              <div
+                ref={drawerRef}
+                id="tenant-drawer"
+                className="demo-drawer"
+                data-open={drawerOpen || undefined}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") closeDrawer();
+                }}
+              >
+                {sidebar}
+              </div>
+            </>
           )}
 
-          {/* Sidebar */}
-          {breakpoint === "mobile" ? (
-            <div className={`stratum-mobile-sidebar-wrapper${sidebarOpen ? " mobile-open" : ""}`}>
-              <Sidebar
-                collapsed={false}
-                onToggleCollapse={() => setSidebarOpen(false)}
-              />
-            </div>
-          ) : sidebarCollapsed ? (
-            <Sidebar
-              collapsed={true}
-              onToggleCollapse={handleToggleSidebar}
-            />
-          ) : showSidebar ? (
-            <Sidebar
-              collapsed={false}
-              onToggleCollapse={breakpoint === "tablet" ? handleToggleSidebar : undefined}
-            />
-          ) : null}
-
-          {/* Main content */}
-          <main className="stratum-app-main">
+          <main ref={mainRef} className="demo-main">
             <Dashboard />
           </main>
         </div>

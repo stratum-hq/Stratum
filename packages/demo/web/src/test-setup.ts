@@ -36,3 +36,15 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
     installMemoryStorage(name);
   }
 }
+
+// jsdom has HTMLDialogElement but not showModal() or close(). These stand-ins
+// set and clear the open attribute, which is the part the tests observe. They
+// do not make the rest of the page inert the way a browser does.
+if (typeof HTMLDialogElement !== "undefined" && typeof HTMLDialogElement.prototype.showModal !== "function") {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  };
+}
