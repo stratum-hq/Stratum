@@ -481,7 +481,7 @@ export class Stratum {
           null, (entry.sensitive ? { ...input, sensitive: true, value: "[REDACTED]" } : input) as unknown as Record<string, unknown>,
         );
       }
-      await this.auditSensitiveApplied(tenantId, key, applied, audit);
+      await this.auditSensitiveApplied(tenantId, applied, audit);
       return entry;
     });
   }
@@ -1171,20 +1171,18 @@ export class Stratum {
           } as Record<string, unknown>,
         );
       }
-      if (succeededResults.length > 0) {
-        await this.auditSensitiveApplied(tenantId, succeededResults[0].key, applied, audit);
-      }
+      await this.auditSensitiveApplied(tenantId, applied, audit);
       return batchResult;
     });
   }
 
   /**
    * Records which descendant config entries a write stored as sensitive:
-   * tenant IDs and keys only, never values.
+   * tenant IDs and keys only, never values. The entry's resource is the
+   * tenant whose write applied the flag.
    */
   private async auditSensitiveApplied(
     tenantId: string,
-    key: string,
     applied: configService.AppliedSensitiveFlag[],
     audit?: AuditContext,
   ): Promise<void> {
@@ -1192,7 +1190,7 @@ export class Stratum {
     this.logger.info("config sensitive flag applied to descendant entries", { tenant_id: tenantId, count: applied.length });
     if (audit) {
       await auditService.createAuditEntry(
-        this.pool, audit, "config.sensitive_applied", "config", key, tenantId,
+        this.pool, audit, "config.sensitive_applied", "config", tenantId, tenantId,
         null, { count: applied.length, entries: applied } as unknown as Record<string, unknown>,
       );
     }

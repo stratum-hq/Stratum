@@ -198,11 +198,12 @@ describe("Stratum on PGlite", () => {
     expect((await stratum.resolveConfig(child.id)).api_secret).toMatchObject({ value: "child-value", sensitive: true });
     expect((await stratum.resolveConfig(grandchild.id)).api_secret).toMatchObject({ value: null, masked: true });
 
-    const auditRows = await pool.query<{ after_state: unknown }>(
-      "SELECT after_state FROM audit_logs WHERE tenant_id = $1 AND action = 'config.sensitive_applied'",
+    const auditRows = await pool.query<{ after_state: unknown; resource_id: string }>(
+      "SELECT after_state, resource_id FROM audit_logs WHERE tenant_id = $1 AND action = 'config.sensitive_applied'",
       [root.id],
     );
     expect(auditRows.rows.length).toBe(2);
+    expect(auditRows.rows.map((r) => r.resource_id)).toEqual([root.id, root.id]);
     const auditText = JSON.stringify(auditRows.rows);
     expect(auditText).toContain(child.id);
     expect(auditText).not.toContain("child-value");
@@ -221,8 +222,7 @@ describe("Stratum on PGlite", () => {
       [child.id, JSON.stringify("child-value"), grandchild.id, JSON.stringify("gc-value")],
     );
 
-    const first = await stratum.applySensitiveConfigFlags();
-    expect(first).toBeGreaterThanOrEqual(2);
+    expect(await stratum.applySensitiveConfigFlags()).toBe(2);
 
     const rows = await pool.query<{ value: unknown; sensitive: boolean }>(
       "SELECT value, sensitive FROM config_entries WHERE tenant_id = ANY($1) AND key = 'api_secret'",
@@ -235,6 +235,39 @@ describe("Stratum on PGlite", () => {
     expect((await stratum.resolveConfig(child.id)).api_secret).toMatchObject({ value: "child-value" });
     expect((await stratum.resolveConfig(grandchild.id)).api_secret).toMatchObject({ value: "gc-value" });
 
+    expect(await stratum.applySensitiveConfigFlags()).toBe(0);
+  });
+
+  it("applySensitiveConfigFlags pages through more than one batch", async () => {
+    const root = await stratum.createTenant({ name: "Paging root", slug: "sg_root" });
+    const child = await stratum.createTenant({ name: "Paging child", slug: "sg_child", parent_id: root.id });
+    const keys = Array.from({ length: 105 }, (_, i) => `paged_${String(i).padStart(3, "0")}`);
+    await stratum.batchSetConfig(
+      root.id,
+      keys.map((key) => ({ key, value: `root-${key}`, sensitive: true })),
+    );
+    // Overrides stored before the flag was applied to overrides.
+    await pool.query(
+      `INSERT INTO config_entries (tenant_id, key, value, locked, sensitive, source_tenant_id, inherited)
+       SELECT $1, k, to_jsonb('child-' || k), false, false, $1, false FROM unnest($2::text[]) AS k`,
+      [child.id, keys],
+    );
+
+    expect(await stratum.applySensitiveConfigFlags()).toBe(105);
+
+    const rows = await pool.query<{ key: string; value: unknown; sensitive: boolean }>(
+      "SELECT key, value, sensitive FROM config_entries WHERE tenant_id = $1",
+      [child.id],
+    );
+    expect(rows.rows).toHaveLength(105);
+    for (const row of rows.rows) {
+      expect(row.sensitive).toBe(true);
+      expect(JSON.stringify(row.value)).not.toContain(`child-${row.key}`);
+    }
+    const resolved = await stratum.resolveConfig(child.id);
+    for (const key of keys) {
+      expect(resolved[key]).toMatchObject({ value: `child-${key}`, sensitive: true });
+    }
     expect(await stratum.applySensitiveConfigFlags()).toBe(0);
   });
 
