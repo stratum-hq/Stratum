@@ -5,9 +5,9 @@ max_score: 36
 na_heuristics: 9
 p0_count: 0
 p1_count: 2
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/website/src/content/docs/index.mdx"
+target_identity: "file:website/src/content/docs/index.mdx"
 target_fingerprint: "sha256:067a1a954b958c0c877e59c2f6b2c19f26fbf79e294822dbc231058ebfb725e4"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/website/src/content/docs/index.mdx
+target_path: website/src/content/docs/index.mdx
 timestamp: 2026-10-04T01-22-29Z
 slug: website-src-content-docs-index-mdx
 ---

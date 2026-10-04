@@ -5,9 +5,9 @@ max_score: 36
 na_heuristics: 9
 p0_count: 0
 p1_count: 2
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/website/src/content/docs/index.mdx"
+target_identity: "file:website/src/content/docs/index.mdx"
 target_fingerprint: "sha256:2dd01b97648d85d829cba56eef387cbfd2313f53ce6c61b73b970ad9dba3c846"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/website/src/content/docs/index.mdx
+target_path: website/src/content/docs/index.mdx
 timestamp: 2026-10-03T22-36-59Z
 slug: website-src-content-docs-index-mdx
 ---

@@ -194,7 +194,7 @@ Displays the resolved config for the current tenant with:
 - Key-value editing with type-appropriate inputs
 - Lock status indicators (locked keys are read-only, and the row says "Locked by" and the name of the tenant that locked the key)
 - Inheritance source information: the name of the tenant that set each value, read from `GET /api/v1/tenants/:id/ancestors`. If that request fails, the editor shows the first 8 characters of the tenant ID.
-- Confirmation before Remove. The first click shows "Remove \{key\}?" with **Yes, remove** and **Keep**. Escape or **Keep** cancels. `WebhookEditor` uses the same confirmation for Delete.
+- Confirmation before Remove. The first click shows "Remove \{key\}?" with **Yes, remove** and **Keep**. Escape or **Keep** cancels. `PermissionEditor` uses the same confirmation for Remove, and `WebhookEditor` uses it for Delete.
 - JSON validation. A value that is not valid JSON is not saved. The editor shows an inline error and a **Save as string** button that saves the text as a string.
 - Escape cancels an inline edit.
 - Below 640px wide, each row shows as a card, with the status tag next to the key.
@@ -218,6 +218,7 @@ Displays resolved permissions with:
 - Mode selection (LOCKED / INHERITED / DELEGATED)
 - Revocation mode selection (CASCADE / SOFT / PERMANENT)
 - Source tenant tracking
+- Confirmation before Remove, the same as in `ConfigEditor`: "Remove \{key\}?" with **Yes, remove** and **Keep**
 - Add, update, and delete operations
 
 ## apiCall helper

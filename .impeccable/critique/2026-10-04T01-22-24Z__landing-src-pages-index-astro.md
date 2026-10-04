@@ -5,9 +5,9 @@ max_score: 28
 na_heuristics: 7,9,10
 p0_count: 0
 p1_count: 1
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/landing/src/pages/index.astro"
+target_identity: "file:landing/src/pages/index.astro"
 target_fingerprint: "sha256:45c9ab93e52f32a408e207f3f4890fd2a76f0599f35da22984b1fa85cdad5292"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/landing/src/pages/index.astro
+target_path: landing/src/pages/index.astro
 timestamp: 2026-10-04T01-22-24Z
 slug: landing-src-pages-index-astro
 ---

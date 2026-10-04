@@ -98,7 +98,7 @@ export function WebhookEditor({ className }: WebhookEditorProps) {
                 <td>
                   <button type="button" onClick={() => handleTest(wh.id)}>Test</button>
                   <ConfirmAction
-                    label="Delete"
+                    label={t("webhookEditor.deleteButton")}
                     prompt={t("webhookEditor.deletePrompt")}
                     confirmLabel={t("webhookEditor.confirmDeleteButton")}
                     cancelLabel={t("webhookEditor.keepButton")}

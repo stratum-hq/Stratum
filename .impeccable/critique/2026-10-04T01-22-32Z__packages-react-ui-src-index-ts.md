@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 0
 p1_count: 2
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/packages/react-ui/src/index.ts"
+target_identity: "file:packages/react-ui/src/index.ts"
 target_fingerprint: "sha256:b8aac0ecd156bcfe1953283a768f2cf16923e1108613ec68a9a8edbf55d443a2"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/packages/react-ui/src/index.ts
+target_path: packages/react-ui/src/index.ts
 timestamp: 2026-10-04T01-22-32Z
 slug: packages-react-ui-src-index-ts
 ---

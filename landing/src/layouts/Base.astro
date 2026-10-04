@@ -26,7 +26,8 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
        toggle, which stores the choice in localStorage. The docs site does the
        same (website/src/components/ThemeProvider.astro). Kept as is:inline so
        it runs synchronously in <head>. The "js" class tells the nav that its
-       menu button works; without scripts the links stay in the bar. -->
+       menu button works (without scripts the links stay in the bar) and lets
+       .fade-in sections start hidden (without scripts they stay visible). -->
   <script is:inline>
     (() => {
       document.documentElement.classList.add('js');

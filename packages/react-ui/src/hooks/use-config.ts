@@ -12,8 +12,8 @@ export interface ConfigWithInheritance {
   /** True when a sensitive value inherited from an ancestor was withheld by the API. */
   masked?: boolean;
   /**
-   * Name of the tenant that set the value. Absent when the name could not be
-   * loaded, for example when the API key may not read that ancestor.
+   * Name of the tenant that set the value. Absent while the ancestors request
+   * is pending, or when it failed.
    */
   source_tenant_name?: string;
 }

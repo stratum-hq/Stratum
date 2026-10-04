@@ -5,9 +5,9 @@ max_score: 28
 na_heuristics: 7,9,10
 p0_count: 0
 p1_count: 4
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/landing/src/pages/index.astro"
+target_identity: "file:landing/src/pages/index.astro"
 target_fingerprint: "sha256:46fdc57b3eb68740470faac1451d4b9279e2c30d17dc551471e013fbd7f79a36"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/landing/src/pages/index.astro
+target_path: landing/src/pages/index.astro
 timestamp: 2026-10-03T22-36-59Z
 slug: landing-src-pages-index-astro
 ---

@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 0
 p1_count: 1
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/packages/demo/web/src/App.tsx"
+target_identity: "file:packages/demo/web/src/App.tsx"
 target_fingerprint: "sha256:5c2d422942740550a071054f4b0f8e27defe681410e736c4f693d4a8fbb52c00"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/.claude/worktrees/agent-a3494749c9fb87716/packages/demo/web/src/App.tsx
+target_path: packages/demo/web/src/App.tsx
 timestamp: 2026-10-04T01-22-36Z
 slug: packages-demo-web-src-app-tsx
 ---

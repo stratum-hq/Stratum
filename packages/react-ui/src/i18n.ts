@@ -58,6 +58,7 @@ export const defaultMessages = {
   "configEditor.removeFailed": "Could not remove \"{key}\". The key is unchanged.",
 
   // WebhookEditor
+  "webhookEditor.deleteButton": "Delete",
   "webhookEditor.deletePrompt": "Delete this webhook?",
   "webhookEditor.confirmDeleteButton": "Yes, delete",
   "webhookEditor.keepButton": "Keep",
@@ -84,6 +85,9 @@ export const defaultMessages = {
   "permissionEditor.modeLabel": "Permission mode",
   "permissionEditor.revocationModeLabel": "Revocation mode",
   "permissionEditor.addButton": "Add",
+
+  // Toast
+  "toast.details": "Details",
 } as const;
 
 export type MessageKey = keyof typeof defaultMessages;

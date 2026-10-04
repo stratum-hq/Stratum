@@ -5,9 +5,9 @@ max_score: 40
 na_heuristics: 
 p0_count: 0
 p1_count: 3
-target_identity: "file:/Users/christiancrank/Development/Stratum/Stratum/packages/demo/web/src/App.tsx"
+target_identity: "file:packages/demo/web/src/App.tsx"
 target_fingerprint: "sha256:c55c458ddf1edf9d3eb1184aab8c226b2e5bde908e8829147bbe0fa75211aefd"
-target_path: /Users/christiancrank/Development/Stratum/Stratum/packages/demo/web/src/App.tsx
+target_path: packages/demo/web/src/App.tsx
 timestamp: 2026-10-03T22-36-59Z
 slug: packages-demo-web-src-app-tsx
 ---
