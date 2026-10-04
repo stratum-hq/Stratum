@@ -57,7 +57,7 @@ const pct = (n: number) => `${((n / top) * 100).toFixed(2)}%`;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 ---
 
-<figure class="yoy">
+<figure class="yoy layer">
   <p class="yoy-title">{title}</p>
   <div class="yoy-legend">
     <span class="yoy-key"><span class="yoy-swatch yoy-swatch-prior"></span>{priorLabel}{showTotals && ` (total ${plain(sum(prior))})`}</span>
@@ -127,11 +127,13 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
 <style>
   /* The two series are the brand pair, vein and magma: they separate under
-     color vision deficiency and both tokens flip with the theme. */
+     color vision deficiency and both tokens flip with the theme. The figure is
+     a ledge panel (.layer in global.css), so the top padding clears the lip. */
   .yoy {
     --yoy-prior: var(--flow);
     --yoy-current: var(--accent);
     margin: var(--space-8) 0;
+    padding: calc(var(--space-6) + 10px) var(--space-6) var(--space-4);
   }
 
   .yoy-title {
@@ -336,6 +338,11 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   }
 
   @media (max-width: 640px) {
+    .yoy {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
+    }
+
     .yoy-plot {
       height: 180px;
       margin-left: 34px;
@@ -343,10 +350,6 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
     .yoy-bar {
       width: 40%;
-    }
-
-    .yoy-month {
-      font-size: 0.625rem;
     }
   }
 </style>

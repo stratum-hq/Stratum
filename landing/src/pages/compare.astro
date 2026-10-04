@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import RockTable from '../components/RockTable.astro';
 ---
 
 <Base title="Stratum vs Alternatives: Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, ABP.IO, Clerk / Auth0 Organizations, Nile, and Oso / Permit.io. See why Stratum is the multi-tenancy library Node.js has been missing.">
@@ -13,7 +14,6 @@ import Footer from '../components/Footer.astro';
 <main class="cmp-main">
 
   <header class="cmp-header cmp-header--compact">
-    <div class="cmp-eyebrow">Compare</div>
     <h1>Stratum vs the <span class="accent">alternatives</span></h1>
     <p class="cmp-subtitle">
       Six honest comparisons, from rolling your own to auth-layer orgs,
@@ -53,59 +53,20 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs rolling your own">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>Rolling your own</th>
-            <th>Stratum</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">Setup time</td>
-            <td class="cmp-neutral">1-2 days</td>
-            <td class="cmp-good">5 minutes</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant hierarchy</td>
-            <td class="cmp-bad">Build it yourself (weeks)</td>
-            <td class="cmp-good">Built-in (ltree)</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-bad">Build it yourself</td>
-            <td class="cmp-good">Built-in, root-to-leaf</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Isolation strategies</td>
-            <td class="cmp-neutral">Manual RLS only</td>
-            <td class="cmp-good">RLS, schema, database · per tenant</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Audit logging</td>
-            <td class="cmp-bad">Bolt on later</td>
-            <td class="cmp-good">Every mutation, actor-attributed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">GDPR (Art. 17 + 20)</td>
-            <td class="cmp-bad">Build it yourself</td>
-            <td class="cmp-good">Export + purge, built-in</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Field encryption</td>
-            <td class="cmp-bad">Build it yourself</td>
-            <td class="cmp-good">AES-256-GCM, transparent</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Month-18 cost</td>
-            <td class="cmp-bad">3+ months engineering</td>
-            <td class="cmp-good">Already done</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs rolling your own"
+      columns={["Capability", "Rolling your own", "Stratum"]}
+      rows={[
+        { feat: "Setup time", cells: [["neutral", "1-2 days"], ["good", "5 minutes"]] },
+        { feat: "Tenant hierarchy", cells: [["bad", "Build it yourself (weeks)"], ["good", "Built-in (ltree)"]] },
+        { feat: "Config inheritance", cells: [["bad", "Build it yourself"], ["good", "Built-in, root-to-leaf"]] },
+        { feat: "Isolation strategies", cells: [["neutral", "Manual RLS only"], ["good", "RLS, schema, database · per tenant"]] },
+        { feat: "Audit logging", cells: [["bad", "Bolt on later"], ["good", "Every mutation, actor-attributed"]] },
+        { feat: "GDPR (Art. 17 + 20)", cells: [["bad", "Build it yourself"], ["good", "Export + purge, built-in"]] },
+        { feat: "Field encryption", cells: [["bad", "Build it yourself"], ["good", "AES-256-GCM, transparent"]] },
+        { feat: "Month-18 cost", cells: [["bad", "3+ months engineering"], ["good", "Already done"]] },
+      ]}
+    />
   </section>
 
   <!-- Comparison 2: WorkOS / Frontegg -->
@@ -136,61 +97,22 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs WorkOS / Frontegg">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>WorkOS / Frontegg</th>
-            <th>Stratum</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">SSO / SAML / SCIM</td>
-            <td class="cmp-good">Yes, core product</td>
-            <td class="cmp-bad">Not in scope</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Auth event audit log</td>
-            <td class="cmp-good">Yes</td>
-            <td class="cmp-bad">Not in scope</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data isolation strategies</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">RLS, schema, database</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant hierarchy / tree</td>
-            <td class="cmp-neutral">Flat organizations only</td>
-            <td class="cmp-good">Arbitrary depth, ltree-backed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Root-to-leaf, lockable keys</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">GDPR data operations</td>
-            <td class="cmp-neutral">Partial (auth data only)</td>
-            <td class="cmp-good">Full export + hard purge</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data mutation audit log</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Every mutation, actor-attributed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Pricing model</td>
-            <td class="cmp-neutral">Proprietary SaaS</td>
-            <td class="cmp-good">Open source, MIT</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs WorkOS / Frontegg"
+      columns={["Capability", "WorkOS / Frontegg", "Stratum"]}
+      rows={[
+        { feat: "SSO / SAML / SCIM", cells: [["good", "Yes, core product"], ["bad", "Not in scope"]] },
+        { feat: "Auth event audit log", cells: [["good", "Yes"], ["bad", "Not in scope"]] },
+        { feat: "Data isolation strategies", cells: [["bad", "No"], ["good", "RLS, schema, database"]] },
+        { feat: "Tenant hierarchy / tree", cells: [["neutral", "Flat organizations only"], ["good", "Arbitrary depth, ltree-backed"]] },
+        { feat: "Config inheritance", cells: [["bad", "No"], ["good", "Root-to-leaf, lockable keys"]] },
+        { feat: "GDPR data operations", cells: [["neutral", "Partial (auth data only)"], ["good", "Full export + hard purge"]] },
+        { feat: "Data mutation audit log", cells: [["bad", "No"], ["good", "Every mutation, actor-attributed"]] },
+        { feat: "Pricing model", cells: [["neutral", "Proprietary SaaS"], ["good", "Open source, MIT"]] },
+      ]}
+    />
 
-    <div class="cmp-callout">
+    <div class="cmp-callout layer">
       <p>
         <strong>The right stack:</strong> WorkOS or Frontegg for authentication and user
         management. Stratum for data tenancy and compliance. Both in the same application,
@@ -228,59 +150,20 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs ABP Framework">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>ABP Framework (.NET)</th>
-            <th>Stratum (Node.js)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">Runtime</td>
-            <td class="cmp-neutral">.NET / C#</td>
-            <td class="cmp-good">Node.js / TypeScript</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant resolution</td>
-            <td class="cmp-good">Yes (header, subdomain, JWT)</td>
-            <td class="cmp-good">Yes (SDK middleware)</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data isolation</td>
-            <td class="cmp-good">Schema + database strategies</td>
-            <td class="cmp-good">RLS, schema, database</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant hierarchy</td>
-            <td class="cmp-neutral">Parent-child (2 levels typical)</td>
-            <td class="cmp-good">Arbitrary depth, ltree-backed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-good">Settings system</td>
-            <td class="cmp-good">Root-to-leaf, lockable keys</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">GDPR tooling</td>
-            <td class="cmp-neutral">Partial via modules</td>
-            <td class="cmp-good">Export + purge, built-in</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Open source</td>
-            <td class="cmp-neutral">Partial (community edition)</td>
-            <td class="cmp-good">Fully open source, MIT</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">npm / TypeScript native</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Yes, built for the ecosystem</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs ABP Framework"
+      columns={["Capability", "ABP Framework (.NET)", "Stratum (Node.js)"]}
+      rows={[
+        { feat: "Runtime", cells: [["neutral", ".NET / C#"], ["good", "Node.js / TypeScript"]] },
+        { feat: "Tenant resolution", cells: [["good", "Yes (header, subdomain, JWT)"], ["good", "Yes (SDK middleware)"]] },
+        { feat: "Data isolation", cells: [["good", "Schema + database strategies"], ["good", "RLS, schema, database"]] },
+        { feat: "Tenant hierarchy", cells: [["neutral", "Parent-child (2 levels typical)"], ["good", "Arbitrary depth, ltree-backed"]] },
+        { feat: "Config inheritance", cells: [["good", "Settings system"], ["good", "Root-to-leaf, lockable keys"]] },
+        { feat: "GDPR tooling", cells: [["neutral", "Partial via modules"], ["good", "Export + purge, built-in"]] },
+        { feat: "Open source", cells: [["neutral", "Partial (community edition)"], ["good", "Fully open source, MIT"]] },
+        { feat: "npm / TypeScript native", cells: [["bad", "No"], ["good", "Yes, built for the ecosystem"]] },
+      ]}
+    />
   </section>
 
   <!-- Comparison 4: Clerk / Auth0 Organizations -->
@@ -317,61 +200,22 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs Clerk / Auth0 Organizations">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>Clerk / Auth0 Orgs</th>
-            <th>Stratum</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">Org membership + invites</td>
-            <td class="cmp-good">Yes, core product</td>
-            <td class="cmp-bad">Not in scope</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">SSO per organization</td>
-            <td class="cmp-good">Yes</td>
-            <td class="cmp-bad">Not in scope</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data isolation strategies</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">RLS, schema, database</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Nested tenants</td>
-            <td class="cmp-neutral">Flat orgs (+ optional sub-orgs)</td>
-            <td class="cmp-good">Arbitrary depth, ltree-backed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Root-to-leaf, lockable keys</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data mutation audit log</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Every mutation, before/after state</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">GDPR purge of tenant data</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Full export + hard purge</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Pricing model</td>
-            <td class="cmp-neutral">Proprietary SaaS</td>
-            <td class="cmp-good">Open source, MIT</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs Clerk / Auth0 Organizations"
+      columns={["Capability", "Clerk / Auth0 Orgs", "Stratum"]}
+      rows={[
+        { feat: "Org membership + invites", cells: [["good", "Yes, core product"], ["bad", "Not in scope"]] },
+        { feat: "SSO per organization", cells: [["good", "Yes"], ["bad", "Not in scope"]] },
+        { feat: "Data isolation strategies", cells: [["bad", "No"], ["good", "RLS, schema, database"]] },
+        { feat: "Nested tenants", cells: [["neutral", "Flat orgs (+ optional sub-orgs)"], ["good", "Arbitrary depth, ltree-backed"]] },
+        { feat: "Config inheritance", cells: [["bad", "No"], ["good", "Root-to-leaf, lockable keys"]] },
+        { feat: "Data mutation audit log", cells: [["bad", "No"], ["good", "Every mutation, before/after state"]] },
+        { feat: "GDPR purge of tenant data", cells: [["bad", "No"], ["good", "Full export + hard purge"]] },
+        { feat: "Pricing model", cells: [["neutral", "Proprietary SaaS"], ["good", "Open source, MIT"]] },
+      ]}
+    />
 
-    <div class="cmp-callout">
+    <div class="cmp-callout layer">
       <p>
         <strong>Use both:</strong> Clerk (or Auth0) for authentication and the org-membership UI
         your users see. Stratum for the tenant data layer beneath it: isolation, config, and
@@ -414,61 +258,22 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs Nile">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>Nile</th>
-            <th>Stratum</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">What it is</td>
-            <td class="cmp-neutral">Hosted tenant-aware Postgres</td>
-            <td class="cmp-good">Library over your Postgres</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Runs on existing DB</td>
-            <td class="cmp-bad">Adopt their database</td>
-            <td class="cmp-good">RDS, Supabase, Neon, self-hosted</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Per-tenant isolation</td>
-            <td class="cmp-good">Yes, at the DB</td>
-            <td class="cmp-good">RLS, schema, database</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Nested tenant hierarchy</td>
-            <td class="cmp-neutral">Flat tenants</td>
-            <td class="cmp-good">Arbitrary depth, ltree-backed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Root-to-leaf, lockable keys</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Permission delegation / ABAC</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Delegation modes + ABAC policies</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">GDPR export + purge</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Article 20 export, Article 17 purge</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Lock-in / licensing</td>
-            <td class="cmp-neutral">Vendor-hosted</td>
-            <td class="cmp-good">No lock-in, MIT</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs Nile"
+      columns={["Capability", "Nile", "Stratum"]}
+      rows={[
+        { feat: "What it is", cells: [["neutral", "Hosted tenant-aware Postgres"], ["good", "Library over your Postgres"]] },
+        { feat: "Runs on existing DB", cells: [["bad", "Adopt their database"], ["good", "RDS, Supabase, Neon, self-hosted"]] },
+        { feat: "Per-tenant isolation", cells: [["good", "Yes, at the DB"], ["good", "RLS, schema, database"]] },
+        { feat: "Nested tenant hierarchy", cells: [["neutral", "Flat tenants"], ["good", "Arbitrary depth, ltree-backed"]] },
+        { feat: "Config inheritance", cells: [["bad", "No"], ["good", "Root-to-leaf, lockable keys"]] },
+        { feat: "Permission delegation / ABAC", cells: [["bad", "No"], ["good", "Delegation modes + ABAC policies"]] },
+        { feat: "GDPR export + purge", cells: [["bad", "No"], ["good", "Article 20 export, Article 17 purge"]] },
+        { feat: "Lock-in / licensing", cells: [["neutral", "Vendor-hosted"], ["good", "No lock-in, MIT"]] },
+      ]}
+    />
 
-    <div class="cmp-callout">
+    <div class="cmp-callout layer">
       <p>
         <strong>Choose by ownership:</strong> greenfield and happy to host your data with a startup
         database vendor → Nile is a genuinely elegant fit. Existing Postgres, or you need nested
@@ -511,61 +316,22 @@ import Footer from '../components/Footer.astro';
       </p>
     </div>
 
-    <div class="cmp-table-wrapper">
-      <table class="cmp-table" aria-label="Stratum vs Oso / Permit.io">
-        <thead>
-          <tr>
-            <th>Capability</th>
-            <th>Oso / Permit.io</th>
-            <th>Stratum</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="cmp-feat">General policy-as-code authz</td>
-            <td class="cmp-good">Yes, core product</td>
-            <td class="cmp-neutral">Tenancy-scoped only</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">ReBAC / ABAC evaluation</td>
-            <td class="cmp-good">Yes, general-purpose</td>
-            <td class="cmp-good">ABAC + hierarchical inheritance</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant data model</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Hierarchy, ltree-backed</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Isolation strategies</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">RLS, schema, database</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Config inheritance</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Root-to-leaf, lockable keys</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Tenant lifecycle</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Onboard, archive, purge</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Data mutation audit log</td>
-            <td class="cmp-bad">No</td>
-            <td class="cmp-good">Every mutation, before/after state</td>
-          </tr>
-          <tr>
-            <td class="cmp-feat">Licensing</td>
-            <td class="cmp-neutral">Open core / SaaS</td>
-            <td class="cmp-good">Open source, MIT</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <RockTable
+      label="Stratum vs Oso / Permit.io"
+      columns={["Capability", "Oso / Permit.io", "Stratum"]}
+      rows={[
+        { feat: "General policy-as-code authz", cells: [["good", "Yes, core product"], ["neutral", "Tenancy-scoped only"]] },
+        { feat: "ReBAC / ABAC evaluation", cells: [["good", "Yes, general-purpose"], ["good", "ABAC + hierarchical inheritance"]] },
+        { feat: "Tenant data model", cells: [["bad", "No"], ["good", "Hierarchy, ltree-backed"]] },
+        { feat: "Isolation strategies", cells: [["bad", "No"], ["good", "RLS, schema, database"]] },
+        { feat: "Config inheritance", cells: [["bad", "No"], ["good", "Root-to-leaf, lockable keys"]] },
+        { feat: "Tenant lifecycle", cells: [["bad", "No"], ["good", "Onboard, archive, purge"]] },
+        { feat: "Data mutation audit log", cells: [["bad", "No"], ["good", "Every mutation, before/after state"]] },
+        { feat: "Licensing", cells: [["neutral", "Open core / SaaS"], ["good", "Open source, MIT"]] },
+      ]}
+    />
 
-    <div class="cmp-callout">
+    <div class="cmp-callout layer">
       <p>
         <strong>Choose by scope:</strong> complex, app-wide authorization policy → pair an authz
         engine like Oso or Permit.io with Stratum's tenant layer. Permissions that only ever run
@@ -578,32 +344,32 @@ import Footer from '../components/Footer.astro';
   <!-- Summary -->
   <section class="cmp-summary">
     <h2>The short version</h2>
-    <div class="cmp-summary-grid">
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs tenant_id</div>
+    <ul class="rock-rows cmp-summary-rows" role="list">
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs tenant_id</span>
         <p>The DIY approach works until it doesn't. Stratum gives you the infrastructure you'll need at month 18, from day one.</p>
-      </div>
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs WorkOS / Frontegg</div>
+      </li>
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs WorkOS / Frontegg</span>
         <p>Different layer of the stack. Use them for auth. Use Stratum for data. They complement each other.</p>
-      </div>
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs ABP Framework</div>
+      </li>
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs ABP Framework</span>
         <p>ABP is great for .NET. Stratum fills the same role for Node.js. If you're writing TypeScript, there's no equivalent, until now.</p>
-      </div>
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs Clerk / Auth0 Orgs</div>
+      </li>
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs Clerk / Auth0 Orgs</span>
         <p>They own auth and org membership. Stratum owns the tenant data layer beneath the token: isolation, config, compliance. Compose them.</p>
-      </div>
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs Nile</div>
+      </li>
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs Nile</span>
         <p>Nile is a database you host with them. Stratum is a library over the Postgres you already run, plus nested tenancy and compliance. No lock-in.</p>
-      </div>
-      <div class="cmp-summary-card">
-        <div class="cmp-summary-label">vs Oso / Permit.io</div>
+      </li>
+      <li class="rock-row cmp-summary-row">
+        <span class="cmp-summary-label">vs Oso / Permit.io</span>
         <p>Policy engines evaluate authz; they don't model tenants. Pair one with Stratum for app-wide policy, or use Stratum alone for tenancy-scoped permissions.</p>
-      </div>
-    </div>
+      </li>
+    </ul>
   </section>
 
   <!-- ORM Comparisons -->
@@ -639,7 +405,7 @@ import Footer from '../components/Footer.astro';
   </section>
 
   <!-- CTA -->
-  <section class="cmp-cta">
+  <section class="cmp-cta layer">
     <h2>Start with Stratum today</h2>
     <div class="cmp-install">
       <code>npm install <span class="no-break">@stratum-hq/lib</span> pg</code>
@@ -670,16 +436,6 @@ import Footer from '../components/Footer.astro';
   .cmp-header--compact {
     margin-bottom: var(--space-8);
     text-align: left;
-  }
-
-  .cmp-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: var(--space-3);
   }
 
   .cmp-header h1 {
@@ -724,7 +480,9 @@ import Footer from '../components/Footer.astro';
     padding: 2px 6px;
   }
 
+  /* Prose holds a 65ch measure. The 800px column is for the tables. */
   .cmp-section-intro {
+    max-width: 65ch;
     font-size: 1rem;
     line-height: 1.7;
     color: var(--text-secondary);
@@ -736,6 +494,7 @@ import Footer from '../components/Footer.astro';
   }
 
   .cmp-narrative p {
+    max-width: 65ch;
     font-size: 1rem;
     line-height: 1.75;
     color: var(--text-secondary);
@@ -759,69 +518,15 @@ import Footer from '../components/Footer.astro';
     padding: 2px 6px;
   }
 
-  /* Tables */
-  .cmp-table-wrapper {
-    overflow-x: auto;
-    margin: var(--space-4) 0;
-  }
-
-  .cmp-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-  }
-
-  .cmp-table thead tr {
-    border-bottom: 2px solid var(--border);
-  }
-
-  .cmp-table th {
-    text-align: left;
-    padding: var(--space-3) var(--space-4);
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-
-  .cmp-table th:first-child {
-    min-width: 180px;
-  }
-
-  .cmp-table td {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border);
-    line-height: 1.5;
-  }
-
-  .cmp-feat {
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-
-  .cmp-good {
-    color: var(--success);
-    font-weight: 500;
-  }
-
-  .cmp-bad {
-    color: var(--text-tertiary);
-  }
-
-  .cmp-neutral {
-    color: var(--warning);
-  }
-
-  /* Callout */
+  /* Callout: a ledge panel (.layer in global.css). The top padding clears
+     the 10px rock lip. */
   .cmp-callout {
-    margin-top: var(--space-6);
-    padding: var(--space-4) var(--space-6);
-    background: var(--surface-1);
-    border-left: 3px solid var(--sandstone);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    margin-top: var(--space-8);
+    padding: calc(var(--space-4) + 10px) var(--space-6) var(--space-4);
   }
 
   .cmp-callout p {
+    max-width: 65ch;
     font-size: 0.9375rem;
     line-height: 1.65;
     color: var(--text-secondary);
@@ -847,47 +552,42 @@ import Footer from '../components/Footer.astro';
     line-height: 0.95;
   }
 
-  .cmp-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-4);
+  /* The summary is one stack of rock rows: the comparison, then the verdict. */
+  .cmp-summary-rows {
+    list-style: none;
   }
 
-  @media (max-width: 640px) {
-    .cmp-summary-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .cmp-summary-card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-6);
+  .cmp-summary-row {
+    grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+    align-items: baseline;
   }
 
   .cmp-summary-label {
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--sandstone);
-    margin-bottom: var(--space-3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.14em;
   }
 
-  .cmp-summary-card p {
-    font-size: 0.875rem;
-    line-height: 1.65;
+  .cmp-summary-row p {
+    max-width: 65ch;
+    font-size: 0.9375rem;
+    line-height: 1.6;
     color: var(--text-secondary);
   }
 
+  @media (max-width: 640px) {
+    .cmp-summary-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   /* CTA */
+  /* A ledge panel (.layer in global.css). The top padding clears the lip. */
   .cmp-cta {
-    padding: var(--space-8);
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    padding: calc(var(--space-8) + 10px) var(--space-6) var(--space-8);
     text-align: center;
   }
 

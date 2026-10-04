@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import RockTable from '../components/RockTable.astro';
 ---
 
 <Base title="What is Stratum? Multi-Tenancy Library for Node.js" description="Stratum is an open-source multi-tenancy library for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR compliance. Learn why we built it and how it works.">
@@ -75,25 +76,26 @@ import Footer from '../components/Footer.astro';
 
   <div class="wis-feature-grid">
     <!-- Tenant Hierarchy -->
-    <div class="wis-feature-card">
+    <div class="wis-feature-card layer">
       <h3>Tenant hierarchy</h3>
       <p>
         Tenants form a tree. A root organization can have resellers, who have clients,
         who have teams. Config and permissions flow down the tree automatically.
       </p>
-      <div class="wis-diagram">
-<pre>
-<span class="tree-root">AcmeSec</span>                    <span class="tree-meta">&larr; root</span>
-<span class="tree-dim">&boxvr;&boxh;&boxh;</span> <span class="tree-mid">NorthStar MSP</span>             <span class="tree-meta">&larr; reseller</span>
-<span class="tree-dim">&boxv;   &boxvr;&boxh;&boxh;</span> <span class="tree-leaf">client-alpha</span>
-<span class="tree-dim">&boxv;   &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-beta</span>
-<span class="tree-dim">&boxur;&boxh;&boxh;</span> <span class="tree-mid">Apex Partners</span>
-<span class="tree-dim">    &boxur;&boxh;&boxh;</span> <span class="tree-leaf">client-gamma</span></pre>
-      </div>
+      <!-- The same tenant tree as the homepage hero: one rock band per tenant,
+           colored by depth and indented under its parent. -->
+      <ol class="inherit-tree wis-tree" aria-label="Example tenant hierarchy">
+        <li class="itrow d0"><span class="idepth">d0</span><span class="inode">AcmeSec</span><span class="imeta">root</span></li>
+        <li class="itrow d1"><span class="idepth">d1</span><span class="inode">NorthStar MSP</span><span class="imeta">reseller</span></li>
+        <li class="itrow d2"><span class="idepth">d2</span><span class="inode">client-alpha</span></li>
+        <li class="itrow d2"><span class="idepth">d2</span><span class="inode">client-beta</span></li>
+        <li class="itrow d1"><span class="idepth">d1</span><span class="inode">Apex Partners</span></li>
+        <li class="itrow d2"><span class="idepth">d2</span><span class="inode">client-gamma</span></li>
+      </ol>
     </div>
 
     <!-- Config Inheritance -->
-    <div class="wis-feature-card">
+    <div class="wis-feature-card layer">
       <h3>Config inheritance</h3>
       <p>
         Set a value on the root tenant and every child inherits it automatically.
@@ -110,24 +112,29 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
     </div>
 
     <!-- Isolation Strategies -->
-    <div class="wis-feature-card wis-feature-wide">
+    <div class="wis-feature-card wis-feature-wide layer">
       <h3>Three isolation strategies</h3>
       <p>
         Choose per tenant. Mix strategies in a single deployment.
         Upgrade a tenant's isolation level without migrating data.
       </p>
-      <div class="wis-isolation-grid">
-        <div class="wis-isolation-item">
-          <div class="wis-isolation-label">Shared RLS</div>
-          <div class="wis-isolation-desc">Same tables, PostgreSQL Row-Level Security. Lowest cost, highest density.</div>
+      <!-- The homepage depth gauge: the three strategies as one stack of rock,
+           shallow to deep. -->
+      <div class="isolation-stack wis-isolation">
+        <div class="isolation-row iso-rls">
+          <div class="isolation-face">
+            <span><span class="isolation-label">Shared RLS</span><span class="wis-isolation-desc">Same tables, PostgreSQL Row-Level Security. Lowest cost, highest density.</span></span>
+          </div>
         </div>
-        <div class="wis-isolation-item">
-          <div class="wis-isolation-label">Schema</div>
-          <div class="wis-isolation-desc">Separate schema per tenant. Stronger isolation, still one database.</div>
+        <div class="isolation-row iso-schema">
+          <div class="isolation-face">
+            <span><span class="isolation-label">Schema</span><span class="wis-isolation-desc">Separate schema per tenant. Stronger isolation, still one database.</span></span>
+          </div>
         </div>
-        <div class="wis-isolation-item">
-          <div class="wis-isolation-label">Database</div>
-          <div class="wis-isolation-desc">Dedicated PostgreSQL instance. Maximum isolation for compliance.</div>
+        <div class="isolation-row iso-db">
+          <div class="isolation-face">
+            <span><span class="isolation-label">Database</span><span class="wis-isolation-desc">Dedicated PostgreSQL instance. Maximum isolation for compliance.</span></span>
+          </div>
         </div>
       </div>
     </div>
@@ -158,70 +165,19 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
 <!-- Comparison -->
 <section class="wis-section">
   <h2>Stratum vs alternatives</h2>
-  <div class="wis-table-wrapper">
-    <table class="wis-comparison-table" aria-label="Comparison of multi-tenancy approaches">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Stratum</th>
-          <th>tenant_id column</th>
-          <th>WorkOS / Frontegg</th>
-          <th>Custom built</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="wis-feature-label">Tenant hierarchy</td>
-          <td class="wis-yes">Yes</td>
-          <td class="wis-no">No</td>
-          <td class="wis-no">No</td>
-          <td class="wis-partial">Build it yourself</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">Config inheritance</td>
-          <td class="wis-yes">Built-in</td>
-          <td class="wis-no">No</td>
-          <td class="wis-no">No</td>
-          <td class="wis-partial">Build it yourself</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">Isolation strategies</td>
-          <td class="wis-yes">3 (RLS, schema, DB)</td>
-          <td class="wis-partial">Manual RLS</td>
-          <td class="wis-no">No</td>
-          <td class="wis-partial">Build it yourself</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">GDPR compliance</td>
-          <td class="wis-yes">Export + purge</td>
-          <td class="wis-no">No</td>
-          <td class="wis-partial">Partial</td>
-          <td class="wis-partial">Build it yourself</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">Audit logging</td>
-          <td class="wis-yes">Built-in</td>
-          <td class="wis-no">No</td>
-          <td class="wis-partial">Auth events only</td>
-          <td class="wis-partial">Build it yourself</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">Time to implement</td>
-          <td class="wis-yes">60 seconds</td>
-          <td class="wis-partial">1 day</td>
-          <td class="wis-partial">1 week</td>
-          <td class="wis-no">3+ months</td>
-        </tr>
-        <tr>
-          <td class="wis-feature-label">Open source</td>
-          <td class="wis-yes">MIT</td>
-          <td class="wis-yes">N/A</td>
-          <td class="wis-no">Proprietary</td>
-          <td class="wis-yes">Yours</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+  <RockTable
+    label="Comparison of multi-tenancy approaches"
+    columns={["Capability", "Stratum", "tenant_id column", "WorkOS / Frontegg", "Custom built"]}
+    rows={[
+      { feat: "Tenant hierarchy", cells: [["good", "Yes"], ["bad", "No"], ["bad", "No"], ["neutral", "Build it yourself"]] },
+      { feat: "Config inheritance", cells: [["good", "Built-in"], ["bad", "No"], ["bad", "No"], ["neutral", "Build it yourself"]] },
+      { feat: "Isolation strategies", cells: [["good", "3 (RLS, schema, DB)"], ["neutral", "Manual RLS"], ["bad", "No"], ["neutral", "Build it yourself"]] },
+      { feat: "GDPR compliance", cells: [["good", "Export + purge"], ["bad", "No"], ["neutral", "Partial"], ["neutral", "Build it yourself"]] },
+      { feat: "Audit logging", cells: [["good", "Built-in"], ["bad", "No"], ["neutral", "Auth events only"], ["neutral", "Build it yourself"]] },
+      { feat: "Time to implement", cells: [["good", "60 seconds"], ["neutral", "1 day"], ["neutral", "1 week"], ["bad", "3+ months"]] },
+      { feat: "Open source", cells: [["good", "MIT"], ["good", "N/A"], ["bad", "Proprietary"], ["good", "Yours"]] },
+    ]}
+  />
 </section>
 
 <!-- Getting Started -->
@@ -447,10 +403,17 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
     }
   }
 
+  /* Each card is a ledge panel (.layer in global.css). The top padding
+     clears the 10px rock lip. */
   .wis-feature-card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    padding: var(--space-6);
+    padding: calc(var(--space-6) + 10px) var(--space-6) var(--space-6);
+  }
+
+  @media (max-width: 480px) {
+    .wis-feature-card {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
+    }
   }
 
   .wis-feature-card h3 {
@@ -484,86 +447,16 @@ root: <span class="accent">region = "eu" (locked)</span>  <span class="tree-meta
     color: var(--text-secondary);
   }
 
-  /* Isolation grid */
-  .wis-isolation-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-3);
-  }
-
-  @media (max-width: 640px) {
-    .wis-isolation-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .wis-isolation-item {
-    background: var(--surface-2);
-    padding: var(--space-4);
-  }
-
-  .wis-isolation-label {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--sandstone);
-    margin-bottom: var(--space-2);
+  .wis-tree,
+  .wis-isolation {
+    margin-top: var(--space-2);
   }
 
   .wis-isolation-desc {
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    color: var(--text-tertiary);
-  }
-
-  /* Comparison table */
-  .wis-table-wrapper {
-    overflow-x: auto;
-    margin: var(--space-4) 0;
-  }
-
-  .wis-comparison-table {
-    width: 100%;
-    border-collapse: collapse;
+    display: block;
+    margin-top: var(--space-1);
     font-size: 0.875rem;
-  }
-
-  .wis-comparison-table th {
-    text-align: left;
-    padding: var(--space-3) var(--space-4);
-    font-weight: 600;
-    color: var(--text-primary);
-    border-bottom: 2px solid var(--border);
-    white-space: nowrap;
-  }
-
-  .wis-comparison-table th:first-child {
-    min-width: 140px;
-  }
-
-  .wis-comparison-table td {
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--border);
-    color: var(--text-secondary);
-  }
-
-  .wis-feature-label {
-    font-weight: 500;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-
-  .wis-yes {
-    color: var(--success);
-    font-weight: 500;
-  }
-
-  .wis-no {
-    color: var(--text-tertiary);
-  }
-
-  .wis-partial {
-    color: var(--warning);
+    line-height: 1.5;
   }
 
   .wis-link {

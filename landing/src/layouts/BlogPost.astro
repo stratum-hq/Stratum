@@ -70,7 +70,6 @@ const jsonLd = {
 <!-- Article -->
 <article class="post">
   <header class="post-header">
-    <p class="post-eyebrow">Blog</p>
     <h1>
       {heading ? (
         <Fragment>{heading.before}<span class="accent">{heading.accent}</span>{heading.after}</Fragment>
@@ -94,7 +93,7 @@ const jsonLd = {
   </div>
 
   <!-- CTA -->
-  <div class="post-cta">
+  <div class="post-cta layer">
     <div class="post-cta-install">
       <code>npm install <span class="no-break">@stratum-hq/lib</span> pg</code>
     </div>
@@ -121,15 +120,6 @@ const jsonLd = {
 
   .post-header {
     margin-bottom: var(--space-8);
-  }
-
-  .post-eyebrow {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--sandstone);
-    margin-bottom: var(--space-3);
   }
 
   .post-header h1 {
@@ -201,12 +191,12 @@ const jsonLd = {
     color: var(--text-primary);
   }
 
-  /* A note set off from the body, such as a pointer to a newer edition. */
+  /* A note set off from the body, such as a pointer to a newer edition. It is
+     a ledge panel: global.css draws the rock lip and the surface for
+     ".post-body blockquote". The top padding clears the 10px lip. */
   .post-body :global(blockquote) {
-    margin: 0 0 var(--space-6) 0;
-    padding: var(--space-4) var(--space-4) var(--space-1);
-    border-left: 4px solid var(--clay);
-    background: var(--surface-1);
+    margin: 0 0 var(--space-8) 0;
+    padding: calc(var(--space-4) + 10px) var(--space-6) var(--space-1);
   }
 
   /* Lists */
@@ -278,10 +268,10 @@ const jsonLd = {
   }
 
   /* CTA */
+  /* A ledge panel (.layer in global.css). The top padding clears the lip. */
   .post-cta {
-    margin-top: var(--space-8);
-    padding-top: var(--space-8);
-    border-top: 1px solid var(--border);
+    margin-top: var(--space-12);
+    padding: calc(var(--space-6) + 10px) var(--space-6) var(--space-6);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -308,6 +298,12 @@ const jsonLd = {
     /* The top padding clears the fixed nav, which is 69px tall on phones. */
     .post {
       padding: calc(var(--space-8) * 3) var(--space-4) var(--space-8);
+    }
+
+    .post-cta,
+    .post-body :global(blockquote) {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
     }
 
     .post-body :global(th),

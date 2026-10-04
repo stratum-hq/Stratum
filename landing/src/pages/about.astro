@@ -29,15 +29,18 @@ import '../styles/global.css';
       hierarchy, and almost no tooling handles it correctly.
     </p>
 
-    <!-- Hierarchy diagram callout -->
-    <div class="about-hierarchy">
-      <span class="about-hierarchy-label">The hierarchy Stratum models</span>
-      <pre><code>MSSP
-  MSP (Partner A)
-    Client (Acme Corp)
-      SubClient (Acme EU)
-  MSP (Partner B)
-    Client (Globex Inc)</code></pre>
+    <!-- The hierarchy as the homepage tenant tree: one rock band per tenant,
+         colored by depth and indented under its parent. -->
+    <div class="about-hierarchy layer">
+      <p class="about-hierarchy-label" id="about-hierarchy-label">The hierarchy Stratum models</p>
+      <ol class="inherit-tree" aria-labelledby="about-hierarchy-label">
+        <li class="itrow d0"><span class="idepth">d0</span><span class="inode">MSSP</span></li>
+        <li class="itrow d1"><span class="idepth">d1</span><span class="inode">MSP</span><span class="imeta">Partner A</span></li>
+        <li class="itrow d2"><span class="idepth">d2</span><span class="inode">Client</span><span class="imeta">Acme Corp</span></li>
+        <li class="itrow d3"><span class="idepth">d3</span><span class="inode">SubClient</span><span class="imeta">Acme EU</span></li>
+        <li class="itrow d1"><span class="idepth">d1</span><span class="inode">MSP</span><span class="imeta">Partner B</span></li>
+        <li class="itrow d2"><span class="idepth">d2</span><span class="inode">Client</span><span class="imeta">Globex Inc</span></li>
+      </ol>
     </div>
 
     <p>
@@ -61,7 +64,7 @@ import '../styles/global.css';
   </div>
 
   <!-- Closing CTA -->
-  <div class="about-cta">
+  <div class="about-cta layer">
     <div class="about-cta-install">
       <code>npm install <span class="no-break">@stratum-hq/lib</span> pg</code>
     </div>
@@ -132,40 +135,27 @@ import '../styles/global.css';
   }
 
   /* Hierarchy diagram callout */
+  /* A ledge panel (.layer in global.css). The top padding clears the lip. */
   .about-hierarchy {
-    margin: var(--space-6) 0;
-    position: relative;
+    margin: var(--space-8) 0;
+    padding: calc(var(--space-6) + 10px) var(--space-6) var(--space-6);
   }
 
-  .about-hierarchy-label {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
-    letter-spacing: 0.05em;
-    margin-bottom: var(--space-2);
-  }
-
-  .about-hierarchy pre {
-    background: var(--code-bg);
-    padding: var(--space-6);
-    border-radius: var(--radius-md);
-    border-top: 2px solid var(--accent);
-    overflow-x: auto;
-    margin: 0;
-  }
-
-  .about-hierarchy code {
+  .about-story .about-hierarchy-label {
     font-family: var(--font-mono);
-    font-size: 0.875rem;
-    line-height: 1.8;
-    color: var(--code-text);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-4);
   }
 
   /* CTA */
+  /* A ledge panel (.layer in global.css). The top padding clears the lip. */
   .about-cta {
-    margin-top: var(--space-8);
-    padding-top: var(--space-8);
-    border-top: 1px solid var(--border);
+    margin-top: var(--space-12);
+    padding: calc(var(--space-6) + 10px) var(--space-6) var(--space-6);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -191,6 +181,12 @@ import '../styles/global.css';
   @media (max-width: 640px) {
     .about {
       padding: var(--space-8) var(--space-4);
+    }
+
+    .about-hierarchy,
+    .about-cta {
+      padding-left: var(--space-4);
+      padding-right: var(--space-4);
     }
   }
 </style>
