@@ -121,7 +121,7 @@
   --space-32: 128px;
 
   /* ---- Radius: Stratum has no rounded corners. Shape comes from --edge-*. ---- */
-  --radius-sm: 2px;
+  --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
   --radius-full: 0;   /* was 9999px. Any pill or avatar needs a deliberate decision */

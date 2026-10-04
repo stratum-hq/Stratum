@@ -45,7 +45,8 @@ import RockTable from '../components/RockTable.astro';
         model, audit logging added retroactively and missing half the mutation points, no isolation
         options beyond the shared schema you started with, and GDPR compliance that lives in a
         Notion doc but not in code. When an enterprise customer demands a separate database for their
-        data, you're looking at a full-quarter migration.
+        data, you build that isolation yourself. Stratum sets the isolation strategy per tenant when
+        you create the tenant, so that customer can start on a database of its own.
       </p>
       <p>
         Stratum gives you month-18 features on day one. Not because you need them all immediately,

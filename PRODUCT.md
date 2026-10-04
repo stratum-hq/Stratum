@@ -30,9 +30,10 @@ over building it themselves, and getting to a working hierarchy quickly.
 
 Hierarchical tenancy as the core model: a tenant tree where config values inherit down
 the ancestry and a parent can lock a key, with permission delegation
-(LOCKED / INHERITED / DELEGATED) and cascade revocation. Isolation can move between
-shared-table RLS, schema-per-tenant and database-per-tenant on PostgreSQL, with parallel
-strategies for MongoDB and MySQL.
+(LOCKED / INHERITED / DELEGATED) and cascade revocation. Each tenant gets its isolation
+strategy when it is created: shared-table RLS, schema-per-tenant or database-per-tenant on
+PostgreSQL, with parallel strategies for MongoDB and MySQL. Strategies can mix within one
+hierarchy.
 
 ## Operating Context
 

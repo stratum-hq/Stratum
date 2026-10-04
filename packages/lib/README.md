@@ -7,7 +7,7 @@ Read the documentation at [docs.stratum-hq.org/packages/lib](https://docs.stratu
 ## Installation
 
 ```bash
-npm install @stratum-hq/lib @stratum-hq/core pg
+npm install @stratum-hq/lib pg
 ```
 
 ## Quick Start
