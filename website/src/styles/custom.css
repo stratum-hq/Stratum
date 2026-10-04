@@ -192,6 +192,13 @@ pre code {
   font-weight: 400;
 }
 
+/* On paper, inline code is a raised chip in ink. A dark slab in every line of
+   prose would outweigh the text around it; the dark well is for code blocks. */
+[data-theme="light"] :not(pre) > code {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
 /* --------------------------------------------------------------------------
    Tables: data-dense, mono structural headers
    -------------------------------------------------------------------------- */

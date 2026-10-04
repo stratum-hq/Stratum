@@ -81,6 +81,14 @@ export default defineConfig({
       // colors from the shared tokens.
       expressiveCode: {
         themes: [bedrockCodeTheme],
+        // A shell block renders as a terminal window by default: an empty title
+        // bar with window dots. That chrome carries no information, so shell
+        // blocks use the plain code frame. A title still shows as a file tab.
+        defaultProps: {
+          overridesByLang: {
+            "bash,sh,shell,shellscript,zsh,console,powershell": { frame: "code" },
+          },
+        },
         useStarlightUiThemeColors: false,
         styleOverrides: {
           borderRadius: "0",

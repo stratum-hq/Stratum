@@ -148,6 +148,12 @@ A VS Code theme cannot read CSS variables, so the file copies the values: change
 it when a code token changes. The well is dark in both site themes, so one
 theme serves Bedrock and Daylight. It uses five colors (keyword, function,
 string, number, comment) on the code text, and keeps magma for marked lines.
+Shell blocks use the plain code frame, not a terminal window, because an empty
+title bar with window dots carries no information.
+
+Inline code on the docs is a code chip in Bedrock (`--code-bg`, `--code-text`).
+On Daylight paper it is a `--surface-3` chip in `--text-primary`, so a line of
+prose is not broken up by dark slabs.
 
 ### Texture
 
