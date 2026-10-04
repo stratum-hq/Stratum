@@ -18,12 +18,15 @@ export type ConfigEntry = z.infer<typeof ConfigEntrySchema>;
 export const SetConfigInputSchema = z.object({
   value: z.unknown(),
   locked: z.boolean().default(false),
-  sensitive: z.boolean().default(false),
+  // No default: an omitted flag keeps the key's current sensitive flag, and
+  // only an explicit `false` clears a flag the tenant set itself.
+  sensitive: z.boolean().optional(),
 });
 
-// The INPUT type (pre-defaults): `locked` and `sensitive` carry Zod defaults,
-// so they are optional on the caller side. `z.infer` (the output type) would
-// make them required, so `setConfig(id, key, { value })` would not compile.
+// The INPUT type (pre-defaults): `locked` carries a Zod default and
+// `sensitive` is optional, so both are optional on the caller side. `z.infer`
+// (the output type) would make `locked` required, so
+// `setConfig(id, key, { value })` would not compile.
 export type SetConfigInput = z.input<typeof SetConfigInputSchema>;
 
 /**

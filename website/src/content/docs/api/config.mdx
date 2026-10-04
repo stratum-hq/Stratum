@@ -99,7 +99,9 @@ PUT /api/v1/tenants/:id/config/:key
 |-------|------|---------|-------------|
 | `value` | any | Required | The config value (string, number, boolean, object, array) |
 | `locked` | boolean | `false` | Prevent descendants from overriding |
-| `sensitive` | boolean | `false` | Encrypt at rest with AES-256-GCM |
+| `sensitive` | boolean | Key's current flag | Encrypt at rest with AES-256-GCM. When omitted, the key keeps its current flag (`false` for a new key). |
+
+A key that an ancestor marked sensitive is always stored sensitive, even when the request sends `sensitive: false`. An explicit `sensitive: false` clears a flag that this tenant set itself.
 
 Returns `403 CONFIG_LOCKED` if the key is locked by an ancestor.
 

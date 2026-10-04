@@ -166,6 +166,14 @@ await stratum.setConfig(tenantId, "api_secret", {
 
 Sensitive values are encrypted before storage. The encryption key is set via the `STRATUM_ENCRYPTION_KEY` environment variable.
 
+The flag belongs to the key, not to a single write:
+
+- An override of a key that an ancestor marked sensitive is stored sensitive, even when the write passes `sensitive: false`.
+- A write that leaves out `sensitive` keeps the key's current flag. A new key starts not sensitive.
+- An explicit `sensitive: false` clears a flag that the tenant set itself.
+
+`batchSetConfig` follows the same rules for each entry.
+
 Descendants inherit a sensitive value, but a read of a descendant's config returns it masked:
 
 ```typescript
