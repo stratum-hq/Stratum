@@ -575,8 +575,9 @@
     min-width: 0;
   }
 
-  /* The reason a LOCKED row has no actions. */
-  .stratum-config-editor__locked-by {
+  /* The reason a row has no Remove action: a lock, or a policy that an ancestor set. */
+  .stratum-config-editor__locked-by,
+  .stratum-permission-editor__set-by {
     color: var(--stratum-text-secondary);
     font-size: var(--stratum-font-size-sm);
   }

@@ -85,6 +85,9 @@ export const defaultMessages = {
   "permissionEditor.modeLabel": "Permission mode",
   "permissionEditor.revocationModeLabel": "Revocation mode",
   "permissionEditor.addButton": "Add",
+  "permissionEditor.setBy": "Set by {tenant}",
+  "permissionEditor.addFailed": "Could not add \"{key}\".",
+  "permissionEditor.removeFailed": "Could not remove \"{key}\". The permission is unchanged.",
 } as const;
 
 export type MessageKey = keyof typeof defaultMessages;

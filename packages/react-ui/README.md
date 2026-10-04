@@ -138,7 +138,7 @@ Set a token on a component root, on `TenantThemeProvider` (its `primaryColor` se
 - **`TenantSwitcher`**: dropdown to select the active tenant.
 - **`TenantTree` / `DraggableTenantTree`**: hierarchical tree view with an isolation-strategy badge per tenant and WAI-ARIA tree keyboard support (drag-to-reparent in the draggable variant).
 - **`ConfigEditor`**: edit resolved config with lock and inheritance indicators.
-- **`PermissionEditor`**: edit permission policies with mode/revocation selection.
+- **`PermissionEditor`**: edit permission policies with mode/revocation selection. It names the tenant that set each policy, and offers Remove only on the current tenant's own policies.
 - **`ConfigInheritanceVisualizer`**, **`WebhookEditor`**, **`AuditLogViewer`**, **`TenantHealthCard`**, plus headless (`HeadlessTenantSwitcher`, …) variants for full styling control.
 
 ## Scaffolding

@@ -12,7 +12,7 @@ const meta: Meta<typeof PermissionEditor> = {
         component:
           "Table-based editor for tenant permission policies. " +
           "Shows each permission's key, value, mode (LOCKED / INHERITED / DELEGATED), " +
-          "source tenant, and status badges. Locked permissions cannot be removed. " +
+          "source tenant, and status badges. Only the current tenant's own, unlocked permissions can be removed. " +
           "Supports adding new permissions with configurable mode and revocation policy.",
       },
     },

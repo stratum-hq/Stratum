@@ -1,8 +1,8 @@
-import type { ResolvedPermission } from "@stratum-hq/core";
+import type { PermissionWithSource } from "../../hooks/use-permissions.js";
 import { usePermissions } from "../../hooks/use-permissions.js";
 
 export interface HeadlessPermissionEditorAPI {
-  permissions: ResolvedPermission[];
+  permissions: PermissionWithSource[];
   loading: boolean;
   error: Error | null;
   createPermission: (key: string, value: unknown, mode: string, revocationMode: string) => Promise<void>;

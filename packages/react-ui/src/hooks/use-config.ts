@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ResolvedConfigEntry } from "@stratum-hq/core";
 import { useStratum } from "../provider.js";
 import { useTenant } from "./use-tenant.js";
+import { useAncestorNames } from "./use-ancestor-names.js";
 
 export interface ConfigWithInheritance {
   key: string;
@@ -24,7 +25,7 @@ export function useConfig() {
   const [config, setConfig] = useState<ConfigWithInheritance[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [ancestorNames, setAncestorNames] = useState<Record<string, string>>({});
+  const sourceNames = useAncestorNames();
 
   const fetchConfig = useCallback(async () => {
     if (!tenant) return;
@@ -55,33 +56,13 @@ export function useConfig() {
     fetchConfig();
   }, [fetchConfig]);
 
-  // A value is set by the tenant itself or by one of its ancestors, so one
-  // ancestors request names every source. The route returns name and id even
-  // for ancestors above a tenant-scoped API key.
-  useEffect(() => {
-    setAncestorNames({});
-    if (!tenant) return;
-    let current = true;
-    apiCall<Array<{ id: string; name: string }>>(`/api/v1/tenants/${encodeURIComponent(tenant.id)}/ancestors`)
-      .then((rows) => {
-        if (current && Array.isArray(rows)) {
-          setAncestorNames(Object.fromEntries(rows.map((row) => [row.id, row.name])));
-        }
-      })
-      // A missing name is not an error: the editor shows the tenant ID instead.
-      .catch(() => {});
-    return () => {
-      current = false;
-    };
-  }, [apiCall, tenant?.id]);
-
   const namedConfig = useMemo(
     () =>
       config.map((entry) => {
-        const name = entry.source_tenant_id === tenant?.id ? tenant?.name : ancestorNames[entry.source_tenant_id];
+        const name = sourceNames[entry.source_tenant_id];
         return name ? { ...entry, source_tenant_name: name } : entry;
       }),
-    [config, ancestorNames, tenant?.id, tenant?.name],
+    [config, sourceNames],
   );
 
   const setConfigValue = useCallback(
