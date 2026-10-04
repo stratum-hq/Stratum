@@ -140,6 +140,15 @@ describe.each(scopedSheets)("%s", (file) => {
 describe("base.css", () => {
   const css = read("base.css");
 
+  // A table that no rule names renders with the browser's centered headers.
+  it.each([".stratum-webhook-editor__table", ".stratum-audit-viewer__table"])(
+    "styles %s, its headers and its cells like the other editor tables",
+    (table) => {
+      const selectors = blocks(css).flatMap((b) => b.prelude.split(",").map((s) => s.trim()));
+      for (const part of ["", " th", " td"]) expect(selectors).toContain(table + part);
+    },
+  );
+
   it("follows prefers-color-scheme when no data-theme is set", () => {
     const text = stripComments(css);
     const at = text.search(/@media \(prefers-color-scheme:\s*dark\)/);
@@ -179,6 +188,26 @@ describe("base.css", () => {
 });
 
 describe("theme-bedrock.css", () => {
+  // Bedrock spends magma on the primary action and on LOCKED only. A selected
+  // row is the current location, so it takes vein.
+  it.each([".stratum-tree__node--selected", ".stratum-tenant-switcher__item--active"])(
+    "marks %s without magma",
+    (selector) => {
+      const text = stripComments(read("theme-bedrock.css"));
+      const bodies = [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((m) => m[1].split(",").some((s) => s.trim().startsWith(selector)))
+        .map((m) => m[2]);
+      expect(bodies.length).toBeGreaterThan(0);
+      for (const body of bodies) expect(body).not.toMatch(/--stratum-accent/);
+    },
+  );
+
+  // A tint or a raised face plus the state word carries a row's state.
+  it("draws no colored stripe on the start edge of a row", () => {
+    const text = stripComments(read("theme-bedrock.css"));
+    expect(text).not.toMatch(/inset\s+[1-9]\d*px\s+0\s+0/);
+  });
+
   it("sorts after the base layer whatever the import order", () => {
     const first = topLevelStatements(read("theme-bedrock.css"))[0];
     expect(first).toBe("@layer stratum.base, stratum.theme");

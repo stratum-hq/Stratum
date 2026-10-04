@@ -7,7 +7,7 @@ Read the documentation at [docs.stratum-hq.org/packages/sdk](https://docs.stratu
 ## Installation
 
 ```bash
-npm install @stratum-hq/sdk @stratum-hq/core jsonwebtoken
+npm install @stratum-hq/sdk jsonwebtoken
 ```
 
 ## Quick Start

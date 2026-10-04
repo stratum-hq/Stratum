@@ -185,9 +185,6 @@ import RockTable from '../components/RockTable.astro';
   <h2>Get started in 5 lines</h2>
   <div class="code-block">
     <div class="code-block-header">
-      <span class="code-block-dot"></span>
-      <span class="code-block-dot"></span>
-      <span class="code-block-dot"></span>
       <span class="code-block-filename">quickstart.ts</span>
     </div>
     <pre set:html={`<span class="kw">import</span> &#123; Pool &#125; <span class="kw">from</span> <span class="str">"pg"</span>;
@@ -432,14 +429,8 @@ import RockTable from '../components/RockTable.astro';
     grid-column: 1 / -1;
   }
 
-  /* The config rows reuse .icfg from global.css without its 3px left border:
-     the tint and the vein or magma text carry the state. */
   .wis-config {
     font-family: var(--font-mono);
-  }
-
-  .wis-config .icfg {
-    border-left: 0;
   }
 
   .wis-cfg-child {

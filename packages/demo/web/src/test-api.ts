@@ -58,6 +58,19 @@ const webhooks = [
   { id: "w1", tenant_id: MSP_ID, url: "https://hooks.example.com/stratum", events: ["tenant.created"], active: true, secret: "x", created_at: now },
 ];
 
+const auditLogs = [
+  {
+    id: "a1",
+    action: "config.updated",
+    resource_type: "config",
+    resource_id: "5e0c9d12-0000-4000-8000-000000000003",
+    actor_id: "admin@acme.test",
+    actor_type: "user",
+    tenant_id: MSP_ID,
+    created_at: now,
+  },
+];
+
 export interface RecordedCall {
   method: string;
   path: string;
@@ -69,7 +82,7 @@ function route(method: string, path: string): unknown {
   if (path.startsWith("/api/events/")) return [];
   if (path === "/api/v1/api-keys") return apiKeys;
   if (path === "/api/v1/webhooks") return webhooks;
-  if (path === "/api/v1/audit-logs") return [];
+  if (path === "/api/v1/audit-logs") return auditLogs;
   const match = path.match(/^\/api\/v1\/tenants\/([^/]+)(\/.*)?$/);
   if (!match) return {};
   const [, id, rest = ""] = match;

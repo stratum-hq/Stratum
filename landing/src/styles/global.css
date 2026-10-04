@@ -507,17 +507,12 @@ h2 {
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--rule);
   font-size: 0.78rem;
 }
-.icfg-resolved {
-  border-left-color: var(--flow);
-  background: var(--flow-muted);
-}
-.icfg-locked {
-  border-left-color: var(--lock);
-  background: var(--lock-muted);
-}
+/* The tint, the tag and the vein or magma text carry the state. A colored
+   side stripe would repeat the tag and read as a callout. */
+.icfg-resolved { background: var(--flow-muted); }
+.icfg-locked { background: var(--lock-muted); }
 .ikey { color: var(--text-primary); }
 .ival { color: var(--flow); font-weight: 600; }
 /* On paper the vein text darkens to hold 4.5:1 on the tinted row (6.5:1). */
@@ -826,15 +821,6 @@ h2 {
   padding: calc(var(--space-3) + 6px) var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--seam);
 }
-/* Three small square core samples in the rock colors (no circles: Stratum has
-   no rounded corners and these carry no function). */
-.code-block-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--topsoil);
-}
-.code-block-dot + .code-block-dot { background: var(--clay); }
-.code-block-dot + .code-block-dot + .code-block-dot { background: var(--sandstone-band); }
 .code-block-filename {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -951,7 +937,7 @@ h2 {
 }
 .pkg-tag {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 3px 9px;
   margin-left: var(--space-2);
@@ -1160,7 +1146,7 @@ h2 {
   transition: background var(--duration-fast) var(--ease-out);
 }
 .dm-label {
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.05em;
   color: var(--text-tertiary);
   transition: color var(--duration-fast) var(--ease-out);
@@ -1220,7 +1206,7 @@ h2 {
 }
 .rock-good { color: var(--success); font-weight: 500; }
 .rock-neutral { color: var(--warning); }
-.rock-bad { color: var(--text-tertiary); }
+.rock-bad { color: var(--text-secondary); }
 .rock-plain { color: var(--text-secondary); }
 /* On paper the vein text darkens to hold 4.5:1 on both row surfaces. */
 [data-theme="light"] .rock-good { color: var(--vein-deep); }

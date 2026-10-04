@@ -498,6 +498,8 @@
      ============================================================ */
   .stratum-config-editor__table,
   .stratum-permission-editor__table,
+  .stratum-webhook-editor__table,
+  .stratum-audit-viewer__table,
   .stratum-table-skeleton__table {
     width: 100%;
     border-collapse: collapse;
@@ -507,6 +509,8 @@
 
   .stratum-config-editor__table th,
   .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
   .stratum-table-skeleton__table th {
     text-align: start;
     padding: var(--stratum-space-2) var(--stratum-space-3);
@@ -520,6 +524,8 @@
 
   .stratum-config-editor__table td,
   .stratum-permission-editor__table td,
+  .stratum-webhook-editor__table td,
+  .stratum-audit-viewer__table td,
   .stratum-table-skeleton__table td {
     padding: var(--stratum-space-2) var(--stratum-space-3);
     border-bottom: 1px solid var(--stratum-border);
@@ -527,7 +533,9 @@
   }
 
   .stratum-config-editor__table code,
-  .stratum-permission-editor__table code {
+  .stratum-permission-editor__table code,
+  .stratum-webhook-editor__table code,
+  .stratum-audit-viewer__table code {
     padding: 2px 6px;
     border-radius: var(--stratum-radius-sm);
     background: var(--stratum-code-bg);
@@ -549,13 +557,22 @@
   }
 
   .stratum-config-editor__add,
-  .stratum-permission-editor__add {
+  .stratum-permission-editor__add,
+  .stratum-webhook-editor__add {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--stratum-space-2);
     margin-top: var(--stratum-space-3);
     padding: var(--stratum-space-2) 0;
+  }
+
+  /* The inputs of an add row share the width and wrap before they get too narrow to read. */
+  .stratum-config-editor__add input,
+  .stratum-permission-editor__add input,
+  .stratum-webhook-editor__add input {
+    flex: 1 1 12rem;
+    min-width: 0;
   }
 
   /* The reason a LOCKED row has no actions. */

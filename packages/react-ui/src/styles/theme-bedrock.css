@@ -479,15 +479,12 @@
      ============================================================ */
   .stratum-config-editor__table th,
   .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
   .stratum-table-skeleton__table th {
     border-bottom-width: 2px;
     font-family: var(--stratum-font-mono);
     letter-spacing: 0.14em;
-  }
-
-  .stratum-config-editor__row--locked,
-  .stratum-cascade-row--locked {
-    box-shadow: inset 4px 0 0 var(--stratum-lock);
   }
 
   /* Save as string is a second choice: a plain chip, not the magma face of Add. */
@@ -557,9 +554,9 @@
     filter: drop-shadow(0 3px 0 var(--stratum-tree-band-4)) drop-shadow(0 14px 16px var(--stratum-shadow-pool));
   }
 
+  /* The raised face and the base theme's weight mark the active item. */
   .stratum-tenant-switcher__item--active {
     background: var(--stratum-surface-3);
-    box-shadow: inset 4px 0 0 var(--stratum-accent);
   }
 
   /* ============================================================
@@ -618,11 +615,13 @@
     --stratum-tree-texture: var(--stratum-light);
   }
 
-  /* Selected: a magma bar along the straight start edge of the band, a magma
-     lip and a glow. The bar is part of the clipped band, so it follows the edge. */
+  /* Selected: a vein bar along the straight start edge of the band, a vein lip
+     and a glow. Selection is the current location, not an action, so it takes
+     vein and leaves magma to the primary action and to LOCKED. The bar is part
+     of the clipped band, so it follows the edge. */
   .stratum-tree__node--selected {
     box-shadow: none;
-    filter: drop-shadow(0 3px 0 var(--stratum-accent-deep)) drop-shadow(0 0 12px var(--stratum-accent-glow));
+    filter: drop-shadow(0 3px 0 var(--stratum-flow)) drop-shadow(0 0 12px color-mix(in srgb, var(--stratum-flow) 45%, transparent));
   }
 
   .stratum-tree__node--selected .stratum-tree__label {
@@ -630,7 +629,7 @@
   }
 
   .stratum-tree__node--selected::before {
-    background-image: linear-gradient(90deg, var(--stratum-accent) 0 5px, transparent 5px), var(--stratum-tree-texture), var(--stratum-grain), var(--stratum-laminations);
+    background-image: linear-gradient(90deg, var(--stratum-flow) 0 5px, transparent 5px), var(--stratum-tree-texture), var(--stratum-grain), var(--stratum-laminations);
     background-size: auto, auto, 160px 160px, auto;
     background-blend-mode: normal, normal, multiply, normal;
   }
@@ -716,10 +715,6 @@
     font-family: var(--stratum-font-mono);
     font-size: 0.625rem;
     letter-spacing: 0.14em;
-  }
-
-  .stratum-cascade-row--highlight {
-    box-shadow: inset 4px 0 0 var(--stratum-flow);
   }
 
   /* ============================================================

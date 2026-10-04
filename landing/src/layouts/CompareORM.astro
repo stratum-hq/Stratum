@@ -50,9 +50,6 @@ const { orm } = Astro.props;
     <h2>Getting started</h2>
     <div class="code-block">
       <div class="code-block-header">
-        <span class="code-block-dot"></span>
-        <span class="code-block-dot"></span>
-        <span class="code-block-dot"></span>
         <span class="code-block-filename">{orm.codeExample.filename}</span>
       </div>
       <pre set:html={orm.codeExample.code} />

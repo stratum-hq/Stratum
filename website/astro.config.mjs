@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import { stratumPlayground } from "./src/playground/vite-plugin.mjs";
+import { bedrockCodeTheme } from "./src/styles/bedrock-code-theme.mjs";
 
 // Site-wide structured data. The Organization @id is the same one that
 // stratum-hq.org uses, so search engines join the two sites to one publisher.
@@ -76,9 +77,18 @@ export default defineConfig({
         SocialIcons: "./src/components/SocialIcons.astro",
       },
       // The code well stays dark in both themes, so Expressive Code renders one
-      // dark theme and takes its frame colors from the shared tokens.
+      // dark theme, built from the Bedrock code tokens, and takes its frame
+      // colors from the shared tokens.
       expressiveCode: {
-        themes: ["starlight-dark"],
+        themes: [bedrockCodeTheme],
+        // A shell block renders as a terminal window by default: an empty title
+        // bar with window dots. That chrome carries no information, so shell
+        // blocks use the plain code frame. A title still shows as a file tab.
+        defaultProps: {
+          overridesByLang: {
+            "bash,sh,shell,shellscript,zsh,console,powershell": { frame: "code" },
+          },
+        },
         useStarlightUiThemeColors: false,
         styleOverrides: {
           borderRadius: "0",
@@ -95,6 +105,11 @@ export default defineConfig({
             terminalTitlebarBackground: "var(--code-bg)",
             terminalBackground: "var(--code-bg)",
             terminalTitlebarDotsForeground: "var(--topsoil)",
+          },
+          // A marked line is the one thing in the well that glows: magma.
+          textMarkers: {
+            markBackground: "rgba(255, 91, 31, 0.16)",
+            markBorderColor: "var(--magma)",
           },
         },
       },

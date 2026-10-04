@@ -192,6 +192,13 @@ pre code {
   font-weight: 400;
 }
 
+/* On paper, inline code is a raised chip in ink. A dark slab in every line of
+   prose would outweigh the text around it; the dark well is for code blocks. */
+[data-theme="light"] :not(pre) > code {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
 /* --------------------------------------------------------------------------
    Tables: data-dense, mono structural headers
    -------------------------------------------------------------------------- */
@@ -260,6 +267,23 @@ nav a[aria-current="page"]:hover {
    -------------------------------------------------------------------------- */
 .hero {
   text-align: left;
+}
+
+/* Starlight centers the hero below 50rem. The tenant tree and the content
+   under it are flush left, so the hero stays flush left at every width. */
+.hero .stack {
+  text-align: start;
+}
+.hero .copy {
+  align-items: flex-start;
+}
+.hero .actions {
+  justify-content: flex-start;
+}
+
+/* The product noun does not break at its hyphen. */
+.hero-nowrap {
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
@@ -604,7 +628,6 @@ starlight-menu-button button {
   gap: var(--space-2) var(--space-4);
   margin: var(--space-6) 0 0;
   padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--flow);
   background: var(--flow-muted);
   font-size: 0.78rem;
 }

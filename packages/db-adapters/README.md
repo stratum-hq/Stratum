@@ -7,7 +7,7 @@ Read the documentation at [docs.stratum-hq.org/packages/db-adapters](https://doc
 ## Installation
 
 ```bash
-npm install @stratum-hq/db-adapters @stratum-hq/core pg
+npm install @stratum-hq/db-adapters pg
 ```
 
 ## Raw PostgreSQL

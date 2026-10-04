@@ -73,6 +73,14 @@ describe("Dashboard", () => {
     expect(open).toHaveFocus();
   });
 
+  it("shows the full actor in the audit log and shortens only a UUID", async () => {
+    renderDashboard();
+    fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
+
+    expect(await screen.findByText("user: admin@acme.test")).toBeInTheDocument();
+    expect(screen.getByText("config (5e0c9d12)")).toBeInTheDocument();
+  });
+
   it("shows tab names without icon glyphs", async () => {
     renderDashboard();
     const tabs = await screen.findAllByRole("tab");

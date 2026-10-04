@@ -41,7 +41,7 @@
           "packages/react-ui/src/styles/theme-bedrock.css"
         ],
         "createdAt": "2026-10-03T22:44:22.529Z",
-        "reason": "false positive: inset bottom shadow on aria-invalid inputs, not a side tab"
+        "reason": "false positive: inset bottom shadows (the field fault line and aria-invalid inputs), not a side tab. The file has no left-edge stripe."
       }
     ]
   }
