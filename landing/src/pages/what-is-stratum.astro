@@ -59,7 +59,7 @@ import RockTable from '../components/RockTable.astro';
       <div class="wis-timeline-marker wis-danger"></div>
       <div class="wis-timeline-content">
         <h3>Later</h3>
-        <p>Large customer demands data isolation. Painful migration from shared tables to schema-per-tenant. Three months of engineering work.</p>
+        <p>Large customer demands data isolation. Painful migration from shared tables to schema-per-tenant. Engineering time for each piece.</p>
       </div>
     </div>
   </div>
@@ -174,7 +174,7 @@ import RockTable from '../components/RockTable.astro';
       { feat: "Isolation strategies", cells: [["good", "3 (RLS, schema, DB)"], ["neutral", "Manual RLS"], ["bad", "No"], ["neutral", "Build it yourself"]] },
       { feat: "GDPR compliance", cells: [["good", "Export + purge"], ["bad", "No"], ["neutral", "Partial"], ["neutral", "Build it yourself"]] },
       { feat: "Audit logging", cells: [["good", "Built-in"], ["bad", "No"], ["neutral", "Auth events only"], ["neutral", "Build it yourself"]] },
-      { feat: "Time to implement", cells: [["good", "60 seconds"], ["neutral", "1 day"], ["neutral", "1 week"], ["bad", "3+ months"]] },
+      { feat: "Setup", cells: [["good", "npm install and initialize()"], ["neutral", "A column and a filter on every query"], ["neutral", "1 week"], ["bad", "Engineering time for each piece"]] },
       { feat: "Open source", cells: [["good", "MIT"], ["good", "N/A"], ["bad", "Proprietary"], ["good", "Yours"]] },
     ]}
   />
