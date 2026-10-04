@@ -140,6 +140,15 @@ describe.each(scopedSheets)("%s", (file) => {
 describe("base.css", () => {
   const css = read("base.css");
 
+  // A table that no rule names renders with the browser's centered headers.
+  it.each([".stratum-webhook-editor__table", ".stratum-audit-viewer__table"])(
+    "styles %s, its headers and its cells like the other editor tables",
+    (table) => {
+      const selectors = blocks(css).flatMap((b) => b.prelude.split(",").map((s) => s.trim()));
+      for (const part of ["", " th", " td"]) expect(selectors).toContain(table + part);
+    },
+  );
+
   it("follows prefers-color-scheme when no data-theme is set", () => {
     const text = stripComments(css);
     const at = text.search(/@media \(prefers-color-scheme:\s*dark\)/);

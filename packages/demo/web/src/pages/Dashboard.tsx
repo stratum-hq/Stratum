@@ -81,9 +81,15 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** The first characters of an ID: enough to tell two rows apart on screen. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Returns the first 8 characters of a UUID, which is enough to tell two rows
+ * apart on screen. Any other ID, such as an email address that names an actor,
+ * comes back whole, because a cut-off name is ambiguous.
+ */
 function shortId(id: string): string {
-  return id.slice(0, 8);
+  return UUID.test(id) ? id.slice(0, 8) : id;
 }
 
 // ── Shared pieces ────────────────────────────────────────────────────────────

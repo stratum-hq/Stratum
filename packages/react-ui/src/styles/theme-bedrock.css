@@ -479,6 +479,8 @@
      ============================================================ */
   .stratum-config-editor__table th,
   .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
   .stratum-table-skeleton__table th {
     border-bottom-width: 2px;
     font-family: var(--stratum-font-mono);

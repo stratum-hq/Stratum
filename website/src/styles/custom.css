@@ -262,6 +262,23 @@ nav a[aria-current="page"]:hover {
   text-align: left;
 }
 
+/* Starlight centers the hero below 50rem. The tenant tree and the content
+   under it are flush left, so the hero stays flush left at every width. */
+.hero .stack {
+  text-align: start;
+}
+.hero .copy {
+  align-items: flex-start;
+}
+.hero .actions {
+  justify-content: flex-start;
+}
+
+/* The product noun does not break at its hyphen. */
+.hero-nowrap {
+  white-space: nowrap;
+}
+
 /* --------------------------------------------------------------------------
    Buttons: rock chips. The face is a ::before clipped to --edge-chip with
    grain; the lip and pool are drop-shadows on the unclipped link, because
