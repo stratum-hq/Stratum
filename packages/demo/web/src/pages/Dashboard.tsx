@@ -858,10 +858,14 @@ export function Dashboard() {
     }
   }, [contextOpen]);
 
-  // Each tenant opens on its Overview.
-  useEffect(() => {
+  // Each tenant opens on its Overview. The reset happens during render, not in an
+  // effect: an effect runs after the commit that shows the tabs, and so it can undo a
+  // tab click that lands before it runs.
+  const [tabTenantId, setTabTenantId] = useState(tenant?.id);
+  if (tenant?.id !== tabTenantId) {
+    setTabTenantId(tenant?.id);
     setActiveTab("overview");
-  }, [tenant?.id]);
+  }
 
   if (loading && !tenant) {
     return <p className="demo-status" role="status">Loading tenant...</p>;
