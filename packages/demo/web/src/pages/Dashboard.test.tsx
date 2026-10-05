@@ -1,9 +1,9 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import { StratumProvider } from "@stratum-hq/react";
+import { StratumProvider, useTenant } from "@stratum-hq/react";
 import { Dashboard } from "./Dashboard.js";
-import { installApiMock, MSP_ID, ACTIVE_KEY_ID, type RecordedCall } from "../test-api.js";
+import { installApiMock, MSP_ID, ROOT_ID, ACTIVE_KEY_ID, type RecordedCall } from "../test-api.js";
 
 let calls: RecordedCall[];
 
@@ -12,6 +12,16 @@ function renderDashboard() {
     <StratumProvider controlPlaneUrl="" initialTenantId={MSP_ID}>
       <Dashboard />
     </StratumProvider>,
+  );
+}
+
+// A test-only control that changes the current tenant the way the sidebar does.
+function SwitchToRoot() {
+  const { switchTenant } = useTenant();
+  return (
+    <button type="button" onClick={() => void switchTenant(ROOT_ID)}>
+      Switch to root
+    </button>
   );
 }
 
@@ -59,6 +69,23 @@ describe("Dashboard", () => {
     fireEvent.click(revoke);
     fireEvent.click(within(row).getByRole("button", { name: "Revoke key" }));
     await vi.waitFor(() => expect(deletes()).toEqual([{ method: "DELETE", path: `/api/v1/api-keys/${ACTIVE_KEY_ID}` }]));
+  });
+
+  it("opens the Overview tab again when the tenant changes", async () => {
+    render(
+      <StratumProvider controlPlaneUrl="" initialTenantId={MSP_ID}>
+        <SwitchToRoot />
+        <Dashboard />
+      </StratumProvider>,
+    );
+    fireEvent.click(await screen.findByRole("tab", { name: "API keys" }));
+    expect(await screen.findByText("siem-ingest")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to root" }));
+
+    await vi.waitFor(() => expect(screen.getByRole("heading", { name: "AcmeSec" })).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "API keys" })).toHaveAttribute("aria-selected", "false");
   });
 
   it("closes the resolved context dialog on Escape and returns focus to its button", async () => {
