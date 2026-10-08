@@ -181,11 +181,11 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
   }
 
   .orm-gotchas li {
-    font-size: 0.9375rem;
+    font-size: 1rem;
     line-height: 1.65;
     color: var(--text-secondary);
     padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px dashed var(--border);
     padding-left: var(--space-4);
     position: relative;
   }
@@ -198,8 +198,7 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
     transform: translateY(-50%);
     width: 6px;
     height: 6px;
-    border-radius: var(--radius-full);
-    background: var(--warning);
+    background: var(--t-num);
   }
 
   /* CTA */
@@ -217,16 +216,21 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
     line-height: 0.95;
   }
 
+  /* A prompt line, as in the home page's install box. */
   .orm-install {
     display: inline-block;
-    padding: var(--space-3) var(--space-6);
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    padding: var(--space-2) 0;
+    border-top: 1px dashed var(--t-frame);
+    border-bottom: 1px dashed var(--t-frame);
     font-family: var(--font-mono);
-    font-size: 0.875rem;
-    color: var(--code-text);
+    font-size: 1.375rem;
+    color: var(--text-primary);
     margin-bottom: var(--space-6);
+  }
+
+  .orm-install::before {
+    content: '> ';
+    color: var(--t-frame);
   }
 
   .orm-cta-links {

@@ -147,9 +147,10 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
 
   .post-date {
     display: block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-tertiary);
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+    color: var(--t-frame);
     margin: 0;
   }
 
@@ -285,14 +286,20 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
     gap: var(--space-4);
   }
 
+  /* A prompt line, as in the home page's install box. */
   .post-cta-install {
     display: inline-block;
-    padding: var(--space-3) var(--space-6);
-    background: var(--code-bg);
-    border: 1px solid var(--border);
+    padding: var(--space-2) 0;
+    border-top: 1px dashed var(--t-frame);
+    border-bottom: 1px dashed var(--t-frame);
     font-family: var(--font-mono);
-    font-size: 0.875rem;
-    color: var(--code-text);
+    font-size: 1.375rem;
+    color: var(--text-primary);
+  }
+
+  .post-cta-install::before {
+    content: '> ';
+    color: var(--t-frame);
   }
 
   .post-cta-links {

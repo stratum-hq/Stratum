@@ -114,38 +114,38 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
     margin-bottom: var(--space-4);
   }
 
+  /* Bracketed menu keys, as everywhere on the site. Hover and focus
+     invert. The icons belong to the old look, so they are hidden. */
   .contact-link {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-6);
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--sandstone);
-    font-size: 0.9375rem;
-    text-decoration: none;
     min-height: 44px;
-    transition: border-color var(--duration-fast) var(--ease-out),
-                background var(--duration-fast) var(--ease-out);
+    padding: 0 var(--space-3);
+    color: var(--t-frame);
+    font-family: var(--bbs-font);
+    font-size: 1.375rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
   }
 
-  .contact-link:hover {
-    border-color: var(--border-hover);
-    background: var(--surface-2);
+  .contact-link::before { content: '[\00a0'; }
+  .contact-link::after { content: '\00a0]'; }
+
+  /* An email address reads in its written case. */
+  .contact-link[href^="mailto:"] {
+    text-transform: none;
   }
 
+  .contact-link:hover,
   .contact-link:focus-visible {
-    outline: 2px solid var(--sandstone);
-    outline-offset: 2px;
-  }
-
-  .contact-link:active {
-    background: var(--surface-3);
+    background: var(--t-frame);
+    color: var(--surface-0);
+    outline: none;
   }
 
   .contact-link svg {
-    flex-shrink: 0;
+    display: none;
   }
 
   .contact-link-group {
@@ -164,8 +164,7 @@ import EarthBand from '../../../assets/ansi/EarthBand.astro';
     }
 
     .contact-link {
-      width: 100%;
-      justify-content: center;
+      align-self: flex-start;
     }
   }
 </style>
