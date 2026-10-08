@@ -269,12 +269,6 @@ const menu = [
   .nowrap { white-space: nowrap; }
 
   /* Character colors. */
-  .bbs :global(.a-topsoil) { color: var(--topsoil); }
-  .bbs :global(.a-clay) { color: var(--clay); }
-  .bbs :global(.a-sandstone) { color: var(--sandstone-band); }
-  .bbs :global(.a-limestone) { color: var(--limestone); }
-  .bbs :global(.a-basalt) { color: var(--basalt); }
-  .bbs :global(.a-magma) { color: var(--hot); }
   .bbs :global(.a-vein) { color: var(--frame); }
   .bbs :global(.a-silt) { color: var(--dim); }
   .bbs :global(.a-label) { color: var(--ink); background: var(--ground); }
@@ -335,27 +329,10 @@ const menu = [
   .ansi-logo { margin: 0 0 var(--space-3); font-family: var(--bbs-font); font-size: 18px; line-height: 1; white-space: pre; overflow: hidden; text-align: center; }
   /* Art cells: exactly one character wide and one line tall each. */
   .bbs :global(.g) { display: inline-block; width: calc(var(--n) * 1ch); height: 1lh; vertical-align: top; }
-  .bbs :global(.g-full) { background: currentColor; }
   /* Half-block pixels: the top and bottom of each cell are separate pixels. */
   .bbs :global(.g-px) { background: linear-gradient(var(--t) 50%, var(--b) 50%); }
-  /* Double-line box drawing for the ANSI Shadow logos. */
-  .bbs :global(.g-h2), .bbs :global(.g-v2), .bbs :global(.g-dr), .bbs :global(.g-dl), .bbs :global(.g-ur), .bbs :global(.g-ul) { --lw: max(1.5px, 0.08em); --c: currentColor; background-repeat: no-repeat; }
-  .bbs :global(.g-h2) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: 100% var(--lw); background-position: 0 38%, 0 64%; }
-  .bbs :global(.g-v2) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: var(--lw) 100%; background-position: 22% 0, 72% 0; }
-  .bbs :global(.g-dr) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: 78% var(--lw), var(--lw) 62%, 28% var(--lw), var(--lw) 36%; background-position: 100% 38%, 22% 100%, 100% 64%, 72% 100%; }
-  .bbs :global(.g-dl) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: 72% var(--lw), var(--lw) 62%, 22% var(--lw), var(--lw) 36%; background-position: 0 38%, 72% 100%, 0 64%, 22% 100%; }
-  .bbs :global(.g-ur) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: 78% var(--lw), var(--lw) 64%, 28% var(--lw), var(--lw) 38%; background-position: 100% 64%, 22% 0, 100% 38%, 72% 0; }
-  .bbs :global(.g-ul) { background-image: linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)), linear-gradient(var(--c), var(--c)); background-size: 72% var(--lw), var(--lw) 64%, 22% var(--lw), var(--lw) 38%; background-position: 0 64%, 72% 0, 0 38%, 22% 0; }
-  /* Logo rows, shallow to deep, and the shadow they cast. */
-  .bbs :global(.a-l0) { color: var(--limestone); }
-  .bbs :global(.a-l1), .bbs :global(.a-l2) { color: var(--sandstone-band); }
-  .bbs :global(.a-l3) { color: var(--clay); }
-  .bbs :global(.a-l4), .bbs :global(.a-l5) { color: var(--hot); }
-  .bbs :global(.a-shade) { color: #7A6A5A; }
-  :global([data-theme="light"]) .bbs :global(.a-l0) { color: #6B4426; }
-  :global([data-theme="light"]) .bbs :global(.a-l1), :global([data-theme="light"]) .bbs :global(.a-l2) { color: #8F5F36; }
-  :global([data-theme="light"]) .bbs :global(.a-l3) { color: #A84C26; }
-  :global([data-theme="light"]) .bbs :global(.a-shade) { color: #B5A68E; }
+  /* The locked key's double line. */
+  .bbs :global(.g-h2) { --lw: max(1.5px, 0.08em); background: linear-gradient(currentColor, currentColor) 0 38% / 100% var(--lw) no-repeat, linear-gradient(currentColor, currentColor) 0 64% / 100% var(--lw) no-repeat; }
   .bbs :global(.a-tag) { color: var(--t-frame); }
   .earth { display: block; margin: var(--space-16) 0 0; font-family: var(--bbs-font); font-size: 0.6vw; line-height: 1; white-space: pre; overflow: hidden; width: 100%; }
   .earth :global(.ln) { display: block; height: 1lh; }
@@ -410,7 +387,7 @@ const menu = [
   .menu a.is-hot:hover, .menu a.is-hot:focus-visible { background: var(--hot); color: var(--on-accent); }
   .menu-hint { margin-top: var(--space-3); color: var(--dim); font-size: 1.125rem; text-align: center; }
 
-  .readout-title { display: block; padding-bottom: var(--space-3); border-bottom: 1px dashed var(--frame); color: var(--frame) !important; overflow-wrap: anywhere; font-size: 1.25rem; }
+  .readout .readout-title { display: block; padding-bottom: var(--space-3); border-bottom: 1px dashed var(--frame); color: var(--frame); overflow-wrap: anywhere; font-size: 1.25rem; }
   .readout ul { list-style: none; margin-top: var(--space-2); }
   .readout :global(li) { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); padding: var(--space-2) 0; font-size: 1.25rem; }
   .readout :global(.rd-k) { color: var(--dim); }
