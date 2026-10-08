@@ -13,7 +13,9 @@ interface Props {
 }
 const { title, description, ogType = 'website', ogImage = '/og.png', canonical, noindex = false } = Astro.props;
 const pageUrl = new URL(Astro.url.pathname, 'https://stratum-hq.org').href;
-const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
+// The version query makes link previews (Discord, Slack, X) fetch the site
+// image again when it changes. Bump it whenever og.png is replaced.
+const imageUrl = new URL(ogImage === '/og.png' ? '/og.png?v=ansi' : ogImage, 'https://stratum-hq.org').href;
 ---
 <!DOCTYPE html>
 <html lang="en">
