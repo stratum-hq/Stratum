@@ -1,0 +1,50 @@
+---
+// Replaces Starlight's Hero on the splash page with the ANSI Strata title
+// screen: the STRATUM wordmark in the rock face, the page title and tagline,
+// the actions as bracketed menu keys, and the tenant cross-section from the
+// landing site beside them. The art is aria-hidden; the h1 carries the title.
+import { LinkButton } from '@astrojs/starlight/components';
+import { logo, logoCols, strata, rowsToHtml } from '../../../assets/ansi/ansi';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+const CROSS_SECTION_COLS = 66;
+// Starlight's PAGE_TITLE_ID: the skip link and the table of contents point here.
+const PAGE_TITLE_ID = '_top';
+---
+
+<div class="hero bbs-hero">
+	<div class="bbs-hero-copy">
+		<span
+			class="art bbs-hero-logo"
+			data-fit={logoCols('STRATUM')}
+			data-max="9"
+			aria-hidden="true"
+			set:html={rowsToHtml(logo('STRATUM'))}
+		/>
+		<h1 id={PAGE_TITLE_ID} data-page-title set:html={title} />
+		{tagline && <div class="tagline" set:html={tagline} />}
+		{
+			actions.length > 0 && (
+				<div class="actions">
+					{actions.map(({ attrs = {}, link: href, text, variant }) => (
+						<LinkButton {href} {variant} {...attrs}>
+							{text}
+						</LinkButton>
+					))}
+				</div>
+			)
+		}
+	</div>
+	<pre
+		class="art bbs-hero-art"
+		data-fit={CROSS_SECTION_COLS}
+		data-max="22"
+		aria-hidden="true"
+		set:html={rowsToHtml(strata(CROSS_SECTION_COLS))}
+	/>
+</div>
+
+<script>
+	import '../../../assets/ansi/ansi-fit';
+</script>

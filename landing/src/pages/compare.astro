@@ -4,8 +4,8 @@ import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import RockTable from '../components/RockTable.astro';
-import RockTitle from '../components/RockTitle.astro';
-import EarthBand from '../components/EarthBand.astro';
+import RockTitle from '../../../assets/ansi/RockTitle.astro';
+import EarthBand from '../../../assets/ansi/EarthBand.astro';
 ---
 
 <Base title="Stratum vs Alternatives: Multi-Tenancy Comparison | Node.js" description="Compare Stratum to rolling your own tenant_id, WorkOS, Frontegg, ABP.IO, Clerk / Auth0 Organizations, Nile, and Oso / Permit.io. See why Stratum is the multi-tenancy library Node.js has been missing.">
@@ -567,11 +567,10 @@ import EarthBand from '../components/EarthBand.astro';
 
   .cmp-summary-label {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-size: 1.125rem;
+    color: var(--t-frame);
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.08em;
   }
 
   .cmp-summary-row p {

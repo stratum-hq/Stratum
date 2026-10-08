@@ -64,11 +64,10 @@
 <style>
   .wizard {
     width: 100%;
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md, 8px);
-    overflow: hidden;
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    position: relative;
+    background: var(--surface-0);
+    border: 3px double var(--t-frame);
+    font-family: var(--prose-font);
     margin: 2rem 0;
   }
 
@@ -83,11 +82,10 @@
     display: inline-block;
     margin-top: 12px;
     padding: 8px 16px;
-    background: var(--code-bg);
-    color: var(--code-text);
-    border-radius: var(--radius-sm);
-    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
-    font-size: 0.875rem;
+    background: var(--well);
+    color: var(--well-text);
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
   }
 
   .wizard-header {
@@ -96,10 +94,11 @@
 
   .wizard-header h2 {
     margin: 0 0 8px;
-    font-size: 2.125rem;
-    font-weight: 900;
-    color: var(--text-primary);
-    line-height: 0.95;
+    font-family: var(--bbs-font);
+    font-size: 2rem;
+    font-weight: 400;
+    color: var(--t-str);
+    line-height: 1;
     text-wrap: balance;
   }
 
@@ -167,11 +166,12 @@
   }
 
   .wizard-field label {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    font-weight: 400;
+    color: var(--t-frame);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.08em;
     align-self: end;
   }
 
@@ -179,29 +179,27 @@
     appearance: none;
     -webkit-appearance: none;
     background: var(--surface-0);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border: 1px dashed var(--t-frame);
+    border-radius: 0;
     color: var(--text-primary);
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
-    font-size: 0.9375rem;
-    padding: 10px 36px 10px 12px;
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    padding: 6px 36px 6px 12px;
     cursor: pointer;
-    transition: border-color var(--duration-fast) var(--ease-out);
     width: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23A39E95' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2335C2A8' stroke-width='2.5' stroke-linecap='square'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 16px;
   }
 
   .wizard-field select:hover:not(:disabled) {
-    border-color: var(--border-hover);
+    border-style: solid;
   }
 
-  .wizard-field select:focus {
-    outline: 3px solid var(--focus);
-    outline-offset: 1px;
-    border-color: transparent;
+  .wizard-field select:focus-visible {
+    outline: 2px solid var(--t-frame);
+    outline-offset: 2px;
   }
 
   .wizard-field select:disabled {
@@ -210,7 +208,7 @@
   }
 
   .wizard-output {
-    border-top: 1px solid var(--border);
+    border-top: 1px dashed var(--t-frame);
     padding: 24px 32px 32px;
   }
 
@@ -224,44 +222,57 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px 16px;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-top: 1px dashed var(--t-frame);
+    border-bottom: 1px dashed var(--t-frame);
   }
 
+  /* The command is a prompt line, as in the landing site's install box. */
   .wizard-command code {
     flex: 1;
-    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
-    font-size: 0.875rem;
-    color: var(--sandstone);
-    white-space: nowrap;
+    padding: 0;
+    background: transparent;
+    font-family: var(--bbs-font);
+    font-size: 1.375rem;
+    line-height: 1.2;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  .wizard-command code::before {
+    content: "> " / "";
+    color: var(--t-frame);
   }
 
   .wizard-command button {
     all: unset;
     box-sizing: border-box;
-    padding: 6px 14px;
-    background: var(--sl-color-accent);
-    color: var(--on-accent);
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
+    min-height: 40px;
+    padding: 0 12px;
+    color: var(--t-frame);
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
     white-space: nowrap;
-    transition: opacity var(--duration-fast) var(--ease-out);
-    min-width: 60px;
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
   }
 
-  .wizard-command button:hover {
-    opacity: 0.85;
+  .wizard-command button::before { content: "[\00a0"; }
+  .wizard-command button::after { content: "\00a0]"; }
+
+  .wizard-command button:hover,
+  .wizard-command button:focus-visible {
+    background: var(--t-frame);
+    color: var(--surface-0);
   }
 
   .wizard-command button:focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 
@@ -271,21 +282,23 @@
 
   .wizard-preview h3 {
     margin: 0 0 12px;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--t-frame);
   }
 
   .wizard-preview pre {
     margin: 0;
     padding: 16px 20px;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: var(--sl-font-mono, "JetBrains Mono", monospace);
-    font-size: 0.8125rem;
-    line-height: 1.65;
-    color: var(--text-secondary);
+    background: var(--well);
+    border: 3px double var(--t-frame);
+    font-family: var(--bbs-font);
+    font-size: 1.15rem;
+    line-height: 1.35;
+    color: var(--well-text);
     overflow-x: auto;
   }
 </style>

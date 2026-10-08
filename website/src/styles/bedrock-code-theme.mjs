@@ -1,23 +1,24 @@
-// The Bedrock syntax theme for Expressive Code, in VS Code theme format.
+// The ANSI Strata syntax theme for Expressive Code, in VS Code theme format.
 //
 // A VS Code theme cannot read CSS variables, so the values below are copies of
-// the code tokens in assets/tokens.css (--code-bg, --code-text, --syntax-*).
-// When one of those tokens changes, change it here too.
+// the dark text roles in assets/ansi/world.css and assets/tokens.css, the same
+// colors the landing site's code listings use. When one changes, change it
+// here too.
 //
-// The code well is dark in both site themes, so one theme serves Bedrock and
-// Daylight. Every foreground holds WCAG AA (4.5:1) on #0C0907.
+// The code well is dark in both site themes, so one theme serves both. Every
+// foreground holds WCAG AA (4.5:1) on the well, #1A130F.
 // Few colors on purpose: magma is kept for marked lines.
 
-const well = "#0C0907";
-const text = "#D6C3A0"; // --code-text, 11.5:1
-const keyword = "#C09AB3"; // --syntax-keyword, 8.1:1
-const fn = "#35C2A8"; // --syntax-function (vein), 8.9:1
-const string = "#E0B266"; // --syntax-string (sandstone band), 10.1:1
-const number = "#FFB21E"; // --syntax-number (amber), 11.0:1
-const comment = "#9A8670"; // --syntax-comment, 5.7:1
+const well = "#1A130F"; // --well in custom.css
+const text = "#F4EAD8"; // marl, --text-primary
+const keyword = "#D2683C"; // clay, --t-kw
+const fn = "#35C2A8"; // vein, --t-frame
+const string = "#E0B266"; // sandstone band, --t-str
+const number = "#FFB21E"; // amber, --t-num
+const comment = "#C2B19A"; // silt, --text-secondary
 
 export const bedrockCodeTheme = {
-  name: "stratum-bedrock",
+  name: "stratum-ansi-strata",
   type: "dark",
   colors: {
     "editor.background": well,

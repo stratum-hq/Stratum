@@ -5,7 +5,7 @@
 //                    columns on wider screens rather than bigger cells.
 // VT323's advance is measured once the font has loaded.
 
-import { earthBand, rowsToHtml } from '../lib/ansi';
+import { earthBand, rowsToHtml } from './ansi';
 
 let ratio = 0.4;
 

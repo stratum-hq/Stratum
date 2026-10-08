@@ -8,8 +8,8 @@
 // has locked skips every override below it. The real library runs on PGlite
 // in the docs Playground; this page reads one fixed example.
 
-import { screen, colsFor, TREE, rowsToHtml, esc } from '../lib/ansi';
-import { fitArt } from './ansi-fit';
+import { screen, colsFor, TREE, rowsToHtml, esc } from '../../../assets/ansi/ansi';
+import { fitArt } from '../../../assets/ansi/ansi-fit';
 
 type Key = 'max_users' | 'data_region' | 'sso_required';
 type Value = number | string | boolean;
