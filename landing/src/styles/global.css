@@ -1064,19 +1064,16 @@ h2 {
 }
 
 /* ===== SCROLL ANIMATIONS =====
-   Only a page that runs scripts hides content before the reveal. The "js"
-   class is set in Base.astro. Without scripts nothing adds "visible", so the
-   content must not start hidden. */
+   Content is never hidden waiting for a reveal: a section is readable before
+   any script runs, and the reveal only settles it the last few pixels into
+   place. The "js" class is set in Base.astro. */
 .fade-in {
-  transition: opacity var(--duration-slow) var(--ease-out),
-              transform var(--duration-slow) var(--ease-out);
+  transition: transform var(--duration-slow) var(--ease-out);
 }
 .js .fade-in {
-  opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(14px);
 }
 .js .fade-in.visible {
-  opacity: 1;
   transform: translateY(0);
 }
 .fade-in-delay-1 { transition-delay: 100ms; }
@@ -1279,7 +1276,6 @@ ol.inherit-tree {
   /* The scroll-triggered fade-ins resolve to their final state so no content is
      gated behind motion; the one shot inheritance-flow reveal is skipped. */
   .fade-in {
-    opacity: 1 !important;
     transform: none !important;
   }
   /* Every keyframe animation (drill marker, drifting strata) stops. */

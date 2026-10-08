@@ -4,6 +4,7 @@ import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import { Code } from 'astro:components';
+import { screen, logo, logoCols, earthBand, rowsToHtml } from '../lib/ansi';
 
 const setupCode = `import { Pool } from "pg";
 import { Stratum } from "@stratum-hq/lib";
@@ -30,7 +31,7 @@ const packages = [
   { name: '@stratum-hq/sdk', desc: 'HTTP client for the control plane, LRU cache, Express and Fastify middleware.' },
   { name: '@stratum-hq/db-adapters', desc: 'PostgreSQL: raw pg, Prisma, Sequelize, Drizzle, plus RLS and schema isolation.' },
   { name: '@stratum-hq/mongodb', desc: 'MongoDB tenant isolation with a Mongoose plugin.' },
-  { name: '@stratum-hq/mysql', desc: 'MySQL isolation with TypeORM, Knex, and Sequelize helpers.', tag: 'new' },
+  { name: '@stratum-hq/mysql', desc: 'MySQL isolation with TypeORM, Knex, and Sequelize helpers.' },
   { name: '@stratum-hq/nestjs', desc: 'NestJS guard, @Tenant() decorator, DI module.' },
   { name: '@stratum-hq/hono', desc: 'Hono middleware with AsyncLocalStorage context.' },
   { name: '@stratum-hq/test-utils', desc: 'Cross-tenant isolation test assertions.' },
@@ -38,6 +39,52 @@ const packages = [
   { name: '@stratum-hq/react', desc: 'React admin components: tenant tree, config editor, permission editor.' },
   { name: '@stratum-hq/cli', desc: 'Project init, migrate, scaffold, doctor.' },
   { name: '@stratum-hq/create', desc: 'Project scaffolding: npx @stratum-hq/create my-app.' },
+];
+
+const features = [
+  {
+    title: 'Tenant hierarchy',
+    lead: 'Nest tenants as deep as your customers need: resellers, their clients, and the teams inside them. Concurrent writes cannot corrupt the tree.',
+    body: 'Each tenant stores its path from the root in a PostgreSQL <code>ltree</code> column, a materialized path. Ancestor and subtree queries read that path instead of running recursive joins. Advisory locks, held for one transaction, serialize create and move.',
+  },
+  {
+    title: 'Config inheritance',
+    lead: 'Set a value once and every descendant gets it. A parent can lock a key so that no child can change it.',
+    body: 'Values flow root to leaf. Children inherit, override, or are blocked by a locked key. Batch updates are atomic: if one key is locked or invalid, nothing is written, and the result names that key.',
+  },
+  {
+    title: 'Permission delegation',
+    lead: 'Decide at every node of the tree what the tenants below it can change.',
+    body: 'A LOCKED permission holds for every descendant. INHERITED and DELEGATED permissions flow down, and a descendant can override them. Revocation is cascade (remove it from the whole subtree), soft (remove it only where it was set), or permanent (it cannot be revoked).',
+  },
+  {
+    title: 'Three isolation strategies',
+    lead: 'Give each tenant the isolation its compliance requirements call for, and mix strategies in one deployment.',
+    body: 'Shared tables with RLS (row-level security, where PostgreSQL filters every row by tenant) cost the least. Schema-per-tenant gives a tenant its own schema. Database-per-tenant gives it its own database, the strongest separation.',
+    isolation: true,
+  },
+  {
+    title: 'Audit, GDPR and encryption',
+    lead: 'Know who changed what, and answer GDPR export and erasure requests without building the tooling yourself.',
+    body: "Every mutation is logged with the actor's identity. Data export (Article 20) and hard purge (Article 17) are built in, with consent tracking and an audit trail. AES-256-GCM encrypts sensitive values at rest. Optional OpenTelemetry tracing, Redis-backed rate limiting, and webhook delivery with a dead-letter queue.",
+  },
+];
+
+// The screen at its default width. The client re-renders it for the real one.
+const screenHtml = rowsToHtml(screen(120));
+const titleHtml = rowsToHtml(logo('STRATUM'));
+const band = (depth: number) => rowsToHtml(earthBand(150, depth));
+const closeArt = rowsToHtml(logo('BUILD', 0, 2, { shadow: 1, chips: false }));
+// Section headings are set in the same block face as the title, small.
+// Headings keep their counters open: a one-pixel shadow and no chips.
+const heading = (text: string) => rowsToHtml(logo(text, 0, 2, { shadow: 1, chips: false }));
+const headingCols = (text: string) => logoCols(text, 2, 1);
+
+const menu = [
+  { key: '1', label: 'Get started', href: 'https://docs.stratum-hq.org/getting-started/quick-start/', hot: true },
+  { key: '2', label: 'Try it in the Playground', href: 'https://docs.stratum-hq.org/playground/' },
+  { key: '3', label: 'Source on GitHub', href: 'https://github.com/stratum-hq/Stratum' },
+  { key: '4', label: 'Read the docs', href: 'https://docs.stratum-hq.org/' },
 ];
 ---
 
@@ -63,201 +110,110 @@ const packages = [
 
 <Nav />
 
-<!-- Depth rail: the persistent stratigraphic signature. A thin left axis marked
-     with tenant depth (d0..d3); the vein cursor tracks scroll, and marks light up
-     as the active depth resolves downward. Desktop only, decorative. -->
-<div class="depth-rail" aria-hidden="true">
-  <div class="depth-rail-track"><span class="depth-rail-cursor" id="rail-cursor"></span></div>
-  <ol class="depth-rail-marks">
-    <li class="dm active" data-mark="0"><span class="dm-dot"></span><span class="dm-label">d0</span></li>
-    <li class="dm" data-mark="1"><span class="dm-dot"></span><span class="dm-label">d1</span></li>
-    <li class="dm" data-mark="2"><span class="dm-dot"></span><span class="dm-label">d2</span></li>
-    <li class="dm" data-mark="3"><span class="dm-dot"></span><span class="dm-label">d3</span></li>
-  </ol>
-</div>
+<main class="bbs">
+<section class="bbs-hero">
+  <h1 class="sr-only">Stratum: multi-tenancy for Node.js</h1>
 
-<!-- Hero -->
-<section class="idx-hero" data-depth="0">
-  <div class="idx-hero-inner">
-    <div class="idx-hero-content">
-      <h1 class="idx-display">Multi-tenancy<br/>for Node.js</h1>
-      <p class="idx-hero-sub">
+  <div class="frame bbs-screen">
+    <pre class="ansi-logo" data-fit={logoCols('STRATUM')} aria-hidden="true" set:html={titleHtml} />
+    <p class="ansi-sub" aria-hidden="true">=== multi-tenancy for node.js ===</p>
+    <div class="prompt prompt-top">
+      <span class="prompt-sign" data-sign aria-hidden="true"><span class="ps-win">C:\Users\you\app&gt;</span></span>
+      <code id="install-cmd">npm install <span class="nowrap">@stratum-hq/lib</span> pg</code><span class="caret" aria-hidden="true"></span>
+      <button class="bbs-btn" id="copy-btn" type="button" aria-label="Copy install command">[ Copy ]</button>
+    </div>
+    <pre class="ansi" id="ansi" tabindex="0" role="group" aria-label="An example tenant tree drawn as strata: AcmeSec at the root, NorthStar MSP below it with data_region locked, then client-alpha and client-beta, then team-eng and team-ops. Arrow keys move between tenants." aria-describedby="readout-title" set:html={screenHtml} />
+  </div>
+
+  <div class="bbs-side">
+    <section class="frame about" aria-label="What Stratum is">
+      <span class="frame-title" aria-hidden="true">WHAT IS THIS?</span>
+        <p class="bbs-lede">
         When customers need tenants <em>inside</em> tenants, resellers, agencies,
         enterprise org trees, a <code>tenant_id</code> column stops working.
         Stratum is the full tenant layer: hierarchy, config inheritance,
         isolation strategies, and compliance. Start flat, grow deep.
       </p>
-      <div class="hero-actions">
-        <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
-        <a href="https://docs.stratum-hq.org/playground/" class="btn-vein">Try it in your browser</a>
-        <a href="https://github.com/stratum-hq/Stratum" class="btn-secondary">View on GitHub</a>
-      </div>
-      <div class="install-box">
-        <code id="install-cmd">npm install <span class="pkg">@stratum-hq/lib</span> pg</code>
-        <button class="install-copy" id="copy-btn" type="button" aria-label="Copy install command">copy</button>
-      </div>
-    </div>
+    </section>
+    <nav class="frame menu" aria-label="Main menu">
+      <span class="frame-title" aria-hidden="true">MAIN MENU</span>
+      <ol>
+        {menu.map((m) => (
+          <li><a href={m.href} data-hotkey={m.key} class={m.hot ? 'is-hot' : ''}><span class="hk">{m.key})</span><span class="lbl">{m.label}</span><span class="dots" aria-hidden="true"></span><span aria-hidden="true">»</span></a></li>
+        ))}
+      </ol>
+      <p class="menu-hint">Press a number, or click.</p>
+    </nav>
 
-    <!-- Inheritance flow: each tenant is a rock band colored by its depth. Values
-         resolve down the strata in vein unless a parent locks a key; the locked
-         key is a magma tag that carries the word LOCKED. -->
-    <!-- The panel below is drawn for sighted visitors and hidden from assistive
-         technology, so this list carries the same facts as text. -->
-    <div class="visually-hidden">
-      <p>Example tenant hierarchy:</p>
-      <ul>
-        <li>d0: AcmeSec, the root tenant.</li>
-        <li>d1: NorthStar MSP, a reseller under AcmeSec.</li>
-        <li>d2: client-alpha, under NorthStar MSP.</li>
-        <li>d3: team-eng, under client-alpha.</li>
+    <aside class="frame readout" id="readout" aria-live="polite">
+      <span class="frame-title" aria-hidden="true">RESOLVED CONFIG</span>
+      <code class="readout-title" id="readout-title" data-title>resolveConfig("client-alpha")</code>
+      <ul data-rows>
+        <li><span class="rd-k">max_users</span><span class="rd-dots" aria-hidden="true"></span><b>1000</b><span class="rd-src">← d0 AcmeSec</span></li>
+        <li><span class="rd-k">data_region</span><span class="rd-dots" aria-hidden="true"></span><b>"eu-west-1"</b><span class="rd-src"><span class="rd-lock">■ locked at d1</span></span></li>
+        <li><span class="rd-k">sso_required</span><span class="rd-dots" aria-hidden="true"></span><b>false</b><span class="rd-src">← d0 AcmeSec</span></li>
       </ul>
-      <p>max_users is 1000, inherited from d0. data_region is locked: children cannot override it.</p>
-    </div>
-    <div class="inherit-panel fade-in" aria-hidden="true">
-      <div class="inherit-label">tenant hierarchy</div>
-      <div class="inherit-tree">
-        <div class="itrow d0"><span class="idepth">d0</span><span class="inode">AcmeSec</span><span class="imeta">root tenant</span></div>
-        <div class="itrow d1"><span class="idepth">d1</span><span class="inode">NorthStar MSP</span><span class="imeta">reseller</span></div>
-        <div class="itrow d2"><span class="idepth">d2</span><span class="inode">client-alpha</span></div>
-        <div class="itrow d3"><span class="idepth">d3</span><span class="inode">team-eng</span></div>
-      </div>
-      <div class="inherit-config">
-        <div class="icfg icfg-resolved">
-          <span class="ikey">max_users: <span class="ival">1000</span></span>
-          <span class="tag tag-inherited"><span class="tag-glyph">↓</span>inherited from <span class="depth-ref">d0</span></span>
-        </div>
-        <div class="icfg icfg-locked">
-          <span class="ikey">data_region: <span class="itag">children cannot override</span></span>
-          <span class="tag tag-locked"><span class="tag-glyph">■</span>locked</span>
-        </div>
-      </div>
-    </div>
+      <p class="rd-tenant"><span class="rd-k">tenant.isolation_strategy</span><b data-iso>SCHEMA_PER_TENANT</b></p>
+      <p class="readout-note">Point at a layer, or use the arrow keys. A fixed example, resolved the way the library does it; <a href="https://docs.stratum-hq.org/playground/">the Playground</a> runs the real thing.</p>
+    </aside>
   </div>
 </section>
 
-<!-- Features: one continuous stack of rock, shallow to deep. Each band takes
-     the rock color of its depth, so the order of the
-     features is the order of the strata and cannot be shuffled for layout. -->
-<section class="features" data-depth="1">
-  <div class="features-heading fade-in">
-    <h2>Built for hierarchical tenant architectures</h2>
-    <p>Every feature maps to a real problem in multi-tenant SaaS, not a marketing checklist.</p>
-  </div>
+<pre class="earth" data-earth="0" data-cols="150" aria-hidden="true" set:html={band(0)} />
 
-  <ol class="strata fade-in">
-    <li class="stratum-band band-d0">
-      <div class="band-face">
-        <div class="band-head"><span class="band-depth">d0</span><h3>Tenant hierarchy</h3></div>
-        <div class="band-body">
-          <p class="band-lead">Nest tenants as deep as your customers need: resellers, their clients, and the teams inside them. Concurrent writes cannot corrupt the tree.</p>
-          <p>Each tenant stores its path from the root in a PostgreSQL <code>ltree</code> column, a materialized path. Ancestor and subtree queries read that path instead of running recursive joins. Advisory locks, held for one transaction, serialize create and move.</p>
-        </div>
-      </div>
-    </li>
-    <li class="stratum-band band-d1">
-      <div class="band-face">
-        <div class="band-head"><span class="band-depth">d1</span><h3>Config inheritance</h3></div>
-        <div class="band-body">
-          <p class="band-lead">Set a value once and every descendant gets it. A parent can lock a key so that no child can change it.</p>
-          <p>Values flow root to leaf. Children inherit, override, or are blocked by a locked key. Batch updates are atomic: if one key is locked or invalid, nothing is written, and the result names that key.</p>
-        </div>
-      </div>
-    </li>
-    <li class="stratum-band band-d2">
-      <div class="band-face">
-        <div class="band-head"><span class="band-depth">d2</span><h3>Permission delegation</h3></div>
-        <div class="band-body">
-          <p class="band-lead">Decide at every node of the tree what the tenants below it can change.</p>
-          <p>A LOCKED permission holds for every descendant. INHERITED and DELEGATED permissions flow down, and a descendant can override them. Revocation is cascade (remove it from the whole subtree), soft (remove it only where it was set), or permanent (it cannot be revoked).</p>
-        </div>
-      </div>
-    </li>
-    <li class="stratum-band band-d3">
-      <div class="band-face">
-        <div class="band-head"><span class="band-depth">d3</span><h3>Three isolation strategies</h3></div>
-        <div class="band-body">
-          <p class="band-lead">Give each tenant the isolation its compliance requirements call for, and mix strategies in one deployment.</p>
-          <p>Shared tables with RLS (row-level security, where PostgreSQL filters every row by tenant) cost the least. Schema-per-tenant gives a tenant its own schema. Database-per-tenant gives it its own database, the strongest separation.</p>
-          <div class="isolation-diagram" aria-label="Isolation strategy comparison">
-            <div class="isolation-stack">
-              <div class="isolation-row iso-rls">
-                <div class="isolation-face">
-                  <span><span class="isolation-label">Shared RLS</span><span class="isolation-note">row_security = on · lowest cost</span></span>
-                  <span class="isolation-mark">shallow</span>
-                </div>
-              </div>
-              <div class="isolation-row iso-schema is-active">
-                <div class="isolation-face">
-                  <span><span class="isolation-label">Schema</span><span class="isolation-note">search_path = tenant_slug</span></span>
-                  <span class="isolation-mark">in use</span>
-                </div>
-              </div>
-              <div class="isolation-row iso-db">
-                <div class="isolation-face">
-                  <span><span class="isolation-label">Database</span><span class="isolation-note">dedicated database · strongest</span></span>
-                  <span class="isolation-mark">deepest</span>
-                </div>
-              </div>
-            </div>
-            <div class="iso-code">
-              <span class="iso-fn">stratum.createTenant</span>(&#123; ..., isolation_strategy: <span class="iso-accent">"SCHEMA_PER_TENANT"</span> &#125;)<br/>
-              <span class="iso-cm">// each tenant gets its strategy when you create it</span>
-            </div>
+<section class="bbs-sec" aria-labelledby="layers-title">
+  <h2 class="bbs-h" id="layers-title"><span class="sr-only">The layers</span><span class="h-art" style={`--cols:${headingCols('THE LAYERS')}`} aria-hidden="true" set:html={heading('THE LAYERS')} /></h2>
+  <p class="bbs-sub">Built for hierarchical tenant architectures. Every feature maps to a real problem in multi-tenant SaaS, not a marketing checklist.</p>
+  <div class="frame msgbase">
+    <span class="frame-title" aria-hidden="true">MESSAGE BASE</span>
+    <ol class="msgs">
+      {features.map((f, i) => (
+        <li class="msg" data-depth={i}>
+          <h3 class="msg-head"><span class="msg-swatch" aria-hidden="true"></span><span class="msg-title">{f.title}</span><span class="msg-dots" aria-hidden="true"></span><span class="msg-depth" aria-hidden="true">d{i}</span></h3>
+          <div class="msg-body">
+            <p class="msg-lead">{f.lead}</p>
+            <p set:html={f.body} />
+            {f.isolation && (
+              <ul class="iso" aria-label="Isolation strategies and their tags">
+                <li><span class="iso-g a-tag">[RLS]</span><b>SHARED_RLS</b><span>row_security = on</span></li>
+                <li><span class="iso-g a-tag">[SCHEMA]</span><b>SCHEMA_PER_TENANT</b><span>search_path = tenant_slug</span></li>
+                <li><span class="iso-g a-tag">[DB]</span><b>DB_PER_TENANT</b><span>dedicated database</span></li>
+              </ul>
+            )}
           </div>
-        </div>
-      </div>
-    </li>
-    <li class="stratum-band band-d4">
-      <div class="band-face">
-        <div class="band-head"><span class="band-depth">d4</span><h3>Audit, GDPR and encryption</h3></div>
-        <div class="band-body">
-          <p class="band-lead">Know who changed what, and answer GDPR export and erasure requests without building the tooling yourself.</p>
-          <p>Every mutation is logged with the actor's identity. Data export (Article 20) and hard purge (Article 17) are built in, with consent tracking and an audit trail. AES-256-GCM encrypts sensitive values at rest. Optional OpenTelemetry tracing, Redis-backed rate limiting, and webhook delivery with a dead-letter queue.</p>
-        </div>
-      </div>
-    </li>
-  </ol>
-</section>
-
-<!-- Code Example -->
-<section class="code-section" data-depth="2">
-  <div class="code-section-inner fade-in">
-    <div class="code-section-text">
-      <h2>Eight lines to a working hierarchy</h2>
-      <p>
-        Connect a Postgres pool, create tenants with parent references, and config
-        resolves automatically up the tree. No migrations to hand-write, no join
-        tables to manage.
-      </p>
-    </div>
-    <div class="code-block">
-      <div class="code-block-header">
-        <span class="code-block-filename">setup.ts</span>
-      </div>
-      <Code code={setupCode} lang="ts" theme="css-variables" />
-      <div class="code-output">
-        <span class="co-arrow">→</span>
-        <span class="co-text">config.max_users = &#123; value: <span class="co-val">1000</span>, inherited: true, source_tenant_id: <span class="co-src">root.id</span> &#125;</span>
-        <span class="co-tag">resolved from d0</span>
-      </div>
-    </div>
+        </li>
+      ))}
+    </ol>
   </div>
 </section>
 
-<!-- Packages -->
-<section class="packages" data-depth="3">
-  <div class="packages-inner">
-    <div class="packages-heading fade-in">
-      <h2>{packages.length} packages. Pick what you need.</h2>
-      <p>All published to npm under <code class="pkg-scope">@stratum-hq/*</code></p>
-    </div>
-    <table class="packages-table" aria-label="Stratum packages">
+<pre class="earth" data-earth="1" data-cols="150" aria-hidden="true" set:html={band(1)} />
+
+<section class="bbs-sec" aria-labelledby="code-title">
+  <h2 class="bbs-h" id="code-title"><span class="sr-only">Eight lines</span><span class="h-art" style={`--cols:${headingCols('EIGHT LINES')}`} aria-hidden="true" set:html={heading('EIGHT LINES')} /></h2>
+  <p class="bbs-sub">Eight lines to a working hierarchy. Connect a Postgres pool, create tenants with parent references, and config resolves automatically up the tree. No migrations to hand-write, no join tables to manage.</p>
+  <figure class="frame code">
+    <figcaption class="frame-title">SETUP.TS</figcaption>
+    <Code code={setupCode} lang="ts" theme="css-variables" />
+    <p class="code-out"><span class="a-vein">→</span> config.max_users = &#123; value: <b>1000</b>, inherited: true, source_tenant_id: root.id &#125; <span class="a-silt">resolved from d0</span></p>
+  </figure>
+</section>
+
+<pre class="earth" data-earth="2" data-cols="150" aria-hidden="true" set:html={band(2)} />
+
+<section class="bbs-sec" aria-labelledby="files-title">
+  <h2 class="bbs-h" id="files-title"><span class="sr-only">File area</span><span class="h-art" style={`--cols:${headingCols('FILE AREA')}`} aria-hidden="true" set:html={heading('FILE AREA')} /></h2>
+  <p class="bbs-sub">{packages.length} packages, all published to npm under <code class="nowrap">@stratum-hq/*</code>. Pick what you need.</p>
+  <div class="frame files">
+    <span class="frame-title" aria-hidden="true">LATEST FILES</span>
+    <table aria-label="Stratum packages">
+      <thead><tr><th scope="col">Name</th><th scope="col">Description</th><th scope="col"><span class="sr-only">Link</span></th></tr></thead>
       <tbody>
         {packages.map((p) => (
           <tr>
-            <td class="pkg-name">{p.name}</td>
-            <td class="pkg-desc">{p.desc}{p.tag && <span class="pkg-tag">{p.tag}</span>}</td>
-            <td class="pkg-actions"><a href={`https://www.npmjs.com/package/${p.name}`} class="pkg-link" aria-label={`${p.name} on npm`}>npm →</a></td>
+            <td class="f-name">{p.name}</td>
+            <td class="f-desc">{p.desc}{p.tag && <span class="f-tag">[ {p.tag} ]</span>}</td>
+            <td class="f-link"><a href={`https://www.npmjs.com/package/${p.name}`} aria-label={`${p.name} on npm`}>npm »</a></td>
           </tr>
         ))}
       </tbody>
@@ -265,181 +221,341 @@ const packages = [
   </div>
 </section>
 
-<!-- Close: reassurance from facts a visitor can check.
-     No adoption numbers or logos: the project has none to show. -->
-<section class="cta">
-  <div class="idx-close fade-in">
-    <h2>Start building.</h2>
-    <div class="idx-close-body">
-      <ul class="idx-proof">
-        <li><a href="https://github.com/stratum-hq/Stratum/blob/main/LICENSE">MIT licensed</a>, with every line of the source on GitHub.</li>
-        <li><a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml">Integration tests</a> run against real PostgreSQL, MongoDB and MySQL in CI.</li>
-        <li>Try it in the <a href="https://docs.stratum-hq.org/playground/">browser Playground</a> before you install anything.</li>
-      </ul>
-      <a href="https://docs.stratum-hq.org/getting-started/quick-start/" class="btn-primary">Get Started</a>
-    </div>
+<!-- Close: reassurance from facts a visitor can check. No adoption numbers
+     or logos: the project has none to show. -->
+<pre class="earth" data-earth="3" data-cols="150" aria-hidden="true" set:html={band(3)} />
+
+<section class="bbs-sec bbs-close" aria-labelledby="close-title">
+  <h2 class="close-h" id="close-title"><span class="sr-only">Start building.</span><span class="close-art" style={`--cols:${logoCols('BUILD', 2, 1)}`} aria-hidden="true" set:html={closeArt} /></h2>
+  <ul class="proof">
+    <li><a href="https://github.com/stratum-hq/Stratum/blob/main/LICENSE">MIT licensed</a>, with every line of the source on GitHub.</li>
+    <li><a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml">Integration tests</a> run against real PostgreSQL, MongoDB and MySQL in CI.</li>
+    <li>Try it in the <a href="https://docs.stratum-hq.org/playground/">browser Playground</a> before you install anything.</li>
+  </ul>
+  <div class="close-actions">
+    <a class="bbs-btn is-hot" href="https://docs.stratum-hq.org/getting-started/quick-start/">[ 1) Get started ]</a>
+    <a class="bbs-btn" href="https://docs.stratum-hq.org/playground/">[ 2) Open the Playground ]</a>
   </div>
 </section>
+</main>
 
 <Footer />
 
 <style>
-  /* Index hero. Plain ground with faint strata drifting behind it: two layers
-     of thin rock lines that slide sideways at different speeds. No gradients. */
-  .idx-hero {
-    position: relative;
+  /* ===== ANSI Strata: a 2 a.m. board in the Stratum palette =====
+     Every color comes from the shared tokens, so Daylight prints the same
+     screen on paper. Rock bands are the same in both themes. */
+  /* The ground is a warm dark brown, a step up from peat, on this page. */
+  :global([data-theme="dark"]) { --surface-0: #241B15; --on-vein: #241B15; }
+  /* On paper the palest band darkens so it still reads at 3:1. */
+  :global([data-theme="light"]) .bbs { --limestone: #8A7F6B; --sandstone-band: #B08431; }
+  /* On paper every text role is darkened until it holds AA (4.5:1) on #F2E9D8. */
+  .bbs, :global(.nav), :global(.footer) { --moss-t: #7FAF45; --t-frame: var(--vein); --t-hot: var(--magma); --t-kw: var(--clay); --t-str: var(--sandstone-band); --t-num: var(--amber-fill); }
+  :global([data-theme="light"]) .bbs, :global([data-theme="light"] .nav), :global([data-theme="light"] .footer) { --moss-t: #3E6B1E; --t-frame: #075E50; --t-hot: #A02E06; --t-kw: #8E3A16; --t-str: #6E5300; --t-num: #6E5300; }
+  .bbs {
+    --ground: var(--surface-0);
+    --ink: var(--text-primary);
+    --dim: var(--text-secondary);
+    --frame: var(--t-frame);
+    --hot: var(--t-hot);
+    --bbs-font: "VT323", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-family: var(--bbs-font);
+    font-size: 1.3rem;
+    line-height: 1.3;
+    color: var(--ink);
+  }
+  :global(body) { font-family: "VT323", ui-monospace, monospace; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .nowrap { white-space: nowrap; }
+
+  /* Character colors. */
+  .bbs :global(.a-vein) { color: var(--frame); }
+  .bbs :global(.a-silt) { color: var(--dim); }
+  .bbs :global(.a-label) { color: var(--ink); background: var(--ground); }
+  .bbs :global(.a-lock) { color: var(--hot); }
+  .bbs :global(.a-lock-note) { color: var(--ground); background: var(--hot); }
+
+  /* ===== Status bar: the shared nav, framed ===== */
+  :global(.nav) {
     background: var(--surface-0);
-    border-bottom: 1px solid var(--border);
-    overflow: hidden;
-    isolation: isolate;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 0;
+    padding: var(--space-2) var(--space-6) 0;
   }
-  .idx-hero::before,
-  .idx-hero::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-  }
-  .idx-hero::before {
-    background: repeating-linear-gradient(176deg, transparent 0 46px, var(--topsoil) 46px 50px, transparent 50px 121px, var(--clay) 121px 123px, transparent 123px 210px);
-    background-size: 480px 100%;
-    opacity: 0.2;
-    animation: strata-drift-a 40s linear infinite;
-  }
-  .idx-hero::after {
-    background: repeating-linear-gradient(183deg, transparent 0 77px, var(--sandstone-band) 77px 79px, transparent 79px 164px, var(--basalt) 164px 170px, transparent 170px 260px);
-    background-size: 360px 100%;
-    opacity: 0.18;
-    animation: strata-drift-b 64s linear infinite;
-  }
-  @keyframes strata-drift-a { from { background-position: 0 0; } to { background-position: -480px 0; } }
-  @keyframes strata-drift-b { from { background-position: 0 0; } to { background-position: 360px 0; } }
-  @media (prefers-reduced-motion: reduce) {
-    .idx-hero::before,
-    .idx-hero::after { animation: none; }
-  }
-  .idx-hero-inner {
-    position: relative;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 128px var(--space-6) var(--space-16);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-16);
-    align-items: center;
-  }
-  .idx-display {
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 7.5vw, 4.75rem);
-    font-weight: 900;
-    letter-spacing: 0.01em;
-    line-height: 0.92;
-    text-transform: uppercase;
-    margin-bottom: var(--space-6);
-    text-wrap: balance;
-    color: var(--text-primary);
-  }
-  .idx-hero-sub {
-    font-size: 1.0625rem;
-    color: var(--text-secondary);
-    line-height: 1.65;
-    margin-bottom: var(--space-8);
-    max-width: 52ch;
-  }
-  .idx-hero-sub code {
-    font-family: var(--font-mono);
-    font-size: 0.85em;
-    color: var(--text-primary);
-    background: var(--surface-2);
-    padding: 1px 6px;
-  }
+  /* The status bar is a framed box across the top, corner squares and all. */
+  :global(.nav-inner) { position: relative; border: 3px double var(--vein); }
+  :global(.nav-inner)::before, :global(.nav-inner)::after { content: ''; position: absolute; width: 9px; height: 9px; border: 2px solid var(--vein); background: var(--surface-0); }
+  :global(.nav-inner)::before { top: -7px; left: -7px; }
+  :global(.nav-inner)::after { bottom: -7px; right: -7px; }
+  :global(.nav-inner) { max-width: 1632px; padding: 2px var(--space-4); }
+  :global(.nav-logo) { font-family: "VT323", monospace; font-weight: 400; font-size: 1.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--t-frame); }
+  :global(.nav-links) { gap: var(--space-4); }
+  :global(.nav-links a) { font-family: "VT323", monospace; font-weight: 400; font-size: 1.25rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t-frame); }
+  :global(.nav-links a:hover) { color: var(--surface-0); background: var(--t-frame); }
+  :global(.theme-toggle), :global(.nav-menu-btn) { background: transparent; border: 1px solid var(--vein); color: var(--vein); font-family: "VT323", monospace; }
 
-  /* Hidden from sight, still read by screen readers. Clipping the box, not
-     display: none, keeps it in the accessibility tree. */
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
-  }
+  /* ===== Frames: double rules, a corner square, a title on the top rule ===== */
+  .frame { position: relative; border: 3px double var(--frame); padding: var(--space-6) var(--space-6) var(--space-6); }
+  .frame::before, .frame::after { content: ''; position: absolute; width: 9px; height: 9px; border: 2px solid var(--frame); background: var(--ground); }
+  .frame::before { top: -7px; left: -7px; }
+  .frame::after { bottom: -7px; right: -7px; }
+  .frame-title { position: absolute; top: 0; left: 50%; translate: -50% -55%; padding: 0 0.6em; background: var(--ground); color: var(--frame); text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; font-size: 1.25rem; }
 
-  /* Close. The heading takes the left column, the proof and the one magma
-     action the right. The proof is plain prose with links, because each line
-     points at something a visitor can check. */
-  .idx-close {
-    max-width: 1200px;
+  /* ===== Hero ===== */
+  .bbs-hero {
+    max-width: 1680px;
     margin: 0 auto;
+    padding: 84px var(--space-6) var(--space-12);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--space-8) var(--space-16);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: var(--space-6);
     align-items: start;
   }
-  .idx-close h2 {
-    font-size: clamp(2.25rem, 5vw, 3.25rem);
-    line-height: 0.92;
-    color: var(--text-primary);
-    text-wrap: balance;
+  .bbs-screen { padding: var(--space-8) var(--space-4) var(--space-4); }
+  .ansi {
+    margin: 0;
+    font-family: var(--bbs-font);
+    font-size: 12px;
+    line-height: 1;
+    white-space: pre;
+    overflow: hidden;
+    color: var(--dim);
+    outline: none;
   }
-  .idx-proof {
-    list-style: none;
-    margin-bottom: var(--space-8);
-  }
-  .idx-proof li {
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-secondary);
-    line-height: 1.6;
-  }
-  .idx-proof li:first-child { border-top: 1px solid var(--border); }
-  .idx-proof a {
-    color: var(--text-primary);
-    text-decoration: underline;
-    text-decoration-color: var(--rule);
-    text-underline-offset: 0.2em;
-    transition: text-decoration-color var(--duration-fast) var(--ease-out);
-  }
-  .idx-proof a:hover { text-decoration-color: var(--text-primary); }
-  @media (max-width: 768px) {
-    .idx-close { grid-template-columns: minmax(0, 1fr); }
-  }
+  .ansi:focus-visible { outline: 2px solid var(--frame); outline-offset: 6px; }
+  .ansi :global(.ln), .close-art :global(.ln), .ansi-logo :global(.ln) { display: block; height: 1lh; }
+  .ansi-sub { margin: 0 0 var(--space-6); text-align: center; color: var(--frame); font-size: 1.5rem; }
+  .ansi-logo { margin: 0 0 var(--space-3); font-family: var(--bbs-font); font-size: 18px; line-height: 1; white-space: pre; overflow: hidden; text-align: center; }
+  /* Art cells: exactly one character wide and one line tall each. */
+  .bbs :global(.g) { display: inline-block; width: calc(var(--n) * 1ch); height: 1lh; vertical-align: top; }
+  /* Half-block pixels: the top and bottom of each cell are separate pixels. */
+  .bbs :global(.g-px) { background: linear-gradient(var(--t) 50%, var(--b) 50%); }
+  /* The locked key's double line. */
+  .bbs :global(.g-h2) { --lw: max(1.5px, 0.08em); background: linear-gradient(currentColor, currentColor) 0 38% / 100% var(--lw) no-repeat, linear-gradient(currentColor, currentColor) 0 64% / 100% var(--lw) no-repeat; }
+  .bbs :global(.a-tag) { color: var(--t-frame); }
+  .earth { display: block; margin: var(--space-16) 0 0; font-family: var(--bbs-font); font-size: 0.6vw; line-height: 1; white-space: pre; overflow: hidden; width: 100%; }
+  .earth :global(.ln) { display: block; height: 1lh; }
+  .ansi :global([data-unit]) { cursor: pointer; transition: background-color 160ms linear; }
+  .ansi :global(.g-px[data-unit].is-hi) { filter: brightness(1.28) saturate(1.1); }
+  .ansi :global(.a-label.is-hi) { background: var(--frame); color: var(--on-vein); }
+  .ansi :global(.a-lock-note) { animation: blink 1.2s steps(1, end) infinite; }
+  @keyframes blink { 50% { color: var(--hot); background: var(--ground); } }
+  /* The stream: lines arrive one after another, once. */
+  .ansi:global(.is-streaming) :global(.ln) { animation: arrive 1ms linear both; }
+  @keyframes arrive { from { visibility: hidden; } }
 
-  /* One column on small screens. The tenant tree is the pitch, so it moves up
-     to sit directly under the calls to action instead of below the install box,
-     where it fell past the first phone screen. display: contents
-     lifts the hero copy's children into this grid so they can be reordered. */
-  @media (max-width: 900px) {
-    .idx-hero-inner {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 0;
-      padding-top: 96px;
-    }
-    .idx-hero-content { display: contents; }
-    .inherit-panel { margin-bottom: var(--space-8); }
-    .install-box { order: 1; }
+  .bbs-lede { margin: 0; font-size: 1.3rem; line-height: 1.3; color: var(--ink); }
+  .bbs-lede code, .bbs :global(code) { font-family: var(--bbs-font); color: var(--sandstone); }
+  .prompt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: 0 var(--space-2) var(--space-6); padding: var(--space-3) 0; border-top: 1px dashed var(--frame); border-bottom: 1px dashed var(--frame); font-size: 1.5rem; }
+  .prompt-sign { color: var(--frame); white-space: nowrap; }
+  .prompt-sign :global(.ps-user) { color: var(--moss-t); }
+  .prompt-sign :global(.ps-path) { color: var(--t-str); }
+  .prompt code { color: var(--ink); }
+  .caret { display: inline-block; width: 0.55em; height: 1em; background: var(--ink); animation: blink-caret 1s steps(1, end) infinite; translate: 0 0.12em; }
+  @keyframes blink-caret { 50% { opacity: 0; } }
+  .prompt .bbs-btn { margin-left: auto; }
+
+  .bbs-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    font: inherit;
+    font-size: 1.375rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--frame);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
   }
-  @media (max-width: 480px) {
-    .idx-hero-inner {
-      padding-top: 80px;
-      padding-left: var(--space-4);
-      padding-right: var(--space-4);
-    }
-    .idx-display { font-size: 3rem; }
-    .idx-hero-sub { font-size: 0.9375rem; }
-    .hero-actions { flex-direction: column; gap: var(--space-2); }
-    .hero-actions .btn-primary,
-    .hero-actions .btn-vein,
-    .hero-actions .btn-secondary { width: 100%; justify-content: center; }
-    .install-box { max-width: 100%; }
+  .bbs-btn:hover, .bbs-btn:focus-visible { background: var(--frame); color: var(--on-vein); outline: none; }
+  .bbs-btn.is-hot { background: var(--hot); color: var(--on-accent); }
+  .bbs-btn.is-hot:hover, .bbs-btn.is-hot:focus-visible { background: var(--ink); color: var(--ground); }
+
+  .bbs-side { display: grid; gap: var(--space-8); padding-top: 12px; }
+  .about { padding-top: var(--space-6); }
+  .menu ol { list-style: none; display: grid; gap: 4px; }
+  .menu a { display: flex; align-items: baseline; gap: var(--space-2); padding: 4px var(--space-2); font-size: 1.375rem; text-transform: uppercase; color: var(--frame); }
+  .menu .hk { color: var(--ink); }
+  .menu .lbl { white-space: nowrap; }
+  .menu .dots { flex: 1; border-bottom: 2px dotted currentColor; translate: 0 -0.3em; min-width: 1em; }
+  .menu a:hover, .menu a:focus-visible { background: var(--frame); color: var(--on-vein); outline: none; }
+  .menu a:hover .hk, .menu a:focus-visible .hk { color: inherit; }
+  .menu a.is-hot { color: var(--hot); }
+  .menu a.is-hot:hover, .menu a.is-hot:focus-visible { background: var(--hot); color: var(--on-accent); }
+  .menu-hint { margin-top: var(--space-3); color: var(--dim); font-size: 1.125rem; text-align: center; }
+
+  .readout .readout-title { display: block; padding-bottom: var(--space-3); border-bottom: 1px dashed var(--frame); color: var(--frame); overflow-wrap: anywhere; font-size: 1.25rem; }
+  .readout ul { list-style: none; margin-top: var(--space-2); }
+  .readout :global(li) { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); padding: var(--space-2) 0; font-size: 1.25rem; }
+  .readout :global(.rd-k) { color: var(--dim); }
+  .readout :global(.rd-dots) { flex: 1; min-width: 1em; border-bottom: 2px dotted var(--basalt); translate: 0 -0.3em; }
+  .readout :global(b) { font-weight: 400; color: var(--ink); }
+  .readout :global(.rd-src) { flex-basis: 100%; text-align: right; color: var(--dim); font-size: 1.125rem; }
+  .readout :global(.rd-lock) { color: var(--hot); }
+  .readout :global(.rd-void) { color: var(--dim); text-decoration: line-through; }
+  .rd-tenant { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 var(--space-3); margin-top: var(--space-2); padding-top: var(--space-3); border-top: 1px dashed var(--frame); font-size: 1.25rem; }
+  .rd-tenant .rd-k { color: var(--dim); }
+  .rd-tenant b { font-weight: 400; color: var(--ink); }
+  .readout-note { margin-top: var(--space-3); color: var(--dim); font-size: 1.125rem; line-height: 1.3; }
+  .readout-note a, .proof a, .bbs-sub a { color: var(--frame); text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ===== Sections ===== */
+  .bbs-sec { max-width: 1440px; margin: 0 auto; padding: var(--space-12) var(--space-6) 0; }
+  .bbs-h { margin: 0; font-weight: 400; }
+  /* Headings in the block face: about 14px cells on desktop, shrinking to fit a phone. */
+  .h-art { display: block; font-family: var(--bbs-font); font-size: min(10px, calc((100vw - 48px) / var(--cols) / 0.42)); line-height: 1; white-space: pre; overflow: hidden; }
+  .h-art :global(.ln) { display: block; height: 1lh; }
+  .bbs-sub { margin: var(--space-4) 0 var(--space-12); max-width: 70ch; font-size: 1.375rem; line-height: 1.35; color: var(--dim); }
+  /* The features are one message base: leader-dotted entries, each with the
+     swatch of its stratum, shallow to deep. */
+  .msgbase { padding-top: var(--space-8); }
+  .msgs { list-style: none; display: grid; }
+  .msg { padding: var(--space-6) 0; border-bottom: 1px dashed var(--frame); }
+  .msg:last-child { border-bottom: 0; padding-bottom: 0; }
+  .msg:first-child { padding-top: 0; }
+  .msg[data-depth="0"] { --rock: var(--topsoil); }
+  .msg[data-depth="1"] { --rock: var(--clay); }
+  .msg[data-depth="2"] { --rock: var(--sandstone-band); }
+  .msg[data-depth="3"] { --rock: var(--limestone); }
+  .msg[data-depth="4"] { --rock: var(--basalt); }
+  .msg-head { display: flex; align-items: center; gap: var(--space-3); font-weight: 400; font-size: 1.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink); }
+  .msg-swatch { flex: none; width: 3ch; height: 1em; background: var(--rock); }
+  .msg-dots { flex: 1; min-width: 1em; border-bottom: 2px dotted var(--rock); translate: 0 -0.25em; }
+  .msg-depth { color: var(--dim); font-size: 1.375rem; }
+  .msg-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-3) var(--space-12); margin-top: var(--space-3); padding-left: calc(3ch + var(--space-3)); }
+  .msg-body p { font-size: 1.25rem; line-height: 1.35; color: var(--dim); }
+  .msg-body .msg-lead { color: var(--ink); font-size: 1.375rem; }
+  .msg-body .iso { grid-column: 2; }
+  .iso { list-style: none; margin-top: var(--space-3); display: grid; gap: var(--space-2); }
+  .iso li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-4); font-size: 1.25rem; }
+  .iso-g { flex: none; min-width: 9ch; }
+  .iso b { font-weight: 400; color: var(--ink); }
+  .iso span:last-child { color: var(--dim); }
+
+  .code { margin: 0; padding-top: var(--space-8); }
+  .code :global(.astro-code) {
+    --astro-code-color-text: var(--ink);
+    --astro-code-color-background: transparent;
+    --astro-code-token-constant: var(--t-num);
+    --astro-code-token-string: var(--t-str);
+    --astro-code-token-string-expression: var(--t-str);
+    --astro-code-token-comment: var(--dim);
+    --astro-code-token-keyword: var(--t-kw);
+    --astro-code-token-parameter: var(--ink);
+    --astro-code-token-function: var(--t-frame);
+    --astro-code-token-punctuation: var(--dim);
+    --astro-code-token-link: var(--t-frame);
+    font: 1.25rem/1.3 var(--bbs-font);
+    overflow-x: auto;
+    background: transparent !important;
+  }
+  .code-out { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px dashed var(--frame); font-size: 1.25rem; overflow-wrap: anywhere; }
+  .code-out b { font-weight: 400; color: var(--hot); }
+
+  .files { padding-top: var(--space-8); }
+  .files table { width: 100%; border-collapse: collapse; font-size: 1.25rem; }
+  .files th { text-align: left; font-weight: 400; color: var(--frame); text-transform: uppercase; padding: 0 var(--space-3) var(--space-2); border-bottom: 1px dashed var(--frame); }
+  .files td { padding: var(--space-2) var(--space-3); vertical-align: baseline; }
+  .files tbody tr:hover { background: color-mix(in srgb, var(--frame) 16%, transparent); }
+  .f-name { white-space: nowrap; color: var(--ink); }
+  .f-desc { color: var(--dim); }
+  .f-tag { margin-left: var(--space-2); color: var(--t-num); white-space: nowrap; }
+  .f-link { text-align: right; white-space: nowrap; }
+  .f-link a { color: var(--frame); }
+  .f-link a:hover, .f-link a:focus-visible { background: var(--frame); color: var(--on-vein); outline: none; }
+
+  .bbs-close { padding-bottom: var(--space-24); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-6) var(--space-12); align-items: end; }
+  .close-h { grid-column: 1 / -1; margin: 0; font-weight: 400; }
+  .close-art { display: block; margin: 0 0 var(--space-4); font-family: var(--bbs-font); font-size: min(14px, calc((100vw - 48px) / var(--cols) / 0.42)); line-height: 1; white-space: pre; overflow: hidden; }
+  .proof { list-style: none; font-size: 1.375rem; line-height: 1.35; }
+  .proof li { padding: var(--space-2) 0; border-bottom: 1px dashed var(--frame); color: var(--dim); }
+  .close-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--space-4); }
+
+  :global(.footer) { background: var(--surface-0); border-top: 3px double var(--vein); font-family: "VT323", monospace; font-size: 1.375rem; }
+  :global(.footer-inner) { max-width: 1680px; padding-left: var(--space-6); padding-right: var(--space-6); }
+  :global(.footer-meta), :global(.footer-links a) { font-size: 1.375rem; color: var(--text-secondary); }
+  :global(.footer-meta)::before { content: 'NO CARRIER  '; color: var(--t-frame); }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 1080px) {
+    .bbs-hero { grid-template-columns: minmax(0, 1fr); }
+    .bbs-side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  }
+  @media (max-width: 760px) {
+    .bbs-side { grid-template-columns: minmax(0, 1fr); }
+    .msg-body { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+    .msg-body .iso { grid-column: 1; }
+    .bbs-close { grid-template-columns: minmax(0, 1fr); }
+    .files thead { display: none; }
+    .files tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+    .files td.f-name { white-space: normal; overflow-wrap: anywhere; }
+    .files td.f-link { grid-row: 1; grid-column: 2; }
+    .files td.f-desc { grid-column: 1 / -1; padding-top: 0; }
+  }
+  @media (max-width: 600px) {
+    .bbs-hero { padding: 76px var(--space-3) var(--space-8); }
+    .bbs-screen { padding: var(--space-8) var(--space-2) var(--space-3); }
+    .frame { padding-left: var(--space-4); padding-right: var(--space-4); }
+    .bbs-sec { padding-left: var(--space-3); padding-right: var(--space-3); }
+    /* On a phone the prompt takes its own line and the command the next, so typing never reflows the page. */
+    .prompt { display: grid; grid-template-columns: minmax(0, 1fr) auto; font-size: 1.25rem; }
+    .prompt-sign { grid-column: 1 / -1; }
+    .prompt #install-cmd { grid-column: 1; }
+    .prompt .caret { display: none; }
+    .prompt .bbs-btn { grid-column: 2; grid-row: 2; margin-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ansi :global(.a-lock-note), .caret { animation: none; }
   }
 </style>
 
 <script>
+  import '../scripts/ansi-screen';
+
+  // The prompt cycles through a Windows, a Linux (bash) and a macOS (zsh)
+  // prompt, typing each one in. The install command beside it never changes,
+  // so it is always whole and Copy always copies it. Hover or focus pauses
+  // the loop; reduced motion keeps the first prompt still.
+  const promptEl = document.querySelector<HTMLElement>('.prompt');
+  const signEl = document.querySelector<HTMLElement>('[data-sign]');
+  const signs = [
+    [{ t: 'C:\\Users\\you\\app>', c: 'ps-win' }],
+    [{ t: 'you@linux', c: 'ps-user' }, { t: ':' }, { t: '~/app', c: 'ps-path' }, { t: '$' }],
+    [{ t: 'you@mac', c: 'ps-user' }, { t: ' ' }, { t: 'app', c: 'ps-path' }, { t: ' %' }],
+  ];
+  const draw = (parts: { t: string; c?: string }[], upto: number) => {
+    let left = upto;
+    signEl!.innerHTML = parts.map((p) => {
+      const t = p.t.slice(0, Math.max(0, left));
+      left -= p.t.length;
+      const safe = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return p.c ? `<span class="${p.c}">${safe}</span>` : safe;
+    }).join('');
+  };
+  if (promptEl && signEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let held = false;
+    promptEl.addEventListener('pointerenter', () => { held = true; });
+    promptEl.addEventListener('pointerleave', () => { held = false; });
+    promptEl.addEventListener('focusin', () => { held = true; });
+    promptEl.addEventListener('focusout', () => { held = false; });
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    (async () => {
+      for (let i = 0; ; i = (i + 1) % signs.length) {
+        await wait(3600);
+        while (held) await wait(200);
+        const next = signs[(i + 1) % signs.length];
+        const len = next.reduce((n, p) => n + p.t.length, 0);
+        for (let n = 0; n <= len; n++) {
+          draw(next, n);
+          await wait(28);
+        }
+      }
+    })();
+  }
+
   // Copy the install command. The copied text is read from the DISPLAYED command
   // element, so what lands on the clipboard can never drift from what is shown.
   const copyBtn = document.getElementById('copy-btn');
@@ -448,61 +564,14 @@ const packages = [
     const text = (cmdEl?.textContent ?? '').replace(/\s+/g, ' ').trim();
     try {
       await navigator.clipboard.writeText(text);
-      copyBtn.textContent = 'copied';
-      copyBtn.classList.add('copied');
+      copyBtn.textContent = '[ Copied ]';
     } catch {
-      copyBtn.textContent = 'copy failed';
+      copyBtn.textContent = '[ Copy failed ]';
     }
     setTimeout(() => {
-      copyBtn.textContent = 'copy';
-      copyBtn.classList.remove('copied');
+      copyBtn.textContent = '[ Copy ]';
     }, 2000);
   });
-
-  // Depth rail: move the vein cursor with scroll progress and light up marks up
-  // to the depth of the section currently in view.
-  const rail = document.querySelector('.depth-rail');
-  if (rail) {
-    const cursor = document.getElementById('rail-cursor');
-    const marks = Array.from(rail.querySelectorAll<HTMLElement>('.dm'));
-    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-depth]'));
-    const update = () => {
-      const doc = document.documentElement;
-      const max = doc.scrollHeight - window.innerHeight;
-      const progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
-      if (cursor) cursor.style.top = `${progress * 100}%`;
-      const mid = window.scrollY + window.innerHeight * 0.5;
-      let active = 0;
-      for (const s of sections) {
-        if (s.offsetTop <= mid) active = Number(s.getAttribute('data-depth'));
-      }
-      for (const m of marks) {
-        m.classList.toggle('active', Number(m.dataset.mark) <= active);
-      }
-    };
-    update();
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-  }
-
-  // Scroll animations.
-  const fadeEls = document.querySelectorAll('.fade-in');
-  if (fadeEls.length > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
-    );
-    fadeEls.forEach((el) => observer.observe(el));
-  } else {
-    fadeEls.forEach((el) => el.classList.add('visible'));
-  }
 </script>
 
 </Base>
