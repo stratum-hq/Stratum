@@ -1,0 +1,9 @@
+/* @stratum-hq/react: the fonts of the ANSI Strata theme (optional).
+ *
+ * VT323 (labels, headings, controls, data) and Atkinson Hyperlegible Next
+ * (text). This file loads them from Google Fonts, so the page makes requests
+ * to fonts.googleapis.com and fonts.gstatic.com. If your Content Security
+ * Policy blocks those origins, do not import this file. Host the fonts
+ * yourself under the same family names instead.
+ */
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,500;0,700;1,400&display=swap');

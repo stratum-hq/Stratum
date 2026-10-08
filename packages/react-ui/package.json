@@ -28,7 +28,9 @@
     "./styles": "./dist/styles/base.css",
     "./styles/base.css": "./dist/styles/base.css",
     "./styles/theme-bedrock.css": "./dist/styles/theme-bedrock.css",
-    "./styles/fonts.css": "./dist/styles/fonts.css"
+    "./styles/fonts.css": "./dist/styles/fonts.css",
+    "./styles/theme-ansi-strata.css": "./dist/styles/theme-ansi-strata.css",
+    "./styles/fonts-ansi-strata.css": "./dist/styles/fonts-ansi-strata.css"
   },
   "files": [
     "dist",

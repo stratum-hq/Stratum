@@ -97,7 +97,7 @@ function customPropertiesDeclared(css: string): string[] {
   return Array.from(stripComments(css).matchAll(/(?:^|[;{\s])(--[A-Za-z0-9_-]+)\s*:/g), (m) => m[1]);
 }
 
-const scopedSheets = ["base.css", "theme-bedrock.css"];
+const scopedSheets = ["base.css", "theme-bedrock.css", "theme-ansi-strata.css"];
 
 describe.each(scopedSheets)("%s", (file) => {
   const css = read(file);
@@ -215,13 +215,45 @@ describe("theme-bedrock.css", () => {
   });
 });
 
-describe("fonts.css", () => {
-  it("holds the only font request of the package", () => {
-    const css = stripComments(read("fonts.css"));
-    expect(css).toMatch(/Big\+Shoulders\+Display/);
-    for (const file of readdirSync(stylesDir).filter((f) => f !== "fonts.css")) {
+// Each theme keeps its font request in its own opt-in file, so a host that
+// blocks third-party fonts can import the theme without it.
+const fontSheets = { "fonts.css": /Big\+Shoulders\+Display/, "fonts-ansi-strata.css": /VT323/ };
+
+describe("font stylesheets", () => {
+  it.each(Object.entries(fontSheets))("%s requests its theme's fonts", (file, family) => {
+    expect(stripComments(read(file))).toMatch(family);
+  });
+
+  it("hold the only font requests of the package", () => {
+    for (const file of readdirSync(stylesDir).filter((f) => !(f in fontSheets))) {
       expect(stripComments(read(file))).not.toMatch(/fonts\.googleapis|@font-face/);
     }
+  });
+});
+
+describe("theme-ansi-strata.css", () => {
+  const css = () => stripComments(read("theme-ansi-strata.css"));
+
+  // Magma is for the primary action and LOCKED. The current selection is vein.
+  it.each([".stratum-tree__node--selected", ".stratum-tenant-switcher__item--active"])(
+    "marks %s without magma",
+    (selector) => {
+      const bodies = [...css().matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((m) => m[1].split(",").some((s) => s.trim().startsWith(selector)))
+        .map((m) => m[2]);
+      expect(bodies.length).toBeGreaterThan(0);
+      for (const body of bodies) expect(body).not.toMatch(/--stratum-accent/);
+    },
+  );
+
+  it("sorts after the base layer whatever the import order", () => {
+    expect(topLevelStatements(read("theme-ansi-strata.css"))[0]).toBe("@layer stratum.base, stratum.theme");
+  });
+
+  it("gives an explicit data-theme of light or dark its own token block", () => {
+    const themed = styleRules(read("theme-ansi-strata.css")).filter((r) => r.ancestors.every((a) => !a.startsWith("@media")));
+    expect(themed.some((r) => r.prelude.includes('[data-theme="light"]'))).toBe(true);
+    expect(themed.some((r) => r.prelude.includes('[data-theme="dark"]'))).toBe(true);
   });
 });
 
@@ -239,6 +271,8 @@ describe("package exports", () => {
       "./styles/base.css": "./dist/styles/base.css",
       "./styles/theme-bedrock.css": "./dist/styles/theme-bedrock.css",
       "./styles/fonts.css": "./dist/styles/fonts.css",
+      "./styles/theme-ansi-strata.css": "./dist/styles/theme-ansi-strata.css",
+      "./styles/fonts-ansi-strata.css": "./dist/styles/fonts-ansi-strata.css",
     });
     for (const [, target] of styleTargets) {
       const source = (target as string).replace("./dist/styles/", "");
