@@ -4,7 +4,7 @@
 // load after the visitor presses Start.
 ---
 
-<div class="playground" id="playground-root">
+<div class="playground not-content" id="playground-root">
   <div class="pg-start" id="pg-start">
     <p>
       The Playground runs the real <code>@stratum-hq/lib</code> on PostgreSQL compiled to
@@ -74,15 +74,17 @@
 </div>
 
 <style>
+  /* The Playground is a terminal session: a double-rule frame, menu-key
+     tabs and buttons, and the dark code well. VT323 carries the controls,
+     labels and output; the step text reads in the prose face. */
   .playground {
+    position: relative;
     width: 100%;
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md, 8px);
-    overflow: hidden;
+    background: var(--surface-0);
+    border: 3px double var(--t-frame);
     display: flex;
     flex-direction: column;
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
+    font-family: var(--prose-font);
   }
 
   /* The hidden attribute must win over the display rules below. */
@@ -105,16 +107,18 @@
   }
 
   .pg-start .pg-start-note {
-    font-size: 0.8125rem;
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
     color: var(--text-secondary);
   }
 
   .playground-tabs {
     display: flex;
     align-items: stretch;
-    gap: 0;
+    gap: 4px;
+    padding: 6px 8px;
     background: var(--surface-0);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px dashed var(--t-frame);
     overflow-x: auto;
     scrollbar-width: none;
     flex-shrink: 0;
@@ -124,55 +128,55 @@
     display: none;
   }
 
+  /* Tabs are menu keys: the selected one is inverted, vein with ground text. */
   .tab {
     all: unset;
     box-sizing: border-box !important;
     display: inline-flex !important;
     align-items: center !important;
     margin: 0 !important;
-    padding: 10px 18px !important;
+    padding: 4px 12px !important;
+    min-height: 36px;
     border: none !important;
-    border-bottom: 2px solid transparent !important;
-    color: var(--text-secondary);
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
-    font-size: 0.8125rem;
-    font-weight: 500;
+    color: var(--t-frame);
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     cursor: pointer;
     white-space: nowrap;
-    line-height: 1.4;
-    transition: color var(--duration-fast) var(--ease-out),
-                border-color var(--duration-fast) var(--ease-out);
+    line-height: 1.2;
   }
 
   .tab:hover {
     color: var(--text-primary);
   }
 
-  .tab.active {
-    color: var(--accent);
-    border-bottom: 2px solid var(--accent) !important;
-    font-weight: 600;
+  .tab.active,
+  .tab.active:hover {
+    background: var(--t-frame);
+    color: var(--surface-0);
   }
 
   .tab:focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--text-primary);
     outline-offset: -2px;
-    border-radius: var(--radius-sm);
   }
 
   /* Guided tour */
   .tour {
     display: grid;
-    grid-template-columns: minmax(180px, 220px) 1fr;
+    grid-template-columns: minmax(190px, 230px) 1fr;
     min-height: 560px;
   }
 
   .tour-steps {
     list-style: none;
     margin: 0;
-    padding: 12px 0;
-    border-right: 1px solid var(--border);
+    padding: 10px 6px;
+    border-right: 1px dashed var(--t-frame);
     background: var(--surface-0);
+    counter-reset: step;
   }
 
   .tour-steps :global(li) {
@@ -184,12 +188,12 @@
     box-sizing: border-box;
     display: block;
     width: 100%;
-    padding: 8px 16px;
-    font-size: 0.8125rem;
-    line-height: 1.4;
+    padding: 4px 10px;
+    font-family: var(--bbs-font);
+    font-size: 1.1875rem;
+    line-height: 1.2;
     color: var(--text-secondary);
     cursor: pointer;
-    border-left: 2px solid transparent;
   }
 
   .tour-steps :global(.step-btn:hover) {
@@ -197,15 +201,21 @@
   }
 
   .tour-steps :global(.step-btn.current) {
-    color: var(--accent);
-    border-left-color: var(--accent);
-    font-weight: 600;
+    background: var(--t-frame);
+    color: var(--surface-0);
+  }
+
+  .tour-steps :global(.step-btn.current)::before {
+    content: "> " / "";
   }
 
   .tour-steps :global(.step-btn.done::after) {
-    content: " (done)";
-    color: var(--success);
-    font-weight: 400;
+    content: " [OK]";
+    color: var(--moss-t);
+  }
+
+  .tour-steps :global(.step-btn.current.done::after) {
+    color: inherit;
   }
 
   .tour-steps :global(.step-btn:disabled) {
@@ -214,72 +224,98 @@
   }
 
   .tour-steps :global(.step-btn:focus-visible) {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--text-primary);
     outline-offset: -2px;
   }
 
   .tour-main {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
+    gap: 14px;
+    padding: 18px;
     min-width: 0;
   }
 
   .step-detail h3 {
-    margin: 0 0 4px 0;
-    font-size: 1rem;
+    margin: 0 0 6px 0;
+    font-family: var(--bbs-font);
+    font-size: 1.75rem;
+    font-weight: 400;
+    color: var(--t-str);
   }
 
   .step-detail p {
-    margin: 0 0 8px 0;
-    font-size: 0.875rem;
+    margin: 0 0 10px 0;
+    max-width: 68ch;
+    font-size: 0.9375rem;
     color: var(--text-secondary);
   }
 
   .step-code {
-    margin: 0 0 8px 0;
-    padding: 12px;
-    max-height: 220px;
+    margin: 0 0 10px 0;
+    padding: 12px 14px;
+    max-height: 240px;
     overflow: auto;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
+    background: var(--well);
+    color: var(--well-text);
+    border: 1px dashed var(--t-frame);
     border-radius: 0;
-    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
-    font-size: 0.75rem;
-    line-height: 1.5;
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
+    line-height: 1.3;
   }
 
   .tour-panels {
     display: grid;
     grid-template-columns: 1fr 1.4fr;
-    gap: 12px;
+    gap: 18px;
   }
 
+  /* Panels are framed, with the label sitting on the top rule. */
   .panel {
-    border: 1px solid var(--border);
-    border-radius: 0;
-    padding: 10px 12px;
+    position: relative;
+    border: 1px dashed var(--t-frame);
+    padding: 18px 12px 10px;
+    margin-top: 8px;
     background: var(--surface-0);
     min-width: 0;
-    overflow-x: auto;
   }
 
   .panel h4 {
-    margin: 0 0 8px 0;
-    font-size: 0.75rem;
-    font-weight: 600;
+    position: absolute;
+    top: 0;
+    left: 10px;
+    translate: 0 -55%;
+    margin: 0;
+    padding: 0 0.4em;
+    background: var(--surface-0);
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--text-secondary);
+    white-space: nowrap;
+    color: var(--t-frame);
+  }
+
+  .panel h4 :global(.output-dim) {
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+
+  .panel > :global(table),
+  .panel > .tree {
+    display: block;
+    overflow-x: auto;
   }
 
   .tree,
   .tree :global(ul) {
     list-style: none;
     margin: 0;
-    padding-left: 14px;
-    font-size: 0.8125rem;
+    padding-left: 2ch;
+    font-family: var(--bbs-font);
+    font-size: 1.1875rem;
   }
 
   .tree {
@@ -287,76 +323,85 @@
   }
 
   .tree :global(li) {
-    margin: 2px 0;
+    margin: 1px 0;
+  }
+
+  .tree :global(ul li)::before {
+    content: "└ " / "";
+    color: var(--text-secondary);
   }
 
   .tree :global(.tree-node) {
     all: unset;
     cursor: pointer;
-    padding: 1px 4px;
-    border-radius: 0;
+    padding: 0 4px;
+    color: var(--text-primary);
+  }
+
+  .tree :global(.tree-node:hover) {
+    color: var(--t-frame);
   }
 
   .tree :global(.tree-node.selected) {
-    background: var(--surface-2);
-    color: var(--accent);
+    background: var(--t-frame);
+    color: var(--surface-0);
   }
 
   .tree :global(.tree-node:focus-visible) {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--text-primary);
   }
 
   .inspector {
     width: 100%;
     margin: 0 0 8px 0;
     border-collapse: collapse;
-    font-size: 0.75rem;
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
   }
 
   .inspector :global(caption) {
     text-align: left;
-    font-weight: 600;
     padding-bottom: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--t-str);
   }
 
   .inspector :global(th),
   .inspector :global(td) {
     text-align: left;
-    padding: 3px 6px;
-    border-bottom: 1px solid var(--border);
+    padding: 2px 6px;
+    border: 0;
+    border-bottom: 1px dashed var(--border);
+    font-weight: 400;
   }
 
+  .inspector :global(th) {
+    color: var(--t-frame);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Tags: a bracketed word in its color, as everywhere in the docs. The
+     locked glyph comes from .badge-locked in custom.css. */
   .inspector :global(.badge) {
-    display: inline-block;
-    padding: 0 6px;
-    border-radius: 0;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    border: 1px solid var(--border-hover);
-  }
-
-  /* Tags: glyph plus word plus color. The locked fill and glyph come from
-     .badge-locked in custom.css; delegated is the amber tag. */
-  .inspector :global(.badge-locked) {
-    color: var(--on-accent);
-    border-color: transparent;
+    display: inline-flex;
+    gap: 0.3rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-primary);
   }
 
   .inspector :global(.badge-delegated) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    background: var(--amber-fill);
-    color: var(--on-ember);
-    border-color: transparent;
-    clip-path: var(--edge-chip);
-    font-family: var(--font-mono);
-    letter-spacing: 0.14em;
+    color: var(--t-num);
   }
 
   .inspector :global(.badge-delegated)::before {
-    content: "\21C4" / "";
-    letter-spacing: 0;
+    content: "[\21C4" / "";
+  }
+
+  .inspector :global(.badge-delegated)::after {
+    content: "]" / "";
   }
 
   /* Code editor */
@@ -369,15 +414,13 @@
 
   .playground-editor {
     width: 55%;
-    border-right: 1px solid var(--border);
+    border-right: 1px dashed var(--t-frame);
     overflow: hidden;
-    background: var(--code-bg);
+    background: var(--well);
   }
 
   .playground-editor :global(.cm-editor) {
     height: 100%;
-    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
-    font-size: 0.875rem;
   }
 
   .playground-output {
@@ -392,27 +435,28 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
+    padding: 6px 12px;
+    border-bottom: 1px dashed var(--t-frame);
     flex-shrink: 0;
   }
 
   .output-label {
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-family: var(--bbs-font);
+    font-size: 1.25rem;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--text-secondary);
+    color: var(--t-frame);
   }
 
   .playground-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     align-items: center;
   }
 
-  /* Shared button base: override Starlight defaults */
+  /* Buttons are bracketed menu keys: Run is the one magma key, Reset is
+     vein. Hover and focus invert, as on a board. */
   .run-btn,
   .reset-btn {
     all: unset;
@@ -421,32 +465,37 @@
     align-items: center !important;
     justify-content: center !important;
     margin: 0 !important;
-    padding: 6px 16px !important;
-    min-height: 32px !important;
-    min-width: 72px !important;
+    padding: 0 12px !important;
+    min-height: 40px !important;
     border-radius: 0 !important;
-    font-family: var(--sl-font, "Instrument Sans", system-ui, sans-serif);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.4;
+    font-family: var(--bbs-font) !important;
+    font-size: 1.375rem !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1;
     cursor: pointer;
     text-align: center;
-    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .run-btn::before,
+  .reset-btn::before {
+    content: "[\00a0";
+  }
+
+  .run-btn::after,
+  .reset-btn::after {
+    content: "\00a0]";
   }
 
   .run-btn {
-    font-family: var(--font-display) !important;
-    font-size: 1rem !important;
-    font-weight: 900 !important;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    background: var(--accent) !important;
+    background: var(--t-hot) !important;
     color: var(--on-accent) !important;
-    border: 1px solid transparent !important;
   }
 
-  .run-btn:hover {
-    background: var(--accent-hover) !important;
+  .run-btn:hover,
+  .run-btn:focus-visible {
+    background: var(--text-primary) !important;
+    color: var(--surface-0) !important;
   }
 
   .run-btn:disabled {
@@ -456,70 +505,76 @@
 
   .run-btn:focus-visible,
   .reset-btn:focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--text-primary);
     outline-offset: 2px;
   }
 
   .reset-btn {
     background: transparent !important;
-    color: var(--text-secondary) !important;
-    border: 1px solid var(--border-hover) !important;
+    color: var(--t-frame) !important;
   }
 
-  .reset-btn:hover {
-    color: var(--text-primary) !important;
-    border-color: var(--text-tertiary) !important;
+  .reset-btn:hover,
+  .reset-btn:focus-visible {
+    background: var(--t-frame) !important;
+    color: var(--surface-0) !important;
   }
 
   .output-pre {
     flex: 1;
     margin: 0;
-    padding: 16px;
+    padding: 12px 14px;
     min-height: 120px;
     overflow-y: auto;
-    font-family: var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace);
-    font-size: 0.8125rem;
-    line-height: 1.6;
-    color: var(--sandstone);
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
+    line-height: 1.3;
+    color: var(--t-str);
     white-space: pre-wrap;
     word-break: break-word;
     background: var(--surface-0);
-    border: 1px solid var(--border);
+    border: 1px dashed var(--t-frame);
     border-radius: 0;
   }
 
   .playground-output .output-pre {
     border: none;
-    border-radius: 0;
   }
 
   .output-pre :global(.output-error) {
-    color: var(--error);
+    color: var(--t-hot);
   }
 
   .playground :global(.output-dim) {
-    color: var(--text-tertiary);
+    color: var(--text-secondary);
   }
 
+  /* The status line closes the session, like a board's bottom bar. */
   .playground-status {
-    padding: 10px 24px;
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
+    padding: 6px 16px;
+    font-family: var(--bbs-font);
+    font-size: 1.125rem;
+    color: var(--text-secondary);
     background: var(--surface-0);
-    border-top: 1px solid var(--border);
+    border-top: 1px dashed var(--t-frame);
     flex-shrink: 0;
   }
 
+  .playground-status::before {
+    content: "> " / "";
+    color: var(--t-frame);
+  }
+
   .playground-status.status-ready {
-    color: var(--success);
+    color: var(--moss-t);
   }
 
   .playground-status.status-error {
-    color: var(--error);
+    color: var(--t-hot);
   }
 
   .playground-status.status-running {
-    color: var(--sandstone);
+    color: var(--t-num);
   }
 
   @media (max-width: 768px) {
@@ -529,7 +584,7 @@
 
     .tour-steps {
       border-right: none;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px dashed var(--t-frame);
     }
 
     .tour-panels {
@@ -544,21 +599,13 @@
     .playground-editor {
       width: 100%;
       border-right: none;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px dashed var(--t-frame);
       height: 320px;
     }
 
     .playground-output {
       width: 100%;
       min-height: 280px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tab,
-    .run-btn,
-    .reset-btn {
-      transition: none;
     }
   }
 </style>
@@ -854,23 +901,25 @@ async function createEditor() {
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       javascript(),
-      oneDark,
+      // Earlier extensions take precedence in CodeMirror, so the well theme
+      // goes ahead of One Dark and keeps its background and type.
       EditorView.theme({
-        "&": { height: "100%", backgroundColor: "var(--code-bg)" },
+        "&": { height: "100%", backgroundColor: "var(--well)" },
         ".cm-scroller": {
-          fontFamily: 'var(--sl-font-mono, "JetBrains Mono", ui-monospace, monospace)',
-          fontSize: "0.875rem",
-          lineHeight: "1.6",
+          fontFamily: "var(--bbs-font)",
+          fontSize: "1.15rem",
+          lineHeight: "1.35",
         },
-        ".cm-content": { padding: "16px 0" },
+        ".cm-content": { padding: "12px 0" },
         ".cm-gutters": {
-          backgroundColor: "var(--code-bg)",
-          borderRight: "1px solid var(--border)",
-          color: "var(--text-tertiary)",
+          backgroundColor: "var(--well)",
+          borderRight: "1px dashed #4A3B2F",
+          color: "#C2B19A",
         },
-        ".cm-activeLineGutter": { backgroundColor: "var(--surface-2)" },
+        ".cm-activeLineGutter": { backgroundColor: "#33281F" },
         ".cm-activeLine": { backgroundColor: "rgba(255,255,255,0.03)" },
       }),
+      oneDark,
       EditorView.lineWrapping,
     ],
   });
