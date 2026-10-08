@@ -22,7 +22,7 @@ const config = await stratum.resolveConfig(msp.id);`;
 // Published, installable packages under @stratum-hq/*. The private demo and
 // integration-tests packages are not on npm, and @stratum-hq/stratum is an empty
 // name reservation with no source, so none of them belong in a "published to npm"
-// table. See CLAUDE.md section 2.
+// table. See .claude/CLAUDE.md section 2.
 const packages = [
   { name: '@stratum-hq/core', desc: 'Shared types, Zod schemas, error classes. Everything depends on it.', tag: 'foundation' },
   { name: '@stratum-hq/lib', desc: 'The core library: tenants, config, ABAC, permissions, audit, GDPR, webhooks, crypto.', tag: 'start here' },
@@ -136,7 +136,7 @@ const packages = [
 </section>
 
 <!-- Features: one continuous stack of rock, shallow to deep. Each band takes
-     the rock color of its depth (DESIGN.md, Rock bands), so the order of the
+     the rock color of its depth, so the order of the
      features is the order of the strata and cannot be shuffled for layout. -->
 <section class="features" data-depth="1">
   <div class="features-heading fade-in">
@@ -265,8 +265,8 @@ const packages = [
   </div>
 </section>
 
-<!-- Close: reassurance from facts a visitor can check (PRODUCT.md, Evidence on
-     Hand). No adoption numbers or logos: the project has none to show. -->
+<!-- Close: reassurance from facts a visitor can check.
+     No adoption numbers or logos: the project has none to show. -->
 <section class="cta">
   <div class="idx-close fade-in">
     <h2>Start building.</h2>

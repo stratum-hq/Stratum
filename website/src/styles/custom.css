@@ -1,8 +1,8 @@
 /* ==========================================================================
    Stratum Docs: custom Starlight theme.
 
-   Design tokens come from the shared source of truth at assets/tokens.css,
-   documented in DESIGN.md. This file only maps Starlight's --sl-* variables
+   Design tokens come from the shared source of truth at assets/tokens.css.
+   This file only maps Starlight's --sl-* variables
    onto those shared tokens and styles docs specific surfaces. Do not hardcode
    hex here; change or add a token in the shared file so this site and the
    landing site cannot drift.
@@ -482,7 +482,7 @@ starlight-menu-button button {
 }
 
 /* --------------------------------------------------------------------------
-   Depth gutter: the stratigraphy signature (DESIGN.md "the depth rail").
+   Depth gutter: the stratigraphy signature ("the depth rail").
    Page sections stack as strata separated by a hairline seam, and the code
    well grows a left gutter that continues the depth rail, lighting to vein on
    hover (the flow color).

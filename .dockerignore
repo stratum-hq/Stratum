@@ -11,6 +11,6 @@ package-lock.json
 *.log
 docs/
 README.md
-CLAUDE.md
+.claude/CLAUDE.md
 .vscode/
 .idea/

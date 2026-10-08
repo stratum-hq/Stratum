@@ -3,7 +3,7 @@
  * Bedrock draws the components as rock layers seen in cross-section: a rock
  * band per tenant depth, ragged clip-path edges, grain, a rock lip and a
  * shadow pool under each layer, and one hot color (magma). Daylight is its
- * light palette. DESIGN.md at the repository root records the identity.
+ * light palette.
  *
  * Load it after base.css. It goes into the stratum.theme layer, so it wins
  * over stratum.base whatever the import order, and an unlayered host rule
