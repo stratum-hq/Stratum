@@ -4,7 +4,7 @@
 // `lines` is drawn on its own row, so long titles can break where they read
 // best. `weight="hero"` keeps the full chipped, two-pixel shadow look;
 // `"heading"` opens the counters for smaller sizes.
-import { logo, logoCols, rowsToHtml } from '../lib/ansi';
+import { logo, logoCols, rowsToHtml } from './ansi';
 
 interface Props {
   lines: string[];
@@ -26,7 +26,7 @@ const shadow = weight === 'hero' ? 2 : 1;
 </Tag>
 
 <script>
-  import '../scripts/ansi-fit';
+  import './ansi-fit';
 </script>
 
 <style>
