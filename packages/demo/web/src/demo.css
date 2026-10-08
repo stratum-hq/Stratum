@@ -134,7 +134,7 @@ body {
   cursor: not-allowed;
 }
 
-/* The second action of a view is vein (DESIGN.md, Button). */
+/* The second action of a view is vein. */
 .demo-button--flow {
   background: var(--stratum-flow-muted);
   border-color: var(--stratum-flow);

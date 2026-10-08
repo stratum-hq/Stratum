@@ -53,7 +53,8 @@ scripts/generated/
 # Internal planning (kept locally, not in repo)
 PUBLISHING.md
 TODOS.md
-.claude/
+.claude/*
+!.claude/CLAUDE.md
 
 # Backup files
 *.backup.*
@@ -61,9 +62,14 @@ TODOS.md
 # Design-tool export bundles (reference material, not shipped)
 assets/brand/Stratum Design System * Strata/
 
-# Impeccable: per-developer config and live-mode scratch
-.impeccable/config.local.json
-.impeccable/live/
-
 # Playwright MCP browser session output (screenshots, snapshots)
 .playwright-mcp/
+
+# Agent and design-tool working files (kept locally, not in repo)
+.impeccable/
+.issue-flow.json
+DESIGN.md
+PRODUCT.md
+docs/rebrand/
+docs/identity-proposal.md
+docs/identity-hero-mockup.html

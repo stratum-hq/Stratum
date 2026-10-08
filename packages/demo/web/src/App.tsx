@@ -43,7 +43,7 @@ function ThemeToggle() {
   );
 }
 
-/** The Stratum mark: three rock slabs, topsoil, clay and magma (DESIGN.md, Logo). */
+/** The Stratum mark: three rock slabs, topsoil, clay and magma. */
 function StratumMark() {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">

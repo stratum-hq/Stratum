@@ -144,6 +144,6 @@ Worth knowing before trusting this more than it deserves:
 - **Only new work.** The scan covers the tree, the index, or the commits a push sends.
   History that is already on the remote is not rescanned. The audit did that once; doing it
   on every run would be slow, and remediating a historical hit means rewriting history,
-  which is a forbidden action in `CLAUDE.md` and needs a human.
+  which is a forbidden action in `.claude/CLAUDE.md` and needs a human.
 - **No custom in-house token formats** beyond Stratum's own prefix. If a service starts
   minting a new shape, add it to `PROVIDER_TOKENS` with a fixture.
