@@ -71,13 +71,18 @@ braces, at-rules, backslashes, quotes or `url()` are ignored.
 
 ## Styles
 
-The components use plain class names (`stratum-*`) and read their look from three optional
-stylesheets:
+The components use plain class names (`stratum-*`) and read their look from optional
+stylesheets: a neutral base, and at most one theme with its fonts:
 
 ```ts
 import "@stratum-hq/react/styles/base.css";          // neutral look; also "@stratum-hq/react/styles"
-import "@stratum-hq/react/styles/theme-bedrock.css"; // optional: the Bedrock theme
-import "@stratum-hq/react/styles/fonts.css";         // optional: the Bedrock fonts, from Google Fonts
+
+// optional: one theme, and its fonts from Google Fonts
+import "@stratum-hq/react/styles/theme-ansi-strata.css";
+import "@stratum-hq/react/styles/fonts-ansi-strata.css";
+// or
+import "@stratum-hq/react/styles/theme-bedrock.css";
+import "@stratum-hq/react/styles/fonts.css";
 ```
 
 `base.css` does not change the host page:
@@ -89,10 +94,18 @@ import "@stratum-hq/react/styles/fonts.css";         // optional: the Bedrock fo
   `data-theme="dark"` on an ancestor.
 - Its reduced-motion rule stops the motion of `stratum-*` elements only.
 
-`theme-bedrock.css` adds the Stratum identity: rock bands for tenant depth, ragged edges, grain and
-a display face. Bedrock is its dark palette and Daylight its light palette. `fonts.css` is the only
-file that makes a request, to `fonts.googleapis.com`. If your Content Security Policy blocks it, do
-not import it, and host Big Shoulders Display, Instrument Sans and Martian Mono yourself.
+`theme-ansi-strata.css` is the look of stratum-hq.org: a bulletin board screen cut through the
+earth. It draws double-rule frames, bracketed menu keys, state as a bracketed word, and one rock band
+per tenant depth with the name cut into it. Its fonts are VT323 and Atkinson Hyperlegible Next.
+
+`theme-bedrock.css` is the earlier Stratum identity: rock bands for tenant depth, ragged edges, grain
+and a display face. Bedrock is its dark palette and Daylight its light palette. Its fonts are Big
+Shoulders Display, Instrument Sans and Martian Mono.
+
+Both themes follow `prefers-color-scheme` and `data-theme` the same way `base.css` does. The two
+fonts files are the only files that make a request, to `fonts.googleapis.com`. If your Content
+Security Policy blocks it, do not import them, and host the fonts yourself under the same family
+names.
 
 ### Theming tokens
 
@@ -122,7 +135,7 @@ Set a token on a component root, on `TenantThemeProvider` (its `primaryColor` se
 | `--stratum-font-body`, `--stratum-font-display`, `--stratum-font-mono` | Font stacks |
 | `--stratum-font-size-xs` … `--stratum-font-size-2xl` | Type scale |
 | `--stratum-space-1` … `--stratum-space-12` | Spacing in 4px steps (1, 2, 3, 4, 6, 12) |
-| `--stratum-radius-sm`, `--stratum-radius` | Control and panel corners (0 in Bedrock) |
+| `--stratum-radius-sm`, `--stratum-radius` | Control and panel corners (0 in both themes) |
 | `--stratum-shadow`, `--stratum-shadow-raised` | Panel and pop-over shadows (base only) |
 | `--stratum-duration-fast`, `-normal`, `-slow`, `--stratum-ease-out`, `--stratum-ease-in-out` | Motion |
 | `--stratum-edge` | Bedrock only. Set it to `none` to remove the ragged edges. |

@@ -1,0 +1,869 @@
+/* @stratum-hq/react: the ANSI Strata theme (optional).
+ *
+ * ANSI Strata draws the components as a bulletin board screen cut through
+ * the earth: a warm dark ground, double-rule frames with a corner square at
+ * two corners, bracketed menu keys that invert on hover, dashed rules, and
+ * one rock band per tenant depth with the name cut into it as a label. Text
+ * carries state as a bracketed word. Magma is kept for the primary action
+ * and for LOCKED; vein marks frames, links and the current selection. The
+ * landing site and the docs at stratum-hq.org use the same look.
+ *
+ * Load it after base.css, instead of theme-bedrock.css. It goes into the
+ * stratum.theme layer, so it wins over stratum.base whatever the import
+ * order, and an unlayered host rule still wins over both. It keeps the same
+ * rules as base.css: --stratum- tokens only, and selectors that match
+ * stratum- elements only.
+ *
+ * The fonts are in fonts-ansi-strata.css, a separate import: VT323 for
+ * labels, headings, controls and data, and Atkinson Hyperlegible Next for
+ * text. Without it, the font tokens fall back to installed fonts.
+ */
+@layer stratum.base, stratum.theme;
+
+@layer stratum.theme {
+  /* ============================================================
+     Tokens: the light palette (paper), and the tokens that do not
+     change with the color scheme.
+     ============================================================ */
+  :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F2E9D8;
+    --stratum-surface-1: #F7EFE0;
+    --stratum-surface-2: #FFFAF0;
+    --stratum-surface-3: #E8DCC4;
+
+    --stratum-text-primary: #1C140F;
+    --stratum-text-secondary: #5A4A3B;
+    --stratum-text-tertiary: #6E5B49;
+
+    --stratum-accent: #A02E06;
+    --stratum-accent-hover: #8A2704;
+    --stratum-accent-text: #A02E06;
+    --stratum-on-accent: #FFFAF0;
+    --stratum-accent-deep: #7A2203;
+    --stratum-accent-glow: rgba(160, 46, 6, 0.3);
+
+    --stratum-flow: #075E50;
+    --stratum-on-flow: #FFFAF0;
+    --stratum-focus: #075E50;
+    --stratum-rule: #6E5B49;
+    --stratum-border: #CDBFA5;
+    --stratum-border-hover: #A89679;
+
+    --stratum-success: #3E6B1E;
+    --stratum-warning: #6E5300;
+    --stratum-warning-fill: #FFB21E;
+    --stratum-on-warning: #1C140F;
+    --stratum-error: #A02E06;
+    --stratum-info: #6E5300;
+
+    /* Headings and frame titles: sandstone, darkened to hold AA on paper. */
+    --stratum-heading: #6E5300;
+
+    /* The code well stays dark in both palettes. */
+    --stratum-code-bg: #1A130F;
+    --stratum-code-text: #F4EAD8;
+
+    /* Rock bands, shallow to deep, the same in both palettes. Tenant
+       names sit on the ground color, cut into the band, so the ink
+       tokens are for the toggle and the drag handle. */
+    --stratum-tree-band-0: #8F5F36;   /* topsoil */
+    --stratum-tree-band-1: #D2683C;   /* clay */
+    --stratum-tree-band-2: #E0B266;   /* sandstone */
+    --stratum-tree-band-3: #D6CDB8;   /* limestone */
+    --stratum-tree-band-4: #4A4A52;   /* basalt */
+    --stratum-tree-on-band-0: #F4EAD8;
+    --stratum-tree-on-band-1: #120D0B;
+    --stratum-tree-on-band-2: #120D0B;
+    --stratum-tree-on-band-3: #120D0B;
+    --stratum-tree-on-band-4: #F4EAD8;
+
+    --stratum-font-display: "VT323", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --stratum-font-body: "Atkinson Hyperlegible Next", system-ui, "Helvetica Neue", Arial, sans-serif;
+    --stratum-font-mono: "VT323", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    /* A terminal has no rounded corners and no shadows. */
+    --stratum-radius-sm: 0;
+    --stratum-radius: 0;
+    --stratum-shadow-raised: none;
+
+    /* VT323 is small for its size. Scaling every face by its x-height
+       sets it at a readable size wherever base.css uses the mono or
+       display face, and leaves the text face about where it was. */
+    font-size-adjust: 0.52;
+    /* VT323 has one weight. A synthesized bold smears its pixels. */
+    font-synthesis-weight: none;
+
+    /* One step up from base.css: the pixel face needs the room. */
+    --stratum-font-size-xs: 0.75rem;
+    --stratum-font-size-sm: 0.8125rem;
+    --stratum-font-size-md: 0.9375rem;
+    --stratum-font-size-lg: 1.0625rem;
+    --stratum-font-size-xl: 1.375rem;
+
+    --stratum-accent-muted: color-mix(in srgb, var(--stratum-accent) 14%, transparent);
+    --stratum-flow-muted: color-mix(in srgb, var(--stratum-flow) 12%, transparent);
+    --stratum-lock-muted: color-mix(in srgb, var(--stratum-lock) 16%, transparent);
+    --stratum-warning-bg: color-mix(in srgb, var(--stratum-warning) 12%, var(--stratum-surface-1));
+  }
+
+  /* ============================================================
+     Tokens: the dark palette. The dark color scheme applies it,
+     unless an ancestor sets data-theme="light".
+     ============================================================ */
+  @media (prefers-color-scheme: dark) {
+    :where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *):not(:where([data-theme="light"], [data-theme="light"] *)) {
+      color-scheme: dark;
+
+      --stratum-surface-0: #241B15;
+      --stratum-surface-1: #2B211A;
+      --stratum-surface-2: #33281F;
+      --stratum-surface-3: #3D3026;
+
+      --stratum-text-primary: #F4EAD8;
+      --stratum-text-secondary: #C2B19A;
+      --stratum-text-tertiary: #A8957C;
+
+      --stratum-accent: #FF5B1F;
+      --stratum-accent-hover: #FF6A33;
+      --stratum-accent-text: #FF6A33;
+      --stratum-on-accent: #120D0B;
+      --stratum-accent-deep: #A63A10;
+      --stratum-accent-glow: rgba(255, 91, 31, 0.4);
+
+      --stratum-flow: #35C2A8;
+      --stratum-on-flow: #241B15;
+      --stratum-focus: #35C2A8;
+      --stratum-rule: #8C7660;
+      --stratum-border: #4A3B2F;
+      --stratum-border-hover: #6A5644;
+
+      --stratum-success: #7FAF45;
+      --stratum-warning: #FFB21E;
+      --stratum-warning-fill: #FFB21E;
+      --stratum-on-warning: #120D0B;
+      --stratum-error: #FF6A33;
+      --stratum-info: #E0B266;
+
+      --stratum-heading: #E0B266;
+    }
+  }
+
+  :where([data-theme="dark"], [data-theme="dark"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: dark;
+
+    --stratum-surface-0: #241B15;
+    --stratum-surface-1: #2B211A;
+    --stratum-surface-2: #33281F;
+    --stratum-surface-3: #3D3026;
+
+    --stratum-text-primary: #F4EAD8;
+    --stratum-text-secondary: #C2B19A;
+    --stratum-text-tertiary: #A8957C;
+
+    --stratum-accent: #FF5B1F;
+    --stratum-accent-hover: #FF6A33;
+    --stratum-accent-text: #FF6A33;
+    --stratum-on-accent: #120D0B;
+    --stratum-accent-deep: #A63A10;
+    --stratum-accent-glow: rgba(255, 91, 31, 0.4);
+
+    --stratum-flow: #35C2A8;
+    --stratum-on-flow: #241B15;
+    --stratum-focus: #35C2A8;
+    --stratum-rule: #8C7660;
+    --stratum-border: #4A3B2F;
+    --stratum-border-hover: #6A5644;
+
+    --stratum-success: #7FAF45;
+    --stratum-warning: #FFB21E;
+    --stratum-warning-fill: #FFB21E;
+    --stratum-on-warning: #120D0B;
+    --stratum-error: #FF6A33;
+    --stratum-info: #E0B266;
+
+    --stratum-heading: #E0B266;
+  }
+
+  /* The light palette inside a dark ancestor. It comes last so that the nearer light theme wins. */
+  :where([data-theme="light"], [data-theme="light"] *):where([class^="stratum-"], [class*=" stratum-"]):not(:where([class^="stratum-"], [class*=" stratum-"]) *) {
+    color-scheme: light;
+
+    --stratum-surface-0: #F2E9D8;
+    --stratum-surface-1: #F7EFE0;
+    --stratum-surface-2: #FFFAF0;
+    --stratum-surface-3: #E8DCC4;
+
+    --stratum-text-primary: #1C140F;
+    --stratum-text-secondary: #5A4A3B;
+    --stratum-text-tertiary: #6E5B49;
+
+    --stratum-accent: #A02E06;
+    --stratum-accent-hover: #8A2704;
+    --stratum-accent-text: #A02E06;
+    --stratum-on-accent: #FFFAF0;
+    --stratum-accent-deep: #7A2203;
+    --stratum-accent-glow: rgba(160, 46, 6, 0.3);
+
+    --stratum-flow: #075E50;
+    --stratum-on-flow: #FFFAF0;
+    --stratum-focus: #075E50;
+    --stratum-rule: #6E5B49;
+    --stratum-border: #CDBFA5;
+    --stratum-border-hover: #A89679;
+
+    --stratum-success: #3E6B1E;
+    --stratum-warning: #6E5300;
+    --stratum-warning-fill: #FFB21E;
+    --stratum-on-warning: #1C140F;
+    --stratum-error: #A02E06;
+    --stratum-info: #6E5300;
+
+    /* Headings and frame titles: sandstone, darkened to hold AA on paper. */
+    --stratum-heading: #6E5300;
+  }
+
+  /* ============================================================
+     Focus: a solid vein ring with a ground halo outside it, so it
+     holds 3:1 on every ground, rock bands included.
+     ============================================================ */
+  .stratum-tenant-switcher button:focus-visible,
+  .stratum-tenant-switcher [tabindex]:focus-visible,
+  .stratum-tree button:focus-visible,
+  .stratum-tree [tabindex]:focus-visible,
+  .stratum-config-editor button:focus-visible,
+  .stratum-permission-editor button:focus-visible,
+  .stratum-webhook-editor button:focus-visible,
+  .stratum-cascade button:focus-visible,
+  .stratum-toast__dismiss:focus-visible,
+  .stratum-empty-state__action:focus-visible,
+  .stratum-empty-state__docs:focus-visible,
+  .stratum-tenant-health-card--clickable:focus-visible {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--stratum-surface-0);
+  }
+
+  /* ============================================================
+     Panel: a double-rule frame with a corner square at the top
+     left and the bottom right, on the ground color.
+     ============================================================ */
+  .stratum-config-editor,
+  .stratum-permission-editor,
+  .stratum-webhook-editor,
+  .stratum-audit-viewer,
+  .stratum-tenant-health-card,
+  .stratum-cascade-panel {
+    position: relative;
+    border: 3px double var(--stratum-flow);
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+    font-family: var(--stratum-font-body);
+  }
+
+  .stratum-config-editor::before,
+  .stratum-permission-editor::before,
+  .stratum-webhook-editor::before,
+  .stratum-audit-viewer::before,
+  .stratum-tenant-health-card::before,
+  .stratum-cascade-panel::before,
+  .stratum-config-editor::after,
+  .stratum-permission-editor::after,
+  .stratum-webhook-editor::after,
+  .stratum-audit-viewer::after,
+  .stratum-tenant-health-card::after,
+  .stratum-cascade-panel::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border: 2px solid var(--stratum-flow);
+    background: var(--stratum-surface-0);
+    pointer-events: none;
+  }
+
+  .stratum-config-editor::before,
+  .stratum-permission-editor::before,
+  .stratum-webhook-editor::before,
+  .stratum-audit-viewer::before,
+  .stratum-tenant-health-card::before,
+  .stratum-cascade-panel::before {
+    top: -7px;
+    left: -7px;
+  }
+
+  .stratum-config-editor::after,
+  .stratum-permission-editor::after,
+  .stratum-webhook-editor::after,
+  .stratum-audit-viewer::after,
+  .stratum-tenant-health-card::after,
+  .stratum-cascade-panel::after {
+    right: -7px;
+    bottom: -7px;
+  }
+
+  /* ============================================================
+     Button: a bracketed menu key. The add action of an editor is
+     the one magma key; the others are vein. Hover and focus
+     invert, as on a board.
+     ============================================================ */
+  .stratum-config-editor button,
+  .stratum-permission-editor button,
+  .stratum-webhook-editor button,
+  .stratum-cascade-retry,
+  .stratum-empty-state__action,
+  .stratum-tree__action-btn {
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    font-size: var(--stratum-font-size-md);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .stratum-config-editor button::before,
+  .stratum-permission-editor button::before,
+  .stratum-webhook-editor button::before,
+  .stratum-cascade-retry::before,
+  .stratum-empty-state__action::before,
+  .stratum-tree__action-btn::before {
+    content: "[\00a0";
+    content: "[\00a0" / "";
+  }
+
+  .stratum-config-editor button::after,
+  .stratum-permission-editor button::after,
+  .stratum-webhook-editor button::after,
+  .stratum-cascade-retry::after,
+  .stratum-empty-state__action::after,
+  .stratum-tree__action-btn::after {
+    content: "\00a0]";
+    content: "\00a0]" / "";
+  }
+
+  .stratum-config-editor button:hover:not(:disabled),
+  .stratum-permission-editor button:hover:not(:disabled),
+  .stratum-webhook-editor button:hover:not(:disabled),
+  .stratum-cascade-retry:hover:not(:disabled),
+  .stratum-tree__action-btn:hover:not(:disabled) {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-config-editor__add button,
+  .stratum-permission-editor__add button,
+  .stratum-webhook-editor__add button,
+  .stratum-empty-state__action {
+    background: var(--stratum-accent);
+    color: var(--stratum-on-accent);
+  }
+
+  .stratum-config-editor__add button:hover:not(:disabled),
+  .stratum-permission-editor__add button:hover:not(:disabled),
+  .stratum-webhook-editor__add button:hover:not(:disabled),
+  .stratum-empty-state__action:hover:not(:disabled) {
+    background: var(--stratum-text-primary);
+    color: var(--stratum-surface-0);
+  }
+
+  /* Save as string is a second choice: a vein key, not the magma one. */
+  .stratum-config-editor__add .stratum-config-editor__field-error button {
+    background: transparent;
+    color: var(--stratum-flow);
+  }
+
+  /* The destructive choice is a key in the error color. */
+  .stratum-config-editor .stratum-confirm__yes,
+  .stratum-webhook-editor .stratum-confirm__yes,
+  .stratum-tree__action-btn--danger {
+    color: var(--stratum-error);
+  }
+
+  .stratum-config-editor .stratum-confirm__yes:hover:not(:disabled),
+  .stratum-webhook-editor .stratum-confirm__yes:hover:not(:disabled),
+  .stratum-tree__action-btn--danger:hover:not(:disabled) {
+    background: var(--stratum-error);
+    color: var(--stratum-surface-0);
+  }
+
+  .stratum-config-editor button:disabled,
+  .stratum-permission-editor button:disabled,
+  .stratum-webhook-editor button:disabled {
+    background: transparent;
+    color: var(--stratum-text-tertiary);
+    cursor: not-allowed;
+  }
+
+  /* ============================================================
+     Field: a dashed vein rule round the field, solid on hover,
+     the terminal face inside.
+     ============================================================ */
+  .stratum-config-editor input,
+  .stratum-permission-editor input,
+  .stratum-permission-editor select,
+  .stratum-webhook-editor input,
+  .stratum-webhook-editor select,
+  .stratum-tenant-switcher__search {
+    border: 1px dashed var(--stratum-flow);
+    border-radius: 0;
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-md);
+  }
+
+  .stratum-config-editor input:hover,
+  .stratum-permission-editor input:hover,
+  .stratum-permission-editor select:hover,
+  .stratum-webhook-editor input:hover,
+  .stratum-webhook-editor select:hover,
+  .stratum-tenant-switcher__search:hover {
+    border-style: solid;
+  }
+
+  .stratum-config-editor input:focus-visible,
+  .stratum-permission-editor input:focus-visible,
+  .stratum-permission-editor select:focus-visible,
+  .stratum-webhook-editor input:focus-visible,
+  .stratum-webhook-editor select:focus-visible,
+  .stratum-tenant-switcher__search:focus-visible {
+    border-style: solid;
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+  }
+
+  .stratum-config-editor input[aria-invalid="true"],
+  .stratum-permission-editor input[aria-invalid="true"],
+  .stratum-webhook-editor input[aria-invalid="true"] {
+    border: 1px solid var(--stratum-error);
+  }
+
+  .stratum-config-editor__lock-option input {
+    border: 0;
+    accent-color: var(--stratum-flow);
+  }
+
+  /* ============================================================
+     Tag: state as a bracketed word in its color. The glyph stays
+     decorative; the word carries the meaning, never color alone.
+     ============================================================ */
+  .stratum-badge,
+  .stratum-cascade-badge,
+  .stratum-cascade-diff__stat,
+  .stratum-tenant-health-card__industry {
+    gap: 4px;
+    padding: 0 2px;
+    background: transparent;
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    font-size: var(--stratum-font-size-sm);
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+  }
+
+  .stratum-badge::after,
+  .stratum-cascade-badge::after,
+  .stratum-cascade-diff__stat::after,
+  .stratum-tenant-health-card__industry::after {
+    content: "]";
+    content: "]" / "";
+  }
+
+  .stratum-badge--locked::before { content: "[\25A0"; content: "[\25A0" / ""; }
+  .stratum-badge--inherited::before { content: "[\2193"; content: "[\2193" / ""; }
+  .stratum-badge--delegated::before { content: "[\21C4"; content: "[\21C4" / ""; }
+  .stratum-badge--own::before { content: "[\25B3"; content: "[\25B3" / ""; }
+
+  .stratum-cascade-badge::before,
+  .stratum-cascade-diff__stat::before,
+  .stratum-tenant-health-card__industry::before {
+    content: "[";
+    content: "[" / "";
+  }
+
+  .stratum-badge--locked,
+  .stratum-cascade-badge--locked,
+  .stratum-cascade-diff__stat--locked {
+    background: transparent;
+    color: var(--stratum-accent-text);
+  }
+
+  .stratum-badge--inherited,
+  .stratum-cascade-badge--inherited,
+  .stratum-cascade-diff__stat--inherited {
+    background: transparent;
+    color: var(--stratum-flow);
+  }
+
+  .stratum-badge--delegated {
+    background: transparent;
+    color: var(--stratum-warning);
+  }
+
+  .stratum-badge--own,
+  .stratum-cascade-badge--own,
+  .stratum-cascade-diff__stat--own,
+  .stratum-tenant-health-card__industry {
+    background: transparent;
+    color: var(--stratum-text-primary);
+  }
+
+  /* ============================================================
+     Tables of the editors: a terminal listing. Headers are vein
+     labels over a dashed rule, rows split by dashed rules.
+     ============================================================ */
+  .stratum-config-editor__table th,
+  .stratum-permission-editor__table th,
+  .stratum-webhook-editor__table th,
+  .stratum-audit-viewer__table th,
+  .stratum-table-skeleton__table th,
+  .stratum-cascade-table th {
+    border-bottom: 1px dashed var(--stratum-flow);
+    background: transparent;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    font-size: var(--stratum-font-size-sm);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stratum-config-editor__table td,
+  .stratum-permission-editor__table td,
+  .stratum-webhook-editor__table td,
+  .stratum-audit-viewer__table td,
+  .stratum-table-skeleton__table td,
+  .stratum-cascade-table td {
+    border-bottom: 1px dashed var(--stratum-border);
+  }
+
+  .stratum-config-editor__key,
+  .stratum-config-editor__value,
+  .stratum-cascade-key,
+  .stratum-cascade-value {
+    font-family: var(--stratum-font-mono);
+  }
+
+  .stratum-config-editor__key,
+  .stratum-cascade-key {
+    color: var(--stratum-text-primary);
+  }
+
+  .stratum-config-editor__value,
+  .stratum-cascade-value {
+    color: var(--stratum-heading);
+  }
+
+  .stratum-config-editor__row--locked .stratum-config-editor__key,
+  .stratum-cascade-row--locked .stratum-cascade-key {
+    color: var(--stratum-accent-text);
+  }
+
+  .stratum-confirm__prompt,
+  .stratum-config-editor__locked-by,
+  .stratum-permission-editor__set-by,
+  .stratum-config-editor__source,
+  .stratum-permission-editor__source {
+    font-family: var(--stratum-font-mono);
+  }
+
+  /* ============================================================
+     Tenant Switcher: the trigger is a menu key, the dropdown a
+     framed menu with the current item highlighted.
+     ============================================================ */
+  .stratum-tenant-switcher__trigger {
+    border: 1px dashed var(--stratum-flow);
+    border-radius: 0;
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .stratum-tenant-switcher__trigger:hover,
+  .stratum-tenant-switcher__trigger[aria-expanded="true"] {
+    border-style: solid;
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-tenant-switcher__dropdown {
+    border: 3px double var(--stratum-flow);
+    border-radius: 0;
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+  }
+
+  .stratum-tenant-switcher__item {
+    border-radius: 0;
+  }
+
+  .stratum-tenant-switcher__item:hover {
+    background: var(--stratum-flow-muted);
+  }
+
+  /* The current tenant is the highlighted key: vein with ground text. */
+  .stratum-tenant-switcher__item--active,
+  .stratum-tenant-switcher__item--active:hover {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-tenant-switcher__item--active .stratum-tenant-switcher__slug {
+    color: inherit;
+  }
+
+  .stratum-tenant-switcher__slug {
+    font-family: var(--stratum-font-mono);
+  }
+
+  /* ============================================================
+     Tenant Tree: one band of rock per tenant, colored by depth,
+     with the name cut into it as a label on the ground color.
+     ============================================================ */
+  .stratum-tree__node {
+    margin-top: 2px;
+    border-radius: 0;
+  }
+
+  .stratum-tree__label {
+    flex: 0 1 auto;
+    padding: 0 0.4em;
+    background: var(--stratum-surface-0);
+    color: var(--stratum-text-primary);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    font-size: var(--stratum-font-size-lg);
+    letter-spacing: 0.02em;
+  }
+
+  .stratum-tree__badge,
+  .stratum-tree__meta {
+    padding: 0 0.4em;
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    font-size: var(--stratum-font-size-sm);
+    letter-spacing: 0.06em;
+  }
+
+  .stratum-tree__meta {
+    color: var(--stratum-text-secondary);
+  }
+
+  /* Row actions are icon keys, so they close their brackets tight to fit
+     a narrow panel. */
+  .stratum-tree__action-btn {
+    min-height: 24px;
+    padding: 0 2px;
+  }
+
+  .stratum-tree__action-btn::before {
+    content: "[";
+    content: "[" / "";
+  }
+
+  .stratum-tree__action-btn::after {
+    content: "]";
+    content: "]" / "";
+  }
+
+  /* The isolation strategy reads as a bracketed tag, as in the landing hero. */
+  .stratum-tree__badge::before {
+    content: "[";
+    content: "[" / "";
+  }
+
+  .stratum-tree__badge::after {
+    content: "]";
+    content: "]" / "";
+  }
+
+  /* The tag sits beside the name; the actions go to the far end of the band. */
+  .stratum-tree__actions {
+    margin-inline-start: auto;
+    background: var(--stratum-surface-0);
+  }
+
+  /* Selected: the name inverts to vein, as the current key on a board,
+     and keeps its underline so the state does not rest on color alone. */
+  .stratum-tree__node--selected {
+    box-shadow: none;
+  }
+
+  .stratum-tree__node--selected .stratum-tree__label {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-tree [role="treeitem"]:focus-visible > .stratum-tree__node {
+    outline: 2px solid var(--stratum-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 6px var(--stratum-surface-0);
+  }
+
+  .stratum-tree__node--drop-target {
+    outline: 2px dashed var(--stratum-flow);
+  }
+
+  .stratum-tree__drag-overlay {
+    border-radius: 0;
+    font-family: var(--stratum-font-mono);
+    font-size: var(--stratum-font-size-lg);
+  }
+
+  /* ============================================================
+     Config Inheritance Visualizer
+     ============================================================ */
+  .stratum-cascade-tabs {
+    border-bottom: 1px dashed var(--stratum-flow);
+  }
+
+  .stratum-cascade-tab {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-tab.active,
+  .stratum-cascade-tab.active:hover {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  .stratum-cascade-panel__header {
+    border-width: 0 0 1px;
+    border-style: dashed;
+    border-color: var(--stratum-flow);
+  }
+
+  .stratum-cascade-diff {
+    border-top: 1px dashed var(--stratum-flow);
+  }
+
+  .stratum-cascade-panel__title,
+  .stratum-tenant-health-card__name,
+  .stratum-empty-state__title {
+    color: var(--stratum-heading);
+    font-family: var(--stratum-font-display);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-panel__subtitle,
+  .stratum-cascade-diff__label {
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stratum-cascade-row--highlight td {
+    background: var(--stratum-flow-muted);
+  }
+
+  /* ============================================================
+     Toast: a double-rule frame in the status color, the status
+     word in brackets ahead of the message.
+     ============================================================ */
+  .stratum-toast {
+    border: 3px double var(--stratum-toast-status);
+    border-radius: 0;
+    background: var(--stratum-surface-0);
+    box-shadow: none;
+  }
+
+  .stratum-toast__message::before {
+    color: var(--stratum-toast-status);
+    font-family: var(--stratum-font-mono);
+  }
+
+  .stratum-toast__dismiss {
+    border-radius: 0;
+    color: var(--stratum-flow);
+    font-family: var(--stratum-font-mono);
+  }
+
+  .stratum-toast__dismiss:hover {
+    background: var(--stratum-flow);
+    color: var(--stratum-on-flow);
+  }
+
+  /* ============================================================
+     Empty State and Tenant Health Card
+     ============================================================ */
+  .stratum-empty-state {
+    border: 1px dashed var(--stratum-flow);
+    border-radius: 0;
+  }
+
+  .stratum-empty-state__docs {
+    color: var(--stratum-flow);
+    text-underline-offset: 3px;
+  }
+
+  .stratum-tenant-health-card--clickable:hover {
+    border-color: var(--stratum-text-primary);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .stratum-tenant-health-card__slug {
+    font-family: var(--stratum-font-mono);
+    color: var(--stratum-text-secondary);
+  }
+
+  /* ============================================================
+     Config Drift Indicator: a bracketed status word.
+     ============================================================ */
+  .stratum-config-drift-indicator {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-family: var(--stratum-font-mono);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+  }
+
+  .stratum-config-drift-indicator::before {
+    content: "[";
+    content: "[" / "";
+  }
+
+  .stratum-config-drift-indicator::after {
+    content: "]";
+    content: "]" / "";
+  }
+
+  .stratum-config-drift-indicator__dot,
+  .stratum-tenant-health-card__dot {
+    border-radius: 0;
+  }
+
+  /* ============================================================
+     Skeleton: square corners, as everywhere else.
+     ============================================================ */
+  .stratum-skeleton {
+    border-radius: 0;
+  }
+}
