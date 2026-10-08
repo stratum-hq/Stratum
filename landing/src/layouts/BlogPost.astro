@@ -15,7 +15,7 @@ const { title, accent, seoTitle, description, intro, pubDate, updated, tags, can
 
 const site = 'https://stratum-hq.org';
 const url = new URL(postPath(post), site).href;
-const imageUrl = new URL(ogImage ?? '/og.png', site).href;
+const imageUrl = new URL(ogImage ?? '/og.png?v=ansi', site).href;
 
 // The heading shows `accent` in the accent color. A value that is not in the
 // title is ignored, so a typo cannot drop words from the heading.

@@ -174,9 +174,9 @@ export default defineConfig({
         { tag: "link", attrs: { rel: "icon", href: "/favicon.ico?v=bedrock", sizes: "32x32" } },
         { tag: "link", attrs: { rel: "apple-touch-icon", href: "/apple-touch-icon.png?v=bedrock" } },
         { tag: "link", attrs: { rel: "manifest", href: "/site.webmanifest" } },
-        { tag: "meta", attrs: { property: "og:image", content: "https://docs.stratum-hq.org/og.png" } },
+        { tag: "meta", attrs: { property: "og:image", content: "https://docs.stratum-hq.org/og.png?v=ansi" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
-        { tag: "meta", attrs: { name: "twitter:image", content: "https://docs.stratum-hq.org/og.png" } },
+        { tag: "meta", attrs: { name: "twitter:image", content: "https://docs.stratum-hq.org/og.png?v=ansi" } },
         {
           tag: "script",
           attrs: { type: "application/ld+json" },
