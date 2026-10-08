@@ -238,6 +238,9 @@ describe("Stratum on PGlite", () => {
     expect(await stratum.applySensitiveConfigFlags()).toBe(0);
   });
 
+  // 105 sensitive keys on PGlite take about 0.15s locally, but over 5s on a CI
+  // runner that also runs every other package's tests, so this one test gets a
+  // longer budget than vitest's 5s default.
   it("applySensitiveConfigFlags pages through more than one batch", async () => {
     const root = await stratum.createTenant({ name: "Paging root", slug: "sg_root" });
     const child = await stratum.createTenant({ name: "Paging child", slug: "sg_child", parent_id: root.id });
@@ -269,7 +272,7 @@ describe("Stratum on PGlite", () => {
       expect(resolved[key]).toMatchObject({ value: `child-${key}`, sensitive: true });
     }
     expect(await stratum.applySensitiveConfigFlags()).toBe(0);
-  });
+  }, 30_000);
 
   it("rejects a batch that names the same key twice and writes nothing", async () => {
     const t = await stratum.createTenant({ name: "Dup batch", slug: "sd_dup" });

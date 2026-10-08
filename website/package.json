@@ -24,5 +24,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"
+  },
+  "overrides": {
+    "postcss-selector-parser": "^7.1.6"
   }
 }
