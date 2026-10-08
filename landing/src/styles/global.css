@@ -8,6 +8,64 @@
 @import url('../../../assets/tokens.css');
 @import url('../../../assets/ansi/world.css');
 
+/* ===== WORLD TOKENS ===== */
+:root {
+  --bbs-font: "VT323", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --prose-font: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+
+  --font-display: var(--bbs-font);
+  --font-mono: var(--bbs-font);
+  --font-body: var(--prose-font);
+
+  /* Bedrock's cut edges, grain and lip shadows have no place on a terminal. */
+  --edge-ledge: none;
+  --edge-ledge-b: none;
+  --edge-row: none;
+  --edge-chip: none;
+  --edge-slab: none;
+  --edge-fault: none;
+  --grain: none;
+  --lam: none;
+  --lit: none;
+  --shade: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
+  --shadow-sunk: none;
+
+  /* Text roles. Each holds WCAG AA on its ground in both themes. */
+  --t-frame: var(--vein);
+  --t-hot: var(--magma);
+  --t-kw: var(--clay);
+  --t-str: var(--sandstone-band);
+  --t-num: var(--amber-fill);
+  --moss-t: #7FAF45;
+}
+/* The ground is a warm dark brown, a step up from peat. */
+[data-theme="dark"] {
+  --surface-0: #241B15;
+  --surface-1: #2B211A;
+  --surface-2: #33281F;
+  --surface-3: #3D3026;
+  --on-vein: #241B15;
+  --code-bg: #1A130F;
+  --border: #4A3B2F;
+}
+/* On paper every text role darkens until it holds AA (4.5:1) on #F2E9D8. */
+[data-theme="light"] {
+  --t-frame: #075E50;
+  --t-hot: #A02E06;
+  --t-kw: #8E3A16;
+  --t-str: #6E5300;
+  --t-num: #6E5300;
+  --moss-t: #3E6B1E;
+  --limestone: #8A7F6B;
+  --sandstone-band: #B08431;
+  --code-bg: #FFFAF0;
+  --code-text: #1C140F;
+}
+
 /* ===== RESET ===== */
 *, *::before, *::after {
   box-sizing: border-box;
