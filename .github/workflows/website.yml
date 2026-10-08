@@ -2,11 +2,13 @@ name: Website
 
 # The docs Playground builds @stratum-hq/lib and the PGlite adapter from
 # packages/, so a change there can break the docs build or the Playground.
+# The docs theme imports the shared tokens and ANSI art from assets/.
 on:
   push:
     branches: [main]
     paths:
       - "website/**"
+      - "assets/**"
       - "packages/lib/**"
       - "packages/core/**"
       - "packages/sdk/**"
@@ -15,6 +17,7 @@ on:
   pull_request:
     paths:
       - "website/**"
+      - "assets/**"
       - "packages/lib/**"
       - "packages/core/**"
       - "packages/sdk/**"

@@ -31,12 +31,13 @@ const jsonLd = {
   ],
 };
 
-// Stratum type families: Big Shoulders Display, Instrument Sans, Martian Mono.
-// Loaded non-blocking from
-// the document head rather than via a render-blocking @import in the shared
-// token file, so fonts never gate first paint.
+// ANSI Strata type: VT323 for headings, navigation, labels and code, and
+// Atkinson Hyperlegible Next for prose; the landing site loads the same two.
+// Loaded non-blocking from the document head rather than via a
+// render-blocking @import in the shared token file, so fonts never gate
+// first paint.
 const fontsHref =
-  "https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=VT323&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,500;0,700;1,400&display=swap";
 
 export default defineConfig({
   site: "https://docs.stratum-hq.org",
@@ -75,10 +76,13 @@ export default defineConfig({
         ThemeSelect: "./src/components/ThemeSelect.astro",
         // Adds the marketing site links to the header, ahead of GitHub.
         SocialIcons: "./src/components/SocialIcons.astro",
+        // The splash title screen and the bedrock band under every page.
+        Hero: "./src/components/Hero.astro",
+        Footer: "./src/components/Footer.astro",
       },
       // The code well stays dark in both themes, so Expressive Code renders one
-      // dark theme, built from the Bedrock code tokens, and takes its frame
-      // colors from the shared tokens.
+      // dark theme, built from the ANSI Strata text roles. custom.css draws
+      // the double-rule frame around it.
       expressiveCode: {
         themes: [bedrockCodeTheme],
         // A shell block renders as a terminal window by default: an empty title
@@ -92,19 +96,29 @@ export default defineConfig({
         useStarlightUiThemeColors: false,
         styleOverrides: {
           borderRadius: "0",
-          borderColor: "var(--seam)",
-          codeBackground: "var(--code-bg)",
-          codeFontFamily: "var(--font-mono)",
-          codeFontSize: "0.78rem",
-          uiFontFamily: "var(--font-body)",
+          borderWidth: "0",
+          borderColor: "transparent",
+          codeBackground: "var(--well)",
+          codeFontFamily: "var(--bbs-font)",
+          codeFontSize: "1.15rem",
+          codeLineHeight: "1.35",
+          uiFontFamily: "var(--bbs-font)",
+          uiFontSize: "1.125rem",
           frames: {
             shadowColor: "transparent",
-            editorTabBarBackground: "var(--code-bg)",
-            editorActiveTabBackground: "var(--code-bg)",
-            editorActiveTabIndicatorTopColor: "var(--magma)",
-            terminalTitlebarBackground: "var(--code-bg)",
-            terminalBackground: "var(--code-bg)",
-            terminalTitlebarDotsForeground: "var(--topsoil)",
+            editorTabBarBackground: "var(--well)",
+            editorTabBarBorderBottomColor: "transparent",
+            editorActiveTabBackground: "var(--well)",
+            editorActiveTabBorderColor: "transparent",
+            editorActiveTabIndicatorTopColor: "transparent",
+            editorActiveTabIndicatorBottomColor: "transparent",
+            terminalTitlebarBackground: "var(--well)",
+            terminalBackground: "var(--well)",
+            terminalTitlebarBorderBottomColor: "transparent",
+            terminalTitlebarDotsForeground: "var(--border)",
+            inlineButtonBackground: "var(--well)",
+            inlineButtonForeground: "var(--well-text)",
+            inlineButtonBorder: "var(--border)",
           },
           // A marked line is the one thing in the well that glows: magma.
           textMarkers: {

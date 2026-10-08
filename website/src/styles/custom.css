@@ -1,367 +1,430 @@
 /* ==========================================================================
-   Stratum Docs: custom Starlight theme.
+   Stratum Docs: the ANSI Strata theme for Starlight.
 
-   Design tokens come from the shared source of truth at assets/tokens.css.
-   This file only maps Starlight's --sl-* variables
-   onto those shared tokens and styles docs specific surfaces. Do not hardcode
-   hex here; change or add a token in the shared file so this site and the
-   landing site cannot drift.
-   Palette: Bedrock (dark, default) / Daylight (light).
-   Type: Big Shoulders Display / Instrument Sans / Martian Mono.
+   The palette comes from assets/tokens.css, and assets/ansi/world.css remaps
+   it into ANSI Strata; the landing site imports the same two files. This file
+   maps Starlight's --sl-* variables onto those tokens and draws the docs
+   surfaces in the world: a framed status bar, menu-key navigation, double
+   rule panels and a dark code listing. Do not hardcode hex here except for
+   the code well, which stays dark in both themes (see bedrock-code-theme.mjs).
+
+   Docs are for reading, so prose sets in Atkinson Hyperlegible Next and
+   VT323 carries headings, navigation, labels and code. Content headings keep
+   the case they are written in, because package names such as
+   @stratum-hq/sdk are case-sensitive.
    ========================================================================== */
 
 @import url('../../../assets/tokens.css');
+@import url('../../../assets/ansi/world.css');
 
 /* --------------------------------------------------------------------------
-   Map Starlight's --sl-* variables onto the shared tokens. Both selectors are
-   listed so this wins over Starlight's own light defaults; the referenced
-   tokens already carry the correct dark and light values, so one set of
-   expressions covers both themes.
+   Map Starlight's --sl-* variables onto the world. Both selectors are listed
+   so this wins over Starlight's own light defaults; the referenced tokens
+   carry the correct dark and light values.
    -------------------------------------------------------------------------- */
 :root,
 :root[data-theme="light"] {
-  /* Accent: magma */
+  /* Links, the current page and focus take vein, the world's frame color.
+     Magma is kept for the one primary action on a view. */
   --sl-color-accent-low: var(--surface-2);
-  --sl-color-accent: var(--accent);
-  --sl-color-accent-high: var(--text-primary);
+  --sl-color-accent: var(--t-frame);
+  --sl-color-accent-high: var(--t-frame);
+  --sl-color-text-accent: var(--t-frame);
 
-  /* Gray ramp remapped onto the ground / surface / ink scale */
   --sl-color-white: var(--text-primary);
   --sl-color-gray-1: var(--text-secondary);
-  --sl-color-gray-2: var(--text-tertiary);
-  --sl-color-text: var(--sl-color-gray-1);
-  --sl-color-gray-3: var(--rule);
+  --sl-color-gray-2: var(--text-secondary);
+  --sl-color-text: var(--text-primary);
+  --sl-color-gray-3: var(--text-tertiary);
   --sl-color-gray-4: var(--border);
   --sl-color-gray-5: var(--surface-1);
   --sl-color-gray-6: var(--surface-0);
   --sl-color-gray-7: var(--surface-1);
   --sl-color-black: var(--surface-0);
-  /* Ink on an accent fill (the current page in the sidebar): dark on magma in
-     Bedrock, light on dark magma in Daylight. */
-  --sl-color-text-invert: var(--on-accent);
+  --sl-color-bg: var(--surface-0);
+  --sl-color-bg-nav: var(--surface-0);
+  --sl-color-bg-sidebar: var(--surface-0);
+  --sl-color-bg-inline-code: var(--surface-2);
+  --sl-color-hairline: var(--border);
+  --sl-color-hairline-light: var(--border);
+  --sl-color-hairline-shade: var(--border);
+  --sl-color-text-invert: var(--surface-0);
 
-  /* Aside and card hues. Starlight reads -low as a fill, the base as a rule
-     and -high as text. Note and success follow vein, caution follows amber,
-     danger follows magma, tip follows sand. */
-  --sl-color-blue: var(--flow);
-  --sl-color-blue-low: color-mix(in srgb, var(--flow) 14%, var(--surface-0));
+  /* Aside hues. Starlight reads -low as a fill, the base as the rule and
+     -high as text. */
+  --sl-color-blue: var(--t-frame);
+  --sl-color-blue-low: color-mix(in srgb, var(--t-frame) 10%, var(--surface-0));
   --sl-color-blue-high: var(--text-primary);
-  --sl-color-green: var(--flow);
-  --sl-color-green-low: color-mix(in srgb, var(--flow) 14%, var(--surface-0));
+  --sl-color-green: var(--moss-t);
+  --sl-color-green-low: color-mix(in srgb, var(--moss-t) 10%, var(--surface-0));
   --sl-color-green-high: var(--text-primary);
-  --sl-color-orange: var(--amber-fill);
-  --sl-color-orange-low: color-mix(in srgb, var(--amber-fill) 14%, var(--surface-0));
+  --sl-color-orange: var(--t-num);
+  --sl-color-orange-low: color-mix(in srgb, var(--t-num) 10%, var(--surface-0));
   --sl-color-orange-high: var(--text-primary);
-  --sl-color-red: var(--accent);
-  --sl-color-red-low: color-mix(in srgb, var(--accent) 14%, var(--surface-0));
+  --sl-color-red: var(--t-hot);
+  --sl-color-red-low: color-mix(in srgb, var(--t-hot) 10%, var(--surface-0));
   --sl-color-red-high: var(--text-primary);
-  --sl-color-purple: var(--sandstone);
-  --sl-color-purple-low: color-mix(in srgb, var(--sandstone) 14%, var(--surface-0));
+  --sl-color-purple: var(--t-str);
+  --sl-color-purple-low: color-mix(in srgb, var(--t-str) 10%, var(--surface-0));
   --sl-color-purple-high: var(--text-primary);
 
-  /* Type roles */
-  --sl-font: var(--font-body);
-  --sl-font-mono: var(--font-mono);
-  /* Starlight uses --__sl-font-heading internally */
-  --__sl-font-heading: var(--font-display);
+  --sl-font: var(--prose-font);
+  --sl-font-mono: var(--bbs-font);
+  --__sl-font-heading: var(--bbs-font);
 
-  /* Body scale */
-  --sl-text-body: 1rem;
-  --sl-line-height: 1.6;
+  --sl-text-body: 1.0625rem;
+  --sl-line-height: 1.65;
+  --sl-nav-height: 4rem;
+
+  /* The code well is dark in both themes; Expressive Code renders one dark
+     theme on it. */
+  --well: #1A130F;
+  --well-text: #F4EAD8;
 }
 
-/* Light mode values live in the shared token file (assets/tokens.css); the
-   --sl-* map above adapts to them automatically through var(). */
-
-/* --------------------------------------------------------------------------
-   Typography. Big Shoulders Display is condensed and heavy, so h1 and h2 get
-   tight leading and larger sizes. Content headings keep the case they are
-   written in, because package names such as @stratum-hq/sdk are
-   case-sensitive. Only the splash hero title is set uppercase. h3 and below
-   stay in Instrument Sans so long reference pages stay readable.
-   -------------------------------------------------------------------------- */
 body {
+  background: var(--surface-0);
   font-family: var(--sl-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-variant-numeric: tabular-nums;
 }
+::selection { background: var(--t-frame); color: var(--surface-0); }
+:root { accent-color: var(--t-frame); color-scheme: dark; scrollbar-color: var(--border) var(--surface-0); }
+:root[data-theme="light"] { color-scheme: light; }
 
-h1,
-h2,
-.sl-markdown-content h1,
-.sl-markdown-content h2 {
-  font-family: var(--__sl-font-heading);
-  text-wrap: balance;
-  letter-spacing: 0.01em;
+/* --------------------------------------------------------------------------
+   Status bar: the header is framed in a double rule, as on the landing site.
+   -------------------------------------------------------------------------- */
+header.header {
+  border-bottom: 3px double var(--t-frame);
+  background: var(--surface-0);
 }
-
-h3,
-h4,
-h5,
-h6,
-.sl-markdown-content h3,
-.sl-markdown-content h4 {
-  font-family: var(--sl-font);
-  text-wrap: balance;
+.site-title {
+  gap: 0.5rem;
+  font-family: var(--bbs-font);
+  font-weight: 400;
+  color: var(--t-frame);
 }
-
-h1,
-h2 {
-  font-weight: 900;
-  line-height: 0.95;
-}
-
-.sl-markdown-content h1,
-#_top {
-  font-size: 2.75rem;
-}
-
-.sl-markdown-content h2 {
-  font-size: 2.125rem;
-}
-
-/* "On this page": a structural label, so it takes the mono label style. */
-#starlight__on-this-page {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  line-height: 1.4;
-}
-
-h3,
-.sl-markdown-content h3 {
-  font-weight: 700;
-  font-size: 1.375rem;
-  line-height: 1.25;
-}
-
-h4,
-.sl-markdown-content h4 {
-  font-weight: 700;
-  font-size: 1.125rem;
-  line-height: 1.3;
-}
-
-/* Splash hero title: the one uppercase heading on the site. */
-.hero h1,
-.hero #_top {
-  font-size: clamp(2.75rem, calc(0.5rem + 6vw), 4.5rem);
-  line-height: 0.92;
+.site-title img { height: 28px; width: 28px; object-fit: contain; }
+.site-title span {
+  font-size: 1.75rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.hero-accent {
-  color: var(--sl-color-accent);
+/* Header site links (src/components/SocialIcons.astro). The marketing pages
+   live in the header, not in the docs sidebar. They open in a new tab, so
+   each one shows the external icon and tells screen readers about the tab. */
+.site-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
+.site-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.site-links a:hover { background: var(--t-frame); color: var(--surface-0); }
+
+/* Search opens as a prompt line. */
+site-search button[data-open-modal] {
+  border: 1px dashed var(--t-frame);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+}
+site-search button[data-open-modal]:hover { border-style: solid; color: var(--text-primary); }
+site-search kbd { border-radius: 0; font-family: var(--bbs-font); background: var(--surface-2); }
+site-search dialog { border-radius: 0; border: 3px double var(--t-frame); }
+starlight-theme-select select,
+starlight-menu-button button { border-radius: 0; font-family: var(--bbs-font); }
+starlight-theme-select select { font-size: 1.125rem; }
 
 /* --------------------------------------------------------------------------
-   Body text: readable measure
+   Sidebar: the main menu. Group labels are the menu's section titles; the
+   current page is the highlighted key, vein with ground text.
    -------------------------------------------------------------------------- */
-.sl-markdown-content {
-  line-height: 1.6;
+.sidebar-content {
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  line-height: 1.2;
 }
-
-.sl-markdown-content p {
-  max-width: 65ch;
+.sidebar-content .group-label .large,
+.sidebar-content summary {
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-str);
 }
-
-/* --------------------------------------------------------------------------
-   Code: Martian Mono in the code well. Martian Mono is wide, so code runs at
-   about 12.5px. The well stays dark in both themes.
-   -------------------------------------------------------------------------- */
-code,
-pre,
-.expressive-code {
-  font-family: var(--sl-font-mono);
-  font-variant-ligatures: common-ligatures;
+.sidebar-content a {
+  border-radius: 0;
+  padding: 0.15em 0.5em;
+  font-size: 1.25rem;
+  line-height: 1.1;
+  color: var(--text-secondary);
 }
-
-pre code {
-  font-size: 0.78rem;
-  line-height: 1.7;
+.sidebar-content a.large {
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-str);
 }
-
-/* Inline code */
-:not(pre) > code {
-  font-size: 0.8em;
-  padding: 0.15em 0.35em;
-  background: var(--code-bg);
-  color: var(--code-text);
+.sidebar-content a:hover { color: var(--text-primary); }
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover {
+  background: var(--t-frame);
+  color: var(--surface-0);
   font-weight: 400;
 }
+.sidebar-content a[aria-current="page"]::before { content: "> "; }
+/* Starlight's thin tree guide becomes a dashed vein rule. */
+.sidebar-content ul ul li { border-inline-start: 1px dashed var(--border); }
 
-/* On paper, inline code is a raised chip in ink. A dark slab in every line of
-   prose would outweigh the text around it; the dark well is for code blocks. */
+/* --------------------------------------------------------------------------
+   Table of contents
+   -------------------------------------------------------------------------- */
+#starlight__on-this-page,
+#starlight__on-this-page--mobile {
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-frame);
+}
+starlight-toc a,
+mobile-starlight-toc a {
+  font-family: var(--bbs-font);
+  font-size: 1.125rem;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+starlight-toc a:hover { color: var(--text-primary); }
+starlight-toc a[aria-current="true"],
+mobile-starlight-toc a[aria-current="true"] { color: var(--t-frame); }
+starlight-toc a[aria-current="true"]::before { content: "> "; }
+mobile-starlight-toc summary { font-family: var(--bbs-font); font-size: 1.125rem; }
+
+/* --------------------------------------------------------------------------
+   Headings: the terminal face. h1 and h2 in the sandstone text role, h3 and
+   below in ink. Each h2 opens a new stratum below a dashed rule.
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6,
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--bbs-font);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+h1, #_top {
+  font-size: 3rem;
+  color: var(--t-str);
+}
+.sl-markdown-content h2 {
+  margin-top: var(--space-12);
+  padding-top: var(--space-6);
+  border-top: 1px dashed var(--t-frame);
+  font-size: 2.25rem;
+  color: var(--t-str);
+}
+.sl-markdown-content h2:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.sl-markdown-content h3 { font-size: 1.75rem; color: var(--text-primary); }
+.sl-markdown-content h4 { font-size: 1.4rem; color: var(--text-primary); }
+.sl-markdown-content :is(h5, h6) { font-size: 1.2rem; color: var(--text-secondary); }
+
+/* --------------------------------------------------------------------------
+   Prose
+   -------------------------------------------------------------------------- */
+.sl-markdown-content p,
+.sl-markdown-content li { max-width: 68ch; }
+.sl-markdown-content a:not(.sl-link-button, .card a) {
+  color: var(--t-frame);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sl-markdown-content a:not(.sl-link-button):hover { color: var(--text-primary); }
+.sl-markdown-content strong { color: var(--text-primary); font-weight: 700; }
+.sl-markdown-content ul > li::marker { color: var(--t-frame); }
+.sl-markdown-content ol > li::marker { color: var(--t-frame); font-family: var(--bbs-font); font-size: 1.15em; }
+.sl-markdown-content hr { border: 0; border-top: 3px double var(--t-frame); }
+.sl-markdown-content blockquote {
+  border: 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px dashed var(--t-frame);
+  border-bottom: 1px dashed var(--t-frame);
+  color: var(--text-secondary);
+}
+
+/* Inline code: VT323 runs small, so it is set up a step. On paper it is a
+   chip in ink; a dark slab in every line would outweigh the prose. */
+:not(pre) > code {
+  padding: 0 0.3em;
+  background: var(--surface-2);
+  color: var(--t-str);
+  font-family: var(--bbs-font);
+  font-size: 1.2em;
+  border-radius: 0;
+}
 [data-theme="light"] :not(pre) > code {
   background: var(--surface-3);
   color: var(--text-primary);
 }
 
 /* --------------------------------------------------------------------------
-   Tables: data-dense, mono structural headers
+   Code listings: a dark well framed in a double rule, as on the landing
+   site. Expressive Code owns the syntax theme inside (astro.config.mjs).
+   -------------------------------------------------------------------------- */
+.sl-markdown-content .expressive-code .frame {
+  border: 3px double var(--t-frame);
+  background: var(--well);
+}
+.sl-markdown-content .expressive-code .frame.has-title .header {
+  border-bottom: 1px dashed var(--t-frame);
+}
+.expressive-code .frame .header .title {
+  font-family: var(--bbs-font);
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  color: var(--t-frame);
+}
+/* The tab title sits on the dark well in both themes. */
+[data-theme="light"] .expressive-code .frame .header .title { color: #35C2A8; }
+.expressive-code pre code { font-size: 1.15rem; line-height: 1.35; }
+.expressive-code .copy button { border-radius: 0; }
+.sl-markdown-content .expressive-code .copy button:focus-visible { outline-offset: -4px; }
+
+/* --------------------------------------------------------------------------
+   Tables: terminal listings. Headers are vein labels, rows split by dashes.
    -------------------------------------------------------------------------- */
 .sl-markdown-content table {
-  font-size: 0.875rem;
   border-collapse: collapse;
-  width: 100%;
+  font-size: 0.9375rem;
 }
-
 .sl-markdown-content th {
-  font-family: var(--sl-font-mono);
-  font-weight: 600;
-  font-size: 0.6875rem;
+  padding: 0.4rem 0.75rem;
+  border: 0;
+  border-bottom: 1px dashed var(--t-frame);
+  background: transparent;
+  font-family: var(--bbs-font);
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-secondary);
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--rule);
-}
-
-.sl-markdown-content td {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.sl-markdown-content td code {
-  font-size: 0.75rem;
-}
-
-.sl-markdown-content tr:hover td {
-  background: var(--surface-2);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-/* --------------------------------------------------------------------------
-   Sidebar: compact.
-   Starlight sidebar links default to --sl-color-gray-2 (tertiary text).
-   Override to gray-1 (secondary text) to match the landing nav link color.
-   -------------------------------------------------------------------------- */
-.sidebar-content {
-  font-size: 0.875rem;
-}
-
-starlight-menu-button + nav a,
-.sidebar-content a,
-sidebar-sublist a,
-[data-pagefind-ignore] a {
-  color: var(--sl-color-gray-1) !important;
-}
-
-starlight-menu-button + nav a:hover,
-.sidebar-content a:hover,
-sidebar-sublist a:hover,
-[data-pagefind-ignore] a:hover {
-  color: var(--sl-color-white) !important;
-}
-
-nav a[aria-current="page"],
-nav a[aria-current="page"]:hover {
-  color: var(--sl-color-text-invert) !important;
-  font-weight: 600;
-}
-
-/* --------------------------------------------------------------------------
-   Hero / landing page
-   -------------------------------------------------------------------------- */
-.hero {
-  text-align: left;
-}
-
-/* Starlight centers the hero below 50rem. The tenant tree and the content
-   under it are flush left, so the hero stays flush left at every width. */
-.hero .stack {
+  color: var(--t-frame);
   text-align: start;
 }
-.hero .copy {
-  align-items: flex-start;
+.sl-markdown-content td {
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-bottom: 1px dashed var(--border);
 }
-.hero .actions {
-  justify-content: flex-start;
-}
+.sl-markdown-content tr:nth-child(2n) { background: transparent; }
+.sl-markdown-content tbody tr:hover td { background: color-mix(in srgb, var(--t-frame) 8%, transparent); }
 
-/* The product noun does not break at its hyphen. */
-.hero-nowrap {
-  white-space: nowrap;
+/* --------------------------------------------------------------------------
+   Asides: a double-rule panel in the aside's hue, the title on the top rule.
+   -------------------------------------------------------------------------- */
+.starlight-aside {
+  border: 3px double var(--sl-color-asides-border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--sl-color-asides-border) 6%, var(--surface-0));
+}
+.starlight-aside__title {
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sl-color-asides-border);
 }
 
 /* --------------------------------------------------------------------------
-   Buttons: rock chips. The face is a ::before clipped to --edge-chip with
-   grain; the lip and pool are drop-shadows on the unclipped link, because
-   clip-path removes box-shadow, borders and outlines. Keeping the link itself
-   unclipped keeps the keyboard focus ring visible. A view has one primary
-   action, in magma. Secondary actions are "scratch" links with a rule
-   underline.
+   Buttons: bracketed menu keys. The primary action is the one magma key on
+   a view; the others are vein. Hover and focus invert, as on a board.
    -------------------------------------------------------------------------- */
 .sl-link-button {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
   border-radius: 0;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.25rem;
-  line-height: 1;
+  background: transparent;
+  color: var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.375rem;
+  font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  text-decoration: none;
 }
+.sl-link-button::before { content: "[\00a0"; }
+.sl-link-button::after { content: "\00a0]"; }
+.sl-link-button svg { display: none; }
+.sl-link-button.primary { background: var(--t-hot); color: var(--on-accent); }
+.sl-link-button:hover,
+.sl-link-button:focus-visible { background: var(--t-frame); color: var(--surface-0); }
+.sl-link-button.primary:hover,
+.sl-link-button.primary:focus-visible { background: var(--text-primary); color: var(--surface-0); }
 
-.sl-link-button.primary {
-  --btn-lip: var(--magma-deep);
-  --btn-face: var(--accent);
+/* --------------------------------------------------------------------------
+   Cards: double-rule panels with a corner square top left and bottom right.
+   -------------------------------------------------------------------------- */
+.card {
   position: relative;
-  isolation: isolate;
-  background: transparent;
-  border-color: transparent;
-  color: var(--on-accent);
-  margin-bottom: 4px;
-  filter: drop-shadow(0 4px 0 var(--btn-lip)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.32));
-  transition: transform var(--duration-fast) var(--ease-out),
-              filter var(--duration-fast) var(--ease-out);
+  border: 3px double var(--t-frame);
+  border-radius: 0;
+  background: var(--surface-0);
 }
-.sl-link-button.primary::before {
+.card::before,
+.card::after {
   content: "";
   position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: var(--edge-chip);
-  background-color: var(--btn-face);
-  background-image: var(--lit), var(--grain);
-  background-size: auto, 160px 160px;
-  background-blend-mode: normal, multiply;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--t-frame);
+  background: var(--surface-0);
 }
-.sl-link-button.primary:hover {
-  color: var(--on-accent);
-  transform: translateY(-3px);
-  filter: drop-shadow(0 7px 0 var(--btn-lip)) drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
-}
-.sl-link-button.primary:active {
-  transform: translateY(2px);
-  filter: drop-shadow(0 1px 0 var(--btn-lip)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
-}
-
-.sl-link-button.secondary {
+.card::before { top: -7px; left: -7px; }
+.card::after { bottom: -7px; right: -7px; }
+.card .icon {
   border: 0;
-  padding-inline: 4px;
-  color: var(--accent-text);
-  background: linear-gradient(var(--rule), var(--rule)) no-repeat 0 100% / 100% 2px;
-  transition: background-size var(--duration-fast) var(--ease-out);
+  border-radius: 0;
+  background: transparent;
+  color: var(--t-frame);
 }
-.sl-link-button.secondary:hover {
-  color: var(--accent-text);
-  background-size: 100% 4px;
-}
-
-.sl-link-button.minimal {
-  font-family: var(--sl-font);
-  font-weight: 600;
-  font-size: var(--sl-text-base);
-  letter-spacing: 0;
-  text-transform: none;
+.card .title {
+  font-family: var(--bbs-font);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--t-str);
 }
 
 /* --------------------------------------------------------------------------
-   Tags: inheritance mode as glyph plus word plus color, never color alone.
-   ■ locked (magma), ↓ inherited (vein), △ own / override, ✓ verified (vein).
-   The glyph is decorative, so its alt text is empty.
+   Tags: inheritance mode as a bracketed word in its color, never color
+   alone. ■ locked (magma), ↓ inherited (vein), △ own, ✓ verified.
    -------------------------------------------------------------------------- */
 .badge-inherited,
 .badge-locked,
@@ -370,35 +433,179 @@ nav a[aria-current="page"]:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0.2rem 0.7rem 0.2rem 0.55rem;
-  clip-path: var(--edge-chip);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: 0.14em;
+  font-family: var(--bbs-font);
+  font-size: 1.125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.badge-inherited { color: var(--t-frame); }
+.badge-locked { color: var(--t-hot); }
+.badge-own { color: var(--text-primary); }
+.badge-verified { color: var(--moss-t); }
+.badge-inherited::before { content: "[\2193" / ""; }
+.badge-locked::before { content: "[\25A0" / ""; }
+.badge-own::before { content: "[\25B3" / ""; }
+.badge-verified::before { content: "[\2713" / ""; }
+:is(.badge-inherited, .badge-locked, .badge-own, .badge-verified)::after { content: "]" / ""; }
+
+/* Starlight's own Badge component */
+.sl-badge {
+  border-radius: 0;
+  font-family: var(--bbs-font);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.badge-inherited { background: var(--vein); color: var(--on-vein); }
-.badge-locked { background: var(--magma); color: var(--on-accent); }
-.badge-own { background: var(--text-primary); color: var(--surface-0); }
-.badge-verified { background: var(--vein); color: var(--on-vein); }
-
-.badge-inherited::before { content: "\2193" / ""; letter-spacing: 0; }
-.badge-locked::before { content: "\25A0" / ""; letter-spacing: 0; }
-.badge-own::before { content: "\25B3" / ""; letter-spacing: 0; }
-.badge-verified::before { content: "\2713" / ""; letter-spacing: 0; }
+/* --------------------------------------------------------------------------
+   Pagination and footer
+   -------------------------------------------------------------------------- */
+.pagination-links a {
+  border: 3px double var(--t-frame);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-secondary);
+}
+.pagination-links a:hover { border-color: var(--text-primary); }
+.pagination-links .link-title {
+  font-family: var(--bbs-font);
+  font-size: 1.5rem;
+  color: var(--t-frame);
+}
+footer .meta { font-family: var(--bbs-font); font-size: 1.125rem; }
+.content-panel + .content-panel { border-top: 1px dashed var(--border); }
+.earth { margin-top: var(--space-12); }
 
 /* --------------------------------------------------------------------------
-   Accessibility. Keyboard focus is a solid 3px --focus ring (8.7:1 on Bedrock,
-   5.3:1 on Daylight). Focusable elements are never clipped themselves, so the
-   ring always shows. Matches the landing site (landing/src/styles/global.css).
+   Splash hero (src/components/Hero.astro): the title screen.
+   -------------------------------------------------------------------------- */
+.bbs-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: center;
+  padding-block: var(--space-8) var(--space-12);
+}
+.bbs-hero-copy { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.bbs-hero-logo { width: 100%; max-width: 34rem; font-size: 6px; }
+.bbs-hero h1 {
+  margin: var(--space-2) 0 0;
+  font-size: clamp(2.25rem, 1.2rem + 3vw, 3.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.hero-accent { color: var(--t-hot); }
+.hero-nowrap { white-space: nowrap; }
+.bbs-hero .tagline {
+  max-width: 52ch;
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.bbs-hero .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
+.bbs-hero-art { width: 100%; font-size: 6px; }
+@media (min-width: 72rem) {
+  .bbs-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: var(--space-12); }
+}
+
+/* --------------------------------------------------------------------------
+   Splash tenant tree (src/components/TenantTree.astro). The same tree the
+   quick example builds: one band of rock per depth, indented, with the
+   tenant name cut into it as a label. Tenant names keep their written case,
+   because they are data.
+   -------------------------------------------------------------------------- */
+.tenant-tree {
+  position: relative;
+  max-width: 40rem;
+  margin: 0 0 var(--space-8);
+  padding: var(--space-6);
+  border: 3px double var(--t-frame);
+  font-family: var(--bbs-font);
+}
+.sl-markdown-content .tenant-tree-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -55%;
+  margin: 0;
+  padding: 0 0.6em;
+  background: var(--surface-0);
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--t-frame);
+}
+.sl-markdown-content .tenant-tree-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sl-markdown-content .tenant-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-width: none;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--band, var(--topsoil));
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+.sl-markdown-content .tenant-row.d0 { --band: var(--topsoil); }
+.sl-markdown-content .tenant-row.d1 { --band: var(--clay); margin-left: 2ch; }
+.tenant-depth,
+.tenant-name,
+.tenant-meta {
+  padding: 0 0.4em;
+  background: var(--surface-0);
+  color: var(--text-primary);
+}
+.tenant-name { text-transform: uppercase; letter-spacing: 0.04em; }
+.tenant-meta { margin-left: auto; color: var(--text-secondary); }
+.sl-markdown-content .tenant-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  max-width: none;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+}
+.tenant-config-key { color: var(--text-secondary); }
+.tenant-config-value { color: var(--t-frame); }
+.sl-markdown-content .tenant-tree-note {
+  margin: var(--space-4) 0 0;
+  font-family: var(--prose-font);
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 480px) {
+  .tenant-tree { padding: var(--space-6) var(--space-3) var(--space-4); }
+  .sl-markdown-content .tenant-row.d1 { margin-left: 1ch; }
+  .tenant-meta { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility. Keyboard focus is a solid vein ring; focusable elements are
+   never clipped, so it always shows. Matches the landing site.
    -------------------------------------------------------------------------- */
 :focus-visible {
-  outline: 3px solid var(--focus);
+  outline: 2px solid var(--t-frame);
   outline-offset: 3px;
 }
+.sl-link-button:focus-visible { outline: 2px solid var(--text-primary); }
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -407,289 +614,4 @@ nav a[aria-current="page"]:hover {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* Stratum has no rounded corners. The mobile menu button was a circle; it
-   carries no meaning as a circle, so it becomes a square (not clipped, so its
-   focus ring still shows). */
-starlight-menu-button button {
-  border-radius: 0;
-}
-
-/* Logo: match landing page treatment (28x28 mark, display wordmark) */
-.site-title img {
-  height: 28px !important;
-  width: 28px !important;
-  object-fit: contain;
-}
-.site-title span {
-  font-family: var(--font-display);
-  font-size: 24px !important;
-  font-weight: 900 !important;
-  letter-spacing: 0.02em;
-}
-.site-title {
-  gap: 0.5rem !important;
-}
-
-/* --------------------------------------------------------------------------
-   Cards: Layers of rock. A topsoil lip clipped to --edge-ledge (::before) sits
-   over the inner surface clipped to --edge-ledge-b (::after), so the lip
-   varies in thickness; the card itself carries the lip-and-pool shadow.
-   -------------------------------------------------------------------------- */
-.card {
-  position: relative;
-  isolation: isolate;
-  border: 0 !important;
-  background: transparent !important;
-  padding-top: calc(clamp(1rem, calc(0.125rem + 3vw), 2.5rem) + 10px);
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
-}
-.card::before,
-.card::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-}
-.card::before {
-  inset: 0;
-  z-index: -2;
-  clip-path: var(--edge-ledge);
-  background-color: var(--topsoil);
-  background-image: var(--shade), var(--lam);
-}
-.card::after {
-  inset: 10px 0 0;
-  clip-path: var(--edge-ledge-b);
-  background: var(--surface-1);
-}
-:root[data-theme="light"] .card {
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
-}
-.card .icon {
-  color: var(--accent) !important;
-  background: var(--accent-muted) !important;
-  border: 1px solid var(--accent) !important;
-  border-radius: 0 !important;
-}
-.card svg {
-  fill: var(--accent) !important;
-  color: var(--accent) !important;
-}
-.card .title {
-  font-family: var(--sl-font);
-  font-weight: 700;
-}
-
-/* --------------------------------------------------------------------------
-   Depth gutter: the stratigraphy signature ("the depth rail").
-   Page sections stack as strata separated by a hairline seam, and the code
-   well grows a left gutter that continues the depth rail, lighting to vein on
-   hover (the flow color).
-   -------------------------------------------------------------------------- */
-
-/* Each section heading is a new stratum: a hairline seam above it. The first
-   heading on a page has nothing above it to divide, so it keeps no rule. */
-.sl-markdown-content h2 {
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-6);
-  margin-top: var(--space-12);
-}
-.sl-markdown-content h2:first-child {
-  border-top: 0;
-  padding-top: 0;
-  margin-top: 0;
-}
-
-/* The code well is a brand surface: a ragged rock top (--edge-ledge cuts only
-   the top few px, so the horizontal scrollbar is never clipped) and a left
-   gutter that continues the depth rail. Expressive Code owns the syntax theme
-   inside (see astro.config.mjs); this only frames the well. */
-.sl-markdown-content .expressive-code .frame {
-  clip-path: var(--edge-ledge);
-  padding-top: 6px;
-  background: var(--code-bg);
-  border-left: 3px solid var(--rule);
-  transition: border-left-color var(--duration-normal) var(--ease-out);
-}
-.sl-markdown-content .expressive-code:hover .frame {
-  border-left-color: var(--flow);
-}
-
-/* The copy button sits near the ragged top of the well, so its focus ring is
-   drawn inside the button where the clip cannot reach it. */
-.sl-markdown-content .expressive-code .copy button:focus-visible {
-  outline-offset: -4px;
-}
-
-/* --------------------------------------------------------------------------
-   Splash tenant tree (src/components/TenantTree.astro). The same inheritance
-   flow as the landing hero: each tenant is a rock band colored by its depth,
-   indented 28px per level, and each row overlaps the ragged top of the row
-   above. The resolved value is vein. Tenant names keep their written case,
-   because they are data.
-   -------------------------------------------------------------------------- */
-.tenant-tree {
-  position: relative;
-  isolation: isolate;
-  max-width: 36rem;
-  margin: 0 0 var(--space-8);
-  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
-  font-family: var(--font-mono);
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
-}
-:root[data-theme="light"] .tenant-tree {
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
-}
-.tenant-tree::before,
-.tenant-tree::after {
-  content: "";
-  position: absolute;
-}
-.tenant-tree::before {
-  inset: 0;
-  z-index: -2;
-  clip-path: var(--edge-ledge);
-  background-color: var(--magma-deep);
-  background-image: var(--shade), var(--lam);
-}
-.tenant-tree::after {
-  inset: 10px 0 0;
-  z-index: -1;
-  clip-path: var(--edge-ledge-b);
-  background: var(--surface-1);
-}
-.sl-markdown-content .tenant-tree-label {
-  margin: 0 0 var(--space-4);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.sl-markdown-content .tenant-tree-rows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.sl-markdown-content .tenant-row {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin: -9px 0 0;
-  padding: 18px 22px 11px 14px;
-  clip-path: var(--edge-row);
-  background-size: auto, 160px 160px, auto;
-  background-blend-mode: normal, multiply, normal;
-  white-space: nowrap;
-}
-.sl-markdown-content .tenant-row:first-child {
-  margin-top: 0;
-}
-.sl-markdown-content .tenant-row.d0 {
-  z-index: 1;
-  background-color: var(--topsoil);
-  background-image: var(--shade), var(--grain), var(--lam);
-  color: var(--on-strata-dark);
-}
-.sl-markdown-content .tenant-row.d1 {
-  z-index: 2;
-  margin-left: 28px;
-  background-color: var(--clay);
-  background-image: var(--lit), var(--grain), var(--lam);
-  color: var(--on-strata-light);
-}
-.tenant-depth {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.tenant-name {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.375rem;
-  line-height: 1;
-  letter-spacing: 0.02em;
-}
-.tenant-meta {
-  margin-left: auto;
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-}
-.sl-markdown-content .tenant-config {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  margin: var(--space-6) 0 0;
-  padding: var(--space-2) var(--space-3);
-  background: var(--flow-muted);
-  font-size: 0.78rem;
-}
-.tenant-config-key {
-  color: var(--text-primary);
-}
-.tenant-config-value {
-  color: var(--flow);
-  font-weight: 600;
-}
-/* On paper the vein text darkens to hold 4.5:1 on the tinted row. */
-:root[data-theme="light"] .tenant-config-value {
-  color: var(--vein-deep);
-}
-.sl-markdown-content .tenant-tree-note {
-  margin: var(--space-4) 0 0;
-  font-family: var(--font-body);
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-@media (max-width: 480px) {
-  .tenant-tree {
-    padding: calc(var(--space-6) + 10px) var(--space-4) var(--space-6);
-  }
-  .sl-markdown-content .tenant-row {
-    padding: 16px 12px 10px 10px;
-    gap: var(--space-2);
-  }
-  .sl-markdown-content .tenant-row.d1 {
-    margin-left: 14px;
-  }
-  .tenant-name {
-    font-size: 1.125rem;
-  }
-  .tenant-meta {
-    display: none;
-  }
-}
-
-/* --------------------------------------------------------------------------
-   Header site links (src/components/SocialIcons.astro). The marketing pages
-   live in the header, not in the docs sidebar. They open in a new tab, so
-   each one shows the external icon and tells screen readers about the tab.
-   -------------------------------------------------------------------------- */
-.site-links {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--sl-text-sm);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.site-links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--sl-color-gray-1);
-  text-decoration: none;
-}
-.site-links a:hover {
-  color: var(--sl-color-white);
 }
