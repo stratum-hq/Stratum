@@ -1,5 +1,5 @@
 /* ===== DESIGN TOKENS =====
-   Single source of truth: assets/tokens.css (documented in DESIGN.md).
+   Single source of truth: assets/tokens.css.
    Every token used below now resolves from that shared file, so landing/ and
    website/ cannot drift. Do not hardcode hex here; edit the shared file. */
 @import url('../../../assets/tokens.css');
@@ -576,7 +576,7 @@ h2 {
 }
 
 /* The feature stack: one band of rock per feature, shallow to deep, in the
-   band order of DESIGN.md (topsoil, clay, sandstone, limestone, basalt). Each
+   band order (topsoil, clay, sandstone, limestone, basalt). Each
    band overlaps the ragged top of the one above. The li carries the upward
    shadow and the face inside it is clipped, because clip-path would remove a
    filter on the same element. Text takes the band's own ink, never gray. */

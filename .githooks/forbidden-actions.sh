@@ -2,7 +2,7 @@
 #
 # Stratum forbidden action guards.
 #
-# Mechanical enforcement of the rules in "Forbidden actions" in CLAUDE.md. The
+# Mechanical enforcement of the rules in "Forbidden actions" in .claude/CLAUDE.md. The
 # hooks in this directory are thin; the logic lives here so it can be tested
 # directly:
 #

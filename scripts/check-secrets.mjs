@@ -52,7 +52,7 @@ const GUIDANCE = {
     "Stripe mints secret keys under the same `sk_live_` prefix, so if the key was not",
     "issued by Stratum, revoke it wherever it did come from.",
     "If it was already committed, say so: rewriting history is a forbidden action in",
-    "CLAUDE.md and needs a human decision, not a script.",
+    ".claude/CLAUDE.md and needs a human decision, not a script.",
   ],
   [RULES.hardcodedKey]: [
     "An API key literal is hardcoded. It is too short to be a minted key, so this is",

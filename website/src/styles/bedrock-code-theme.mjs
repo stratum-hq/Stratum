@@ -5,8 +5,8 @@
 // When one of those tokens changes, change it here too.
 //
 // The code well is dark in both site themes, so one theme serves Bedrock and
-// Daylight. Every foreground holds WCAG AA (4.5:1) on #0C0907; DESIGN.md lists
-// the measured ratios. Few colors on purpose: magma is kept for marked lines.
+// Daylight. Every foreground holds WCAG AA (4.5:1) on #0C0907.
+// Few colors on purpose: magma is kept for marked lines.
 
 const well = "#0C0907";
 const text = "#D6C3A0"; // --code-text, 11.5:1

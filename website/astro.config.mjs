@@ -31,8 +31,8 @@ const jsonLd = {
   ],
 };
 
-// Stratum type families: Big Shoulders Display, Instrument Sans, Martian Mono
-// (documented in DESIGN.md). Loaded non-blocking from
+// Stratum type families: Big Shoulders Display, Instrument Sans, Martian Mono.
+// Loaded non-blocking from
 // the document head rather than via a render-blocking @import in the shared
 // token file, so fonts never gate first paint.
 const fontsHref =
