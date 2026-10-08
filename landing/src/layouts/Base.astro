@@ -89,21 +89,21 @@ const imageUrl = new URL(ogImage, 'https://stratum-hq.org').href;
   <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Stratum identity fonts (Big Shoulders Display / Instrument Sans /
-       Martian Mono), loaded non-blocking so first paint is never held on a
+  <!-- ANSI Strata fonts (VT323 for the terminal, Atkinson Hyperlegible Next
+       for prose), loaded non-blocking so first paint is never held on a
        font stylesheet. assets/tokens.css does not @import fonts; any remote
        font @import is still stripped from the landing bundle at build (see
        astro.config.mjs). -->
   <link
     rel="preload"
     as="style"
-    href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=VT323&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=VT323&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,500;0,700;1,400&display=swap"
     onload="this.onload=null;this.rel='stylesheet'"
   />
   <noscript>
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800;900&family=VT323&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Martian+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,500;0,700;1,400&display=swap"
     />
   </noscript>
 </head>

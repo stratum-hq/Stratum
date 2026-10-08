@@ -3,6 +3,8 @@ import Base from '../../layouts/Base.astro';
 import '../../styles/global.css';
 import Nav from '../../components/Nav.astro';
 import Footer from '../../components/Footer.astro';
+import RockTitle from '../../components/RockTitle.astro';
+import EarthBand from '../../components/EarthBand.astro';
 ---
 
 <Base title="Connection Pooling with Stratum: PgBouncer and Supavisor Guide" description="When you need a connection pooler with Stratum, how to configure PgBouncer and Supavisor, transaction-mode pooling compatibility, and a production checklist.">
@@ -11,8 +13,7 @@ import Footer from '../../components/Footer.astro';
 
 <main class="guide-main">
   <header class="guide-header">
-    <div class="guide-eyebrow">Guide</div>
-    <h1>Connection pooling with <span class="accent">Stratum</span></h1>
+    <RockTitle lines={['CONNECTION', 'POOLING']} label="Connection pooling with Stratum" />
     <p class="guide-meta">Production guide for PgBouncer, Supavisor, and transaction-mode pooling.</p>
   </header>
 
@@ -275,6 +276,9 @@ server_reset_query = DISCARD ALL</pre>
   </section>
 </main>
 
+
+<EarthBand depth={3} />
+
 <Footer />
 
 <style>
@@ -288,15 +292,6 @@ server_reset_query = DISCARD ALL</pre>
     margin-bottom: var(--space-8);
   }
 
-  .guide-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: var(--space-3);
-  }
 
   .guide-header h1 {
     font-size: clamp(2.25rem, 5vw, 2.75rem);

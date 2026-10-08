@@ -8,7 +8,8 @@
 // has locked skips every override below it. The real library runs on PGlite
 // in the docs Playground; this page reads one fixed example.
 
-import { screen, earthBand, colsFor, TREE, rowsToHtml, esc } from '../lib/ansi';
+import { screen, colsFor, TREE, rowsToHtml, esc } from '../lib/ansi';
+import { fitArt } from './ansi-fit';
 
 type Key = 'max_users' | 'data_region' | 'sso_required';
 type Value = number | string | boolean;
@@ -71,32 +72,12 @@ function mount(grid: HTMLElement) {
     const width = grid.clientWidth;
     const next = colsFor(width);
     grid.style.fontSize = `${width / (next * ratio)}px`;
-    fitBands();
+    fitArt();
     if (next === cols) return false;
     cols = next;
     grid.innerHTML = rowsToHtml(screen(cols));
     mark();
     return true;
-  }
-
-  // The full-width earth bands between sections: same cell grammar, fitted
-  // to the viewport, more columns on wider screens.
-  const bands = Array.from(document.querySelectorAll<HTMLElement>('[data-earth]'));
-  // Logos fit their own grid: a fixed column count scaled to the width.
-  const fixed = Array.from(document.querySelectorAll<HTMLElement>('[data-fit]'));
-  function fitFixed() {
-    for (const el of fixed) el.style.fontSize = `${el.clientWidth / (Number(el.dataset.fit) * ratio)}px`;
-  }
-  function fitBands() {
-    fitFixed();
-    for (const band of bands) {
-      const width = band.clientWidth;
-      const want = width >= 1400 ? 200 : width >= 900 ? 150 : width >= 560 ? 100 : 60;
-      band.style.fontSize = `${width / (want * ratio)}px`;
-      if (band.dataset.cols === String(want)) continue;
-      band.dataset.cols = String(want);
-      band.innerHTML = rowsToHtml(earthBand(want, Number(band.dataset.earth)));
-    }
   }
 
   function mark(hi?: string) {

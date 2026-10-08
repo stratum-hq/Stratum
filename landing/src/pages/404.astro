@@ -6,15 +6,19 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import '../styles/global.css';
+import RockTitle from '../components/RockTitle.astro';
+import EarthBand from '../components/EarthBand.astro';
 ---
 
 <Base title="Page Not Found | Stratum" description="This page does not exist on stratum-hq.org." noindex>
 
 <Nav />
 
+<main>
+
 <section class="not-found">
   <p class="not-found-code">404</p>
-  <h1>Page not <span class="accent">found</span></h1>
+  <RockTitle lines={['404']} label="Page not found" />
   <p>This page does not exist. It moved, or the link has an error. Try one of these pages:</p>
   <div class="not-found-links">
     <a href="/" class="btn-primary">Home</a>
@@ -24,6 +28,10 @@ import '../styles/global.css';
     <a href="/compare/" class="btn-secondary">Compare</a>
   </div>
 </section>
+
+</main>
+
+<EarthBand depth={3} />
 
 <Footer />
 

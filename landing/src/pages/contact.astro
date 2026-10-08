@@ -3,14 +3,18 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import '../styles/global.css';
+import RockTitle from '../components/RockTitle.astro';
+import EarthBand from '../components/EarthBand.astro';
 ---
 
 <Base title="Contact Stratum: Report Bugs, Request Features, Get in Touch" description="Reach the Stratum team via GitHub Issues for bugs and features, or email for business inquiries.">
 
 <Nav />
 
+<main>
+
 <section class="contact">
-  <h1>Get in <span class="accent">touch</span></h1>
+  <RockTitle lines={['CONTACT']} label="Get in touch" />
 
   <div class="contact-section">
     <h2>Bugs and feature requests</h2>
@@ -69,6 +73,10 @@ import '../styles/global.css';
   }
 }
 </script>
+
+</main>
+
+<EarthBand depth={3} />
 
 <Footer />
 
