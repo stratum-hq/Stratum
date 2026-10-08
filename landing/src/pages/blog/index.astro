@@ -6,6 +6,8 @@ import Footer from '../../components/Footer.astro';
 import { getPosts, postPath } from '../../lib/blog';
 
 const posts = await getPosts();
+import RockTitle from '../../components/RockTitle.astro';
+import EarthBand from '../../components/EarthBand.astro';
 ---
 
 <Base title="Blog · Stratum" description="Updates, guides, and insights about multi-tenancy in Node.js from the Stratum team.">
@@ -16,7 +18,7 @@ const posts = await getPosts();
 <main class="blog-index">
   <header class="blog-header">
     <p class="blog-eyebrow">Blog</p>
-    <h1>Updates &amp; Insights</h1>
+    <RockTitle lines={['BLOG']} label="Updates and insights" />
     <p class="blog-subtitle">Thoughts on multi-tenancy, Node.js, and building Stratum in the open.</p>
     <div class="blog-feeds">
       <a href="/rss.xml" class="blog-feed-link">
@@ -45,6 +47,9 @@ const posts = await getPosts();
     ))}
   </ul>
 </main>
+
+
+<EarthBand depth={3} />
 
 <Footer />
 

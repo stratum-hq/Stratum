@@ -1,8 +1,72 @@
-/* ===== DESIGN TOKENS =====
-   Single source of truth: assets/tokens.css.
-   Every token used below now resolves from that shared file, so landing/ and
-   website/ cannot drift. Do not hardcode hex here; edit the shared file. */
+/* ==========================================================================
+   ANSI Strata: the landing site's shared stylesheet.
+
+   The palette comes from assets/tokens.css (shared with the docs site). On
+   the landing site the tokens are remapped into ANSI Strata below: the
+   display and data faces become VT323, prose takes Atkinson Hyperlegible
+   Next, the ground is warm dark brown, and the Bedrock ragged edges, grain
+   and lip shadows are switched off. Page styles that read those tokens
+   adopt the world without a rewrite. DESIGN.md describes the system.
+   ========================================================================== */
 @import url('../../../assets/tokens.css');
+
+/* ===== WORLD TOKENS ===== */
+:root {
+  --bbs-font: "VT323", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --prose-font: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+
+  --font-display: var(--bbs-font);
+  --font-mono: var(--bbs-font);
+  --font-body: var(--prose-font);
+
+  /* Bedrock's cut edges, grain and lip shadows have no place on a terminal. */
+  --edge-ledge: none;
+  --edge-ledge-b: none;
+  --edge-row: none;
+  --edge-chip: none;
+  --edge-slab: none;
+  --edge-fault: none;
+  --grain: none;
+  --lam: none;
+  --lit: none;
+  --shade: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-glow: none;
+  --shadow-sunk: none;
+
+  /* Text roles. Each holds WCAG AA on its ground in both themes. */
+  --t-frame: var(--vein);
+  --t-hot: var(--magma);
+  --t-kw: var(--clay);
+  --t-str: var(--sandstone-band);
+  --t-num: var(--amber-fill);
+  --moss-t: #7FAF45;
+}
+/* The ground is a warm dark brown, a step up from peat. */
+[data-theme="dark"] {
+  --surface-0: #241B15;
+  --surface-1: #2B211A;
+  --surface-2: #33281F;
+  --surface-3: #3D3026;
+  --on-vein: #241B15;
+  --code-bg: #1A130F;
+  --border: #4A3B2F;
+}
+/* On paper every text role darkens until it holds AA (4.5:1) on #F2E9D8. */
+[data-theme="light"] {
+  --t-frame: #075E50;
+  --t-hot: #A02E06;
+  --t-kw: #8E3A16;
+  --t-str: #6E5300;
+  --t-num: #6E5300;
+  --moss-t: #3E6B1E;
+  --limestone: #8A7F6B;
+  --sandstone-band: #B08431;
+  --code-bg: #FFFAF0;
+  --code-text: #1C140F;
+}
 
 /* ===== RESET ===== */
 *, *::before, *::after {
@@ -10,195 +74,182 @@
   margin: 0;
   padding: 0;
 }
-
-html {
-  scroll-behavior: smooth;
-}
-
+html { scroll-behavior: smooth; }
 body {
-  font-family: var(--font-body);
-  font-size: 16px;
-  color: var(--text-secondary);
+  font-family: var(--bbs-font);
+  font-size: 20px;
+  color: var(--text-primary);
   background: var(--surface-0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  line-height: 1.6;
+  line-height: 1.35;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
-
 /* body is a flex column, and the auto side margins that center a page's
-   <main> turn off flex stretch. The <main> then sizes to its content, so one
-   long code line made the whole page wider than a phone screen. A full width
-   (capped by each page's max-width) keeps it inside the viewport. */
-body > main {
-  width: 100%;
+   <main> turn off flex stretch. A full width (capped by each page's
+   max-width) keeps a long code line inside the viewport. */
+body > main { width: 100%; }
+.footer { margin-top: auto; }
+a { color: inherit; text-decoration: none; }
+::selection { background: var(--t-frame); color: var(--surface-0); }
+/* Native controls take the world's colors instead of the browser's. */
+:root { accent-color: var(--t-frame); color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+
+/* Inner pages were sized for proportional faces. VT323 runs small for its
+   size, so they scale it up by its x-height; the home page is tuned as is. */
+body:not(:has(.bbs)) :where(main, article, section) { font-size-adjust: 0.52; }
+
+/* Prose in the companion face: paragraphs and lists read in Atkinson
+   Hyperlegible Next. Everything with a class of its own keeps the terminal. */
+:where(body:not(:has(.bbs))) :where(main, article, section) :where(p, li, dd, blockquote, figcaption) {
+  font-family: var(--prose-font);
+  line-height: 1.6;
+}
+:where(body:not(:has(.bbs))) :where(p, li) code { font-family: var(--bbs-font); color: var(--t-str); }
+:where(body:not(:has(.bbs))) :where(p, li) a {
+  color: var(--t-frame);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-/* Push footer to bottom on short pages */
-.footer {
-  margin-top: auto;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-/* Display type: Big Shoulders Display is condensed and heavy, so headings are
-   set uppercase with tight leading. Page styles set the sizes. Card and
-   sub-headings (h3 and below) stay in the body face. */
-h1,
-h2 {
-  font-family: var(--font-display);
-  font-weight: 900;
+/* Headings are the terminal face, in caps. Page titles are drawn in the rock
+   face by RockTitle.astro; these carry everything below them. */
+h1, h2 {
+  font-family: var(--bbs-font);
+  font-weight: 400;
   text-transform: uppercase;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--t-str);
 }
-
-/* ===== THEME TOGGLE ===== */
-.theme-toggle {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  cursor: pointer;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
-}
-.theme-toggle:hover {
-  border-color: var(--rule);
+h3, h4 {
+  font-family: var(--bbs-font);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-primary);
 }
 
-/* ===== NAV ===== */
+.visually-hidden, .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.no-break, .nowrap { white-space: nowrap; }
+.accent { color: var(--t-hot); }
+
+/* ===== STATUS BAR (the nav, framed) ===== */
 .nav {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 100;
-  background: color-mix(in srgb, var(--surface-0) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-6) 0;
+  background: var(--surface-0);
 }
 .nav-inner {
-  max-width: 1200px;
+  position: relative;
+  max-width: 1632px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-6);
+  padding: 2px var(--space-4);
+  border: 3px double var(--t-frame);
 }
+.nav-inner::before, .nav-inner::after,
+.frame::before, .frame::after,
+.layer::before, .layer::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--t-frame);
+  background: var(--surface-0);
+}
+.nav-inner::before, .frame::before, .layer::before { top: -7px; left: -7px; }
+.nav-inner::after, .frame::after, .layer::after { bottom: -7px; right: -7px; }
 .nav-logo {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.5rem;
-  line-height: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
+  font-family: var(--bbs-font);
+  font-size: 1.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-frame);
 }
-.nav-logo-img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
-.nav-end {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-}
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
+.nav-logo-img { width: 28px; height: 28px; object-fit: contain; }
+.nav-end { display: flex; align-items: center; gap: var(--space-6); }
+.nav-links { display: flex; align-items: center; gap: var(--space-4); }
 .nav-links a {
-  transition: color var(--duration-fast) var(--ease-out);
   min-height: 44px;
   display: flex;
   align-items: center;
+  padding: 0 4px;
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-frame);
 }
-.nav-links a:hover {
-  color: var(--text-primary);
-}
+.nav-links a:hover, .nav-links a[aria-current="page"] { background: var(--t-frame); color: var(--surface-0); }
 .nav-menu-btn {
   display: none;
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
   padding: 0 var(--space-3);
-  background: var(--surface-2);
-  border: 1px solid var(--rule);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  background: transparent;
+  border: 1px solid var(--t-frame);
+  color: var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.125rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out);
 }
-.nav-menu-btn:hover,
-.nav-menu-btn[aria-expanded="true"] {
-  border-color: var(--text-primary);
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--t-frame);
+  color: var(--t-frame);
+  cursor: pointer;
 }
+.nav-menu-btn:hover, .nav-menu-btn[aria-expanded="true"], .theme-toggle:hover { background: var(--t-frame); color: var(--surface-0); }
 /* The full link row is wider than a phone screen. Below this width the links
    collapse into a panel under the bar, opened by the menu button. Without
    scripts (no "js" class, set in Base.astro) the button cannot work, so the
    links wrap onto extra rows in the bar instead. */
 @media (max-width: 900px) {
-  .nav-inner {
-    gap: var(--space-4);
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .nav-logo {
-    flex-shrink: 0;
-  }
-  .nav-end {
-    gap: var(--space-3);
-  }
-  /* Match the menu button, so both bar controls are full 44px touch targets. */
-  .theme-toggle {
-    width: 44px;
-    height: 44px;
-  }
-  html:not(.js) .nav-inner,
-  html:not(.js) .nav-end,
-  html:not(.js) .nav-links {
-    flex-wrap: wrap;
-  }
-  html:not(.js) .nav-links {
-    gap: 0 var(--space-4);
-  }
-  /* The wrapped bar is taller than the space pages leave for it, so it takes
-     its own place in the flow rather than covering the page heading. */
-  html:not(.js) .nav {
-    position: relative;
-  }
-  .js .nav-menu-btn {
-    display: inline-flex;
-  }
+  .nav { padding: var(--space-2) var(--space-3) 0; }
+  .nav-inner { gap: var(--space-4); padding-left: var(--space-3); padding-right: var(--space-3); }
+  .nav-logo { flex-shrink: 0; }
+  .nav-end { gap: var(--space-3); }
+  .theme-toggle { width: 44px; height: 44px; }
+  html:not(.js) .nav-inner, html:not(.js) .nav-end, html:not(.js) .nav-links { flex-wrap: wrap; }
+  html:not(.js) .nav-links { gap: 0 var(--space-4); }
+  html:not(.js) .nav { position: relative; }
+  .js .nav-menu-btn { display: inline-flex; }
   .js .nav-links {
     display: none;
     position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
+    top: calc(100% + 3px);
+    left: -3px;
+    right: -3px;
     flex-direction: column;
     align-items: stretch;
     gap: 0;
@@ -206,1062 +257,269 @@ h2 {
     overflow-y: auto;
     padding: var(--space-2) var(--space-4) var(--space-4);
     background: var(--surface-0);
-    border-bottom: 1px solid var(--rule);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
-    font-size: 1rem;
+    border: 3px double var(--t-frame);
   }
-  .js .nav.is-open .nav-links {
-    display: flex;
-  }
-  .js .nav-links a {
-    min-height: 48px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-primary);
-  }
-  .js .nav-links a:last-child {
-    border-bottom: none;
-  }
+  .js .nav.is-open .nav-links { display: flex; }
+  .js .nav-links a { min-height: 48px; border-bottom: 1px dashed var(--t-frame); }
+  .js .nav-links a:last-child { border-bottom: none; }
+}
+
+/* ===== FRAMES =====
+   Double rules, a corner square top left and bottom right, a title on the
+   top rule. .layer is the older name for the same panel. */
+.frame, .layer {
+  position: relative;
+  border: 3px double var(--t-frame);
+  padding: var(--space-6);
+}
+.frame-title {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -55%;
+  padding: 0 0.6em;
+  background: var(--surface-0);
+  color: var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 /* ===== BUTTONS =====
-   A rock chip: the face is a ::before clipped to --edge-chip with grain, and
-   the lip and pool are drop-shadows on the unclipped element, because
-   clip-path removes box-shadow, borders and outlines. Keeping the element
-   itself unclipped also keeps the keyboard focus ring visible.
-   .btn-primary is the one magma action; .btn-vein is the cool second action;
-   .btn-secondary is the "scratch" text button with a rule underline, in ink
-   rather than magma so that it does not compete with the primary action. */
-.btn-primary,
-.btn-vein {
-  --btn-lip: var(--magma-deep);
-  --btn-face: var(--accent);
-  position: relative;
-  isolation: isolate;
+   Bracketed menu keys. The primary action is the one magma key on a view;
+   the others are vein. Hover and focus invert, as on a board. */
+.btn-primary, .btn-secondary, .btn-vein, .bbs-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
   background: transparent;
-  color: var(--on-accent);
-  padding: 13px 24px 12px;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.25rem;
-  line-height: 1;
+  color: var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.375rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  border: none;
   cursor: pointer;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 4px;
-  filter: drop-shadow(0 4px 0 var(--btn-lip)) drop-shadow(0 10px 12px rgba(0, 0, 0, 0.32));
-  transition: transform var(--duration-fast) var(--ease-out),
-              filter var(--duration-fast) var(--ease-out);
 }
-.btn-vein {
-  --btn-lip: var(--vein-deep);
-  --btn-face: var(--vein);
-  color: var(--on-vein);
-}
-.btn-primary::before,
-.btn-vein::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  clip-path: var(--edge-chip);
-  background-color: var(--btn-face);
-  background-image: var(--lit), var(--grain);
-  background-size: auto, 160px 160px;
-  background-blend-mode: normal, multiply;
-}
-.btn-primary:hover,
-.btn-vein:hover {
-  transform: translateY(-3px);
-  filter: drop-shadow(0 7px 0 var(--btn-lip)) drop-shadow(0 18px 18px rgba(0, 0, 0, 0.38));
-}
-.btn-primary:hover::before {
-  background-color: var(--accent-hover);
-}
-.btn-primary:active,
-.btn-vein:active {
-  transform: translateY(2px);
-  filter: drop-shadow(0 1px 0 var(--btn-lip)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
-  transition-duration: 120ms;
-}
-.btn-secondary {
-  background: linear-gradient(var(--rule), var(--rule)) no-repeat 0 100% / 100% 2px;
-  color: var(--text-primary);
-  padding: 11px 4px;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.25rem;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  border: none;
-  cursor: pointer;
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  transition: background-size var(--duration-fast) var(--ease-out);
-}
-.btn-secondary:hover {
-  background-size: 100% 4px;
-}
+.btn-primary::before, .btn-secondary::before, .btn-vein::before { content: '[\00a0'; }
+.btn-primary::after, .btn-secondary::after, .btn-vein::after { content: '\00a0]'; }
+.btn-primary, .bbs-btn.is-hot { background: var(--t-hot); color: var(--on-accent); }
+.btn-secondary:hover, .btn-secondary:focus-visible,
+.btn-vein:hover, .btn-vein:focus-visible,
+.bbs-btn:hover, .bbs-btn:focus-visible { background: var(--t-frame); color: var(--surface-0); outline: none; }
+.btn-primary:hover, .btn-primary:focus-visible,
+.bbs-btn.is-hot:hover, .bbs-btn.is-hot:focus-visible { background: var(--text-primary); color: var(--surface-0); outline: none; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-8); }
 
-/* ===== HERO ACTIONS + ACCENT (shared across pages) ===== */
-/* Global accent class: works on all pages, overrides Astro scoped styles */
-.accent {
-  color: var(--accent) !important;
-}
-.hero-actions {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-8);
-}
-@media (max-width: 480px) {
-  .hero-actions {
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .hero-actions .btn-primary,
-  .hero-actions .btn-vein,
-  .hero-actions .btn-secondary {
-    width: 100%;
-    justify-content: center;
-  }
-  .install-box {
-    max-width: 100%;
-  }
-}
-
-/* ===== INSTALL BOX ===== */
+/* ===== INSTALL BOX: a prompt line ===== */
 .install-box {
-  background: var(--code-bg);
-  clip-path: var(--edge-ledge);
-  padding: calc(var(--space-4) + 4px) var(--space-6) var(--space-4);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  max-width: 480px;
+  max-width: 520px;
+  padding: var(--space-3) 0;
+  border-top: 1px dashed var(--t-frame);
+  border-bottom: 1px dashed var(--t-frame);
 }
-.install-box code {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  line-height: 1.7;
-  color: var(--code-text);
-}
-.install-box code .pkg {
-  color: var(--syntax-string);
-  white-space: nowrap;
-}
-/* A package name copied with a line break in it is a broken command, and a
-   name split at its hyphen or slash reads as two words. Install commands wrap
-   between words only. */
-.no-break {
-  white-space: nowrap;
-}
+.install-box code { font-family: var(--bbs-font); font-size: 1.375rem; color: var(--text-primary); }
+.install-box code::before { content: '> '; color: var(--t-frame); }
+.install-box code .pkg { color: var(--text-primary); white-space: nowrap; }
 .install-copy {
-  background: transparent;
-  border: 1px solid var(--syntax-comment);
-  color: var(--code-text);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  transition: border-color var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out);
   min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-.install-copy:hover {
-  border-color: var(--code-text);
-}
-
-/* ===== LAYER =====
-   A panel is a slab of rock: a band-colored lip clipped to --edge-ledge (::before),
-   then the inner surface clipped to --edge-ledge-b a few px lower (::after), so
-   the lip varies in thickness. The element itself stays unclipped and carries
-   the lip-and-pool shadow as drop-shadows. Content sits above both pseudo
-   layers through isolation. Set --layer-band to pick the rock by depth. */
-.layer,
-.inherit-panel,
-.post-body blockquote {
-  --layer-band: var(--topsoil);
-  position: relative;
-  isolation: isolate;
+  padding: 0 var(--space-3);
   background: transparent;
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 18px 20px rgba(0, 0, 0, 0.4));
-}
-.layer::before,
-.inherit-panel::before,
-.post-body blockquote::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  clip-path: var(--edge-ledge);
-  background-color: var(--layer-band);
-  background-image: var(--shade), var(--lam);
-}
-.layer::after,
-.inherit-panel::after,
-.post-body blockquote::after {
-  content: "";
-  position: absolute;
-  inset: 10px 0 0;
-  z-index: -1;
-  clip-path: var(--edge-ledge-b);
-  background: var(--surface-1);
-}
-[data-theme="light"] .layer,
-[data-theme="light"] .inherit-panel,
-[data-theme="light"] .post-body blockquote {
-  filter: drop-shadow(0 3px 0 var(--topsoil)) drop-shadow(0 7px 0 var(--basalt)) drop-shadow(0 16px 18px rgba(60, 30, 10, 0.3));
-}
-
-/* ===== HERO: INHERITANCE FLOW PANEL =====
-   The signature graphic. Each tenant is a rock band colored by depth (topsoil,
-   clay, sandstone, limestone), indented 28px per level, each row overlapping the
-   ragged top of the one above. A config value resolves down the strata in vein;
-   a locked key is a magma tag that carries the word LOCKED. The panel lip is
-   topsoil, not magma: the hero spends magma on Get Started and LOCKED only. */
-.inherit-panel {
-  padding: calc(var(--space-8) + 10px) var(--space-8) var(--space-8);
-  font-family: var(--font-mono);
-}
-@media (max-width: 480px) {
-  .inherit-panel { padding: calc(var(--space-6) + 10px) var(--space-4) var(--space-6); }
-}
-.inherit-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
+  border: 0;
+  color: var(--t-frame);
+  font-family: var(--bbs-font);
+  font-size: 1.25rem;
   text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: var(--space-4);
+  cursor: pointer;
 }
-.inherit-tree {
-  display: flex;
-  flex-direction: column;
-}
-.itrow {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-top: -9px;
-  padding: 18px 22px 11px 14px;
-  clip-path: var(--edge-row);
-  background-size: auto, 160px 160px, auto;
-  background-blend-mode: normal, multiply, normal;
-  white-space: nowrap;
-}
-.itrow:first-child { margin-top: 0; }
-.itrow.d0 { z-index: 1; margin-left: 0; background-color: var(--topsoil); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
-.itrow.d1 { z-index: 2; margin-left: 28px; background-color: var(--clay); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
-.itrow.d2 { z-index: 3; margin-left: 56px; background-color: var(--sandstone-band); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
-.itrow.d3 { z-index: 4; margin-left: 84px; background-color: var(--limestone); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
-.idepth {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-}
-.inode {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.375rem;
-  line-height: 1;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-.imeta {
-  margin-left: auto;
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-}
-@media (max-width: 480px) {
-  .itrow { padding: 16px 12px 10px 10px; gap: var(--space-2); }
-  .itrow.d1 { margin-left: 14px; }
-  .itrow.d2 { margin-left: 28px; }
-  .itrow.d3 { margin-left: 42px; }
-  .inode { font-size: 1.125rem; }
-  .imeta { display: none; }
-}
-.inherit-config {
-  margin-top: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.icfg {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-2) var(--space-3);
-  font-size: 0.78rem;
-}
-/* The tint, the tag and the vein or magma text carry the state. A colored
-   side stripe would repeat the tag and read as a callout. */
-.icfg-resolved { background: var(--flow-muted); }
-.icfg-locked { background: var(--lock-muted); }
-.ikey { color: var(--text-primary); }
-.ival { color: var(--flow); font-weight: 600; }
-/* On paper the vein text darkens to hold 4.5:1 on the tinted row (6.5:1). */
-[data-theme="light"] .ival { color: var(--vein-deep); }
-.itag {
-  color: var(--text-secondary);
-  font-size: 0.6875rem;
-  white-space: nowrap;
-}
+.install-copy:hover { background: var(--t-frame); color: var(--surface-0); }
 
-/* ===== TAG =====
-   Inheritance mode as glyph plus word plus color, never color alone:
-   ■ LOCKED (magma), ↓ INHERITED (vein), ⇄ DELEGATED (amber), △ OVERRIDE. */
+/* ===== TAGS: state as a bracketed word ===== */
 .tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 11px 4px 9px;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 0.6875rem;
-  line-height: 16px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  clip-path: var(--edge-chip);
-}
-.tag-glyph { letter-spacing: 0; }
-/* Depth labels read "d0" on every surface, so a tag must not uppercase them. */
-.depth-ref { text-transform: none; }
-.tag-locked { background: var(--magma); color: var(--on-accent); }
-.tag-inherited { background: var(--vein); color: var(--on-vein); }
-.tag-delegated { background: var(--amber-fill); color: var(--on-ember); }
-.tag-override { background: var(--text-primary); color: var(--surface-0); }
-
-/* ===== FEATURES ===== */
-.features {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-24) var(--space-6);
-}
-.features-heading {
-  margin-bottom: var(--space-16);
-}
-.features-heading h2 {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 2.5rem);
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  margin-bottom: var(--space-3);
-  text-wrap: balance;
-  max-width: 45ch;
-}
-.features-heading p {
-  color: var(--text-secondary);
-  font-size: 1rem;
-  max-width: 55ch;
-}
-
-/* The feature stack: one band of rock per feature, shallow to deep, in the
-   band order (topsoil, clay, sandstone, limestone, basalt). Each
-   band overlaps the ragged top of the one above. The li carries the upward
-   shadow and the face inside it is clipped, because clip-path would remove a
-   filter on the same element. Text takes the band's own ink, never gray. */
-.strata {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-.stratum-band {
-  position: relative;
-  margin-top: -14px;
-  filter: drop-shadow(0 -3px 4px rgba(0, 0, 0, 0.35));
-}
-.stratum-band:first-child {
-  margin-top: 0;
-  filter: none;
-}
-.band-d0 { z-index: 1; --band: var(--topsoil); --band-ink: var(--on-strata-dark); --band-light: var(--shade); }
-.band-d1 { z-index: 2; --band: var(--clay); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
-.band-d2 { z-index: 3; --band: var(--sandstone-band); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
-.band-d3 { z-index: 4; --band: var(--limestone); --band-ink: var(--on-strata-light); --band-light: var(--lit); }
-.band-d4 { z-index: 5; --band: var(--basalt); --band-ink: var(--on-strata-dark); --band-light: var(--shade); }
-.band-face {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: var(--space-4) var(--space-12);
-  padding: calc(var(--space-8) + 6px) var(--space-8) calc(var(--space-8) + 4px);
-  clip-path: var(--edge-ledge);
-  background-color: var(--band);
-  background-image: var(--band-light), var(--grain), var(--lam);
-  background-size: auto, 160px 160px, auto;
-  background-blend-mode: normal, multiply, normal;
-  color: var(--band-ink);
-}
-.stratum-band:last-child .band-face { padding-bottom: var(--space-12); }
-.band-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-.band-depth {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-}
-.band-head h3 {
-  font-family: var(--font-body);
-  font-size: 1.375rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-wrap: balance;
-}
-.band-body {
-  max-width: 64ch;
-}
-.band-body p {
-  font-size: 0.9375rem;
-  line-height: 1.65;
-}
-.band-body p + p {
-  margin-top: var(--space-3);
-}
-.band-body .band-lead {
+  padding: 0 2px;
+  font-family: var(--bbs-font);
   font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.5;
-}
-.band-body code {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-}
-.band-body .isolation-diagram {
-  margin-top: var(--space-6);
-}
-@media (max-width: 768px) {
-  .band-face {
-    grid-template-columns: minmax(0, 1fr);
-    padding-left: var(--space-6);
-    padding-right: var(--space-6);
-  }
-}
-@media (max-width: 480px) {
-  .band-face {
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .band-body .band-lead { font-size: 1.0625rem; }
-}
-
-/* Depth gauge: the three isolation strategies as one continuous stack of rock,
-   shallow to deep. Each layer overlaps the ragged top of the one above. The
-   strategy in use gets a magma rim along its top and a drill marker. */
-.isolation-diagram {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: var(--space-3);
-}
-.isolation-stack {
-  display: flex;
-  flex-direction: column;
-}
-.isolation-row {
-  position: relative;
-  margin-top: -16px;
-  filter: drop-shadow(0 -2px 3px rgba(0, 0, 0, 0.35));
-}
-.isolation-row:first-child {
-  margin-top: 0;
-  filter: none;
-}
-.isolation-row:nth-child(1) { z-index: 1; }
-.isolation-row:nth-child(2) { z-index: 2; }
-.isolation-row:nth-child(3) { z-index: 3; }
-.isolation-face {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  padding: 26px 20px 24px;
-  clip-path: var(--edge-ledge);
-  background-size: auto, 160px 160px, auto;
-  background-blend-mode: normal, multiply, normal;
-}
-.isolation-row:first-child .isolation-face { padding-top: 18px; }
-.isolation-row:last-child .isolation-face { padding-bottom: 26px; }
-.iso-rls .isolation-face { background-color: var(--sandstone-band); background-image: var(--lit), var(--grain), var(--lam); color: var(--on-strata-light); }
-.iso-schema .isolation-face { background-color: var(--topsoil); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
-.iso-db .isolation-face { background-color: var(--basalt); background-image: var(--shade), var(--grain), var(--lam); color: var(--on-strata-dark); }
-.isolation-label {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 1.5rem;
-  line-height: 1;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-.isolation-note {
-  display: block;
-  margin-top: 4px;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  line-height: 1.5;
-}
-.isolation-mark {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 0.6875rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.isolation-row.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -3px;
-  bottom: 0;
-  clip-path: var(--edge-ledge);
-  background: var(--magma);
-}
-.isolation-row.is-active .isolation-mark::before {
-  content: "\25BC  ";
-  display: inline-block;
-  white-space: pre;
-  animation: drill 1600ms var(--ease-in-out) infinite;
-}
-@keyframes drill {
-  0%, 100% { transform: translateY(-3px); }
-  50% { transform: translateY(2px); }
-}
-@media (max-width: 480px) {
-  .isolation-face { padding-left: var(--space-3); padding-right: var(--space-3); }
-  .isolation-label { font-size: 1.25rem; }
-}
-.iso-code {
-  margin-top: var(--space-4);
-  padding: calc(var(--space-3) + 4px) var(--space-4) var(--space-3);
-  background: var(--code-bg);
-  clip-path: var(--edge-ledge);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  line-height: 1.7;
-  color: var(--code-text);
-  overflow-x: auto;
-}
-.iso-fn { color: var(--syntax-function); }
-/* A string, not magma: the magma rim on the gauge already marks the strategy
-   in use, and one view spends magma once. */
-.iso-accent { color: var(--syntax-string); }
-.iso-cm { color: var(--syntax-comment); }
+.tag::before { content: '['; }
+.tag::after { content: ']'; }
+.tag-glyph { letter-spacing: 0; }
+.depth-ref { text-transform: none; }
+.tag-locked { color: var(--t-hot); }
+.tag-inherited { color: var(--t-frame); }
+.tag-delegated { color: var(--t-num); }
+.tag-override { color: var(--text-primary); }
 
-/* ===== CODE SECTION ===== */
-.code-section {
-  border-top: 1px solid var(--border);
-  background: var(--surface-1);
-  padding: var(--space-24) var(--space-6);
-}
-.code-section-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 1.6fr;
-  gap: var(--space-16);
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .code-section-inner { grid-template-columns: 1fr; }
-}
-.code-section-text h2 {
-  font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3.2vw, 2.125rem);
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  margin-bottom: var(--space-4);
-  text-wrap: balance;
-}
-.code-section-text p {
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-  line-height: 1.65;
-  max-width: 40ch;
-}
-/* The code well stays dark in both themes. Its top edge is ragged rock
-   (--edge-ledge only cuts the top few px, so the horizontal scrollbar at the
-   bottom is never clipped). */
-.code-block {
-  background: var(--code-bg);
-  clip-path: var(--edge-ledge);
-  overflow: hidden;
-}
-.code-block-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: calc(var(--space-3) + 6px) var(--space-4) var(--space-3);
-  border-bottom: 1px solid var(--seam);
-}
-.code-block-filename {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  color: var(--syntax-comment);
-  margin-left: auto;
-}
-.code-block pre {
-  margin: 0;
-  padding: var(--space-6);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  line-height: 1.8;
-  overflow-x: auto;
-}
-/* Real syntax highlighting. Shiki's css-variables theme emits token colors as
-   --astro-code-* properties; map them onto the Stratum --syntax-* tokens so
-   the code well is theme-independent and no hex is hardcoded in the markup. */
-.code-block .astro-code {
-  --astro-code-color-text: var(--code-text);
-  --astro-code-color-background: var(--code-bg);
-  --astro-code-token-constant: var(--syntax-number);
-  --astro-code-token-string: var(--syntax-string);
-  --astro-code-token-string-expression: var(--syntax-string);
-  --astro-code-token-comment: var(--syntax-comment);
-  --astro-code-token-keyword: var(--syntax-keyword);
-  --astro-code-token-parameter: var(--code-text);
-  --astro-code-token-function: var(--syntax-function);
-  --astro-code-token-punctuation: var(--code-text);
-  --astro-code-token-link: var(--syntax-accent);
-  color: var(--code-text);
-}
-/* Resolved output: the one value that glows, in magma. Ties the code well
-   to the inheritance thesis. The arrow stays quiet so the value is the only
-   magma in the well. */
-.code-output {
+/* ===== TENANT ROWS (about, what-is-stratum) =====
+   A small tree outside the hero: one band of rock per depth, indented, the
+   tenant name cut into it as a label. */
+.inherit-tree { display: flex; flex-direction: column; gap: 2px; font-family: var(--bbs-font); }
+ol.inherit-tree { list-style: none; }
+.itrow {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
   flex-wrap: wrap;
-  padding: var(--space-3) var(--space-6);
-  border-top: 1px solid var(--seam);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--syntax-comment);
+  gap: var(--space-2);
+  padding: 8px 12px;
+  background: var(--band, var(--topsoil));
+  font-size: 1.25rem;
 }
-.co-arrow { color: var(--syntax-comment); }
-.co-text { color: var(--code-text); }
-.co-val { color: var(--syntax-accent); font-weight: 600; }
-.co-src { color: var(--syntax-string); }
-.co-tag { margin-left: auto; color: var(--syntax-comment); }
-
-/* ===== PACKAGES ===== */
-.packages {
-  padding: var(--space-24) var(--space-6);
-  border-top: 1px solid var(--border);
-}
-.packages-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.packages-heading {
-  margin-bottom: var(--space-8);
-}
-.packages-heading h2 {
-  font-family: var(--font-display);
-  font-size: clamp(1.75rem, 3.2vw, 2.125rem);
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 0.95;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
-  text-wrap: balance;
-}
-.packages-heading p {
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-}
-.pkg-scope {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-.packages-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.packages-table tr {
-  border-bottom: 1px solid var(--border);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-.packages-table tr:first-child {
-  border-top: 1px solid var(--border);
-}
-.packages-table tr:hover {
-  background: var(--surface-1);
-}
-.pkg-name {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--sandstone);
-  padding: var(--space-4) var(--space-4) var(--space-4) 0;
-  white-space: nowrap;
-  vertical-align: top;
-  width: 240px;
-}
-.pkg-desc {
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-  padding: var(--space-4) 0;
-  line-height: 1.5;
-  vertical-align: top;
-}
-.pkg-tag {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 3px 9px;
-  margin-left: var(--space-2);
-  clip-path: var(--edge-chip);
-  background: var(--surface-3);
-  color: var(--text-primary);
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  display: inline-block;
-}
-.pkg-actions {
-  padding: var(--space-4) 0 var(--space-4) var(--space-4);
-  text-align: right;
-  white-space: nowrap;
-  vertical-align: middle;
-}
-.pkg-link {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--text-secondary);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-.pkg-link:hover {
-  color: var(--sandstone);
-}
-@media (max-width: 600px) {
-  .pkg-name { width: auto; display: block; font-size: 0.6875rem; }
-  .pkg-actions { display: none; }
-  .packages-table, .packages-table tbody, .packages-table tr, .packages-table td {
-    display: block;
-  }
-  .packages-table tr { padding: var(--space-4) 0; }
-  .pkg-desc { padding-top: var(--space-1); font-size: 0.8125rem; }
-}
-
-/* Global mobile padding */
+.itrow.d0 { --band: var(--topsoil); }
+.itrow.d1 { --band: var(--clay); margin-left: 2ch; }
+.itrow.d2 { --band: var(--sandstone-band); margin-left: 4ch; }
+.itrow.d3 { --band: var(--limestone); margin-left: 6ch; }
+.idepth, .inode, .imeta { padding: 0 0.4em; background: var(--surface-0); color: var(--text-primary); }
+.inode { text-transform: uppercase; letter-spacing: 0.04em; }
+.imeta { color: var(--text-secondary); margin-left: auto; }
 @media (max-width: 480px) {
-  .features,
-  .packages {
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .code-section {
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .cta {
-    padding-left: var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .code-block pre {
-    padding: var(--space-4);
-    font-size: 0.6875rem;
-  }
+  .itrow.d1 { margin-left: 1ch; }
+  .itrow.d2 { margin-left: 2ch; }
+  .itrow.d3 { margin-left: 3ch; }
 }
+/* Resolved config rows: the value in vein, a locked key in magma. */
+.inherit-config { display: flex; flex-direction: column; margin-top: var(--space-4); font-family: var(--bbs-font); }
+.icfg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--t-frame);
+  font-size: 1.25rem;
+}
+.ikey { color: var(--text-secondary); }
+.ival { color: var(--t-frame); }
+.icfg-locked .ival, .icfg-locked .ikey { color: var(--t-hot); }
+.itag { color: var(--text-secondary); }
+
+/* ===== ISOLATION STACK (what-is-stratum) =====
+   The three strategies, shallow to deep, as labelled rows; the one in use
+   is framed in magma. */
+.isolation-stack { display: flex; flex-direction: column; gap: 6px; font-family: var(--bbs-font); }
+.isolation-face {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--t-frame);
+}
+.iso-rls .isolation-face { background: color-mix(in srgb, var(--sandstone-band) 14%, transparent); }
+.iso-schema .isolation-face { background: color-mix(in srgb, var(--clay) 14%, transparent); }
+.iso-db .isolation-face { background: color-mix(in srgb, var(--topsoil) 18%, transparent); }
+.isolation-row.is-active .isolation-face { border: 2px solid var(--t-hot); }
+.isolation-label { font-size: 1.5rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-primary); }
+.isolation-note { display: block; font-size: 1.125rem; color: var(--text-secondary); }
+.isolation-mark { font-size: 1.125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--t-frame); white-space: nowrap; }
+.isolation-row.is-active .isolation-mark { color: var(--t-hot); }
+
+/* ===== CODE BLOCKS =====
+   A framed listing: the filename sits on the top rule, the code is the
+   terminal face, colors from the text roles. */
+.code-block { position: relative; border: 3px double var(--t-frame); background: var(--code-bg); }
+.code-block-header { padding: var(--space-2) var(--space-4); border-bottom: 1px dashed var(--t-frame); }
+.code-block-filename { font-family: var(--bbs-font); font-size: 1.125rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t-frame); }
+.code-block pre { margin: 0; padding: var(--space-4); font-family: var(--bbs-font); font-size: 1.125rem; line-height: 1.35; overflow-x: auto; }
+.code-block .astro-code, .post-body .astro-code {
+  --astro-code-color-text: var(--text-primary);
+  --astro-code-color-background: transparent;
+  --astro-code-token-constant: var(--t-num);
+  --astro-code-token-string: var(--t-str);
+  --astro-code-token-string-expression: var(--t-str);
+  --astro-code-token-comment: var(--text-secondary);
+  --astro-code-token-keyword: var(--t-kw);
+  --astro-code-token-parameter: var(--text-primary);
+  --astro-code-token-function: var(--t-frame);
+  --astro-code-token-punctuation: var(--text-secondary);
+  --astro-code-token-link: var(--t-frame);
+  background: transparent !important;
+  font-family: var(--bbs-font);
+}
+/* Hand-colored listings on inner pages use these. */
+.kw { color: var(--t-kw); }
+.str { color: var(--t-str); }
+.num { color: var(--t-num); }
+.fn { color: var(--t-frame); }
+.cm { color: var(--text-secondary); }
 
 /* ===== CTA ===== */
-.cta {
-  padding: var(--space-24) var(--space-6);
-  border-top: 1px solid var(--border);
-}
-.cta-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-8);
-  flex-wrap: wrap;
-}
-.cta h2 {
-  font-family: var(--font-display);
-  font-size: clamp(2.25rem, 5vw, 3.25rem);
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  line-height: 0.92;
-  text-transform: uppercase;
-  color: var(--text-primary);
-  text-wrap: balance;
-}
-.cta h2 .accent {
-  color: var(--accent);
+.cta { padding: var(--space-16) var(--space-6); }
+.cta-inner { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.cta h2 { font-size: clamp(2.25rem, 5vw, 3.5rem); }
+
+/* ===== COMPARISON TABLES (components/RockTable.astro) ===== */
+.rock-table { margin: var(--space-6) 0; font-family: var(--bbs-font); font-size: 1.25rem; line-height: 1.35; }
+.rock-head, .rock-row { display: grid; grid-template-columns: minmax(0, 1.15fr) repeat(var(--rock-cols, 2), minmax(0, 1fr)); gap: var(--space-4); }
+.rock-head { padding: 0 var(--space-3) var(--space-2); border-bottom: 1px dashed var(--t-frame); font-size: 1.125rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--t-frame); }
+.rock-rows { display: flex; flex-direction: column; }
+.rock-row { padding: var(--space-2) var(--space-3); border-bottom: 1px dashed var(--border); }
+.rock-row:hover { background: color-mix(in srgb, var(--t-frame) 10%, transparent); }
+.rock-feat { color: var(--text-primary); }
+.rock-good { color: var(--t-frame); }
+.rock-neutral { color: var(--t-num); }
+.rock-bad, .rock-plain { color: var(--text-secondary); }
+.rock-cell-label { display: none; }
+@media (max-width: 640px) {
+  .rock-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rock-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1) var(--space-4); }
+  .rock-feat { grid-column: 1 / -1; }
+  .rock-cell-label { display: block; font-size: 1rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
 }
 
-/* ===== FOOTER ===== */
-.footer {
-  background: var(--surface-1);
-  border-top: 1px solid var(--border);
-  padding: var(--space-8) var(--space-6);
-}
-.footer-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-}
-.footer-meta {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-.footer-meta a {
-  color: var(--text-primary);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-.footer-meta a:hover {
-  color: var(--text-primary);
-}
-.footer-links {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-.footer-links a {
-  transition: color var(--duration-fast) var(--ease-out);
-}
-.footer-links a:hover {
-  color: var(--text-primary);
-}
+/* ===== FOOTER: the sign-off line ===== */
+.footer { padding: var(--space-6); border-top: 3px double var(--t-frame); font-family: var(--bbs-font); font-size: 1.375rem; }
+.footer-inner { max-width: 1680px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.footer-meta, .footer-links a { color: var(--text-secondary); }
+.footer-meta::before { content: 'NO CARRIER\00a0\00a0'; color: var(--t-frame); }
+.footer-meta a, .footer-links a:hover { color: var(--text-primary); }
+.footer-links { display: flex; align-items: center; gap: var(--space-6); }
+
+/* ===== ANSI ART CELLS (lib/ansi.ts) =====
+   Every art glyph is a CSS cell exactly one character wide and one line
+   tall, so no fallback font can bend the grid. */
+.ln { display: block; height: 1lh; }
+.g { display: inline-block; width: calc(var(--n) * 1ch); height: 1lh; vertical-align: top; }
+/* Half-block pixels: the top and bottom of each cell are separate pixels. */
+.g-px { background: linear-gradient(var(--t) 50%, var(--b) 50%); }
+/* The locked key's double line. */
+.g-h2 { --lw: max(1.5px, 0.08em); background: linear-gradient(currentColor, currentColor) 0 38% / 100% var(--lw) no-repeat, linear-gradient(currentColor, currentColor) 0 64% / 100% var(--lw) no-repeat; }
+.a-silt { color: var(--text-secondary); }
+.a-vein { color: var(--t-frame); }
+.a-tag { color: var(--t-frame); }
+.a-label { color: var(--text-primary); background: var(--surface-0); }
+.a-lock { color: var(--t-hot); }
+.a-lock-note { color: var(--surface-0); background: var(--t-hot); }
+/* Art grids: the terminal face, no extra leading, fitted by scripts/ansi-fit.ts. */
+.art { display: block; font-family: var(--bbs-font); line-height: 1; white-space: pre; overflow: hidden; font-size-adjust: none; }
+.earth { margin: var(--space-16) 0 0; width: 100%; font-size: 0.6vw; }
 
 /* ===== SCROLL ANIMATIONS =====
    Content is never hidden waiting for a reveal: a section is readable before
    any script runs, and the reveal only settles it the last few pixels into
    place. The "js" class is set in Base.astro. */
-.fade-in {
-  transition: transform var(--duration-slow) var(--ease-out);
-}
-.js .fade-in {
-  transform: translateY(14px);
-}
-.js .fade-in.visible {
-  transform: translateY(0);
-}
+.fade-in { transition: transform var(--duration-slow) var(--ease-out); }
+.js .fade-in { transform: translateY(14px); }
+.js .fade-in.visible { transform: translateY(0); }
 .fade-in-delay-1 { transition-delay: 100ms; }
 .fade-in-delay-2 { transition-delay: 200ms; }
 .fade-in-delay-3 { transition-delay: 300ms; }
 
-/* ===== DEPTH RAIL (persistent stratigraphic signature) =====
-   A thin left axis marked with tenant depth d0..d3. The vein cursor tracks scroll
-   position; marks light up as the active depth resolves downward. Desktop only,
-   decorative, and sits in the left gutter so it never overlaps content. */
-.depth-rail {
-  position: fixed;
-  left: 24px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 50;
-  display: none;
-  width: 44px;
-  height: 320px;
-  font-family: var(--font-mono);
-  pointer-events: none;
-}
-@media (min-width: 1320px) {
-  .depth-rail { display: block; }
-}
-.depth-rail-track {
-  position: absolute;
-  left: 5px;
-  top: 6px;
-  bottom: 6px;
-  width: 1px;
-  background: var(--rule);
-}
-.depth-rail-cursor {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translate(-50%, -50%);
-  width: 7px;
-  height: 7px;
-  background: var(--flow);
-  box-shadow: 0 0 0 4px var(--flow-muted);
-  transition: top var(--duration-normal) var(--ease-out);
-}
-.depth-rail-marks {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  height: 100%;
-}
-.dm {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.dm-dot {
-  width: 5px;
-  height: 5px;
-  margin-left: 3px;
-  background: var(--rule);
-  flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-.dm-label {
-  font-size: 0.6875rem;
-  letter-spacing: 0.05em;
-  color: var(--text-tertiary);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-.dm.active .dm-dot { background: var(--flow); }
-.dm.active .dm-label { color: var(--flow); }
-
-/* Packages table row highlight */
-.packages-table tr:hover .pkg-name {
-  color: var(--text-primary);
-}
-
-/* ===== ROCK ROWS (inner pages) =====
-   A comparison table is a stack of thin slabs (components/RockTable.astro).
-   Each row is clipped to --edge-row, so its top edge is ragged. The first 7px
-   of the face are a --border lip, and the ragged clip makes that lip 1px to
-   7px thick. --border is the seam color and is lighter on paper. Each row
-   overlaps the row above by 4px, and DOM order puts the later row on top.
-   Rows carry no depth, so they use surfaces, never the depth bands. */
-.rock-table {
-  margin: var(--space-6) 0;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-}
-.rock-head,
-.rock-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) repeat(var(--rock-cols, 2), minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.rock-head {
-  padding: 0 var(--space-6) var(--space-3) var(--space-4);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.rock-rows {
-  display: flex;
-  flex-direction: column;
-}
-.rock-row {
-  position: relative;
-  margin-top: -4px;
-  padding: calc(var(--space-3) + 7px) var(--space-6) var(--space-3) var(--space-4);
-  clip-path: var(--edge-row);
-  background-color: var(--surface-1);
-  background-image: linear-gradient(180deg, var(--border) 0 7px, transparent 7px);
-}
-.rock-row:first-child { margin-top: 0; }
-.rock-row:nth-child(even) { background-color: var(--surface-2); }
-.rock-feat {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.rock-good { color: var(--success); font-weight: 500; }
-.rock-neutral { color: var(--warning); }
-.rock-bad { color: var(--text-secondary); }
-.rock-plain { color: var(--text-secondary); }
-/* On paper the vein text darkens to hold 4.5:1 on both row surfaces. */
-[data-theme="light"] .rock-good { color: var(--vein-deep); }
-.rock-cell-label { display: none; }
-/* A phone has no room for three columns. Each row stacks: the capability
-   spans the row, and each cell shows its column name above its value. */
-@media (max-width: 640px) {
-  .rock-head {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-  .rock-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-2) var(--space-4);
-    padding-right: var(--space-4);
-  }
-  .rock-feat { grid-column: 1 / -1; }
-  .rock-cell-label {
-    display: block;
-    margin-bottom: 2px;
-    font-family: var(--font-mono);
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-  }
-}
-
-/* A tenant tree outside the hero is a real list, read in order. Its row
-   notes name the tenants, so a phone keeps them; the hero hides its notes. */
-ol.inherit-tree {
-  list-style: none;
-}
-@media (max-width: 480px) {
-  ol.inherit-tree .imeta { display: inline; }
-}
-
-/* ===== LIGHT MODE =====
-   The code wells (including the install box) and their syntax tokens are theme
-   independent (see assets/tokens.css): they stay dark in light mode, so no light
-   overrides are needed here. Panels follow --surface-1 and adapt on their own. */
-
 /* ===== ACCESSIBILITY ===== */
-/* Keyboard focus: a solid 3px --focus ring with a 3px offset on every
-   interactive element. --focus clears the 3:1 UI floor on both grounds (8.7:1
-   on Bedrock, 5.3:1 on Daylight). clip-path would clip an outline, so no
-   focusable element here is itself clipped: buttons clip a ::before face and
-   keep the ring on the unclipped element. Matches the docs site's focus
-   treatment (website/src/styles/custom.css) so the two surfaces agree. */
-:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 3px;
-}
+:focus-visible { outline: 2px solid var(--t-frame); outline-offset: 3px; }
 
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion: reduce) {
@@ -1270,16 +528,7 @@ ol.inherit-tree {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
-  html {
-    scroll-behavior: auto;
-  }
-  /* The scroll-triggered fade-ins resolve to their final state so no content is
-     gated behind motion; the one shot inheritance-flow reveal is skipped. */
-  .fade-in {
-    transform: none !important;
-  }
-  /* Every keyframe animation (drill marker, drifting strata) stops. */
-  *, *::before, *::after {
-    animation: none !important;
-  }
+  html { scroll-behavior: auto; }
+  .fade-in { transform: none !important; }
+  *, *::before, *::after { animation: none !important; }
 }

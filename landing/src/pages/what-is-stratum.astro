@@ -4,11 +4,15 @@ import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import RockTable from '../components/RockTable.astro';
+import RockTitle from '../components/RockTitle.astro';
+import EarthBand from '../components/EarthBand.astro';
 ---
 
 <Base title="What is Stratum? Multi-Tenancy Library for Node.js" description="Stratum is an open-source multi-tenancy library for Node.js and TypeScript. Hierarchical tenants, config inheritance, three isolation strategies, GDPR compliance. Learn why we built it and how it works.">
 
 <Nav />
+
+<main>
 
 <!-- Editorial entry: quiet, starts with a scenario -->
 <section class="wis-hero">
@@ -17,7 +21,7 @@ import RockTable from '../components/RockTable.astro';
     Now your biggest customer wants isolated data, your compliance team needs audit logs,
     and the new reseller deal requires nested organizations three levels deep.
   </p>
-  <h1>That is the problem <span class="accent">Stratum</span> solves.</h1>
+  <RockTitle lines={['WHAT IS', 'STRATUM?']} label="What is Stratum? That is the problem Stratum solves." />
   <p class="wis-elevator">
     An open-source multi-tenancy library for Node.js and TypeScript.
     Hierarchical tenants, config inheritance, permission delegation,
@@ -210,6 +214,10 @@ import RockTable from '../components/RockTable.astro';
     </div>
   </div>
 </section>
+
+</main>
+
+<EarthBand depth={3} />
 
 <Footer />
 

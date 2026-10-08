@@ -48,6 +48,7 @@ const jsonLd = {
     logo: { '@type': 'ImageObject', url: `${site}/icon-512.png` },
   },
 };
+import EarthBand from '../components/EarthBand.astro';
 ---
 
 <Base
@@ -66,6 +67,8 @@ const jsonLd = {
   </Fragment>
 
 <Nav />
+
+<main>
 
 <!-- Article -->
 <article class="post">
@@ -103,6 +106,10 @@ const jsonLd = {
     </div>
   </div>
 </article>
+
+</main>
+
+<EarthBand depth={3} />
 
 <Footer />
 
@@ -246,7 +253,7 @@ const jsonLd = {
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--syntax-comment);
+    color: var(--t-frame);
     background: var(--code-bg);
     border-bottom: 1px solid var(--border);
     white-space: nowrap;

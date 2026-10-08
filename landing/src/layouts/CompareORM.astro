@@ -11,6 +11,8 @@ interface Props {
 }
 
 const { orm } = Astro.props;
+import RockTitle from '../components/RockTitle.astro';
+import EarthBand from '../components/EarthBand.astro';
 ---
 
 <Base
@@ -22,7 +24,7 @@ const { orm } = Astro.props;
 
 <main class="orm-main">
   <header class="orm-header">
-    <h1>Stratum + <span class="accent">{orm.name}</span></h1>
+    <RockTitle lines={['STRATUM +', orm.name.toUpperCase()]} label={`Stratum + ${orm.name}`} />
     <p class="orm-tagline">{orm.tagline}</p>
   </header>
 
@@ -78,6 +80,9 @@ const { orm } = Astro.props;
     </div>
   </section>
 </main>
+
+
+<EarthBand depth={3} />
 
 <Footer />
 
