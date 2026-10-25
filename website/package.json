@@ -20,7 +20,7 @@
     "buffer": "^6.0.3",
     "pg-connection-string": "^2.14.1",
     "sharp": "^0.35.5",
-    "zod": "3.23.8"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0"
