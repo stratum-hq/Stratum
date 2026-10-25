@@ -19,17 +19,17 @@ export const CreateAbacPolicyInputSchema = z.object({
   conditions: z.array(z.object({
     attribute: z.string().min(1),
     operator: z.enum(["eq", "neq", "in", "not_in", "contains", "gt", "gte", "lt", "lte"]),
-    value: z.unknown(),
-  })),
+    value: z.unknown().optional(),
+  })).max(100),
   // abac_policies.priority is INTEGER (int4).
   priority: z.number().int().min(-2147483648).max(2147483647).optional(),
   mode: z.enum(["LOCKED", "INHERITED", "DELEGATED"]).optional(),
 });
 
 export const AbacEvaluationRequestSchema = z.object({
-  subject: z.record(z.unknown()),
+  subject: z.record(z.string(), z.unknown()),
   action: z.string().min(1),
-  resource: z.record(z.unknown()),
+  resource: z.record(z.string(), z.unknown()),
 });
 
 export interface AbacCondition {

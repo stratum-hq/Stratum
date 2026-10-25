@@ -56,7 +56,7 @@ export async function rejectInvalidPathParams(request: FastifyRequest, _reply: F
   const names = new Set(
     (failure.validation ?? []).map((item) => item.instancePath?.replace(/^\//, "") || item.params?.missingProperty || ""),
   );
-  const issues = [...names].map((name) => ({ path: ["params", name], message: "Invalid uuid", code: "invalid_string" }));
+  const issues = [...names].map((name) => ({ path: ["params", name], message: "Invalid UUID", code: "invalid_format" }));
   throw new ValidationError("Invalid path parameter", { issues });
 }
 
@@ -76,6 +76,6 @@ export async function rejectInvalidQueryTenantIds(request: FastifyRequest, _repl
     (name) => query[name] !== undefined && !(typeof query[name] === "string" && UUID_REGEX.test(query[name])),
   );
   if (bad.length === 0) return;
-  const issues = bad.map((name) => ({ path: ["query", name], message: "Invalid uuid", code: "invalid_string" }));
+  const issues = bad.map((name) => ({ path: ["query", name], message: "Invalid UUID", code: "invalid_format" }));
   throw new ValidationError("Invalid query parameter", { issues });
 }

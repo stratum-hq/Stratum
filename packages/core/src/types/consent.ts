@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 export const ConsentPurpose = {
@@ -9,15 +10,15 @@ export const ConsentPurpose = {
 } as const;
 
 export const ConsentRecordSchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
+  id: UUIDSchema,
+  tenant_id: UUIDSchema,
   subject_id: z.string(),
   purpose: z.string(),
   granted: z.boolean(),
   granted_at: z.string().nullable(),
   revoked_at: z.string().nullable(),
   expires_at: z.string().nullable(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -32,7 +33,7 @@ export const GrantConsentInputSchema = z.object({
     .datetime({ offset: true })
     .refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE)
     .optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type GrantConsentInput = z.input<typeof GrantConsentInputSchema>;

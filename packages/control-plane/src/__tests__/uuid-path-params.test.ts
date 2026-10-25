@@ -124,7 +124,7 @@ describe("UUID path parameters", () => {
         (body === undefined ||
           (body?.error?.code === "VALIDATION_ERROR" &&
             JSON.stringify(body?.error?.details?.issues) ===
-              JSON.stringify([{ path: ["params", param], message: "Invalid uuid", code: "invalid_string" }])));
+              JSON.stringify([{ path: ["params", param], message: "Invalid UUID", code: "invalid_format" }])));
       if (!ok) failures.push(`${method} ${routeUrl} (${param}): ${res.statusCode} ${res.body} calls=${libCalls.join(",")}`);
     }
     expect(failures).toEqual([]);

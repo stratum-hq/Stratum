@@ -9,6 +9,14 @@ export interface ValidationIssue {
   code: string;
 }
 
+/** A validation issue as zod reports it, where a path segment can be any property key. */
+type ValidationIssueInput = Omit<ValidationIssue, "path"> & { path: readonly PropertyKey[] };
+
+/** Returns the path with any symbol segment as a string, the form a response carries. */
+export function issuePath(path: readonly PropertyKey[]): (string | number)[] {
+  return path.map((p) => (typeof p === "symbol" ? String(p) : p));
+}
+
 /**
  * Returns the body of a 400 VALIDATION_ERROR response.
  * The issues go in `error.details.issues`, next to any other details.
@@ -17,11 +25,15 @@ export interface ValidationIssue {
  */
 export function validationErrorBody(
   message: string,
-  issues: readonly ValidationIssue[],
+  issues: readonly ValidationIssueInput[],
   details?: Record<string, unknown>,
 ) {
   // A zod issue has more fields than these three, and they differ per issue code.
-  const normalized: ValidationIssue[] = issues.map(({ path, message, code }) => ({ path, message, code }));
+  const normalized: ValidationIssue[] = issues.map(({ path, message, code }) => ({
+    path: issuePath(path),
+    message,
+    code,
+  }));
   return {
     error: {
       code: ErrorCode.VALIDATION_ERROR,
@@ -37,7 +49,7 @@ export function validationErrorBody(
  * The top-level `details` is a deprecated copy of the issues for older clients.
  * It goes away in the next major release.
  */
-export function legacyValidationErrorBody(message: string, issues: readonly ValidationIssue[]) {
+export function legacyValidationErrorBody(message: string, issues: readonly ValidationIssueInput[]) {
   const body = validationErrorBody(message, issues);
   return { ...body, details: body.error.details.issues };
 }

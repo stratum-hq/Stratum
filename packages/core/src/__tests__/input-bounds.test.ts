@@ -3,6 +3,7 @@ import { CreateAbacPolicyInputSchema } from "../types/abac.js";
 import { GrantConsentInputSchema } from "../types/consent.js";
 import { RecordUsageInputSchema, UsageAggregateQuerySchema } from "../types/usage.js";
 import { AuditLogQuerySchema, RecordAuditEventInputSchema } from "../types/audit.js";
+import { CreateWebhookInputSchema, TenantEvent, UpdateWebhookInputSchema } from "../types/webhook.js";
 
 // Each input schema must reject every value its database column rejects.
 // A value that passes the schema and then fails in PostgreSQL reaches the
@@ -30,6 +31,42 @@ describe("CreateAbacPolicyInputSchema priority", () => {
 
   it("rejects a priority below the int4 minimum", () => {
     expect(CreateAbacPolicyInputSchema.safeParse(policy(-2147483649)).success).toBe(false);
+  });
+});
+
+describe("CreateAbacPolicyInputSchema conditions", () => {
+  const conditions = (n: number) => ({
+    ...policy(undefined),
+    conditions: Array.from({ length: n }, () => ({ attribute: "role", operator: "eq", value: "admin" })),
+  });
+
+  it("accepts up to 100 conditions", () => {
+    expect(CreateAbacPolicyInputSchema.safeParse(conditions(100)).success).toBe(true);
+  });
+
+  it("rejects more than 100 conditions", () => {
+    expect(CreateAbacPolicyInputSchema.safeParse(conditions(101)).success).toBe(false);
+  });
+
+  it("accepts a condition without a value", () => {
+    const input = { ...policy(undefined), conditions: [{ attribute: "role", operator: "eq" }] };
+    expect(CreateAbacPolicyInputSchema.safeParse(input).success).toBe(true);
+  });
+});
+
+describe("webhook events", () => {
+  const all = Object.values(TenantEvent);
+  const create = (events: string[]) => ({ url: "https://example.com/hook", secret: "s".repeat(16), events });
+
+  it("accepts every event once", () => {
+    expect(CreateWebhookInputSchema.safeParse(create(all)).success).toBe(true);
+    expect(UpdateWebhookInputSchema.safeParse({ events: all }).success).toBe(true);
+  });
+
+  it("rejects more entries than there are events", () => {
+    const tooMany = [...all, all[0]];
+    expect(CreateWebhookInputSchema.safeParse(create(tooMany)).success).toBe(false);
+    expect(UpdateWebhookInputSchema.safeParse({ events: tooMany }).success).toBe(false);
   });
 });
 

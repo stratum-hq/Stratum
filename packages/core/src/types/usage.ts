@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 /**
@@ -20,7 +21,7 @@ export const RecordUsageInputSchema = z.object({
   quantity: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(1),
   occurred_at: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
   idempotency_key: z.string().min(1).max(255).optional(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 });
 // The INPUT type (pre-defaults): `quantity` and `metadata` carry Zod defaults,
 // so on the caller side they are optional. `z.infer` (the output type) would
@@ -28,12 +29,12 @@ export const RecordUsageInputSchema = z.object({
 export type RecordUsageInput = z.input<typeof RecordUsageInputSchema>;
 
 export const UsageEventSchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
+  id: UUIDSchema,
+  tenant_id: UUIDSchema,
   metric: z.string(),
   quantity: z.number(),
   idempotency_key: z.string().nullable(),
-  metadata: z.record(z.unknown()),
+  metadata: z.record(z.string(), z.unknown()),
   occurred_at: z.string(),
   recorded_at: z.string(),
 });
@@ -46,7 +47,7 @@ export type UsageEvent = z.infer<typeof UsageEventSchema>;
  * returns one aggregate row per metric.
  */
 export const UsageAggregateQuerySchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: UUIDSchema,
   metric: z.string().optional(),
   from: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
   to: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),

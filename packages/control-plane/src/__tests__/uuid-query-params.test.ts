@@ -93,7 +93,7 @@ describe("UUID query-string tenant ids", () => {
       expect(res.statusCode).toBe(400);
       expect(res.json().error.code).toBe("VALIDATION_ERROR");
       expect(res.json().error.details.issues).toEqual([
-        { path: ["query", param], message: "Invalid uuid", code: "invalid_string" },
+        { path: ["query", param], message: "Invalid UUID", code: "invalid_format" },
       ]);
       expect(state.libCalls).toEqual([]);
     });

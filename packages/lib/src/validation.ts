@@ -1,7 +1,7 @@
 import { ValidationError } from "@stratum-hq/core";
 
 interface InputIssue {
-  path: (string | number)[];
+  path: PropertyKey[];
   message: string;
   code: string;
 }
@@ -23,7 +23,8 @@ export function parseInput<T>(schema: InputSchema<T>, input: unknown): T {
   if (!result.success) {
     throw new ValidationError("Validation failed", {
       issues: result.error.issues.map((issue) => ({
-        path: issue.path,
+        // zod types a path segment as PropertyKey; keep the public detail to strings and numbers.
+        path: issue.path.map((p) => (typeof p === "symbol" ? String(p) : p)),
         message: issue.message,
         code: issue.code,
       })),

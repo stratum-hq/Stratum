@@ -10,11 +10,13 @@ export const SlugSchema = z
       "Slug must start with a lowercase letter, contain only lowercase letters, numbers, and underscores, and be at most 63 characters",
   });
 
-export const UUIDSchema = z.string().uuid();
+// Any 8-4-4-4-12 hex value, as the PostgreSQL uuid type accepts. z.uuid() would
+// also require an RFC 9562 version and variant, and reject ids the database holds.
+export const UUIDSchema = z.guid({ error: "Invalid UUID" });
 
 export const PaginationSchema = z.object({
-  cursor: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: UUIDSchema.optional(),
+  limit: z.coerce.number<number>().int().min(1).max(100).default(50),
 });
 
 // The INPUT type (pre-defaults): `limit` carries a Zod default (and coerces),

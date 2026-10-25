@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 
 export const TenantEvent = {
   TENANT_CREATED: "tenant.created",
@@ -25,8 +26,8 @@ export const TenantEvent = {
 export type TenantEvent = (typeof TenantEvent)[keyof typeof TenantEvent];
 
 export const WebhookSchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid().nullable(),
+  id: UUIDSchema,
+  tenant_id: UUIDSchema.nullable(),
   url: z.string().url(),
   secret_hash: z.string(),
   events: z.array(z.string()),
@@ -38,10 +39,10 @@ export const WebhookSchema = z.object({
 export type Webhook = z.infer<typeof WebhookSchema>;
 
 export const CreateWebhookInputSchema = z.object({
-  tenant_id: z.string().uuid().nullable().default(null),
+  tenant_id: UUIDSchema.nullable().default(null),
   url: z.string().url(),
   secret: z.string().min(16).max(255),
-  events: z.array(z.nativeEnum(TenantEvent)).min(1),
+  events: z.array(z.nativeEnum(TenantEvent)).min(1).max(Object.values(TenantEvent).length),
   description: z.string().max(255).optional(),
 });
 // The INPUT type (pre-defaults): `tenant_id` carries a Zod default, so it is
@@ -52,17 +53,17 @@ export type CreateWebhookInput = z.input<typeof CreateWebhookInputSchema>;
 export const UpdateWebhookInputSchema = z.object({
   url: z.string().url().optional(),
   secret: z.string().min(16).max(255).optional(),
-  events: z.array(z.nativeEnum(TenantEvent)).min(1).optional(),
+  events: z.array(z.nativeEnum(TenantEvent)).min(1).max(Object.values(TenantEvent).length).optional(),
   active: z.boolean().optional(),
   description: z.string().max(255).optional(),
 });
 export type UpdateWebhookInput = z.input<typeof UpdateWebhookInputSchema>;
 
 export const WebhookEventSchema = z.object({
-  id: z.string().uuid(),
+  id: UUIDSchema,
   type: z.nativeEnum(TenantEvent),
-  tenant_id: z.string().uuid(),
-  data: z.record(z.unknown()),
+  tenant_id: UUIDSchema,
+  data: z.record(z.string(), z.unknown()),
   created_at: z.string().datetime(),
 });
 export type WebhookEvent = z.infer<typeof WebhookEventSchema>;
@@ -92,9 +93,9 @@ export type WebhookDeliveryStatus =
   (typeof WebhookDeliveryStatus)[keyof typeof WebhookDeliveryStatus];
 
 export const WebhookDeliverySchema = z.object({
-  id: z.string().uuid(),
-  webhook_id: z.string().uuid(),
-  event_id: z.string().uuid(),
+  id: UUIDSchema,
+  webhook_id: UUIDSchema,
+  event_id: UUIDSchema,
   status: z.nativeEnum(WebhookDeliveryStatus),
   attempts: z.number().int().min(0),
   next_retry_at: z.string().datetime().nullable(),
