@@ -1,12 +1,13 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 
 export const ConfigEntrySchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
+  id: UUIDSchema,
+  tenant_id: UUIDSchema,
   key: z.string().min(1).max(255),
-  value: z.unknown(),
+  value: z.unknown().optional(),
   inherited: z.boolean().default(false),
-  source_tenant_id: z.string().uuid(),
+  source_tenant_id: UUIDSchema,
   locked: z.boolean().default(false),
   sensitive: z.boolean().default(false),
   created_at: z.string().datetime(),
@@ -16,7 +17,7 @@ export const ConfigEntrySchema = z.object({
 export type ConfigEntry = z.infer<typeof ConfigEntrySchema>;
 
 export const SetConfigInputSchema = z.object({
-  value: z.unknown(),
+  value: z.unknown().optional(),
   locked: z.boolean().default(false),
   // No default: an omitted flag keeps the key's current sensitive flag, and
   // only an explicit `false` clears a flag the tenant set itself.

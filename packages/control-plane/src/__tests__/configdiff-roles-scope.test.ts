@@ -190,6 +190,17 @@ describe("role routes scope to the caller's subtree", () => {
     expect(stratum.createRole).not.toHaveBeenCalled();
   });
 
+  it("rejects a role with more scope entries than there are scopes", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/roles",
+      headers: { ...authHeaders(), "content-type": "application/json" },
+      payload: { name: "many", scopes: ["read", "write", "admin", "read"], tenant_id: ATTACKER },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(stratum.createRole).not.toHaveBeenCalled();
+  });
+
   it("refuses assigning a foreign tenant's role to an own key", async () => {
     const res = await app.inject({
       method: "POST",

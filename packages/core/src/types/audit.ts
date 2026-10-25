@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 import { hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE } from "../utils/timestamptz.js";
 
 export interface AuditContext {
@@ -9,38 +10,38 @@ export interface AuditContext {
 }
 
 export const AuditEntrySchema = z.object({
-  id: z.string().uuid(),
+  id: UUIDSchema,
   actor_id: z.string(),
   actor_type: z.string(),
   action: z.string(),
   resource_type: z.string(),
   resource_id: z.string().nullable(),
-  tenant_id: z.string().uuid().nullable(),
+  tenant_id: UUIDSchema.nullable(),
   source_ip: z.string().nullable(),
   request_id: z.string().nullable(),
-  before_state: z.record(z.unknown()).nullable(),
-  after_state: z.record(z.unknown()).nullable(),
-  metadata: z.record(z.unknown()),
+  before_state: z.record(z.string(), z.unknown()).nullable(),
+  after_state: z.record(z.string(), z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()),
   created_at: z.string().datetime(),
 });
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 
 export const AuditLogQuerySchema = z.object({
-  tenant_id: z.string().uuid().optional(),
+  tenant_id: UUIDSchema.optional(),
   action: z.string().optional(),
   resource_type: z.string().optional(),
   actor_id: z.string().optional(),
   from: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
   to: z.string().datetime().refine(hasTimestamptzYear, TIMESTAMPTZ_YEAR_MESSAGE).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.string().uuid().optional(),
+  limit: z.coerce.number<number>().int().min(1).max(100).default(50),
+  cursor: UUIDSchema.optional(),
 });
 // The INPUT type (pre-defaults): `limit` carries a Zod default (and coerces),
 // so it is optional on the caller side. `z.infer` (the output type) would make
 // it required.
 export type AuditLogQuery = z.input<typeof AuditLogQuerySchema>;
 
-const ipAddress = z.string().ip();
+const ipAddress = z.union([z.ipv4(), z.ipv6()]);
 
 /**
  * Return true when the value is an address that the audit_logs.source_ip INET
@@ -71,15 +72,15 @@ function isInetValue(value: string): boolean {
  * queryable via queryAuditLogs.
  */
 export const RecordAuditEventInputSchema = z.object({
-  tenantId: z.string().uuid(),
+  tenantId: UUIDSchema,
   actorId: z.string().min(1),
   actorType: z.enum(["api_key", "jwt", "system"]).default("system"),
   action: z.string().min(1),
   resourceType: z.string().min(1),
   resourceId: z.string().nullable(),
-  before: z.record(z.unknown()).nullable().optional(),
-  after: z.record(z.unknown()).nullable().optional(),
-  metadata: z.record(z.unknown()).default({}),
+  before: z.record(z.string(), z.unknown()).nullable().optional(),
+  after: z.record(z.string(), z.unknown()).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   sourceIp: z
     .string()
     .refine(isInetValue, "sourceIp must be an IPv4 or IPv6 address, with an optional /prefix")

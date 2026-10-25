@@ -60,6 +60,16 @@ describe("validation schemas", () => {
       ).toBe(true);
     });
 
+    it("accepts any hex value in the 8-4-4-4-12 form, as the PostgreSQL uuid type does", () => {
+      for (const id of [
+        "11111111-1111-1111-1111-111111111111",
+        "00000000-0000-0000-0000-000000000000",
+        "550E8400-E29B-41D4-A716-446655440000",
+      ]) {
+        expect(UUIDSchema.safeParse(id).success, id).toBe(true);
+      }
+    });
+
     it("rejects non-UUID strings", () => {
       expect(UUIDSchema.safeParse("not-a-uuid").success).toBe(false);
     });

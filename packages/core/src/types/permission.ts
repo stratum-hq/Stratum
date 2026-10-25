@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 
 export const PermissionMode = {
   LOCKED: "LOCKED",
@@ -19,15 +20,15 @@ export type RevocationMode =
   (typeof RevocationMode)[keyof typeof RevocationMode];
 
 export const PermissionPolicySchema = z.object({
-  id: z.string().uuid(),
-  tenant_id: z.string().uuid(),
+  id: UUIDSchema,
+  tenant_id: UUIDSchema,
   key: z.string().min(1).max(255),
   value: z.unknown().default(true),
   mode: z.nativeEnum(PermissionMode).default(PermissionMode.INHERITED),
   revocation_mode: z
     .nativeEnum(RevocationMode)
     .default(RevocationMode.CASCADE),
-  source_tenant_id: z.string().uuid(),
+  source_tenant_id: UUIDSchema,
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });

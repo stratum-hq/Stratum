@@ -259,7 +259,7 @@ describe("SDK against the real control plane (integration)", () => {
       const err = await client.createRegion({ display_name: "EU", slug: "Not A Slug" }).catch((e: unknown) => e);
       expect(err).toBeInstanceOf(ValidationError);
       expect((err as ValidationError).details?.issues).toEqual([
-        { path: ["slug"], message: expect.any(String), code: "invalid_string" },
+        { path: ["slug"], message: expect.any(String), code: "invalid_format" },
       ]);
     });
   });

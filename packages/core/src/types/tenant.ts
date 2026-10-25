@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UUIDSchema } from "../utils/validation.js";
 import type { ResolvedConfig } from "./config.js";
 
 export const IsolationStrategy = {
@@ -21,17 +22,17 @@ export const TenantStatus = {
 export type TenantStatus = (typeof TenantStatus)[keyof typeof TenantStatus];
 
 export const TenantNodeSchema = z.object({
-  id: z.string().uuid(),
-  parent_id: z.string().uuid().nullable(),
+  id: UUIDSchema,
+  parent_id: UUIDSchema.nullable(),
   ancestry_path: z.string(),
   depth: z.number().int().min(0),
   name: z.string().min(1).max(255),
   slug: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
-  config: z.record(z.unknown()).default({}),
-  metadata: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   isolation_strategy: z.nativeEnum(IsolationStrategy).default(IsolationStrategy.SHARED_RLS),
   status: z.nativeEnum(TenantStatus).default(TenantStatus.ACTIVE),
-  region_id: z.string().uuid().nullable().optional(),
+  region_id: UUIDSchema.nullable().optional(),
   sort_order: z.number().int().min(0).default(0),
   deleted_at: z.string().datetime().nullable().default(null),
   created_at: z.string().datetime(),
@@ -41,18 +42,18 @@ export const TenantNodeSchema = z.object({
 export type TenantNode = z.infer<typeof TenantNodeSchema>;
 
 export const CreateTenantInputSchema = z.object({
-  parent_id: z.string().uuid().nullable().default(null),
+  parent_id: UUIDSchema.nullable().default(null),
   name: z.string().min(1).max(255),
   slug: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/, {
     message:
       "Slug must start with a lowercase letter, contain only lowercase letters, numbers, and underscores, and be at most 63 characters",
   }),
-  config: z.record(z.unknown()).default({}),
-  metadata: z.record(z.unknown()).default({}),
+  config: z.record(z.string(), z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   isolation_strategy: z
     .nativeEnum(IsolationStrategy)
     .default(IsolationStrategy.SHARED_RLS),
-  region_id: z.string().uuid().nullable().optional(),
+  region_id: UUIDSchema.nullable().optional(),
 });
 
 // The INPUT type (pre-defaults): `parent_id`, `config`, `metadata`, and
@@ -67,14 +68,14 @@ export const UpdateTenantInputSchema = z.object({
     .string()
     .regex(/^[a-z][a-z0-9_]{0,62}$/)
     .optional(),
-  config: z.record(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type UpdateTenantInput = z.input<typeof UpdateTenantInputSchema>;
 
 export const MoveTenantInputSchema = z.object({
-  new_parent_id: z.string().uuid(),
+  new_parent_id: UUIDSchema,
 });
 
 export type MoveTenantInput = z.input<typeof MoveTenantInputSchema>;

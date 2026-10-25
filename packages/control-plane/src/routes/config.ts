@@ -10,7 +10,7 @@ import { Stratum } from "@stratum-hq/lib";
 import { buildAuditContext } from "./audit-logs.js";
 import { declareTenantScope, fromParamId } from "../middleware/tenant-scope.js";
 import { declareRequiredScope } from "../middleware/authorize.js";
-import { validationErrorBody, type ValidationIssue } from "../middleware/error-handler.js";
+import { issuePath, validationErrorBody, type ValidationIssue } from "../middleware/error-handler.js";
 
 /** The library's reason for an entry that an ancestor's lock refused. */
 const LOCKED_REASON = /is locked by tenant/;
@@ -54,7 +54,7 @@ function batchEntryIssues(entries: unknown[]): ValidationIssue[] {
     const parsed = SetConfigInputSchema.safeParse(entry);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
-        issues.push({ path: ["entries", i, ...issue.path], message: issue.message, code: issue.code });
+        issues.push({ path: ["entries", i, ...issuePath(issue.path)], message: issue.message, code: issue.code });
       }
     }
   });

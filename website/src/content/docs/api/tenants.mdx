@@ -299,7 +299,7 @@ All errors follow this format:
 
 `error.details` is optional. When it is present, it holds more data about the error. For example, a `REGION_NOT_ACTIVE` error has the `region_id`.
 
-A path id that is not a UUID, such as the `:id` of `/api/v1/tenants/:id`, gets `400 VALIDATION_ERROR` with an issue that names the bad id, for example `{ "path": ["params", "id"], "message": "Invalid uuid", "code": "invalid_string" }`. This holds on every route with an id in its path.
+A path id that is not a UUID, such as the `:id` of `/api/v1/tenants/:id`, gets `400 VALIDATION_ERROR` with an issue that names the bad id, for example `{ "path": ["params", "id"], "message": "Invalid UUID", "code": "invalid_format" }`. This holds on every route with an id in its path.
 
 A path that matches no route gets `404 NOT_FOUND` in the same format, once the caller is authenticated. A caller without valid credentials gets `401 UNAUTHORIZED` first.
 
@@ -316,7 +316,7 @@ A `VALIDATION_ERROR` about the request fields lists each failed field in `error.
     "message": "Validation failed",
     "details": {
       "issues": [
-        { "path": ["slug"], "message": "Required", "code": "invalid_type" }
+        { "path": ["slug"], "message": "Invalid input: expected string, received undefined", "code": "invalid_type" }
       ]
     }
   }

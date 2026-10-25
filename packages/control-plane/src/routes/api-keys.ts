@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
-import { ForbiddenError } from "@stratum-hq/core";
+import { ForbiddenError, UUIDSchema } from "@stratum-hq/core";
 import { declareTenantScope, fromBodyTenantId, isOperator } from "../middleware/tenant-scope.js";
 import { declareRequiredScope } from "../middleware/authorize.js";
 import { parseWindow } from "../middleware/per-key-rate-limit.js";
@@ -10,7 +10,7 @@ import { buildAuditContext } from "./audit-logs.js";
 import { legacyValidationErrorBody } from "../middleware/error-handler.js";
 
 const createApiKeySchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: UUIDSchema,
   name: z.string().optional(),
   rate_limit_max: z.number().int().min(1).max(100_000).optional(),
   rate_limit_window: z.string().regex(/^[1-9]\d*\s+(second|minute|hour|day)s?$/i).optional(),

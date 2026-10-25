@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { Stratum } from "@stratum-hq/lib";
 import { z } from "zod";
+import { UUIDSchema } from "@stratum-hq/core";
 import { buildAuditContext } from "./audit-logs.js";
 import { legacyValidationErrorBody } from "../middleware/error-handler.js";
 import {
@@ -16,18 +17,18 @@ import { declareRequiredScope } from "../middleware/authorize.js";
 const createRoleSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  scopes: z.array(z.enum(["read", "write", "admin"])).min(1),
-  tenant_id: z.string().uuid().optional().nullable(),
+  scopes: z.array(z.enum(["read", "write", "admin"])).min(1).max(3),
+  tenant_id: UUIDSchema.optional().nullable(),
 });
 
 const updateRoleSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional(),
-  scopes: z.array(z.enum(["read", "write", "admin"])).min(1).optional(),
+  scopes: z.array(z.enum(["read", "write", "admin"])).min(1).max(3).optional(),
 });
 
 const assignRoleSchema = z.object({
-  role_id: z.string().uuid(),
+  role_id: UUIDSchema,
 });
 
 export function createRoleRoutes(stratum: Stratum) {
