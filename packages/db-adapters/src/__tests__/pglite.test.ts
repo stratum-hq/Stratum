@@ -31,10 +31,13 @@ describe("createPglitePool", () => {
       "INSERT INTO notes (tenant_id, body) VALUES ($1, 'a note'), ($2, 'b note')",
       [TENANT_A, TENANT_B],
     );
-  }, 30_000);
+    // Boots in about two seconds locally, but ran past 30s once on a CI runner
+    // busy with the other packages' suites.
+  }, 120_000);
 
   afterAll(async () => {
-    await pool.end();
+    // A setup that timed out leaves no pool; report that failure alone.
+    await pool?.end();
   });
 
   it("loads the ltree and uuid-ossp extensions", async () => {
@@ -220,5 +223,6 @@ describe("createPglitePool with a caller-owned instance", () => {
     expect(res.rows[0].one).toBe(1);
     expect(pool.pglite).toBe(db);
     await db.close();
-  }, 30_000);
+    // Boots its own instance; see the budget on the shared setup above.
+  }, 120_000);
 });
