@@ -16,12 +16,12 @@ const SAFE_FLOORS: Record<string, string> = {
   "drizzle-kit": "0.31.11",
   express: "4.22.3", // body-parser, path-to-regexp, qs, send, cookie
   fastify: "5.12.5", // every 4.x release is affected by fastify advisories
-  hono: "4.13.7",
+  hono: "4.13.16",
   "@hono/node-server": "1.19.15",
   "@nestjs/core": "11.1.18", // GHSA-36xv-jgw5-4q75
   "@nestjs/common": "11.1.18", // GHSA-cj7v-w2c7-cp7c
   "@nestjs/platform-express": "11.1.18",
-  mongoose: "8.24.1",
+  mongoose: "8.24.7",
   mysql2: "3.23.1",
   next: "16.3.0", // postcss advisories: every release before 16.3.0 bundles an affected postcss
   tsx: "4.19.3", // bundled esbuild, GHSA-67mh-4wv8-2f99
