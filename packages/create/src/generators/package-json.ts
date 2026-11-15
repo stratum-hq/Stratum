@@ -146,7 +146,7 @@ function addOrmDeps(deps: Record<string, string>, devDeps: Record<string, string
       deps["knex"] = "^3.1.0";
       break;
     case "mongoose":
-      deps["mongoose"] = "^8.24.1";
+      deps["mongoose"] = "^8.24.7";
       break;
     case "pg":
       // pg already handled in addDatabaseDeps
@@ -176,7 +176,7 @@ function addFrameworkDeps(deps: Record<string, string>, devDeps: Record<string, 
       devDeps["@types/react-dom"] = "^19.0.0";
       break;
     case "hono":
-      deps["hono"] = "^4.13.7";
+      deps["hono"] = "^4.13.16";
       deps["@hono/node-server"] = "^1.19.15";
       break;
     case "nestjs":
