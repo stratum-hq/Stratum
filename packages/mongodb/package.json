@@ -56,8 +56,8 @@
     "@types/jsonwebtoken": "^9.0.0",
     "@types/pg": "^8.11.0",
     "mongodb": "^7.6.0",
-    "mongoose": "^8.0.0",
-    "mongoose9": "npm:mongoose@^9.10.3",
+    "mongoose": "^8.24.7",
+    "mongoose9": "npm:mongoose@^9.11.4",
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
   },
