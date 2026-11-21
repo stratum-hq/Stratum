@@ -184,6 +184,34 @@ Stratum records a change in the audit log when the call that makes it carries an
 
 Audit logs support cursor-based pagination and filtering by tenant, action, actor, and date range.
 
+## Architecture
+
+Stratum has two integration paths over one library. `@stratum-hq/lib` runs in your process and owns the PostgreSQL tables. `@stratum-hq/control-plane` is a Fastify v5 REST API built on the same library, and `@stratum-hq/sdk` is its HTTP client.
+
+```
+@stratum-hq/lib (in process)  <──  @stratum-hq/control-plane (HTTP, built on lib)
+   │                                  │
+   ├── PostgreSQL 16+                 ├── @stratum-hq/sdk (client, LRU cache, middleware)
+   │   (ltree, RLS, AES-256-GCM)      │     ├── @stratum-hq/nestjs (guard, decorator, DI)
+   │                                  │     └── @stratum-hq/hono (middleware, ALS context)
+   └── @stratum-hq/db-adapters        │
+       (pg, Prisma, Sequelize,        └── @stratum-hq/react (admin components)
+        Drizzle, RLS, schema and
+        database isolation)
+
+@stratum-hq/mongodb   shared collection, collection or database per tenant, Mongoose plugin
+@stratum-hq/mysql     shared table, table or database per tenant, TypeORM, Knex, Sequelize
+@stratum-hq/cli       init, migrate, doctor, scaffold and more, against the database directly
+```
+
+The MongoDB and MySQL packages isolate your application data in those databases. Their Mongoose plugin and TypeORM subscriber read the current tenant from the SDK's AsyncLocalStorage context. The tenant tree, config, permissions and audit log stay in PostgreSQL.
+
+The control plane adds three things the library leaves to you:
+
+- **Authentication and scopes** on its routes, with an API key or a JWT Bearer token. The health check and the API docs are open. See [API keys and scopes](#api-keys-and-scopes).
+- **OpenTelemetry spans** for each request. The library and the control plane trace through `@opentelemetry/api`. Register an OpenTelemetry SDK in the process and the spans export with the rest of your traces; without one, the API's no-op tracer records nothing.
+- **Rate limits.** A global limit, plus a per-key limit. With `REDIS_URL` set, the per-key counters live in Redis; while Redis is unreachable, each instance falls back to its in-memory per-key limiter. See [environment variables](/getting-started/installation/#environment-variables).
+
 ## Next steps
 
 - [Tenant Hierarchy](/guides/tenant-hierarchy/): advanced tree operations

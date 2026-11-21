@@ -8,8 +8,10 @@ import { Tabs, TabItem } from "@astrojs/starlight/components";
 ## Prerequisites
 
 - **Node.js** >= 20
-- **PostgreSQL** 16+ (with `uuid-ossp` and `ltree` extensions)
+- **PostgreSQL** 16+ (with `uuid-ossp` and `ltree` extensions). Stratum's own tables live here even when your application data is in MongoDB or MySQL.
 - **npm** >= 10
+- **MongoDB** 6.0+, only for `@stratum-hq/mongodb`. Its `watchDeletes` option needs a replica set or a sharded cluster; see [MongoDB](/guides/mongodb/#change-streams-and-delete-events).
+- **MySQL** 8, only for `@stratum-hq/mysql`
 
 ## Choose your integration path
 
@@ -54,6 +56,18 @@ npm install @stratum-hq/db-adapters pg
 
 # NestJS integration (guard, @Tenant() decorator, DI module)
 npm install @stratum-hq/nestjs
+
+# Hono middleware (tenant extraction, AsyncLocalStorage context)
+npm install @stratum-hq/hono
+
+# MongoDB tenant isolation (shared collection, collection or database per tenant)
+npm install @stratum-hq/mongodb mongodb
+
+# MySQL tenant isolation (shared table, table or database per tenant)
+npm install @stratum-hq/mysql mysql2
+
+# Compliance kernel (coverage scoring, finding state machine, control types)
+npm install @stratum-hq/compliance
 
 # React components (provider, tenant tree, config editor)
 npm install @stratum-hq/react react react-dom
@@ -127,6 +141,8 @@ Set your database connection string:
 export DATABASE_URL="postgres://stratum:stratum_dev@localhost:5432/stratum"
 ```
 
+The control plane and the CLI read `DATABASE_URL`. The library reads no connection variable: pass the string to your pool, as in `new Pool({ connectionString: process.env.DATABASE_URL })`. A bare `new Pool()` reads only the `PG*` variables (`PGHOST`, `PGUSER`, `PGDATABASE`, and so on).
+
 For production, you should also set:
 
 | Variable | Description |
@@ -134,12 +150,13 @@ For production, you should also set:
 | `DATABASE_ADMIN_URL` | Optional in 1.x: a separate admin login for Stratum's own cross-tenant work, a member of the control role. The control plane and the CLI read it; with the library, pass it as `adminPool`. See [Hardening: separate admin and app roles](/guides/hardening-roles/) |
 | `JWT_SECRET` | JWT signing secret (required whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder such as `change-me-in-production`) |
 | `JWT_AUDIENCE` | Required `aud` claim for Bearer tokens, for example `stratum-control-plane` |
-| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required, at least 32 bytes, whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
-| `STRATUM_HKDF_SALT` | Hex-encoded HKDF salt for the encryption key (required whenever `NODE_ENV` is not `development` or `test`) |
-| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing (optional; when set, at least 32 bytes whenever `NODE_ENV` is not `development` or `test`) |
+| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field-level encryption (required, at least 32 bytes and not the built-in development key, whenever `NODE_ENV` is not `development` or `test`; an unset `NODE_ENV` counts as `development`) |
+| `STRATUM_HKDF_SALT` | HKDF salt for the encryption key, as a non-empty, even-length hex string; a value in any other format is refused in every environment. Required, and not the built-in development salt, whenever `NODE_ENV` is not `development` or `test` |
+| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing (optional; when set, at least 32 bytes whenever `NODE_ENV` is not `development` or `test`). Without it, new keys are hashed with unkeyed SHA-256 |
 | `ALLOWED_ORIGINS` | CORS origins (comma-separated) |
+| `REDIS_URL` | Control plane only, optional. Keeps the per-key rate limit counters in Redis. While Redis is unreachable, each instance falls back to its in-memory per-key limiter. The global rate limit stays in memory either way |
 
-The control plane reads more variables, such as `PORT`, the rate limits and `REDIS_URL`. See the [configuration table](https://github.com/stratum-hq/Stratum/tree/main/packages/control-plane#configuration) in its README. The CLI's variables are on the [CLI page](/packages/cli/#environment).
+`@stratum-hq/lib` checks the encryption key, the salt and the HMAC secret when it loads, so outside `development` and `test` your application or the control plane refuses to start with a missing key or salt, or a value that breaks these rules. The control plane reads more variables, such as `PORT` and the rate limits (`RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW`). See the [configuration table](https://github.com/stratum-hq/Stratum/tree/main/packages/control-plane#configuration) in its README. The CLI's variables are on the [CLI page](/packages/cli/#environment).
 
 ## Verify installation
 

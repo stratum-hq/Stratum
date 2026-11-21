@@ -2,11 +2,13 @@
 
 ## Supported Versions
 
+We support the latest minor release line. Fixes ship as a patch on that line, so upgrade
+to the newest 1.10.x release to receive them.
+
 | Version | Supported |
 |---|---|
-| 0.3.x | Yes |
-| 0.2.x | Yes |
-| < 0.2 | No |
+| 1.10.x | Yes |
+| < 1.10 | No |
 
 ## Reporting a Vulnerability
 
