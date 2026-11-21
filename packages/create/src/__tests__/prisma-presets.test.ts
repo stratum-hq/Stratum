@@ -89,7 +89,7 @@ describe("Prisma presets", () => {
     expect(pkg.devDependencies["prisma"]).toBe("^7.10.0");
     expect(pkg.devDependencies["typescript"]).toBe("^5.4.0");
     expect(pkg.engines.node).toBe("^20.19.0 || ^22.12.0 || >=24.0.0");
-    expect(pkg.overrides).toEqual({ mysql2: "^3.23.1", "deepmerge-ts": "^8.0.2" });
+    expect(pkg.overrides).toEqual({ mysql2: "^3.23.1", "deepmerge-ts": "^8.0.2", effect: "^3.22.1" });
   });
 
   it.each(names(prismaPresets))("%s README names prisma.config.ts as the place of the connection URL", (name) => {
