@@ -18,10 +18,13 @@ const DRIZZLE_KIT_OVERRIDES = {
  * have published advisories. The overrides move them to fixed releases.
  * @prisma/config calls only the deepmerge function of deepmerge-ts. Version 8
  * changes how that function merges Map values, and a Prisma config holds no Map.
+ * @prisma/config also pins effect 3.20.0 (GHSA-7589-6fvf-x4pw), and no Prisma 7
+ * release pins a fixed one, so the override moves it to a fixed 3.x release.
  */
 const PRISMA_OVERRIDES = {
   mysql2: "^3.23.1",
   "deepmerge-ts": "^8.0.2",
+  effect: "^3.22.1",
 };
 
 /** The Prisma release line of the Prisma presets. */
