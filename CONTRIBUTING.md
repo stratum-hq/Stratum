@@ -32,6 +32,24 @@ npm test
 
 Tests use [Vitest](https://vitest.dev/). Integration tests in `packages/integration-tests` require a running database.
 
+### Integration tests
+
+`npm test` runs no integration suite. To run them against real PostgreSQL, MongoDB, and
+MySQL, start the `test` profile's databases and build the packages first:
+
+```bash
+docker compose --profile test up -d test-db mongodb mysql
+npm run build
+cd packages/integration-tests
+DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test \
+MONGODB_URL=mongodb://localhost:27017 \
+MYSQL_URL=mysql://root@localhost:3306 \
+  npx vitest run
+```
+
+The MongoDB and MySQL suites skip when `MONGODB_URL` or `MYSQL_URL` is unset, so
+`DATABASE_URL` alone runs the PostgreSQL suites.
+
 ## The Verification Gate
 
 `npm run verify` runs four of the five checks CI runs, in order. CI also

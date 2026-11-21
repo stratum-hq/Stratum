@@ -5,61 +5,72 @@
   </picture>
 </p>
 
-<h1 align="center">Stratum</h1>
-
 <p align="center">
   <strong>Drop-in multi-tenancy for Node.js</strong>: tenant hierarchy, config inheritance, permissions, audit, and GDPR in one library.
 </p>
 
 <p align="center">
-  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci-integration.yml/badge.svg" alt="Integration Tests" /></a>
-  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci-mongo-integration.yml"><img src="https://github.com/stratum-hq/Stratum/actions/workflows/ci-mongo-integration.yml/badge.svg" alt="MongoDB Integration Tests" /></a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/MongoDB-6%2F7-47A248?style=flat-square&logo=mongodb&logoColor=white" alt="MongoDB" />
-  <img src="https://img.shields.io/badge/MySQL-8-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL" />
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/npm-%40stratum--hq%2F*-cb3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
-  <img src="https://img.shields.io/badge/License-MIT-FF5B1F?style=flat-square" alt="License" />
+  <a href="https://github.com/stratum-hq/Stratum/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/stratum-hq/Stratum/ci.yml?branch=main&style=flat-square&label=ci&labelColor=3A2F26"></a>
+  <a href="https://www.npmjs.com/package/@stratum-hq/lib"><img alt="npm version of @stratum-hq/lib" src="https://img.shields.io/npm/v/@stratum-hq/lib?style=flat-square&labelColor=3A2F26&color=FF5B1F"></a>
+  <img alt="Node.js version" src="https://img.shields.io/node/v/@stratum-hq/lib?style=flat-square&labelColor=3A2F26&color=FF5B1F">
+  <a href="https://github.com/stratum-hq/Stratum/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/stratum-hq/Stratum?style=flat-square&labelColor=3A2F26&color=FF5B1F"></a>
+  <img alt="Databases: PostgreSQL, MongoDB, MySQL" src="https://img.shields.io/badge/databases-PostgreSQL%20%C2%B7%20MongoDB%20%C2%B7%20MySQL-FF5B1F?style=flat-square&labelColor=3A2F26">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/stratum-hq/Stratum?style=flat-square&labelColor=3A2F26&color=FF5B1F"></a>
 </p>
 
 <p align="center">
   <a href="https://stratum-hq.org/"><strong>Website</strong></a> ·
   <a href="https://docs.stratum-hq.org/"><strong>Docs</strong></a> ·
   <a href="https://docs.stratum-hq.org/playground/"><strong>Playground</strong></a> ·
-  <a href="https://stratum-hq.org/blog/"><strong>Blog</strong></a> ·
-  <a href="https://stratum-hq.org/compare/"><strong>Compare</strong></a>
+  <a href="#quick-start"><strong>Quick start</strong></a>
 </p>
 
----
+```mermaid
+flowchart LR
+  core["@stratum-hq/lib<br/>or control-plane + sdk"] -->|tenants, config, audit| pg[("PostgreSQL")]
+  core -->|tenant id| ad["adapters<br/>db-adapters · mongodb · mysql"]
+  ad -->|scoped queries| pg
+  ad -->|scoped queries| mongo[("MongoDB")]
+  ad -->|scoped queries| mysql[("MySQL")]
+```
 
-Stratum gives you hierarchical multi-tenancy with config inheritance, permission delegation, three isolation strategies (RLS, schema-per-tenant, database-per-tenant), field-level encryption, audit logging, GDPR compliance, and multi-region support. Built for B2B SaaS, MSSP/MSP architectures, and any product that needs nested tenant boundaries.
+## Why Stratum
 
-## Why not just `tenant_id`?
+Every SaaS team starts with `tenant_id` on every table. It works until the product needs more than a filter:
 
-Every SaaS team starts with `tenant_id` on every table. It works, until it doesn't:
+- An enterprise customer wants its own settings, so you hand-roll config tables with no inheritance.
+- A compliance audit lands, and you scramble to add audit logging, data export, and purge.
+- A large customer demands data isolation, and you migrate off shared tables to schema-per-tenant while it's live.
 
-- **Month 6**: Enterprise customer needs custom config → hand-rolled config tables with no inheritance
-- **Month 12**: Compliance audit → scramble to add audit logging, data export, purge capabilities
-- **Month 18**: Large customer demands data isolation → painful migration from shared tables to schema-per-tenant
+We built Stratum so none of those turn into a rewrite. Tenants are a tree in PostgreSQL, stored as an `ltree` path, with advisory locks around create and move. Config resolves root to leaf, and a parent can lock a key for its whole subtree. Permissions flow down the tree as LOCKED, INHERITED, or DELEGATED, with cascade revocation, and ABAC policies resolve deny-overrides-allow. You can start flat: an organization is just a root tenant, so you add children under it when you need them.
 
-Stratum gives you all of this from day one. Start with flat tenancy, grow into hierarchy, config inheritance, permissions, and isolation strategies as your product matures.
+Around that core: three PostgreSQL isolation strategies (shared tables with RLS, schema-per-tenant, database-per-tenant) chosen per tenant, with parallel strategies for MongoDB and MySQL. There's also AES-256-GCM field encryption with key rotation, an audit log with before/after state, GDPR export (Article 20) and hard purge (Article 17), signed webhooks with retries and a dead letter queue, scoped API keys, and multi-region. We built it for B2B SaaS and MSP/MSSP products, where tenants nest.
 
-## 30-Second Quickstart
+## Requirements
+
+- **Node.js 20 or later.**
+- **PostgreSQL 16 or later**, with the `uuid-ossp` and `ltree` extensions. Stratum's own tables always live here, even when your application data is in MongoDB or MySQL. The first migration creates both extensions if its role is allowed to.
+- **MongoDB 6.0 or later**, only for `@stratum-hq/mongodb`. Its `watchDeletes` change-stream option needs a replica set or a sharded cluster.
+- **MySQL 8**, only for `@stratum-hq/mysql`.
+
+## Install
 
 ```bash
 npm install @stratum-hq/lib pg
 ```
 
+To start a new project instead, `npx @stratum-hq/create my-app` scaffolds one with Docker and migrations (`--template express`, `fastify`, or `nextjs`). The other packages are in the [installation guide](https://docs.stratum-hq.org/getting-started/installation/#additional-packages).
+
+## Quick start
+
 ```typescript
 import { Pool } from "pg";
 import { Stratum } from "@stratum-hq/lib";
 
-const stratum = new Stratum({ pool: new Pool(), autoMigrate: true });
+const stratum = new Stratum({
+  pool: new Pool({ connectionString: process.env.DATABASE_URL }),
+  autoMigrate: true,
+});
 await stratum.initialize();
 
 const org = await stratum.createOrganization({ name: "Acme Corp", slug: "acme" });
@@ -69,184 +80,82 @@ const config = await stratum.resolveConfig(org.id);
 console.log(config.seat_limit.value); // 25
 ```
 
-That's it. `autoMigrate: true` creates all tables on first run. No CLI, no migrations, no Docker required (just a PostgreSQL connection string).
+`autoMigrate: true` creates Stratum's tables on the first `initialize()`. There's no CLI step and no Docker requirement, only a PostgreSQL connection string. Pass it as `connectionString`: a bare `new Pool()` reads only the `PG*` variables (`PGHOST`, `PGUSER`, `PGDATABASE`, and so on), not `DATABASE_URL`.
 
-### Growing into hierarchy
+The first run logs a warning that Stratum was created without `adminPool` and uses the legacy `app.bypass_rls` path. That's normal for a single pool in 1.x. `adminPool` becomes required in 2.0, and [Hardening: separate admin and app roles](https://docs.stratum-hq.org/guides/hardening-roles/) shows how to set it up. Outside `NODE_ENV=development` or `test`, Stratum also refuses to start without `STRATUM_ENCRYPTION_KEY` and `STRATUM_HKDF_SALT`; see [environment variables](https://docs.stratum-hq.org/getting-started/installation/#environment-variables).
 
-When you're ready for parent/child tenants, config inheritance, and permission delegation:
+When you're ready for parent and child tenants:
 
 ```typescript
 const msp = await stratum.createTenant({ name: "NorthStar MSP", slug: "northstar" });
-const customer = await stratum.createTenant({ name: "Acme Corp", slug: "acme", parent_id: msp.id });
+const client = await stratum.createTenant({ name: "Client Alpha", slug: "client_alpha", parent_id: msp.id });
 
-// Config flows root → leaf; children inherit automatically
 await stratum.setConfig(msp.id, "max_seats", { value: 500, locked: true });
-const config = await stratum.resolveConfig(customer.id);
-// → { max_seats: { value: 500, inherited: true, locked: true } }
+const resolved = await stratum.resolveConfig(client.id);
+// resolved.max_seats → { value: 500, inherited: true, locked: true, source_tenant_id: msp.id }
 ```
 
-## Install
-
-```bash
-# Scaffold a new project (recommended)
-npx @stratum-hq/create my-app
-
-# Or add to an existing project
-npm install @stratum-hq/lib pg
-
-# HTTP SDK with Express/Fastify middleware
-npm install @stratum-hq/sdk
-
-# NestJS integration (guard, decorator, module)
-npm install @stratum-hq/nestjs
-
-# Hono middleware
-npm install @stratum-hq/hono
-
-# MongoDB tenant isolation
-npm install @stratum-hq/mongodb mongodb
-
-# MySQL tenant isolation
-npm install @stratum-hq/mysql mysql2
-
-# React admin components
-npm install @stratum-hq/react
-
-# CLI tools
-npm install -g @stratum-hq/cli
-```
+A locked key can't be overridden anywhere below the tenant that locked it.
 
 ## Packages
 
-| Package | What it does |
-|---------|-------------|
-| `@stratum-hq/core` | Shared types, Zod schemas, error classes |
-| `@stratum-hq/lib` | Direct library: tenants, config, permissions, ABAC, audit, GDPR |
-| `@stratum-hq/control-plane` | Fastify v5 REST API with auth, scopes, OTel, Redis rate limiting |
-| `@stratum-hq/sdk` | HTTP client with LRU cache, Express/Fastify middleware |
-| `@stratum-hq/db-adapters` | PostgreSQL adapters: raw pg, Prisma, Sequelize, Drizzle, RLS, schema/DB isolation |
-| `@stratum-hq/mongodb` | MongoDB tenant isolation: shared collection, collection-per-tenant, database-per-tenant |
-| `@stratum-hq/mysql` | MySQL tenant isolation: shared table, table-per-tenant, database-per-tenant, TypeORM/Knex/Sequelize integrations |
-| `@stratum-hq/react` | React components: tenant tree, config editor, permission editor |
-| `@stratum-hq/cli` | CLI: `init`, `migrate`, `scaffold`, `doctor` |
-| `@stratum-hq/nestjs` | NestJS integration: guard, `@Tenant()` decorator, module with DI |
-| `@stratum-hq/hono` | Hono middleware: tenant extraction, ALS context |
-| `@stratum-hq/test-utils` | Cross-tenant isolation test helpers |
-| `@stratum-hq/create` | Project scaffolding: `npx @stratum-hq/create my-app` |
+Start with one of these:
 
-## Key Features
+| Package | Use it for |
+|---|---|
+| [`@stratum-hq/lib`](https://docs.stratum-hq.org/packages/lib/) | The library, embedded in your Node.js process with no HTTP hop. |
+| [`@stratum-hq/sdk`](https://docs.stratum-hq.org/packages/sdk/) | An HTTP client for the control plane, with an LRU cache and Express/Fastify middleware. |
+| [`@stratum-hq/create`](https://docs.stratum-hq.org/packages/create/) | Scaffolding a new project: `npx @stratum-hq/create my-app`. |
 
-- **Tenant hierarchy**: tree structure with ltree, advisory locks
-- **Config inheritance**: values flow root→leaf, parents can lock keys
-- **Permission delegation**: LOCKED / INHERITED / DELEGATED modes with cascade revocation
-- **ABAC**: attribute-based access control with 9 operators, hierarchical policy inheritance, deny-overrides-allow
-- **Three PostgreSQL isolation strategies**: shared RLS, schema-per-tenant, database-per-tenant
-- **MongoDB isolation**: shared collection, collection-per-tenant, database-per-tenant with Mongoose plugin
-- **MySQL isolation**: shared table, table-per-tenant, database-per-tenant with TypeORM, Knex, and Sequelize integrations
-- **Field-level encryption**: AES-256-GCM with key rotation
-- **Audit logging**: every mutation with actor identity and before/after state
-- **GDPR compliance**: data export (Article 20) and hard purge (Article 17)
-- **Webhooks**: lifecycle events with HMAC signatures, retry, DLQ
-- **RBAC**: scoped API keys (read/write/admin) with role assignments
-- **Multi-region**: region CRUD with tenant migration
-- **OpenTelemetry**: optional distributed tracing (zero overhead when disabled)
-- **Redis rate limiting**: per-key sliding window, fail-open when Redis unavailable
-- **Config diff**: compare resolved config between any two tenants
-- **Tenant impersonation**: resolve full context for admin tooling
-- **Design system**: CSS custom properties, dark mode, i18n, Storybook
-- **700+ unit tests + 20 integration tests**, validated against real PostgreSQL 16, MongoDB 7, and MySQL 8
+The rest are on the [packages list](https://docs.stratum-hq.org/#packages): PostgreSQL ORM adapters, MongoDB and MySQL isolation, NestJS and Hono integrations, React admin components, the `stratum` CLI, cross-tenant test helpers, and the `@stratum-hq/compliance` kernel.
 
-## Running the Demo
+## How it works
+
+There are two ways in. `@stratum-hq/lib` runs inside your process and talks to PostgreSQL directly. `@stratum-hq/control-plane` is a Fastify v5 REST API over the same library, with scoped API keys, OpenTelemetry spans, and per-key rate limits that use Redis when `REDIS_URL` is set. Your services reach it through `@stratum-hq/sdk`.
+
+Either way, the adapters scope your own queries to the current tenant: RLS, schema, or database routing on PostgreSQL, and the equivalent strategies on MongoDB and MySQL. The data model is in [Core concepts](https://docs.stratum-hq.org/getting-started/concepts/).
+
+## Running the demo
 
 ```bash
 docker compose --profile demo up --build
 ```
 
+This builds and starts PostgreSQL, the control plane, and an MSSP demo app with seeded tenants.
+
 | Service | URL |
-|---------|-----|
+|---|---|
 | Dashboard | http://localhost:3300 |
 | API | http://localhost:3001 |
 | Swagger | http://localhost:3001/api/docs |
 
 ## Documentation
 
-The full documentation is at **[docs.stratum-hq.org](https://docs.stratum-hq.org/)**. It covers getting started, guides (hierarchy, config, permissions, isolation, API keys, webhooks, GDPR, multi-region), the API reference, and a page for each package.
+Everything else is at [docs.stratum-hq.org](https://docs.stratum-hq.org/).
 
-- [Quick start](https://docs.stratum-hq.org/getting-started/quick-start/)
-- [Playground](https://docs.stratum-hq.org/playground/): try Stratum in your browser, with no install
-- [stratum-hq.org](https://stratum-hq.org/): the project site, the [blog](https://stratum-hq.org/blog/), and [comparisons](https://stratum-hq.org/compare/) with other approaches
-
-Contributors can run the docs site locally from [`website/`](website/) with `cd website && npm install && npm run dev`.
+| Section | What's there |
+|---|---|
+| [Start](https://docs.stratum-hq.org/start/) | A wizard that builds the `npx @stratum-hq/create` command for your database, isolation strategy, ORM, and framework. |
+| [Installation](https://docs.stratum-hq.org/getting-started/installation/) | Prerequisites, every package, database setup, and environment variables. |
+| [Core concepts](https://docs.stratum-hq.org/getting-started/concepts/) | Tenant trees, config inheritance, delegation, isolation, and the architecture. |
+| [Guides](https://docs.stratum-hq.org/guides/tenant-hierarchy/) | Hierarchy, config, permissions, ABAC, isolation, API keys, webhooks, GDPR, multi-region, and ORM setups. |
+| [API reference](https://docs.stratum-hq.org/api/tenants/) | The control plane's REST routes. |
+| [Playground](https://docs.stratum-hq.org/playground/) | Stratum in your browser, with no install. |
+| [Roadmap](https://stratum-hq.org/blog/whats-next-for-stratum/) | What we're working on next. |
 
 ## Development
 
 ```bash
-npm install              # Install dependencies
-npm run build            # Build all packages
-npm test                 # Run unit tests
-npx @stratum-hq/cli doctor  # Check your DB setup
+npm ci
+npm run verify        # lint, typecheck, unit tests, build
+npm run lint:secrets  # the secret scan CI runs
 ```
 
-### Integration Tests
+The unit tests need no database. The integration suites run against real PostgreSQL, MongoDB, and MySQL; the steps are in [CONTRIBUTING.md](CONTRIBUTING.md#running-tests). To run the docs site locally: `cd website && npm install && npm run dev`.
 
-Integration tests run against real PostgreSQL, MongoDB, and MySQL:
+## Security
 
-```bash
-docker compose --profile test up -d test-db
-cd packages/integration-tests
-DATABASE_URL=postgresql://stratum_test:stratum_test@localhost:5433/stratum_test \
-  npx vitest run
-```
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | JWT signing secret (**required** whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes, and not a placeholder) |
-| `STRATUM_ENCRYPTION_KEY` | AES-256-GCM key for field encryption (**required**, with `STRATUM_HKDF_SALT` in hex, whenever `NODE_ENV` is not `development` or `test`; at least 32 bytes there) |
-| `REDIS_URL` | Optional; enables distributed rate limiting |
-| `STRATUM_API_KEY_HMAC_SECRET` | HMAC secret for API key hashing |
-
-See the [installation guide](https://docs.stratum-hq.org/getting-started/installation/) for the full list.
-
-## Architecture
-
-```
-@stratum-hq/lib (direct)  ←→  @stratum-hq/control-plane (HTTP)
-         │                              │
-         ├── @stratum-hq/db-adapters    ├── @stratum-hq/sdk
-         │   (pg, Prisma, Sequelize,    │   (client, middleware)
-         │    Drizzle)                  │
-         │                              ├── @stratum-hq/nestjs
-         ├── @stratum-hq/mongodb        │   (guard, decorator, DI)
-         │   (shared, collection,       │
-         │    database isolation)       ├── @stratum-hq/hono
-         │                              │   (middleware, ALS context)
-         ├── @stratum-hq/mysql          │
-         │   (shared, table, database   ├── @stratum-hq/react
-         │    isolation + ORM helpers)  │   (UI components)
-         │                              │
-         ├── PostgreSQL 16              │
-         │   (ltree, RLS, AES)         │
-         │                              │
-         ├── MongoDB 6/7               │
-         │                              │
-         └── MySQL 8                   │
-                                        └── @stratum-hq/cli
-                                            (init, doctor, migrate)
-```
-
-## Roadmap
-
-Stratum 1.x is on npm. Near-term focus:
-
-- **5-minute demo**: recorded walkthrough: scaffold → tenant hierarchy → locked config inheritance → GDPR purge
-- **Live showcase**: a hosted white-label MSP portal built entirely on Stratum
-- **Starter template**: Next.js SaaS starter with Stratum pre-wired
-- **`@stratum-hq/control-plane` docs**: dedicated package page and deployment guide
-
-Have a use case we should prioritize? [Open an issue](https://github.com/stratum-hq/Stratum/issues).
+Please don't report vulnerabilities in public issues. [SECURITY.md](SECURITY.md) has the private reporting address and what to expect.
 
 ## License
 

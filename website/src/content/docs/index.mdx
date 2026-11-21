@@ -67,7 +67,15 @@ const config = await stratum.resolveConfig(msp.id);
 - **Permission delegation.** Three delegation modes: **LOCKED** (immutable), **INHERITED** (overridable), and **DELEGATED** (re-delegatable). Revocation controls blast radius with CASCADE, SOFT, or PERMANENT semantics.
 - **Three isolation strategies.** Choose per-tenant: **Shared RLS** (row-level security), **Schema-per-Tenant** (logical separation), or **Database-per-Tenant** (maximum isolation). Mix strategies within the same hierarchy.
 - **Two integration paths.** Embed `@stratum-hq/lib` directly for zero-HTTP-overhead performance, or run the control plane as a service and use `@stratum-hq/sdk` with Express/Fastify middleware.
+- **ABAC policies.** Attribute-based rules with nine condition operators, inherited down the tree, where deny overrides allow.
+- **MongoDB and MySQL isolation.** Shared collection or table, collection or table per tenant, and database per tenant, with a Mongoose plugin and TypeORM, Knex, and Sequelize helpers. Stratum's own tables stay in PostgreSQL.
 - **Built-in compliance.** GDPR data export (Article 20), hard-purge (Article 17), consent tracking with purpose and expiration, audit logging with before/after state, and multi-region data residency.
+- **Webhooks.** Lifecycle events with HMAC signatures, retries, and a dead letter queue.
+- **API keys and roles.** Scoped keys (`read`, `write`, `admin`), hashed with HMAC-SHA256 when `STRATUM_API_KEY_HMAC_SECRET` is set, and roles that replace a key's scopes.
+- **Config diff.** `diffConfig(tenantA, tenantB)` compares two tenants' resolved config key by key and marks each value as the tenant's own, inherited, or locked.
+- **Tenant impersonation.** The SDK's Express and Fastify middleware and the NestJS guard accept an `X-Impersonate-Tenant` header, check it with your `authorize` callback, and resolve the target tenant's full context for admin tooling.
+- **Tracing and rate limits.** The library and the control plane emit OpenTelemetry spans through `@opentelemetry/api` once you register an OpenTelemetry SDK. The control plane's per-key rate limits move to Redis when `REDIS_URL` is set and fall back to memory while Redis is down.
+- **React admin components.** A tenant tree, config and permission editors, dark mode, and i18n.
 
 ## Packages
 

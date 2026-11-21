@@ -85,9 +85,10 @@ Every one of these is a real line in this repository, and each is covered by a f
 
 ## The demo bootstrap key
 
-`docker compose --profile demo up --build` is the headline command in the README. It seeds
-an `api_keys` row with `tenant_id NULL` and scopes `{read,write,admin}`, a global admin
-grant. That key used to be a committed constant, allowlisted rather than flagged.
+`docker compose --profile demo up --build` starts the demo stack (the README's "Running the
+demo" section). It seeds an `api_keys` row with `tenant_id NULL` and scopes
+`{read,write,admin}`, a global admin grant. That key used to be a committed constant,
+allowlisted rather than flagged.
 
 **It is no longer committed.** The seed now mints a random key at seed time, prints it once
 to stdout, and hands it to the web container out of band (a shared volume the compose file
